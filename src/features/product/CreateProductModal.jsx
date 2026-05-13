@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
+import { api } from '../../shared/services/api.js';
 import './CreateProduct.css';
 
-const CreateProduct = ({ onProductCreated, onCancel }) => {
+export default function CreateProductModal({ onProductCreated, onCancel }) {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -21,32 +22,31 @@ const CreateProduct = ({ onProductCreated, onCancel }) => {
   const [categories, setCategories] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
 
-  // Fetch brands and categories from API
   useEffect(() => {
     const fetchData = async () => {
       try {
         setDataLoading(true);
-        
-        // Fetch brands
-        const brandsResponse = await fetch('http://localhost:3000/api/products/brands', { credentials: 'include' });
-        if (brandsResponse.ok) {
-          const brandsData = await brandsResponse.json();
-          setBrands(Array.isArray(brandsData) ? brandsData : brandsData.data || []);
+
+        const [brandsData, categoriesData] = await Promise.allSettled([
+          api.product.getBrands(),
+          api.product.getCategories(),
+        ]);
+
+        if (brandsData.status === 'fulfilled') {
+          const d = brandsData.value;
+          setBrands(Array.isArray(d) ? d : d.data || []);
         } else {
           console.warn('Failed to fetch brands');
           setBrands([]);
         }
 
-        // Fetch categories
-        const categoriesResponse = await fetch('http://localhost:3000/api/products/categories', { credentials: 'include' });
-        if (categoriesResponse.ok) {
-          const categoriesData = await categoriesResponse.json();
-          setCategories(Array.isArray(categoriesData) ? categoriesData : categoriesData.data || []);
+        if (categoriesData.status === 'fulfilled') {
+          const d = categoriesData.value;
+          setCategories(Array.isArray(d) ? d : d.data || []);
         } else {
           console.warn('Failed to fetch categories');
           setCategories([]);
         }
-        
       } catch (error) {
         console.error('Error fetching brands/categories:', error);
         setBrands([]);
@@ -55,24 +55,14 @@ const CreateProduct = ({ onProductCreated, onCancel }) => {
         setDataLoading(false);
       }
     };
-    
+
     fetchData();
   }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
   };
 
   const generateSKU = () => {
@@ -81,37 +71,29 @@ const CreateProduct = ({ onProductCreated, onCancel }) => {
         .toUpperCase()
         .replace(/[^A-Z0-9]/g, '_')
         .substring(0, 15) + '_' + Date.now().toString().slice(-4);
-      
-      setFormData(prev => ({
-        ...prev,
-        sku
-      }));
+      setFormData(prev => ({ ...prev, sku }));
     }
   };
 
   const validateForm = () => {
     const newErrors = {};
-
     if (!formData.name.trim()) newErrors.name = 'Tên sản phẩm không được để trống';
     if (!formData.description.trim()) newErrors.description = 'Mô tả không được để trống';
     if (!formData.price || formData.price <= 0) newErrors.price = 'Giá phải lớn hơn 0';
     if (!formData.sku.trim()) newErrors.sku = 'SKU không được để trống';
     if (!formData.categoryId) newErrors.categoryId = 'Vui lòng chọn danh mục';
     if (!formData.stockQuantity || formData.stockQuantity < 0) newErrors.stockQuantity = 'Số lượng tồn kho không hợp lệ';
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     if (!validateForm()) return;
 
     setLoading(true);
 
     try {
-      // Prepare data for API
       const productData = {
         ...formData,
         price: parseInt(formData.price),
@@ -119,7 +101,6 @@ const CreateProduct = ({ onProductCreated, onCancel }) => {
         brandId: formData.brandId ? parseInt(formData.brandId) : null,
         categoryId: parseInt(formData.categoryId),
         userId: 1, // TODO: Get from authentication context
-        // Social metrics default to 0
         likesCount: 0,
         commentsCount: 0,
         sharesCount: 0,
@@ -127,10 +108,9 @@ const CreateProduct = ({ onProductCreated, onCancel }) => {
         isFeatured: false,
         isTrending: false,
         rating: 0,
-        ratingCount: 0
+        ratingCount: 0,
       };
 
-      // Remove empty fields
       Object.keys(productData).forEach(key => {
         if (productData[key] === '' || productData[key] === null) {
           delete productData[key];
@@ -139,27 +119,13 @@ const CreateProduct = ({ onProductCreated, onCancel }) => {
 
       console.log('📦 Creating product:', productData);
 
-      const response = await fetch('http://localhost:3000/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(productData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Lỗi tạo sản phẩm');
-      }
-
-      const result = await response.json();
+      const result = await api.product.create(productData);
       console.log('✅ Product created:', result);
 
-      // Callback to parent component
       if (onProductCreated) {
         onProductCreated(result.data);
       }
 
-      // Reset form
       setFormData({
         name: '',
         description: '',
@@ -172,7 +138,6 @@ const CreateProduct = ({ onProductCreated, onCancel }) => {
         sellerNotes: '',
         condition: 'new'
       });
-
     } catch (error) {
       console.error('❌ Error creating product:', error);
       setErrors({ submit: error.message });
@@ -191,7 +156,6 @@ const CreateProduct = ({ onProductCreated, onCancel }) => {
 
         <form onSubmit={handleSubmit} className="create-product-form">
           <div className="form-grid">
-            {/* Tên sản phẩm */}
             <div className="form-group full-width">
               <label htmlFor="name">Tên sản phẩm *</label>
               <input
@@ -206,7 +170,6 @@ const CreateProduct = ({ onProductCreated, onCancel }) => {
               {errors.name && <span className="error-text">{errors.name}</span>}
             </div>
 
-            {/* Mô tả */}
             <div className="form-group full-width">
               <label htmlFor="description">Mô tả sản phẩm *</label>
               <textarea
@@ -221,7 +184,6 @@ const CreateProduct = ({ onProductCreated, onCancel }) => {
               {errors.description && <span className="error-text">{errors.description}</span>}
             </div>
 
-            {/* Giá và Số lượng */}
             <div className="form-group">
               <label htmlFor="price">Giá (VND) *</label>
               <input
@@ -252,7 +214,6 @@ const CreateProduct = ({ onProductCreated, onCancel }) => {
               {errors.stockQuantity && <span className="error-text">{errors.stockQuantity}</span>}
             </div>
 
-            {/* SKU */}
             <div className="form-group full-width">
               <label htmlFor="sku">SKU (Mã sản phẩm) *</label>
               <div className="sku-input-group">
@@ -272,7 +233,6 @@ const CreateProduct = ({ onProductCreated, onCancel }) => {
               {errors.sku && <span className="error-text">{errors.sku}</span>}
             </div>
 
-            {/* Brand và Category */}
             <div className="form-group">
               <label htmlFor="brandId">Thương hiệu</label>
               <select
@@ -286,7 +246,6 @@ const CreateProduct = ({ onProductCreated, onCancel }) => {
                   {dataLoading ? '🔄 Đang tải...' : '-- Chọn thương hiệu --'}
                 </option>
                 {brands.map(brand => {
-                  // Add icons for popular brands
                   const getBrandIcon = (brandName) => {
                     const name = brandName.toLowerCase();
                     if (name.includes('apple')) return '🍎';
@@ -299,7 +258,6 @@ const CreateProduct = ({ onProductCreated, onCancel }) => {
                     if (name.includes('hp')) return '🖨️';
                     return '🏷️';
                   };
-                  
                   return (
                     <option key={brand.id} value={brand.id}>
                       {getBrandIcon(brand.name)} {brand.name}
@@ -329,7 +287,6 @@ const CreateProduct = ({ onProductCreated, onCancel }) => {
               {errors.categoryId && <span className="error-text">{errors.categoryId}</span>}
             </div>
 
-            {/* Condition */}
             <div className="form-group">
               <label htmlFor="condition">Tình trạng sản phẩm</label>
               <select
@@ -344,20 +301,18 @@ const CreateProduct = ({ onProductCreated, onCancel }) => {
               </select>
             </div>
 
-            {/* Image URL */}
             <div className="form-group">
               <label htmlFor="imageUrl">URL hình ảnh</label>
               <input
                 type="url"
                 id="imageUrl"
                 name="imageUrl"
-                value="https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?auto=format&fit=crop&q=80&w=600"//{formData.imageUrl}
+                value="https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?auto=format&fit=crop&q=80&w=600"
                 onChange={handleChange}
                 placeholder="https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?auto=format&fit=crop&q=80&w=600"
               />
             </div>
 
-            {/* Seller Notes */}
             <div className="form-group full-width">
               <label htmlFor="sellerNotes">Ghi chú của người bán</label>
               <textarea
@@ -371,14 +326,10 @@ const CreateProduct = ({ onProductCreated, onCancel }) => {
             </div>
           </div>
 
-          {/* Error message */}
           {errors.submit && (
-            <div className="error-alert">
-              ❌ {errors.submit}
-            </div>
+            <div className="error-alert">❌ {errors.submit}</div>
           )}
 
-          {/* Action buttons */}
           <div className="form-actions">
             <button type="button" onClick={onCancel} className="cancel-btn">
               Hủy bỏ
@@ -398,6 +349,4 @@ const CreateProduct = ({ onProductCreated, onCancel }) => {
       </div>
     </div>
   );
-};
-
-export default CreateProduct;
+}

@@ -1,72 +1,8 @@
-import { useState } from 'react';
+import { useLogin } from './useLogin.js';
 import './Login.css';
 
-const API_BASE = 'http://localhost:3000/api';
-
-export default function Login({ onLoginSuccess }) {
-  const [form, setForm] = useState({ username: '', password: '' });
-  const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [apiError, setApiError] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-
-  function validate() {
-    const errs = {};
-    if (!form.username.trim()) errs.username = 'Vui lòng nhập tên đăng nhập';
-    if (!form.password) errs.password = 'Vui lòng nhập mật khẩu';
-    return errs;
-  }
-
-  function handleChange(e) {
-    const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
-    if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
-    if (apiError) setApiError('');
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    const errs = validate();
-    if (Object.keys(errs).length > 0) {
-      setErrors(errs);
-      return;
-    }
-
-    setLoading(true);
-    setApiError('');
-
-    try {
-      const res = await fetch(`${API_BASE}/user/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ username: form.username, password: form.password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        const msg = data?.message || 'Đăng nhập thất bại. Vui lòng thử lại.';
-        setApiError(Array.isArray(msg) ? msg.join(', ') : msg);
-        return;
-      }
-
-      // Cookie is set by the server (HttpOnly). Store only non-sensitive user
-      // info in localStorage for UI state — the cookie is the real credential.
-      const user = data.data ?? data;
-      localStorage.setItem('user', JSON.stringify({
-        id: user.id,
-        username: user.username,
-        email: user.email,
-      }));
-
-      onLoginSuccess(user);
-    } catch {
-      setApiError('Không thể kết nối đến máy chủ. Vui lòng thử lại.');
-    } finally {
-      setLoading(false);
-    }
-  }
+export default function LoginPage({ onLoginSuccess }) {
+  const { form, errors, loading, apiError, showPassword, handleChange, handleSubmit, togglePassword } = useLogin(onLoginSuccess);
 
   return (
     <div className="login-page">
@@ -123,7 +59,7 @@ export default function Login({ onLoginSuccess }) {
               <button
                 type="button"
                 className="login-eye"
-                onClick={() => setShowPassword(v => !v)}
+                onClick={togglePassword}
                 aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
               >
                 {showPassword ? (
@@ -143,11 +79,7 @@ export default function Login({ onLoginSuccess }) {
             {errors.password && <span className="login-field-error">{errors.password}</span>}
           </div>
 
-          <button
-            type="submit"
-            className="login-btn"
-            disabled={loading}
-          >
+          <button type="submit" className="login-btn" disabled={loading}>
             {loading ? <span className="login-spinner" /> : 'Đăng nhập'}
           </button>
         </form>
