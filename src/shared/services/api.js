@@ -27,6 +27,21 @@ export const api = {
       return data;
     },
 
+    async register(username, email, password) {
+      const res = await fetch(`${API_BASE}/user/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ username, email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = data?.message || 'Đăng ký thất bại. Vui lòng thử lại.';
+        throw new Error(Array.isArray(msg) ? msg.join(', ') : msg);
+      }
+      return data;
+    },
+
     async logout() {
       await apiFetch(`${API_BASE}/user/logout`, { method: 'POST' });
     },
@@ -72,6 +87,43 @@ export const api = {
     async getCategories() {
       const response = await apiFetch(`${API_BASE}/products/categories`);
       if (!response.ok) throw new Error('Failed to fetch categories');
+      return response.json();
+    },
+
+    async getWithInventory(id) {
+      const response = await apiFetch(`${API_BASE}/products/${id}/with-inventory`);
+      if (!response.ok) throw new Error('Failed to fetch product with inventory');
+      return response.json();
+    },
+
+    async getMultipleWithInventory(productIds) {
+      const response = await apiFetch(`${API_BASE}/products/with-inventory/multiple`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productIds }),
+      });
+      if (!response.ok) throw new Error('Failed to fetch stock info');
+      return response.json();
+    },
+  },
+
+  order: {
+    async create(items) {
+      const response = await apiFetch(`${API_BASE}/order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data?.message || 'Đặt hàng thất bại');
+      }
+      return response.json();
+    },
+
+    async getByUser(userId) {
+      const response = await apiFetch(`${API_BASE}/order/user/${userId}`);
+      if (!response.ok) throw new Error('Failed to fetch orders');
       return response.json();
     },
   },

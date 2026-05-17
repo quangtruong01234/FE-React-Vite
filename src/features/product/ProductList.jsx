@@ -1,6 +1,6 @@
 import './ProductList.css';
 
-export default function ProductList({ products, onSelect, onCreateProduct, currentUser, onLogout }) {
+export default function ProductList({ products, onSelect, onCreateProduct, currentUser, onLogout, cartCount, onOpenCart, onOpenOrderHistory }) {
   return (
     <div className="timeline-container">
       <div className="timeline-header">
@@ -9,12 +9,26 @@ export default function ProductList({ products, onSelect, onCreateProduct, curre
             <h1>🛍️ TrustCircle Market</h1>
             <p>Khám phá và thảo luận các sản phẩm hot nhất</p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             {currentUser && (
               <span style={{ fontSize: '0.85rem', color: '#555' }}>👤 {currentUser.username}</span>
             )}
             <button className="create-product-btn" onClick={onCreateProduct}>
               ➕ Tạo sản phẩm
+            </button>
+            <button
+              className="create-product-btn"
+              onClick={onOpenOrderHistory}
+              style={{ background: '#0ea5e9' }}
+            >
+              📦 Đơn hàng
+            </button>
+            <button
+              className="create-product-btn"
+              onClick={onOpenCart}
+              style={{ background: '#6366f1', position: 'relative' }}
+            >
+              🛒 Giỏ hàng{cartCount > 0 ? ` (${cartCount})` : ''}
             </button>
             <button
               className="create-product-btn"

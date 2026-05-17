@@ -55,6 +55,12 @@ export function useProduct(enabled, onUnauthorized) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  function refetch() {
+    setRefreshKey(k => k + 1);
+  }
+
   useEffect(() => {
     if (!enabled) return;
 
@@ -107,11 +113,11 @@ export function useProduct(enabled, onUnauthorized) {
 
     fetchProducts();
     return () => { mounted = false; };
-  }, [enabled]);
+  }, [enabled, refreshKey]);
 
   function addProduct(newProduct) {
     setProducts(prev => [enrichProductForUI(newProduct), ...prev]);
   }
 
-  return { products, loading, error, addProduct };
+  return { products, loading, error, addProduct, refetch };
 }
