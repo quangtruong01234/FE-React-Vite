@@ -1,16 +1,30 @@
-import { useState } from 'react';
-import { useLogin } from './useLogin.js';
-import { api } from '../../shared/services/api.js';
+import { useState, type ReactElement, type ChangeEvent, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useLogin } from './useLogin';
+import { api } from '@/api';
+import { useAuthContext } from '@/context/AuthContext';
+import type { User } from '@/types';
 import './Login.css';
 
-function RegisterForm({ onBack, onRegisterSuccess }) {
-  const [form, setForm] = useState({ username: '', email: '', password: '' });
-  const [errors, setErrors] = useState({});
+interface RegisterFormProps {
+  onBack: () => void;
+  onRegisterSuccess: (user: User) => void;
+}
+
+interface RegisterFormState {
+  username: string;
+  email: string;
+  password: string;
+}
+
+function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactElement {
+  const [form, setForm] = useState<RegisterFormState>({ username: '', email: '', password: '' });
+  const [errors, setErrors] = useState<Partial<RegisterFormState>>({});
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState('');
 
-  function validate() {
-    const errs = {};
+  function validate(): Partial<RegisterFormState> {
+    const errs: Partial<RegisterFormState> = {};
     if (!form.username.trim()) errs.username = 'Vui lòng nhập tên đăng nhập';
     if (!form.email.trim()) errs.email = 'Vui lòng nhập email';
     else if (!/\S+@\S+\.\S+/.test(form.email)) errs.email = 'Email không hợp lệ';
@@ -19,26 +33,29 @@ function RegisterForm({ onBack, onRegisterSuccess }) {
     return errs;
   }
 
-  function handleChange(e) {
+  function handleChange(e: ChangeEvent<HTMLInputElement>): void {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
-    if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
+    setForm((prev) => ({ ...prev, [name]: value }));
+    if (errors[name as keyof RegisterFormState]) setErrors((prev) => ({ ...prev, [name]: '' }));
     if (apiError) setApiError('');
   }
 
-  async function handleSubmit(e) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
     setLoading(true);
     try {
-      await api.auth.register(form.username, form.email, form.password);
-      const loginData = await api.auth.login(form.username, form.password);
-      const user = loginData.data ?? loginData;
+      await api.auth.register({ username: form.username, email: form.email, password: form.password });
+      const data = await api.auth.login({ username: form.username, password: form.password });
+      const user = (data as { data?: User } & User).data ?? data;
       localStorage.setItem('user', JSON.stringify({ id: user.id, username: user.username, email: user.email }));
       onRegisterSuccess(user);
     } catch (err) {
-      setApiError(err.message || 'Đăng ký thất bại. Vui lòng thử lại.');
+      const msg = err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: unknown }).message)
+        : 'Đăng ký thất bại. Vui lòng thử lại.';
+      setApiError(msg);
     } finally {
       setLoading(false);
     }
@@ -57,9 +74,7 @@ function RegisterForm({ onBack, onRegisterSuccess }) {
         </div>
         <h1 className="login-title">TryBuy</h1>
         <p className="login-subtitle">Tạo tài khoản để bắt đầu mua sắm</p>
-
         {apiError && <div className="login-api-error">{apiError}</div>}
-
         <form className="login-form" onSubmit={handleSubmit} noValidate>
           <div className="login-field">
             <label className="login-label" htmlFor="reg-username">Tên đăng nhập</label>
@@ -68,7 +83,6 @@ function RegisterForm({ onBack, onRegisterSuccess }) {
               placeholder="Nhập tên đăng nhập" value={form.username} onChange={handleChange} autoFocus />
             {errors.username && <span className="login-field-error">{errors.username}</span>}
           </div>
-
           <div className="login-field">
             <label className="login-label" htmlFor="reg-email">Email</label>
             <input id="reg-email" name="email" type="email"
@@ -76,7 +90,6 @@ function RegisterForm({ onBack, onRegisterSuccess }) {
               placeholder="Nhập địa chỉ email" value={form.email} onChange={handleChange} />
             {errors.email && <span className="login-field-error">{errors.email}</span>}
           </div>
-
           <div className="login-field">
             <label className="login-label" htmlFor="reg-password">Mật khẩu</label>
             <input id="reg-password" name="password" type="password"
@@ -84,12 +97,10 @@ function RegisterForm({ onBack, onRegisterSuccess }) {
               placeholder="Tối thiểu 6 ký tự" value={form.password} onChange={handleChange} />
             {errors.password && <span className="login-field-error">{errors.password}</span>}
           </div>
-
           <button type="submit" className="login-btn" disabled={loading}>
             {loading ? <span className="login-spinner" /> : 'Đăng ký'}
           </button>
         </form>
-
         <p className="login-register">
           Đã có tài khoản?{' '}
           <button type="button" className="login-register-link" onClick={onBack}>Đăng nhập</button>
@@ -99,12 +110,20 @@ function RegisterForm({ onBack, onRegisterSuccess }) {
   );
 }
 
-export default function LoginPage({ onLoginSuccess }) {
+export default function LoginPage(): ReactElement {
   const [showRegister, setShowRegister] = useState(false);
-  const { form, errors, loading, apiError, showPassword, handleChange, handleSubmit, togglePassword } = useLogin(onLoginSuccess);
+  const { loginSuccess } = useAuthContext();
+  const navigate = useNavigate();
+
+  function handleAuthSuccess(user: User): void {
+    loginSuccess(user);
+    void navigate('/');
+  }
+
+  const { form, errors, loading, apiError, showPassword, handleChange, handleSubmit, togglePassword } = useLogin(handleAuthSuccess);
 
   if (showRegister) {
-    return <RegisterForm onBack={() => setShowRegister(false)} onRegisterSuccess={onLoginSuccess} />;
+    return <RegisterForm onBack={() => setShowRegister(false)} onRegisterSuccess={handleAuthSuccess} />;
   }
 
   return (
@@ -118,42 +137,31 @@ export default function LoginPage({ onLoginSuccess }) {
             <path d="M3 5h3l1 3" stroke="white" strokeWidth="2" strokeLinecap="round"/>
           </svg>
         </div>
-
         <h1 className="login-title">TryBuy</h1>
         <p className="login-subtitle">Đăng nhập để khám phá hàng ngàn sản phẩm</p>
-
-        {apiError && (
-          <div className="login-api-error">{apiError}</div>
-        )}
-
+        {apiError && <div className="login-api-error">{apiError}</div>}
         <form className="login-form" onSubmit={handleSubmit} noValidate>
           <div className="login-field">
             <label className="login-label" htmlFor="username">Tên đăng nhập</label>
-            <input
-              id="username" name="username" type="text"
+            <input id="username" name="username" type="text"
               className={`login-input${errors.username ? ' login-input--error' : ''}`}
-              placeholder="Nhập tên đăng nhập"
-              value={form.username} onChange={handleChange}
-              autoComplete="username" autoFocus
-            />
+              placeholder="Nhập tên đăng nhập" value={form.username} onChange={handleChange}
+              autoComplete="username" autoFocus />
             {errors.username && <span className="login-field-error">{errors.username}</span>}
           </div>
-
           <div className="login-field">
             <div className="login-label-row">
               <label className="login-label" htmlFor="password">Mật khẩu</label>
               <button type="button" className="login-forgot">Quên mật khẩu?</button>
             </div>
             <div className="login-password-wrap">
-              <input
-                id="password" name="password"
+              <input id="password" name="password"
                 type={showPassword ? 'text' : 'password'}
                 className={`login-input login-input--password${errors.password ? ' login-input--error' : ''}`}
-                placeholder="Nhập mật khẩu"
-                value={form.password} onChange={handleChange}
-                autoComplete="current-password"
-              />
-              <button type="button" className="login-eye" onClick={togglePassword} aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}>
+                placeholder="Nhập mật khẩu" value={form.password} onChange={handleChange}
+                autoComplete="current-password" />
+              <button type="button" className="login-eye" onClick={togglePassword}
+                aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}>
                 {showPassword ? (
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
@@ -170,12 +178,10 @@ export default function LoginPage({ onLoginSuccess }) {
             </div>
             {errors.password && <span className="login-field-error">{errors.password}</span>}
           </div>
-
           <button type="submit" className="login-btn" disabled={loading}>
             {loading ? <span className="login-spinner" /> : 'Đăng nhập'}
           </button>
         </form>
-
         <p className="login-register">
           Chưa có tài khoản?{' '}
           <button type="button" className="login-register-link" onClick={() => setShowRegister(true)}>Đăng ký</button>

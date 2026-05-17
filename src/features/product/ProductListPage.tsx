@@ -1,6 +1,40 @@
+import { useState, type ReactElement } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useProduct } from './useProduct';
+import { useAuthContext } from '@/context/AuthContext';
+import { useCart } from '@/context/CartContext';
+import CreateProductModal from './CreateProductModal';
 import './ProductList.css';
 
-export default function ProductList({ products, onSelect, onCreateProduct, currentUser, onLogout, cartCount, onOpenCart, onOpenOrderHistory }) {
+export default function ProductListPage(): ReactElement {
+  const navigate = useNavigate();
+  const { currentUser, logout } = useAuthContext();
+  const { totalCount, openCart } = useCart();
+  const { products, loading, error, refetch } = useProduct();
+  const [showCreateProduct, setShowCreateProduct] = useState(false);
+
+  if (loading && products.length === 0) {
+    return (
+      <div className="app">
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+          <p>Đang tải sản phẩm...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="app">
+        <div className="error-container">
+          <p>{error}</p>
+          <button onClick={() => window.location.reload()} className="retry-button">Thử lại</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="timeline-container">
       <div className="timeline-header">
@@ -13,28 +47,16 @@ export default function ProductList({ products, onSelect, onCreateProduct, curre
             {currentUser && (
               <span style={{ fontSize: '0.85rem', color: '#555' }}>👤 {currentUser.username}</span>
             )}
-            <button className="create-product-btn" onClick={onCreateProduct}>
+            <button className="create-product-btn" onClick={() => setShowCreateProduct(true)}>
               ➕ Tạo sản phẩm
             </button>
-            <button
-              className="create-product-btn"
-              onClick={onOpenOrderHistory}
-              style={{ background: '#0ea5e9' }}
-            >
+            <button className="create-product-btn" onClick={() => void navigate('/orders')} style={{ background: '#0ea5e9' }}>
               📦 Đơn hàng
             </button>
-            <button
-              className="create-product-btn"
-              onClick={onOpenCart}
-              style={{ background: '#6366f1', position: 'relative' }}
-            >
-              🛒 Giỏ hàng{cartCount > 0 ? ` (${cartCount})` : ''}
+            <button className="create-product-btn" onClick={openCart} style={{ background: '#6366f1' }}>
+              🛒 Giỏ hàng{totalCount > 0 ? ` (${totalCount})` : ''}
             </button>
-            <button
-              className="create-product-btn"
-              onClick={onLogout}
-              style={{ background: '#6b7280' }}
-            >
+            <button className="create-product-btn" onClick={() => void logout()} style={{ background: '#6b7280' }}>
               Đăng xuất
             </button>
           </div>
@@ -52,32 +74,24 @@ export default function ProductList({ products, onSelect, onCreateProduct, curre
               </div>
               <div className="post-options">⋯</div>
             </div>
-
             <div className="post-content">
               <p>{product.description}</p>
               {product.sellerNotes && (
-                <div className="seller-notes">
-                  <small>📝 {product.sellerNotes}</small>
-                </div>
+                <div className="seller-notes"><small>📝 {product.sellerNotes}</small></div>
               )}
             </div>
-
-            <div className="post-media" onClick={() => onSelect(product)}>
+            <div className="post-media" onClick={() => void navigate(`/product/${product.id}`)}>
               <img
-                src={product.imageUrl || 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&q=80&w=600'}
+                src={product.imageUrl ?? 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&q=80&w=600'}
                 alt={product.name}
                 className="post-image"
-                onError={(e) => {
-                  e.target.src = 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&q=80&w=600';
-                }}
+                onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&q=80&w=600'; }}
               />
               <div className="product-overlay">
                 <h3>{product.name}</h3>
-                <p className="product-price">{product.price}</p>
+                <p className="product-price">{product.formattedPrice}</p>
                 <div className="product-meta">
-                  {product.rating > 0 && (
-                    <span className="rating">⭐ {product.rating} ({product.ratingCount})</span>
-                  )}
+                  {product.rating > 0 && <span className="rating">⭐ {product.rating} ({product.ratingCount})</span>}
                   <span className="condition">{product.condition === 'new' ? '🆕 Mới' : product.condition}</span>
                   {product.isFeatured && <span className="featured">🔥 Nổi bật</span>}
                   {product.isTrending && <span className="trending">📈 Trending</span>}
@@ -89,7 +103,6 @@ export default function ProductList({ products, onSelect, onCreateProduct, curre
                 </div>
               </div>
             </div>
-
             <div className="post-actions">
               <div className="action-stats">
                 <span>👍 {product.likes}</span>
@@ -98,15 +111,20 @@ export default function ProductList({ products, onSelect, onCreateProduct, curre
               </div>
               <div className="action-buttons">
                 <button className="action-btn like-btn">👍 Thích</button>
-                <button className="action-btn comment-btn" onClick={() => onSelect(product)}>
-                  💬 Bình luận
-                </button>
+                <button className="action-btn comment-btn" onClick={() => void navigate(`/product/${product.id}`)}>💬 Bình luận</button>
                 <button className="action-btn share-btn">📤 Chia sẻ</button>
               </div>
             </div>
           </div>
         ))}
       </div>
+
+      {showCreateProduct && (
+        <CreateProductModal
+          onProductCreated={() => { refetch(); setShowCreateProduct(false); }}
+          onCancel={() => setShowCreateProduct(false)}
+        />
+      )}
     </div>
   );
 }

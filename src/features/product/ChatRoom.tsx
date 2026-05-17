@@ -1,57 +1,51 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactElement } from 'react';
 import './ChatRoom.css';
+import type { EnrichedProduct } from './useProduct';
 
-const MOCK_HISTORY = [
+interface Message {
+  id: number;
+  sender: string;
+  text: string;
+  isMe: boolean;
+}
+
+const MOCK_HISTORY: Message[] = [
   { id: 1, sender: 'Tuan Anh', text: 'Con này pin trâu không mọi người?', isMe: false },
   { id: 2, sender: 'Minh Hieu', text: 'Cũng ổn bác ơi, em dùng được hơn 1 ngày.', isMe: false },
   { id: 3, sender: 'Shop Official', text: 'Sản phẩm bên em cam kết chính hãng ạ!', isMe: false },
 ];
 
-export default function ChatRoom({ product, onBack }) {
-  const [messages, setMessages] = useState(MOCK_HISTORY);
-  const [inputStr, setInputStr] = useState('');
-  const messagesEndRef = useRef(null);
+interface ChatRoomProps {
+  product: EnrichedProduct;
+  onBack: () => void;
+}
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+export default function ChatRoom({ product, onBack }: ChatRoomProps): ReactElement {
+  const [messages, setMessages] = useState<Message[]>(MOCK_HISTORY);
+  const [inputStr, setInputStr] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = () => {
+  function handleSend(): void {
     if (inputStr.trim() === '') return;
-
-    const newMsg = {
-      id: Date.now(),
-      sender: 'Tôi',
-      text: inputStr,
-      isMe: true,
-    };
-    setMessages((prev) => [...prev, newMsg]);
+    setMessages((prev) => [...prev, { id: Date.now(), sender: 'Tôi', text: inputStr, isMe: true }]);
     setInputStr('');
-
     setTimeout(() => {
-      const replyMsg = {
-        id: Date.now() + 1,
-        sender: 'User_Random',
-        text: 'Chuẩn đấy bác, giá này ngon rồi.',
-        isMe: false,
-      };
-      setMessages((prev) => [...prev, replyMsg]);
+      setMessages((prev) => [...prev, { id: Date.now() + 1, sender: 'User_Random', text: 'Chuẩn đấy bác, giá này ngon rồi.', isMe: false }]);
     }, 1500);
-  };
+  }
 
   return (
     <div className="chat-page">
       <div className="chat-container compact">
-
         <div className="chat-header">
           <div className="product-mini-info">
             <button className="btn-back" onClick={onBack}>←</button>
             <img
-              src={product.imageUrl || 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&q=80&w=600'}
+              src={product.imageUrl ?? 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&q=80&w=600'}
               alt="product"
               className="product-thumb"
             />
@@ -64,7 +58,6 @@ export default function ChatRoom({ product, onBack }) {
             </div>
           </div>
         </div>
-
         <div className="chat-messages">
           {messages.map((msg) => (
             <div key={msg.id} className={`message ${msg.isMe ? 'me' : 'other'}`}>
@@ -74,7 +67,6 @@ export default function ChatRoom({ product, onBack }) {
           ))}
           <div ref={messagesEndRef} />
         </div>
-
         <div className="chat-input-area">
           <input
             type="text"
@@ -86,7 +78,6 @@ export default function ChatRoom({ product, onBack }) {
           />
           <button className="btn-send" onClick={handleSend}>➤</button>
         </div>
-
       </div>
     </div>
   );
