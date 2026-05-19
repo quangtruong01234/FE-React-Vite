@@ -1,10 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
-import { useAuthContext } from '@/context/AuthContext';
+import { formatPrice } from '@/lib/utils';
 import type { ProductWithInventory } from '@/types';
-
-const formatPrice = (price: number): string =>
-  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
 
 const getRelativeTime = (dateString?: string): string => {
   if (!dateString) return 'Vừa xong';
@@ -57,58 +54,36 @@ interface UseProductReturn {
 }
 
 export function useProduct(): UseProductReturn {
-  const { handleUnauthorized } = useAuthContext();
-  const [products, setProducts] = useState<EnrichedProduct[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const queryClient = useQueryClient();
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['products'],
+    queryFn: async () => {
+      const response = await api.products.getList({ limit: 10, sortBy: 'updatedAt', sortOrder: 'DESC' });
+      let raw: unknown[] = [];
+      if (Array.isArray(response)) {
+        raw = response as unknown[];
+      } else if (typeof response === 'object' && response !== null) {
+        const r = response as Record<string, unknown>;
+        if (Array.isArray(r['items'])) raw = r['items'] as unknown[];
+        else if (typeof r['data'] === 'object' && r['data'] !== null && Array.isArray((r['data'] as Record<string, unknown>)['items']))
+          raw = (r['data'] as Record<string, unknown>)['items'] as unknown[];
+        else if (Array.isArray(r['data'])) raw = r['data'] as unknown[];
+        else if (Array.isArray(r['products'])) raw = r['products'] as unknown[];
+      }
+      return (raw as ProductWithInventory[]).map(enrichProductForUI);
+    },
+  });
 
   function refetch(): void {
-    setRefreshKey((k) => k + 1);
+    void queryClient.invalidateQueries({ queryKey: ['products'] });
   }
 
-  useEffect(() => {
-    let mounted = true;
+  const errorMsg = error
+    ? (typeof error === 'object' && 'message' in error
+        ? String((error as { message: unknown }).message)
+        : 'Không thể tải danh sách sản phẩm. Vui lòng thử lại sau.')
+    : null;
 
-    async function fetchProducts(): Promise<void> {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await api.products.getList({ limit: 10, sortBy: 'updatedAt', sortOrder: 'DESC' });
-        if (!mounted) return;
-
-        let raw: unknown[] = [];
-        if (Array.isArray(response)) {
-          raw = response as unknown[];
-        } else if (typeof response === 'object' && response !== null) {
-          const r = response as Record<string, unknown>;
-          if (Array.isArray(r['items'])) raw = r['items'] as unknown[];
-          else if (typeof r['data'] === 'object' && r['data'] !== null && Array.isArray((r['data'] as Record<string, unknown>)['items']))
-            raw = (r['data'] as Record<string, unknown>)['items'] as unknown[];
-          else if (Array.isArray(r['data'])) raw = r['data'] as unknown[];
-          else if (Array.isArray(r['products'])) raw = r['products'] as unknown[];
-        }
-
-        if (!mounted) return;
-        setProducts((raw as ProductWithInventory[]).map(enrichProductForUI));
-      } catch (e: unknown) {
-        if (!mounted) return;
-        if (typeof e === 'object' && e !== null && 'status' in e && (e as { status: unknown }).status === 401) {
-          handleUnauthorized();
-          return;
-        }
-        const msg = typeof e === 'object' && e !== null && 'message' in e
-          ? String((e as { message: unknown }).message)
-          : 'Không thể tải danh sách sản phẩm. Vui lòng thử lại sau.';
-        setError(msg);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    }
-
-    void fetchProducts();
-    return () => { mounted = false; };
-  }, [refreshKey, handleUnauthorized]);
-
-  return { products, loading, error, refetch };
+  return { products: data ?? [], loading: isLoading, error: errorMsg, refetch };
 }

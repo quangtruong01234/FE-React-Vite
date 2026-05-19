@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
 import type { User } from '@/types';
 
@@ -8,7 +9,7 @@ interface AuthState {
   currentUser: User | null;
   loginSuccess: (user: User) => void;
   handleUnauthorized: () => void;
-  logout: () => Promise<void>;
+  logout: () => void;
 }
 
 function loadUser(): User | null {
@@ -22,6 +23,16 @@ function loadUser(): User | null {
 
 export function useAuth(): AuthState {
   const [currentUser, setCurrentUser] = useState<User | null>(loadUser);
+  const queryClient = useQueryClient();
+
+  const { mutate: logoutMutate } = useMutation({
+    mutationFn: () => api.auth.logout(),
+    onSettled: () => {
+      localStorage.removeItem('user');
+      setCurrentUser(null);
+      void queryClient.invalidateQueries({ queryKey: ['auth'] });
+    },
+  });
 
   function loginSuccess(user: User): void {
     const safe: User = { id: user.id, username: user.username, email: user.email };
@@ -34,15 +45,8 @@ export function useAuth(): AuthState {
     setCurrentUser(null);
   }
 
-  async function logout(): Promise<void> {
-    try {
-      await api.auth.logout();
-    } catch {
-      // always clear client state even if server request fails
-    } finally {
-      localStorage.removeItem('user');
-      setCurrentUser(null);
-    }
+  function logout(): void {
+    logoutMutate();
   }
 
   return { currentUser, loginSuccess, handleUnauthorized, logout };

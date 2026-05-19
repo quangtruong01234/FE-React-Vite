@@ -1,14 +1,28 @@
-import { useState, useEffect, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Package, ChevronDown, Search } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
 import { useAuthContext } from '@/context/AuthContext';
 import type { Order } from '@/types';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn, formatPrice } from '@/lib/utils';
 
 const STATUS_LABEL: Record<string, string> = { pending: 'Chờ xử lý', completed: 'Hoàn thành', canceled: 'Đã hủy' };
-const STATUS_COLOR: Record<string, string> = { pending: '#f59e0b', completed: '#10b981', canceled: '#ef4444' };
+const STATUS_BADGE: Record<string, string> = {
+  pending:   'bg-accent-amber/10 text-accent-amber border-accent-amber/20',
+  completed: 'bg-accent-green/10 text-accent-green border-accent-green/20',
+  canceled:  'bg-accent-red/10 text-accent-red border-accent-red/20',
+};
 
-const formatPrice = (val: number): string =>
-  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val ?? 0);
+type OrderFilterKey = 'all' | 'pending' | 'completed' | 'canceled';
+const FILTER_OPTS: { id: OrderFilterKey; label: string }[] = [
+  { id: 'all',       label: 'Tất cả' },
+  { id: 'pending',   label: 'Đang xử lý' },
+  { id: 'completed', label: 'Hoàn thành' },
+  { id: 'canceled',  label: 'Đã hủy' },
+];
 
 const formatDate = (dateStr: string): string => {
   if (!dateStr) return '';
@@ -22,72 +36,194 @@ export default function OrderHistoryPage(): ReactElement {
   const { currentUser } = useAuthContext();
   if (!currentUser) return <></>;
   const userId = currentUser.id;
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<number | null>(null);
 
-  useEffect(() => {
-    async function load(): Promise<void> {
-      try {
-        setLoading(true);
-        const data = await api.orders.getByUser(userId);
-        const list = Array.isArray(data) ? data : ((data as { orders?: Order[] })?.orders ?? []);
-        setOrders(list);
-      } catch (err) {
-        setError(err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'Lỗi tải đơn hàng');
-      } finally {
-        setLoading(false);
-      }
-    }
-    void load();
-  }, [userId]);
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const [filterTab, setFilterTab] = useState<OrderFilterKey>('all');
+  const [search, setSearch] = useState('');
+
+  const { data, isLoading: loading, error } = useQuery({
+    queryKey: ['orders', userId],
+    queryFn: async () => {
+      const res = await api.orders.getByUser(userId);
+      return Array.isArray(res) ? res : ((res as { orders?: Order[] })?.orders ?? []);
+    },
+  });
+
+  const orders = data ?? [];
+  const errorMsg = error
+    ? (typeof error === 'object' && 'message' in error
+        ? String((error as { message: unknown }).message)
+        : 'Lỗi tải đơn hàng')
+    : null;
+
+  const counts: Record<OrderFilterKey, number> = {
+    all:       orders.length,
+    pending:   orders.filter(o => o.status === 'pending').length,
+    completed: orders.filter(o => o.status === 'completed').length,
+    canceled:  orders.filter(o => o.status === 'canceled').length,
+  };
+
+  const filteredOrders = (() => {
+    const byTab = filterTab === 'all' ? orders : orders.filter(o => o.status === filterTab);
+    if (!search.trim()) return byTab;
+    return byTab.filter(o => String(o.id).includes(search.trim()));
+  })();
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-base)' }}>
-      <div style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <button onClick={() => navigate('/')} aria-label="Quay lại" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px 12px', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '14px' }}>
-          ← Quay lại
+    <div className="min-h-screen bg-canvas-base">
+      {/* Nav bar */}
+      <div className="bg-canvas-surface border-b border-bdr px-5 py-3 flex items-center gap-3">
+        <button
+          onClick={() => navigate('/')}
+          aria-label="Quay lại"
+          className="bg-canvas-elevated border border-bdr rounded-lg px-3 py-2 text-ink-pri cursor-pointer text-sm hover:border-accent-amber transition-colors inline-flex items-center gap-1.5">
+          <ArrowLeft size={16} /> Quay lại
         </button>
-        <h1 style={{ color: 'var(--text-primary)', margin: 0, fontSize: '18px', fontWeight: 600 }}>Lịch sử đơn hàng</h1>
       </div>
 
-      <div style={{ maxWidth: '600px', margin: '20px auto', padding: '0 16px' }}>
-        {loading && <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>Đang tải...</div>}
-        {error && <div style={{ background: '#fee2e2', color: '#dc2626', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px' }}>{error}</div>}
-        {!loading && !error && orders.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-secondary)' }}>
-            <div style={{ fontSize: '48px', marginBottom: '12px' }}>📦</div>
-            <p>Bạn chưa có đơn hàng nào</p>
+      <div className="max-w-[900px] mx-auto px-8 pt-8 pb-10">
+        {/* Page title */}
+        <h1 className="font-display font-black text-[36px] leading-[1.05] tracking-[-0.02em] text-white m-0 mb-1">
+          Đơn hàng của tôi
+        </h1>
+        <p className="font-body text-sm text-ink-sec mt-0 mb-7">
+          Theo dõi trạng thái và lịch sử đơn hàng của bạn
+        </p>
+
+        {errorMsg && (
+          <div className="bg-red-950/30 border border-accent-red text-accent-red px-4 py-3 rounded-xl mb-6 text-sm">
+            {errorMsg}
           </div>
         )}
-        {orders.map((order) => (
-          <div key={order.id} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', marginBottom: '12px', overflow: 'hidden' }}>
-            <div onClick={() => setExpanded(expanded === order.id ? null : order.id)}
-              style={{ padding: '16px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '15px', marginBottom: '4px', color: 'var(--text-primary)' }}>Đơn #{order.id}</div>
-                <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{formatDate(order.created_at)}</div>
+
+        {/* Filter tabs + search */}
+        <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+          <div className="flex gap-[10px] overflow-x-auto pb-[2px]">
+            {FILTER_OPTS.map(opt => {
+              const active = opt.id === filterTab;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setFilterTab(opt.id)}
+                  className={cn(
+                    'flex-none px-[18px] py-[10px] rounded-full text-white font-body font-semibold text-[13px] cursor-pointer whitespace-nowrap border',
+                    active ? 'bg-tb-gradient border-transparent' : 'bg-tb-elevated border-tb-border',
+                  )}
+                >
+                  {opt.label} ({counts[opt.id]})
+                </button>
+              );
+            })}
+          </div>
+          <div className="relative w-[280px] shrink-0">
+            <Search size={16} className="absolute left-[14px] top-1/2 -translate-y-1/2 text-tb-muted pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Tìm theo mã đơn…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-tb-elevated border border-tb-border rounded-[10px] py-[10px] pl-[40px] pr-[14px] text-white font-body text-[13px] placeholder:text-tb-muted outline-none focus:border-amber-400/50 transition-colors"
+            />
+          </div>
+        </div>
+
+        {/* Skeleton */}
+        {loading && (
+          <div className="flex flex-col gap-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-canvas-surface border border-bdr rounded-xl p-5 grid grid-cols-[72px_1fr_auto_auto_auto] gap-6 items-center">
+                <Skeleton className="w-[72px] h-[72px] rounded-xl bg-canvas-elevated flex-shrink-0" />
+                <div className="flex flex-col gap-2">
+                  <Skeleton className="h-4 w-24 bg-canvas-elevated rounded" />
+                  <Skeleton className="h-3 w-40 bg-canvas-elevated rounded" />
+                </div>
+                <Skeleton className="h-5 w-20 bg-canvas-elevated rounded-full" />
+                <Skeleton className="h-5 w-28 bg-canvas-elevated rounded" />
+                <Skeleton className="w-9 h-9 bg-canvas-elevated rounded-lg" />
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 600, color: 'var(--accent-cyan)', marginBottom: '4px' }}>{formatPrice(order.total)}</div>
-                <span style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '12px', background: (STATUS_COLOR[order.status] ?? '#6b7280') + '20', color: STATUS_COLOR[order.status] ?? '#6b7280', fontWeight: 500 }}>
-                  {STATUS_LABEL[order.status] ?? order.status}
-                </span>
-              </div>
-            </div>
-            {expanded === order.id && Array.isArray(order.items) && order.items.length > 0 && (
-              <div style={{ borderTop: '1px solid var(--border)', padding: '12px 16px' }}>
-                {order.items.map((item) => (
-                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: '14px' }}>
-                    <span style={{ color: 'var(--text-primary)' }}>Product #{item.product_id} × {item.quantity}</span>
-                    <span style={{ color: 'var(--text-secondary)' }}>{formatPrice(item.price * item.quantity)}</span>
-                  </div>
-                ))}
-              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!loading && !errorMsg && filteredOrders.length === 0 && (
+          <div className="bg-canvas-surface border border-bdr rounded-xl py-[60px] px-6 text-center">
+            <p className="font-body text-sm text-ink-sec m-0">
+              {filterTab === 'all' ? 'Bạn chưa có đơn hàng nào' : 'Không có đơn hàng nào trong mục này'}
+            </p>
+            {filterTab === 'all' && (
+              <button
+                onClick={() => navigate('/')}
+                className="mt-4 px-4 py-2 rounded-lg border border-bdr text-ink-pri text-sm hover:border-accent-amber transition-colors cursor-pointer">
+                Khám phá sản phẩm
+              </button>
             )}
           </div>
-        ))}
+        )}
+
+        {/* Order list */}
+        {!loading && filteredOrders.length > 0 && (
+          <div className="flex flex-col gap-3">
+            {filteredOrders.map((order) => (
+              <div key={order.id} className="bg-canvas-surface border border-bdr rounded-xl overflow-hidden">
+                <div
+                  onClick={() => setExpanded(expanded === order.id ? null : order.id)}
+                  className="p-5 cursor-pointer grid grid-cols-[72px_1fr_auto_auto_auto] gap-6 items-center hover:bg-canvas-elevated transition-colors"
+                >
+                  {/* Thumbnail */}
+                  <div className="w-[72px] h-[72px] rounded-xl bg-canvas-elevated flex items-center justify-center flex-shrink-0">
+                    <Package size={28} className="text-tb-muted" />
+                  </div>
+
+                  {/* Title + meta */}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2.5 mb-1">
+                      <span className="font-mono font-bold text-[13px] text-white">#{order.id}</span>
+                      <span className="font-body text-xs text-ink-sec">{formatDate(order.created_at)}</span>
+                    </div>
+                    <div className="font-body text-sm text-ink-sec truncate">
+                      {Array.isArray(order.items) && order.items.length > 0
+                        ? `${order.items.length} sản phẩm`
+                        : 'Đơn hàng'}
+                    </div>
+                  </div>
+
+                  {/* Status */}
+                  <Badge className={cn('text-xs whitespace-nowrap', STATUS_BADGE[order.status] ?? 'bg-canvas-elevated text-ink-sec border-bdr')}>
+                    {STATUS_LABEL[order.status] ?? order.status}
+                  </Badge>
+
+                  {/* Price */}
+                  <div className="font-mono font-bold text-accent-amber whitespace-nowrap text-right">
+                    {formatPrice(order.total)}
+                  </div>
+
+                  {/* Chevron */}
+                  <div className="w-9 h-9 border border-bdr rounded-lg flex items-center justify-center text-ink-sec flex-shrink-0">
+                    <ChevronDown
+                      size={16}
+                      className={cn('transition-transform duration-200', expanded === order.id && 'rotate-180')}
+                    />
+                  </div>
+                </div>
+
+                {expanded === order.id && Array.isArray(order.items) && order.items.length > 0 && (
+                  <div className="border-t border-bdr px-5 py-3 flex flex-col gap-1.5">
+                    {order.items.map((item) => (
+                      <div key={item.id} className="flex justify-between text-sm">
+                        <span className="text-ink-sec">
+                          Product <span className="font-mono text-ink-pri">#{item.product_id}</span> × {item.quantity}
+                        </span>
+                        <span className="font-mono text-ink-pri">{formatPrice(item.price * item.quantity)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

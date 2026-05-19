@@ -1,4 +1,5 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { api } from '@/api';
 import type { User } from '@/types';
 
@@ -10,7 +11,7 @@ interface LoginForm {
 interface UseLoginReturn {
   form: LoginForm;
   errors: Partial<LoginForm>;
-  loading: boolean;
+  isPending: boolean;
   apiError: string;
   showPassword: boolean;
   handleChange: (e: ChangeEvent<HTMLInputElement>) => void;
@@ -21,9 +22,18 @@ interface UseLoginReturn {
 export function useLogin(onLoginSuccess: (user: User) => void): UseLoginReturn {
   const [form, setForm] = useState<LoginForm>({ username: '', password: '' });
   const [errors, setErrors] = useState<Partial<LoginForm>>({});
-  const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  const { mutateAsync: loginMutate, isPending } = useMutation({
+    mutationFn: (data: LoginForm) => api.auth.login(data),
+    onError: (err: unknown) => {
+      const msg = err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: unknown }).message)
+        : 'Không thể kết nối đến máy chủ. Vui lòng thử lại.';
+      setApiError(msg);
+    },
+  });
 
   function validate(): Partial<LoginForm> {
     const errs: Partial<LoginForm> = {};
@@ -43,19 +53,13 @@ export function useLogin(onLoginSuccess: (user: User) => void): UseLoginReturn {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
-    setLoading(true);
     setApiError('');
     try {
-      const data = await api.auth.login({ username: form.username, password: form.password });
+      const data = await loginMutate({ username: form.username, password: form.password });
       const user = (data as { data?: User } & User).data ?? data;
       onLoginSuccess(user);
-    } catch (err) {
-      const msg = err && typeof err === 'object' && 'message' in err
-        ? String((err as { message: unknown }).message)
-        : 'Không thể kết nối đến máy chủ. Vui lòng thử lại.';
-      setApiError(msg);
-    } finally {
-      setLoading(false);
+    } catch {
+      // error handled in onError
     }
   }
 
@@ -63,5 +67,5 @@ export function useLogin(onLoginSuccess: (user: User) => void): UseLoginReturn {
     setShowPassword((v) => !v);
   }
 
-  return { form, errors, loading, apiError, showPassword, handleChange, handleSubmit, togglePassword };
+  return { form, errors, isPending, apiError, showPassword, handleChange, handleSubmit, togglePassword };
 }

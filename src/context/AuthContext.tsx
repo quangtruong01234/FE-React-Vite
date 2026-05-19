@@ -6,7 +6,7 @@ interface AuthContextValue {
   currentUser: User | null;
   loginSuccess: (user: User) => void;
   handleUnauthorized: () => void;
-  logout: () => Promise<void>;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
