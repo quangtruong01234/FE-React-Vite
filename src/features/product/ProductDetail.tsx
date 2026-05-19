@@ -33,8 +33,7 @@ export default function ProductDetail(): ReactElement {
     queryFn: () => api.products.getWithInventory(Number(id)),
     enabled: !!id,
   });
-
-  if (loading) {
+if (loading) {
     return (
       <div className="min-h-screen bg-canvas-base">
         <div className="bg-canvas-surface border-b border-bdr px-5 py-3">
@@ -86,7 +85,7 @@ export default function ProductDetail(): ReactElement {
 
   function handleAddToCart(): void {
     if (!detail) return;
-    addItem({
+addItem({
       productId: detail.id, name: detail.name,
       price: Number(detail.price), image: detail.imageUrl ?? '',
       quantity, stockQuantity: available ?? 99,

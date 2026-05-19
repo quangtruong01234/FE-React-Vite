@@ -26,7 +26,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const apiError: ApiError = { status: res.status, message: err.message ?? res.statusText };
     throw apiError;
   }
-  return res.json() as Promise<T>;
+  const json = await res.json() as T | { data: T };
+  if (json !== null && typeof json === 'object' && 'data' in json && !Array.isArray(json)) {
+    return (json as { data: T }).data;
+  }
+  return json as T;
 }
 
 export const api = {
@@ -62,15 +66,11 @@ export const api = {
     create: (data: CreateProductDto): Promise<Product> =>
       request<Product>('/products', { method: 'POST', body: JSON.stringify(data) }),
 
-    getBrands: async (): Promise<Brand[]> => {
-      const res = await request<Brand[] | { data: Brand[] }>('/products/brands');
-      return Array.isArray(res) ? res : (res.data ?? []);
-    },
+    getBrands: (): Promise<Brand[]> =>
+      request<Brand[]>('/products/brands'),
 
-    getCategories: async (): Promise<Category[]> => {
-      const res = await request<Category[] | { data: Category[] }>('/products/categories');
-      return Array.isArray(res) ? res : (res.data ?? []);
-    },
+    getCategories: (): Promise<Category[]> =>
+      request<Category[]>('/products/categories'),
   },
 
   orders: {

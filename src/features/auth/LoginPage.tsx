@@ -143,8 +143,7 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
     try {
       await registerMutate({ username: form.username, email: form.email, password: form.password });
-      const data = await loginAfterRegister({ username: form.username, password: form.password });
-      const user = (data as { data?: User } & User).data ?? data;
+      const user = await loginAfterRegister({ username: form.username, password: form.password });
       onRegisterSuccess(user);
     } catch {
       // error handled in onError

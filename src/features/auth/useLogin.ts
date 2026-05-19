@@ -55,8 +55,7 @@ export function useLogin(onLoginSuccess: (user: User) => void): UseLoginReturn {
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
     setApiError('');
     try {
-      const data = await loginMutate({ username: form.username, password: form.password });
-      const user = (data as { data?: User } & User).data ?? data;
+      const user = await loginMutate({ username: form.username, password: form.password });
       onLoginSuccess(user);
     } catch {
       // error handled in onError
