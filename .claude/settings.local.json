@@ -1,0 +1,6 @@
+{
+  "_comment": "Gitignored. Add personal overrides here — e.g. allow npm install when bootstrapping a new dep after team approval.",
+  "permissions": {
+    "allow": []
+  }
+}

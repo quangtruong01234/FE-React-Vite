@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(**)",
+      "Edit(src/**)",
+      "Edit(.claude/**)",
+      "Edit(tailwind.config.*)",
+      "Edit(vite.config.*)",
+      "Edit(tsconfig*.json)",
+      "Edit(.env.example)",
+      "Bash(npm run *)",
+      "Bash(npx tsc *)",
+      "Bash(npx shadcn *)",
+      "Bash(npx eslint *)",
+      "Bash(npx prettier *)",
+      "Bash(cat *)",
+      "Bash(ls *)",
+      "Bash(grep *)",
+      "Bash(rg *)",
+      "Bash(find *)",
+      "Bash(git status)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add *)"
+    ],
+    "deny": [
+      "Edit(src/components/ui/**)",
+      "Edit(.env)",
+      "Edit(.env.local)",
+      "Edit(.env.production)",
+      "Bash(rm -rf *)",
+      "Bash(npm install *)",
+      "Bash(npm uninstall *)",
+      "Bash(yarn *)",
+      "Bash(pnpm *)",
+      "Bash(bun *)",
+      "Bash(git push*)",
+      "Bash(git commit*)",
+      "Bash(git reset --hard*)"
+    ]
+  }
+}
