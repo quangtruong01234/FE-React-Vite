@@ -21,7 +21,9 @@
       "Bash(git status)",
       "Bash(git diff*)",
       "Bash(git log*)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit*)",
+      "Bash(git rev-parse*)"
     ],
     "deny": [
       "Edit(src/components/ui/**)",
@@ -35,7 +37,6 @@
       "Bash(pnpm *)",
       "Bash(bun *)",
       "Bash(git push*)",
-      "Bash(git commit*)",
       "Bash(git reset --hard*)"
     ]
   }

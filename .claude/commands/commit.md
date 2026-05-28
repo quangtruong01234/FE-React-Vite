@@ -1,12 +1,14 @@
 # /commit — Generate Conventional Commit
 
-Inspect staged diff, generate a Conventional Commit message. Show it for review — DO NOT auto-commit (git commit is denied in settings.json).
+Inspect staged diff, generate a Conventional Commit message. Default mode shows message for review. Auto-commit is available via `--auto`.
 
 ## How to invoke
 
 ```
-/commit              # uses currently staged changes
-/commit --all        # stages all tracked changes first, then generates
+/commit              # inspect staged, show message for review
+/commit --all        # stage all tracked changes first, then show for review
+/commit --auto       # staged only, commit automatically
+/commit --all --auto # stage all + commit automatically
 ```
 
 ---
@@ -97,6 +99,20 @@ Or open editor:
   git commit
 ─────────────────────────────────────────────────
 ````
+
+### Step 5.5 — Auto-commit (only if `--auto` flag is present)
+
+Run:
+```bash
+git add -A   # only if --all was also passed
+git commit -m "<subject>" -m "<body>"
+```
+
+Then confirm:
+```
+[AUTO-COMMITTED] <type>(<scope>): <subject>
+Commit hash: <git rev-parse --short HEAD>
+```
 
 ### Step 6 — Self-check
 
