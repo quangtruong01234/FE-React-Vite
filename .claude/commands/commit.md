@@ -39,7 +39,8 @@ Pick ONE type:
 | `docs` | Documentation only |
 | `test` | Add or update tests |
 | `build` | Build system, deps, config |
-| `chore` | Routine tasks, no src/ impact |
+| `chore` | Routine tasks, no src/ impact (e.g. `.claude/settings.json`, `.claude/commands/`) |
+| `docs` | Documentation only — includes `.claude/context/`, `.claude/handoff/`, `*.md` |
 | `revert` | Reverting a previous commit |
 
 ### Step 3 — Determine scope (optional but preferred)
