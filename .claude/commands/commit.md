@@ -86,10 +86,10 @@ Files changed: 3
 ```
 feat(auth): persist user identity in localStorage after login
 
-Backend has not implemented GET /user/me yet. Stores
-{ id, username, email } from the login response so the
-app can show the current user across reloads. To be
-replaced once the endpoint ships.
+Temporary workaround — backend GET /user/me has shipped but the
+FE migration is pending (see context/auth.md FOLLOW-UP). Stores
+{ id, username, email } from the login response so the app shows
+the current user across reloads.
 ```
 
 To commit:
@@ -125,4 +125,4 @@ Before presenting, verify:
 
 ---
 
-**Model:** Sonnet | **Effort:** Low
+**Model:** Sonnet 4.6 | **Effort:** Low

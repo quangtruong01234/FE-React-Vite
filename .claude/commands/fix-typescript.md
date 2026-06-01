@@ -93,5 +93,5 @@ If stuck:
 
 ---
 
-**Model:** Sonnet | **Effort:** Medium
-**Escalate to:** **Model:** Opus | **Effort:** High — if the same file regresses 3+ times.
+**Model:** Sonnet 4.6 | **Effort:** Medium
+**Escalate to:** **Model:** Opus 4.8 | **Effort:** High — if the same file regresses 3+ times.

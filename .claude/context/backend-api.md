@@ -1,4 +1,6 @@
-# TryBuy API Reference
+# TryBuy Backend API Reference
+
+> **Frontend dev**: use `api-reference.md` for the FE `api` object contract. This file documents raw backend endpoints, query params, and shapes — read it when you need the full endpoint detail that isn't exposed via the `api` object yet.
 
 ## Base
 
@@ -10,6 +12,23 @@
 ---
 
 ## Common Types
+
+### Success Response Envelope
+
+Every response (except PDFs/binary) goes through `ResponseInterceptor` at the gateway:
+
+```ts
+// Raw HTTP body for all successful responses
+{
+  statusCode: number;
+  status: "success";
+  message: string;   // "Request Success"
+  timestamp: string; // ISO 8601
+  data: T;           // actual payload — frontend request() unwraps this automatically
+}
+```
+
+> The endpoint shapes documented below describe the `data` field content only, not the full HTTP body.
 
 ### PaginatedResponse\<T\>
 
@@ -23,6 +42,8 @@
   hasNext: boolean;   // page < totalPages
 }
 ```
+
+For paginated endpoints, the `ResponseInterceptor` envelope wraps the entire `PaginatedResponse<T>` object as its `data` field. Frontend `request()` unwraps the outer envelope to `PaginatedResponse<T>` — all pagination metadata is preserved.
 
 ### Error Response
 

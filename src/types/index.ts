@@ -77,13 +77,15 @@ export interface Order {
 }
 
 export interface PaginatedResponse<T> {
-  data: {
-    items: T[];
-    total: number;
-    page: number;
-    limit: number;
-  };
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNext: boolean;
 }
+
+export type PaymentMethod = 'zalopay' | 'vnpay' | 'cod';
 
 export interface ProductParams {
   search?: string;
@@ -109,8 +111,15 @@ export interface RegisterDto {
 
 export interface CreateOrderItemDto {
   product_id: number;
+  product_name: string;
   quantity: number;
   price: number;
+}
+
+export interface CreateOrderDto {
+  payment_method: PaymentMethod;
+  shipping_address: string;
+  items: CreateOrderItemDto[];
 }
 
 export interface CreateProductDto {

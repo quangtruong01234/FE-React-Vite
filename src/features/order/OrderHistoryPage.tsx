@@ -1,9 +1,8 @@
 import { useState, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Package, ChevronDown, Search } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '@/api';
 import { useAuthContext } from '@/context/AuthContext';
+import { useOrdersByUser } from './useOrdersByUser';
 import type { Order } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -41,15 +40,9 @@ export default function OrderHistoryPage(): ReactElement {
   const [filterTab, setFilterTab] = useState<OrderFilterKey>('all');
   const [search, setSearch] = useState('');
 
-  const { data, isLoading: loading, error } = useQuery({
-    queryKey: ['orders', userId],
-    queryFn: async () => {
-      const res = await api.orders.getByUser(userId);
-      return Array.isArray(res) ? res : ((res as { orders?: Order[] })?.orders ?? []);
-    },
-  });
+  const { data, isLoading: loading, error } = useOrdersByUser(userId);
 
-  const orders = data ?? [];
+  const orders: Order[] = data?.data ?? [];
   const errorMsg = error
     ? (typeof error === 'object' && 'message' in error
         ? String((error as { message: unknown }).message)

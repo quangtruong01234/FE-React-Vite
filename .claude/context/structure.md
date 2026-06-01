@@ -86,3 +86,17 @@ Rules:
 - No view-state flags replacing `<Route>` (e.g. `if (page === 'cart')`)
 - Route params: `Number(useParams().id)` + `enabled` guard — never `parseInt(id!)`
 - Never import `@tanstack/react-router`
+
+---
+
+## FOLLOW-UP: Move ChatRoom.tsx to features/chat/
+
+**Current location:** `src/features/product/ChatRoom.tsx`
+**Should be:** `src/features/chat/ChatRoom.tsx` (new folder)
+
+`ChatRoom.tsx` implements chat UI — it has no product-specific logic and belongs with the Chat WS gateway (port 3011), not with product browsing. It is currently a mock placeholder so the move is low-risk, but it should be done as a dedicated PR to avoid noise in the WS implementation PR.
+
+When moving:
+- Create `src/features/chat/` folder
+- Update the import in `src/features/product/ProductDetail.tsx` (or wherever `ChatRoom` is consumed)
+- Update `context/structure.md` folder map to list `features/chat/`

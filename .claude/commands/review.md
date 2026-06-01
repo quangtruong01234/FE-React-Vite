@@ -31,11 +31,11 @@ DESIGN DECISIONS — không thay đổi:
 - [ ] No `style={{}}` inline style props (exception: `Avatar.tsx` CSS custom properties)
 - [ ] No separate `.css` or `.module.css` files (only `index.css` allowed)
 - [ ] No direct `.css` imports in components (except `main.tsx` → `index.css`)
-- [ ] No hardcoded hex colors — use `tb-*` tokens from `@tokens.md`
-- [ ] No raw Tailwind palette (`text-gray-500`, `bg-blue-600`) — use `tb-*` or semantic aliases
+- [ ] No hardcoded hex colors — use semantic aliases (`canvas-*`, `ink-*`, `accent-*`, `bdr`) or `tb-*` tokens; see `tokens.md` "Which System to Use"
+- [ ] No raw Tailwind palette (`text-gray-500`, `bg-blue-600`) — use tokens; note `accent-cyan` and `accent-green` have **no `tb-*` equivalent** (semantic aliases only — not violations)
 - [ ] Conditional classes use `cn()` from `lib/utils.ts` — not string concat or template literals
 - [ ] Fonts use `font-display` / `font-body` / `font-mono` — not bare `font-sans`
-- [ ] Border-radius uses `rounded-tb-*` tokens, not arbitrary values
+- [ ] Border-radius uses `rounded-tb-*` tokens (only system for radius — no semantic alias equivalents)
 
 ### 3. shadcn/ui
 - [ ] Components imported from `@/components/ui/<name>` — never from Radix directly
@@ -63,7 +63,7 @@ DESIGN DECISIONS — không thay đổi:
 - [ ] No raw JWT in `localStorage` / `sessionStorage` / `Authorization` header
 - [ ] Auth state via `useAuthContext()` — never `localStorage.getItem('user')` in components
 - [ ] 401 redirects to `/login` (not `/auth/login`), via `useNavigate` not `window.location`
-- [ ] Note: temporary localStorage user cache is intentional until `GET /user/me` ships
+- [ ] Note: temporary localStorage user cache is a known workaround; backend `GET /user/me` has shipped — FE migration is a pending task tracked in `context/auth.md` FOLLOW-UP
 
 ### 7. Routing
 - [ ] Navigation via `<Link>` / `useNavigate` — no `window.location.href = ...`
@@ -94,6 +94,14 @@ DESIGN DECISIONS — không thay đổi:
 - [ ] No `console.log` in committed code (`console.error` for genuine error reporting is OK)
 - [ ] `formatPrice()` from `lib/utils.ts` used for all price display — not inline `toLocaleString`
 - [ ] No TODO comments without a ticket reference or owner
+
+### 11. WebSocket
+- [ ] Socket connection lives in a dedicated hook (`useChatSocket`, `useNotificationSocket`) — never inline in a component
+- [ ] `useEffect` connects and cleanup always calls `socket.disconnect()` — no orphaned connections, StrictMode-safe
+- [ ] `withCredentials: true` on every `io()` call — never pass JWT via `handshake.auth.token` / `handshake.query.token` in committed code
+- [ ] Socket message state held in `useState` inside the hook — not pushed into TanStack Query cache
+- [ ] `error` event always handled (at minimum `console.error`) — never silently swallowed
+- [ ] No socket instance stored outside a `useRef` / `useEffect` closure (no module-level singletons without a documented reason)
 
 ---
 

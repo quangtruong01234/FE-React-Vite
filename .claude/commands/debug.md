@@ -117,5 +117,5 @@ Recommend: invoke `debugger` agent for deep investigation.
 
 ---
 
-**Model:** Sonnet | **Effort:** Medium
-**Escalate to:** **Model:** Opus | **Effort:** High — if 3+ hypothesis cycles fail, or error spans backend boundary.
+**Model:** Sonnet 4.6 | **Effort:** Medium
+**Escalate to:** **Model:** Opus 4.8 | **Effort:** High — if 3+ hypothesis cycles fail, or error spans backend boundary.

@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Deep code review specialist. Use PROACTIVELY before any PR or merge. Use when the user says "review", "check this", or after generating substantial code changes. Reviews all 10 layers (TS, styling, shadcn, query, API, auth, routing, perf, a11y, general).
+description: Deep code review specialist. Use PROACTIVELY before any PR or merge. Use when the user says "review", "check this", or after generating substantial code changes. Reviews all 11 layers (TS, styling, shadcn, query, API, auth, routing, perf, a11y, general, WebSocket).
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -14,7 +14,7 @@ Review code against the standards in the `context/` files, `tokens.md`, and `api
 
 1. **Identify scope** — uncommitted diff (`git diff`) or a specific path provided by the user.
 2. **Read every changed file in full** — never review from a snippet alone.
-3. **Walk all 10 review layers** from `commands/review.md`:
+3. **Walk all 11 review layers** from `commands/review.md`:
    1. TypeScript
    2. Styling
    3. shadcn/ui
@@ -25,6 +25,7 @@ Review code against the standards in the `context/` files, `tokens.md`, and `api
    8. Performance
    9. Accessibility
    10. General
+   11. WebSocket
 4. **Cross-reference context files** for the exact rule being violated — quote the rule.
 5. **Produce the report** in the format from `commands/review.md`.
 

@@ -59,36 +59,38 @@ Exception: import './index.css' in main.tsx
 
 ### Check 4 — hardcoded hex colors
 
-Project has `tb-*` tokens for all design colors. Raw hex is always a violation.
+Project uses `tb-*` tokens and semantic aliases (`canvas-*`, `ink-*`, `accent-*`, `bdr`) for all design colors. Raw hex is always a violation.
 
 ```
 Pattern: \[#[0-9a-fA-F]{3,8}\]
 Scope: frontend/src/**/*.tsx
 ```
 
-Known replacements (from `tokens.md`):
-| Hex | Use |
-|---|---|
-| `#09090B` | `bg-tb-base` |
-| `#111113` | `bg-tb-surface` |
-| `#1C1C1E` | `bg-tb-elevated` |
-| `#27272A` | `border-tb-border` |
-| `#52525B` | `text-tb-muted` |
-| `#A1A1AA` | `text-tb-secondary` |
-| `#F59E0B` | `text-tb-amber` |
-| `#EF4444` | `text-tb-red` |
-| `#0B0B0E` | `bg-tb-base` |
+Known replacements (preferred alias listed first; see `tokens.md` "Which System to Use"):
+| Hex | Preferred token | `tb-*` alternative |
+|---|---|---|
+| `#09090B` | `bg-canvas-base` | `bg-tb-base` |
+| `#111113` | `bg-canvas-surface` | `bg-tb-surface` |
+| `#1C1C1E` | `bg-canvas-elevated` | `bg-tb-elevated` |
+| `#27272A` | `border-bdr` | `border-tb-border` |
+| `#52525B` | `text-ink-muted` | `text-tb-muted` |
+| `#A1A1AA` | `text-ink-sec` | `text-tb-secondary` |
+| `#F59E0B` | `text-accent-amber` | `text-tb-amber` |
+| `#EF4444` | `text-accent-red` | `text-tb-red` |
+| `#06b6d4` | `text-accent-cyan` | **no `tb-*`** — alias only |
+| `#10b981` | `text-accent-green` | **no `tb-*`** — alias only |
+| `#0B0B0E` | `bg-canvas-base` | `bg-tb-base` (close — verify with designer) |
 
 ### Check 5 — raw Tailwind palette colors
 
-Project uses `tb-*` token system. Bare palette (`text-gray-500`, `bg-blue-600`) bypasses the design system.
+Project uses `tb-*` tokens and semantic aliases. Bare palette (`text-gray-500`, `bg-blue-600`) bypasses the design system.
 
 ```
 Pattern: \b(text|bg|border|ring|divide|placeholder|caret|fill|stroke|shadow)-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(50|100|200|300|400|500|600|700|800|900|950)\b
 Scope: frontend/src/**/*.tsx
 ```
 
-Fix: map to closest `tb-*` token, or add a new token to `tailwind.config.ts` if none fits.
+Fix: map to the closest token from `tokens.md` (semantic alias preferred; `tb-*` for non-color tokens). Note: `accent-cyan` and `accent-green` are the correct tokens for cyan and green — these are NOT violations when written as `text-accent-cyan` / `text-accent-green`.
 
 ### Check 6 — arbitrary spacing/sizing values
 

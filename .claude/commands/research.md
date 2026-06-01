@@ -87,4 +87,4 @@ NO ACTION TAKEN
 
 ---
 
-**Model:** Sonnet | **Effort:** Low
+**Model:** Sonnet 4.6 | **Effort:** Low

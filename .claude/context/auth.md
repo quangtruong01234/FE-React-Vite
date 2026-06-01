@@ -42,3 +42,33 @@ const { currentUser, loginSuccess, logout } = useAuthContext();
 - ❌ No raw JWT in localStorage / sessionStorage / Authorization header
 - ❌ No `localStorage.getItem('user')` in components
 - ❌ 401 must not go to `/auth/login` — it's `/login`
+
+---
+
+## FOLLOW-UP: Remove localStorage user cache
+
+**Status:** Backend `GET /user/me` has shipped (see `context/backend-api.md` §Auth & User). The `localStorage` user cache in `src/hooks/useAuth.ts` is a stale workaround that should be replaced.
+
+**What the migration requires:**
+
+1. Add `api.auth.getMe` to `src/api/index.ts`:
+   ```ts
+   auth: {
+     // ...existing methods...
+     getMe: (): Promise<User> => request<User>('/user/me'),
+   }
+   ```
+2. Replace `useAuth.ts` state + `loadUser()` with a `useQuery`:
+   ```ts
+   const { data: currentUser } = useQuery({
+     queryKey: queryKeys.auth.me,
+     queryFn: () => api.auth.getMe(),
+     retry: false,
+   });
+   ```
+   (`queryKeys.auth.me` already exists in `src/hooks/queryKeys.ts`.)
+3. Remove `loadUser()`, all `localStorage.setItem/removeItem('user')` calls, and the `useState<User | null>` from `useAuth.ts`.
+4. On logout `onSettled`: `queryClient.removeQueries({ queryKey: queryKeys.auth.me })` replaces `localStorage.removeItem('user')`.
+5. On 401 `handleUnauthorized`: `queryClient.removeQueries({ queryKey: queryKeys.auth.me })`.
+
+**Note:** Do not mix this migration with other changes — it affects auth state across the whole app.

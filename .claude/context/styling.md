@@ -8,8 +8,8 @@
 - Tailwind utility classes only — no inline `style={{}}` (sole exception: `Avatar.tsx` dynamic sizing via CSS custom properties)
 - No separate `.css` / `.module.css` files — only `index.css`
 - No `.css` imports in components (except `main.tsx` → `index.css`)
-- No hardcoded hex (`text-[#52525B]`) — use `tb-*` tokens
-- No raw Tailwind palette (`text-gray-500`, `bg-blue-600`) — use `tb-*` tokens or semantic aliases
+- No hardcoded hex (`text-[#52525B]`) — use semantic aliases (`canvas-*`, `ink-*`, `accent-*`, `bdr`) or `tb-*` tokens; see `tokens.md` "Which System to Use"
+- No raw Tailwind palette (`text-gray-500`, `bg-blue-600`) — use tokens; `accent-cyan` and `accent-green` are alias-only (no `tb-*` equivalent) and are the correct tokens for those colors
 - No arbitrary spacing/sizing (`w-[437px]`) — use the Tailwind scale
 - Fonts: `font-display` / `font-body` / `font-mono` — never bare `font-sans`
 - Border-radius: `rounded-tb-*` tokens
@@ -29,11 +29,13 @@ import { cn } from '@/lib/utils';
 
 ## Token quick-reference
 
-Most-used (full list in `tokens.md`):
-- Backgrounds: `bg-tb-base` (page), `bg-tb-surface` (cards), `bg-tb-elevated` (inputs)
-- Text: `text-tb-secondary`, `text-tb-muted`, `text-tb-amber`, `text-tb-red`
-- Border: `border-tb-border`
-- Gradient text: `bg-tb-gradient-90 bg-clip-text text-transparent`
+Most-used (full list and system guidance in `tokens.md`):
+- Backgrounds: `bg-canvas-base` (page), `bg-canvas-surface` (cards), `bg-canvas-elevated` (inputs)
+- Text: `text-ink-pri` (white), `text-ink-sec`, `text-ink-muted`
+- Accent: `text-accent-amber` (brand/prices), `text-accent-red` (danger), `text-accent-green` (success), `text-accent-cyan` (info)
+- Border: `border-bdr`
+- Gradient text: `bg-tb-gradient-90 bg-clip-text text-transparent` (`tb-*` only — no alias for gradients)
+- Border-radius: `rounded-tb-*` (`tb-*` only — no alias for radius)
 
 ## Loading states
 

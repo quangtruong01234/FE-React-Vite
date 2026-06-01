@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
 import { formatPrice } from '@/lib/utils';
+import { queryKeys } from '@/hooks/queryKeys';
 import type { ProductWithInventory } from '@/types';
 
 const getRelativeTime = (dateString?: string): string => {
@@ -56,27 +57,17 @@ interface UseProductReturn {
 export function useProduct(): UseProductReturn {
   const queryClient = useQueryClient();
 
+  const params = { limit: 10, sortBy: 'updatedAt', sortOrder: 'DESC' as const };
   const { data, isLoading, error } = useQuery({
-    queryKey: ['products'],
+    queryKey: queryKeys.products.list(params),
     queryFn: async () => {
-      const response = await api.products.getList({ limit: 10, sortBy: 'updatedAt', sortOrder: 'DESC' });
-      let raw: unknown[] = [];
-      if (Array.isArray(response)) {
-        raw = response as unknown[];
-      } else if (typeof response === 'object' && response !== null) {
-        const r = response as Record<string, unknown>;
-        if (Array.isArray(r['items'])) raw = r['items'] as unknown[];
-        else if (typeof r['data'] === 'object' && r['data'] !== null && Array.isArray((r['data'] as Record<string, unknown>)['items']))
-          raw = (r['data'] as Record<string, unknown>)['items'] as unknown[];
-        else if (Array.isArray(r['data'])) raw = r['data'] as unknown[];
-        else if (Array.isArray(r['products'])) raw = r['products'] as unknown[];
-      }
-      return (raw as ProductWithInventory[]).map(enrichProductForUI);
+      const response = await api.products.getList(params);
+      return response.data.map(enrichProductForUI);
     },
   });
 
   function refetch(): void {
-    void queryClient.invalidateQueries({ queryKey: ['products'] });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.products.all });
   }
 
   const errorMsg = error

@@ -1,18 +1,18 @@
 import { useState, useEffect, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Banknote, CreditCard, Wallet, Landmark, ChevronRight, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Banknote, CreditCard, Wallet, ChevronRight, CheckCircle } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
 import { useCart } from '@/context/CartContext';
+import type { CreateOrderDto, PaymentMethod } from '@/types';
 import { formatPrice, cn } from '@/lib/utils';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { TextField } from '@/components/shared/TextField';
 
-const PAYMENT_METHODS = [
-  { id: 'cod',  label: 'Thanh toán khi nhận hàng (COD)', Icon: Banknote  },
-  { id: 'card', label: 'Thẻ tín dụng / Ghi nợ',          Icon: CreditCard },
-  { id: 'momo', label: 'Ví MoMo / ZaloPay',               Icon: Wallet    },
-  { id: 'bank', label: 'Chuyển khoản ngân hàng',          Icon: Landmark  },
+const PAYMENT_METHODS: { id: PaymentMethod; label: string; Icon: typeof Banknote }[] = [
+  { id: 'cod',     label: 'Thanh toán khi nhận hàng (COD)', Icon: Banknote  },
+  { id: 'zalopay', label: 'ZaloPay',                         Icon: Wallet    },
+  { id: 'vnpay',   label: 'VNPay',                           Icon: CreditCard },
 ];
 
 export default function CheckoutPage(): ReactElement {
@@ -34,11 +34,10 @@ export default function CheckoutPage(): ReactElement {
   const [addrPhone, setAddrPhone]   = useState('');
   const [addrStreet, setAddrStreet] = useState('');
   const [addrWard, setAddrWard]     = useState('');
-  const [payment, setPayment] = useState('cod');
+  const [payment, setPayment] = useState<PaymentMethod>('cod');
 
   const { mutateAsync: placeOrder, isPending: loading } = useMutation({
-    mutationFn: (orderItems: { product_id: number; quantity: number; price: number }[]) =>
-      api.orders.create(orderItems),
+    mutationFn: (dto: CreateOrderDto) => api.orders.create(dto),
     onSuccess: (order) => {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       clearCart();
@@ -78,12 +77,17 @@ export default function CheckoutPage(): ReactElement {
       // skip stock check on error — backend will validate
     }
 
-    const orderItems = items.map((item) => ({
-      product_id: item.productId,
-      quantity: item.quantity,
-      price: item.price,
-    }));
-    await placeOrder(orderItems);
+    const shippingAddress = [addrName, addrPhone, addrStreet, addrWard].filter(Boolean).join(', ');
+    await placeOrder({
+      payment_method: payment,
+      shipping_address: shippingAddress,
+      items: items.map((item) => ({
+        product_id: item.productId,
+        product_name: item.name,
+        quantity: item.quantity,
+        price: item.price,
+      })),
+    });
   }
 
   if (successOrder) {

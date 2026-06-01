@@ -20,7 +20,9 @@ Dark-theme design system using custom `tb-*` Tailwind tokens. Package manager: *
 | Tailwind classes, colors, tokens, styling a component | `context/styling.md` + `tokens.md` |
 | Login, logout, auth state, cookies, 401 handling | `context/auth.md` |
 | Forms, component structure, lodash, TS rules, env vars | `context/conventions.md` |
-| Calling an API endpoint, request/response shapes | `api-reference.md` |
+| Calling an API endpoint, `api` object, `request()` contract | `api-reference.md` |
+| Raw backend endpoint details, query params, all fields | `context/backend-api.md` |
+| WebSocket / chat / notifications / socket.io | `context/realtime.md` |
 | Writing tests | `testing.md` |
 
 ## Slash Commands

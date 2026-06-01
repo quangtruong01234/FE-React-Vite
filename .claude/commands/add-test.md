@@ -165,4 +165,4 @@ If failing → debug the test, not the target (target was correct before). If st
 
 ---
 
-**Model:** Sonnet | **Effort:** Medium
+**Model:** Sonnet 4.6 | **Effort:** Medium

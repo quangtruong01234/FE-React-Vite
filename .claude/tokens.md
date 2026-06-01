@@ -3,6 +3,64 @@
 Dark-theme design system. All tokens defined in `tailwind.config.ts`.
 **Never hardcode hex/rgb values** — if a token doesn't exist, add it to the config first.
 
+---
+
+## Which System to Use
+
+The project has **two complementary token layers**. They are not interchangeable for everything — read this section before writing new styling code.
+
+### Semantic aliases — preferred for color in new code
+
+`canvas-*` / `ink-*` / `accent-*` / `bdr` resolve through CSS variables and are the **preferred** choice for color in new code. They are more descriptive and future-proof for theming.
+
+Three colors exist **only** as semantic aliases — there is no `tb-*` equivalent:
+
+| Token | Hex | Notes |
+|---|---|---|
+| `text-ink-pri` | `#FFFFFF` | The only correct token for white/primary text — `text-white` should not be used |
+| `text-accent-cyan` | `#06b6d4` | Info highlights, chat, link accents |
+| `text-accent-green` | `#10b981` | Success, free shipping, positive states |
+
+### `tb-*` tokens — required for non-color tokens
+
+`tb-*` tokens are the **only** system for these — semantic aliases do not cover them:
+
+| Category | Tokens |
+|---|---|
+| Border-radius | `rounded-tb-pill/ghost/input/cta/card/sheet` |
+| Gradients | `bg-tb-gradient`, `bg-tb-gradient-90`, `bg-login-left` |
+| Shadows | `shadow-tb-cta`, `shadow-tb-card` |
+| Animation classes | `tb-enter`, `tb-stagger`, `tb-pulse` (keyframe) |
+
+For **color tokens** that have both a `tb-*` and a semantic alias, existing code uses both interchangeably. Prefer semantic aliases for new code; existing `tb-*` color usages are not violations.
+
+### Semantic duplicates — intent matters
+
+Two alias pairs resolve to identical hex values but carry different intent:
+
+| Use this | Not this | Hex | When |
+|---|---|---|---|
+| `accent-pri` or `accent-amber` | (same) | `#F59E0B` | `accent-pri` for brand CTAs; `accent-amber` when the amber color itself is the intent (prices, highlights) |
+| `accent-red` | `accent-sec` | `#EF4444` | `accent-red` for danger/destructive/error states; `accent-sec` for the brand secondary color role |
+
+### Quick decision table
+
+| What you're styling | Use |
+|---|---|
+| Page / card / input backgrounds | `bg-canvas-base` / `bg-canvas-surface` / `bg-canvas-elevated` |
+| Borders | `border-bdr` |
+| Primary text (white) | `text-ink-pri` |
+| Secondary / muted text | `text-ink-sec` / `text-ink-muted` |
+| Brand amber, CTAs, prices | `text-accent-amber` / `bg-accent-amber` |
+| Danger / destructive | `text-accent-red` |
+| Success, free shipping | `text-accent-green` ← alias-only, no `tb-*` |
+| Info / cyan highlights | `text-accent-cyan` ← alias-only, no `tb-*` |
+| Border-radius | `rounded-tb-*` ← `tb-*` only, no alias |
+| Gradient fills | `bg-tb-gradient` / `bg-tb-gradient-90` ← `tb-*` only |
+| Shadows | `shadow-tb-cta` / `shadow-tb-card` ← `tb-*` only |
+
+---
+
 ## Color Tokens — `tb-*`
 
 | Token | Hex | Use for |
@@ -18,18 +76,21 @@ Dark-theme design system. All tokens defined in `tailwind.config.ts`.
 
 ## CSS-Variable Semantic Aliases
 
-| Token | Resolves to |
-|---|---|
-| `bg-canvas-base` | `var(--bg-base)` |
-| `bg-canvas-surface` | `var(--bg-surface)` |
-| `bg-canvas-elevated` | `var(--bg-elevated)` |
-| `text-ink-pri` | `var(--text-primary)` |
-| `text-ink-sec` | `var(--text-secondary)` |
-| `text-ink-muted` | `var(--text-muted)` |
-| `text-accent-pri` | `var(--accent-primary)` |
-| `text-accent-cyan` | `var(--accent-cyan)` |
-| `text-accent-green` | `var(--accent-green)` |
-| `border-bdr` | `var(--border)` |
+| Token | Hex | `tb-*` equivalent |
+|---|---|---|
+| `bg-canvas-base` | `#09090B` | `bg-tb-base` |
+| `bg-canvas-surface` | `#111113` | `bg-tb-surface` |
+| `bg-canvas-elevated` | `#1C1C1E` | `bg-tb-elevated` |
+| `border-bdr` | `#27272A` | `border-tb-border` |
+| `text-ink-pri` | `#FFFFFF` | **none** — alias only |
+| `text-ink-sec` | `#A1A1AA` | `text-tb-secondary` |
+| `text-ink-muted` | `#52525B` | `text-tb-muted` |
+| `text-accent-pri` | `#F59E0B` | `text-tb-amber` (same hex) |
+| `text-accent-sec` | `#EF4444` | `text-tb-red` (same hex) |
+| `text-accent-amber` | `#F59E0B` | `text-tb-amber` (same hex) |
+| `text-accent-red` | `#EF4444` | `text-tb-red` (same hex) |
+| `text-accent-cyan` | `#06b6d4` | **none** — alias only |
+| `text-accent-green` | `#10b981` | **none** — alias only |
 
 ## Gradients
 

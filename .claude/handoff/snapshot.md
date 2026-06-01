@@ -1,0 +1,499 @@
+# API Application Handoff — Snapshot
+
+**Date:** 2026-06-02
+**Source of truth:** `.claude/context/backend-api.md`
+**Compared against:** `frontend/src/api/index.ts`, `frontend/src/features/**`, `frontend/src/hooks/**`, `frontend/src/types/index.ts`
+
+---
+
+## Coverage Summary
+
+| Bucket | Count | Meaning |
+|---|---|---|
+| ✅ Applied | 12 | Registered in `api/index.ts` AND consumed by a hook/query |
+| 🟡 Partial | 0 | Registered but wrong shape / no hook / dead code |
+| 🔴 Missing | 50 | No api fn, no hook at all |
+| **Total** | **62** | 60 HTTP endpoints + 2 WebSocket connections |
+
+---
+
+## 1. Current State (Snapshot)
+
+### 1.1 Auth & User
+
+| Method | Path | Bucket | api fn | Hook / consumer |
+|---|---|---|---|---|
+| POST | /api/user/register | ✅ | `auth.register` | `LoginPage.tsx` (inline useMutation) |
+| POST | /api/user/login | ✅ | `auth.login` | `useLogin.ts` + `LoginPage.tsx` |
+| POST | /api/user/logout | ✅ | `auth.logout` | `useAuth.ts` (useMutation) |
+| GET | /api/user/me | 🔴 | — | — |
+| GET | /api/user/:id | 🔴 | — | — |
+| PATCH | /api/user/:id | 🔴 | — | — |
+| GET | /api/user/all | 🔴 | — | — |
+
+### 1.2 Product
+
+| Method | Path | Bucket | api fn | Hook / consumer |
+|---|---|---|---|---|
+| POST | /api/products | ✅ | `products.create` | `CreateProductModal.tsx` (inline useMutation) |
+| GET | /api/products | 🔴 | — | — |
+| GET | /api/products/search | 🔴 | — | — |
+| GET | /api/products/brands | ✅ | `products.getBrands` | `CreateProductModal.tsx` (inline useQuery) |
+| POST | /api/products/brands | 🔴 | — | — |
+| GET | /api/products/brands/:id | 🔴 | — | — |
+| GET | /api/products/categories | ✅ | `products.getCategories` | `CreateProductModal.tsx` (inline useQuery) |
+| POST | /api/products/categories | 🔴 | — | — |
+| GET | /api/products/categories/:id | 🔴 | — | — |
+| GET | /api/products/category/:categoryId | 🔴 | — | — |
+| GET | /api/products/brand/:brandId | 🔴 | — | — |
+| GET | /api/products/sku/:sku | 🔴 | — | — |
+| GET | /api/products/:id | 🔴 | — | intentionally deferred — removed from `api/index.ts`; `ProductDetail.tsx` uses `getWithInventory` which also covers stock; re-register only if a no-inventory context emerges in future |
+| PATCH | /api/products/:id | 🔴 | — | — |
+| DELETE | /api/products/:id | 🔴 | — | — |
+| GET | /api/products/with-inventory/all | ✅ | `products.getList` | `useProduct.ts` (useQuery · `queryKeys.products.list(params)` / `queryKeys.products.all` · typed `PaginatedResponse<ProductWithInventory>`) |
+| GET | /api/products/:id/with-inventory | ✅ | `products.getWithInventory` | `ProductDetail.tsx` (inline useQuery) |
+| POST | /api/products/with-inventory/multiple | ✅ | `products.getMultipleWithInventory` | `CheckoutPage.tsx` (direct await in mutation) |
+| GET | /api/products/:id/stock-check | 🔴 | — | — |
+
+### 1.3 Order
+
+| Method | Path | Bucket | api fn | Hook / consumer |
+|---|---|---|---|---|
+| POST | /api/order | ✅ | `orders.create` | `CheckoutPage.tsx` (inline useMutation · full `CreateOrderDto` with `payment_method: PaymentMethod`, `shipping_address`, `product_name` per item) |
+| GET | /api/order/admin/orders | 🔴 | — | — |
+| GET | /api/order/:id | 🔴 | — | — |
+| GET | /api/order/user/:id | ✅ | `orders.getByUser` | `useOrdersByUser.ts` (useQuery · `queryKeys.orders.byUser(userId)` · `PaginatedResponse<Order>`) → consumed by `OrderHistoryPage.tsx` |
+| PATCH | /api/order/:id/cancel | 🔴 | — | — |
+| GET | /api/order/:id/invoice | 🔴 | — | — |
+| GET | /api/order/:id/payment-url | 🔴 | — | — |
+
+### 1.4 Payment
+
+| Method | Path | Bucket | api fn | Hook / consumer |
+|---|---|---|---|---|
+| GET | /api/payment/options | 🔴 | — | — |
+| GET | /api/gateway/payment-result | 🔴 | — | — |
+| POST | /ghn/webhook | 🔴 | — | — |
+
+> `POST /ghn/webhook` is a server-to-server callback called by GHN. No frontend action needed — omit from implementation.
+
+### 1.5 Inventory
+
+| Method | Path | Bucket | api fn | Hook / consumer |
+|---|---|---|---|---|
+| POST | /api/inventory | 🔴 | — | — |
+| GET | /api/inventory | 🔴 | — | — |
+| GET | /api/inventory/low-stock | 🔴 | — | — |
+| GET | /api/inventory/product/:productId | 🔴 | — | — |
+| GET | /api/inventory/sku/:sku | 🔴 | — | — |
+| GET | /api/inventory/:id | 🔴 | — | — |
+| PUT | /api/inventory/:id | 🔴 | — | — |
+| DELETE | /api/inventory/:id | 🔴 | — | — |
+| POST | /api/inventory/check-stock | 🔴 | — | — |
+| POST | /api/inventory/reserve-stock | 🔴 | — | — |
+| POST | /api/inventory/release-stock | 🔴 | — | — |
+
+### 1.6 Social
+
+| Method | Path | Bucket | api fn | Hook / consumer |
+|---|---|---|---|---|
+| POST | /api/social/posts | 🔴 | — | — |
+| GET | /api/social/posts | 🔴 | — | — |
+| GET | /api/social/posts/user/:userId | 🔴 | — | — |
+| GET | /api/social/posts/:id | 🔴 | — | — |
+| POST | /api/social/posts/:id/like | 🔴 | — | — |
+| DELETE | /api/social/posts/:id/like | 🔴 | — | — |
+| DELETE | /api/social/posts/:id | 🔴 | — | — |
+| POST | /api/social/posts/:id/comments | 🔴 | — | — |
+| GET | /api/social/posts/:id/comments | 🔴 | — | — |
+| DELETE | /api/social/comments/:id | 🔴 | — | — |
+| POST | /api/social/comments/:id/replies | 🔴 | — | — |
+| GET | /api/social/comments/:id/replies | 🔴 | — | — |
+
+### 1.7 Notification
+
+| Method | Path | Bucket | api fn | Hook / consumer |
+|---|---|---|---|---|
+| GET | /api/notifications | 🔴 | — | — |
+| PATCH | /api/notifications/:id/read | 🔴 | — | — |
+
+### 1.8 Chat (HTTP)
+
+| Method | Path | Bucket | api fn | Hook / consumer |
+|---|---|---|---|---|
+| POST | /api/chat/conversations | 🔴 | — | — |
+| GET | /api/chat/conversations | 🔴 | — | — |
+| GET | /api/chat/conversations/:id/messages | 🔴 | — | — |
+
+### 1.9 Upload
+
+| Method | Path | Bucket | api fn | Hook / consumer |
+|---|---|---|---|---|
+| POST | /api/upload/signature | 🔴 | — | — |
+
+### 1.10 Misc
+
+| Method | Path | Bucket | api fn | Hook / consumer |
+|---|---|---|---|---|
+| GET | /api/gateway/health | 🔴 | — | — |
+
+### 1.11 WebSocket
+
+| Connection | URL | Bucket | Consumer |
+|---|---|---|---|
+| Notification WS | `ws://localhost:3010` | 🔴 | — |
+| Chat WS | `ws://localhost:3011/chat` | 🔴 | — |
+
+---
+
+### 1.12 Partial — All Resolved ✅ (fix-first pass 2026-06-02)
+
+These were registered in `api/index.ts` but were broken or mismatched against the reference. All four resolved in the fix-first pass.
+
+**P1 — `products.getList` return type** (`api/index.ts:49`)
+- Original: `Promise<unknown>` — breaks type safety downstream in `useProduct.ts`
+- Original fix plan: change signature to `Promise<PaginatedResponse<ProductWithInventory>>` and remove the defensive runtime unwrapping in `useProduct.ts` once the type is correct
+- ✅ DONE — getList typed; runtime unwrapping removed from `useProduct.ts`
+- P0 / bonus: `useProduct.ts` query keys migrated from inline `['products']` to `queryKeys.products.list(params)` / `queryKeys.products.all` — previously a known inconsistency called out in `context/data-fetching.md`
+
+**P2 — `orders.create` missing fields** (`api/index.ts:77`)
+- Original: sends `{ items }` only
+- Original fix plan: update `CreateOrderDto` type (add `payment_method: PaymentMethod`, `shipping_address: string`); update `CreateOrderItemDto` (add `product_name: string`); update `CheckoutPage.tsx` call site
+- Note: `PaymentMethod` enum (`zalopay | vnpay | cod`) was not yet in `types/index.ts`
+- ✅ DONE — `PaymentMethod` type added; `CreateOrderDto`/`CreateOrderItemDto` updated; `CheckoutPage.tsx` sends full body
+
+**P3 — `orders.getByUser` consumed outside useQuery** (`OrderHistoryPage.tsx:47`)
+- Original: called via raw `await api.orders.getByUser(userId)` inside a component — violates project convention (no `useState` + `useEffect`/raw await for server data)
+- Original fix plan: create `useOrdersByUser(userId)` hook using `useQuery`; add `queryKeys.orders.byUser(userId)` (already defined in `queryKeys.ts`); fix return type from `Order[]` to `PaginatedResponse<Order>`
+- ✅ DONE — `useOrdersByUser.ts` created; `OrderHistoryPage.tsx` uses hook; return type fixed to `PaginatedResponse<Order>`
+
+**P4 — `products.getById` is dead code** (`api/index.ts:54`)
+- Original: registered but never consumed — `ProductDetail.tsx` calls `getWithInventory` instead
+- Original fix plan: either remove `getById` and keep only `getWithInventory`, or add a lightweight hook; do not leave unused registered fns
+- ✅ DONE — `getById` removed (decision: no other caller; keeping dead code misleads)
+
+---
+
+## 2. Task Batches
+
+Each batch follows the same execution order within it:
+1. Add/update **types** in `src/types/index.ts`
+2. Add **api fn(s)** in `src/api/index.ts`
+3. Add **queryKeys** entry in `src/hooks/queryKeys.ts` (if useQuery)
+4. Write **hook** in `src/features/<name>/use<Name>.ts` or `src/hooks/`
+5. **Wire** into the consuming component
+
+---
+
+### Batch A — Auth / User *(prerequisite for everything)*
+
+**Endpoints:** GET /user/me · GET /user/:id · PATCH /user/:id · GET /user/all
+
+**Partials fixed here:** none (new fns only)
+
+**Types to add:**
+- Extend `User` with `name`, `avatar`, `role`, `isActive` fields (currently stripped)
+- Add `UpdateUserDto { name?, email?, avatar? }`
+
+**api fns:**
+- `api.auth.me()` → GET /user/me
+- `api.users.getById(id)` → GET /user/:id
+- `api.users.update(id, data)` → PATCH /user/:id
+- `api.users.getAll()` → GET /user/all
+
+**queryKeys:** `auth.me`, `users.detail(id)`, `users.all`
+
+**Hooks:** `useCurrentUser()` (replaces localStorage reads in `useAuth.ts`), `useUser(id)`, `useUpdateUser()`, `useAllUsers()`
+
+**Consuming components:** `useAuth.ts` — remove `loadUser()`/`localStorage.setItem` pattern once `useCurrentUser` is wired; `TODO` comment on line 6 of `useAuth.ts` will be resolved
+
+**Dependencies:** none — this is a foundation batch; other batches that read current user depend on it
+
+**Model + Effort:** Sonnet · Medium (straightforward CRUD, but the localStorage→useQuery migration in `useAuth.ts` needs care)
+
+---
+
+### Batch B — Product CRUD extensions
+
+**Endpoints:** GET /products · GET /products/search · PATCH /products/:id · DELETE /products/:id · GET /products/sku/:sku · POST /products/brands · GET /products/brands/:id · POST /products/categories · GET /products/categories/:id · GET /products/category/:categoryId · GET /products/brand/:brandId · GET /products/:id/stock-check
+
+**Partials fixed here:** P1 (`products.getList` → typed), P4 (`products.getById` → decision + cleanup)
+
+**Types to add:**
+- `StockCheckResult { available: boolean; availableStock: number }`
+- Extend `Brand` with `description`, `isActive`
+- Extend `Category` with `description`, `isActive`
+- `CreateBrandDto`, `CreateCategoryDto`
+
+**api fns:** `products.getPlainList`, `products.search`, `products.update`, `products.delete`, `products.getBySku`, `products.createBrand`, `products.getBrandById`, `products.createCategory`, `products.getCategoryById`, `products.getByCategory`, `products.getByBrand`, `products.checkStock`
+
+**queryKeys:** `products.bySku(sku)`, `products.byCategory(categoryId)`, `products.byBrand(brandId)`, `brands.all`, `brands.detail(id)`, `categories.all`, `categories.detail(id)`
+
+**Hooks:** `useUpdateProduct`, `useDeleteProduct`, `useProductBySku`, `useCreateBrand`, `useBrandById`, `useCreateCategory`, `useCategoryById`, `useProductsByCategory`, `useProductsByBrand`, `useStockCheck`
+
+**Dependencies:** none (standalone product CRUD)
+
+**Model + Effort:** Sonnet · High (many fns, but all follow the same pattern)
+
+---
+
+### Batch C — Order fixes + extensions *(depends on Batch A for user context)*
+
+**Endpoints:** POST /order (fix) · GET /order/user/:id (fix) · GET /order/:id · GET /order/admin/orders · PATCH /order/:id/cancel · GET /order/:id/invoice · GET /order/:id/payment-url
+
+**Partials fixed here:** P2 (`orders.create` body), P3 (`orders.getByUser` → useQuery)
+
+**Types to add:**
+- `PaymentMethod` enum type: `'zalopay' | 'vnpay' | 'cod'`
+- `OrderStatus` enum type: `'pending' | 'processing' | 'shipped' | 'delivering' | 'completed' | 'canceled'` (current `Order` only has 3 values)
+- `CreateOrderDto { payment_method: PaymentMethod; shipping_address: string; items: CreateOrderItemDto[] }`
+- Update `CreateOrderItemDto` — add `product_name: string`
+- `PaginatedOrder` (use shared `PaginatedResponse<Order>`)
+- `OrderWithBuyer extends Order` with `buyer: { id, username, email, name }`
+
+**api fns:** fix `orders.create`, fix `orders.getByUser`, `orders.getById`, `orders.getAdminOrders`, `orders.cancel`, `orders.getInvoice` (returns `Blob`), `orders.getPaymentUrl`
+
+**queryKeys:** `orders.detail(id)`, `orders.admin`
+
+**Hooks:** `useCreateOrder` (wraps useMutation, replaces inline in `CheckoutPage.tsx`), `useOrdersByUser(userId)` (replaces raw await), `useOrder(id)`, `useAdminOrders`, `useCancelOrder`, `useOrderPaymentUrl`
+
+**Invoice note:** `orders.getInvoice` must skip the JSON parse in `request()` — use raw `fetch` returning `Blob` for the PDF binary
+
+**Dependencies:** Batch A (admin orders hook reads current user role)
+
+**Model + Effort:** Sonnet · High (P2/P3 fixes have ripple effects into `CheckoutPage.tsx` and `OrderHistoryPage.tsx`)
+
+---
+
+### Batch D — Payment options + result page *(depends on Batch C)*
+
+**Endpoints:** GET /payment/options · GET /gateway/payment-result
+
+**Types to add:**
+- `PaymentOption { id: PaymentMethod; name: string; description: string }`
+- `PaymentResult { gateway: string; status: string; transId: string; amount: string }`
+
+**api fns:** `api.payment.getOptions()`, `api.payment.getResult(params)`
+
+**queryKeys:** `payment.options`
+
+**Hooks:** `usePaymentOptions()` (useQuery, consumed in `CheckoutPage.tsx` to render payment method picker), `usePaymentResult(params)` (useQuery or called once on landing page)
+
+**Dependencies:** Batch C (checkout uses payment options alongside order creation)
+
+**Model + Effort:** Haiku · Low (2 read-only endpoints, simple types)
+
+---
+
+### Batch E — Inventory *(depends on Batch C checkout fix)*
+
+**Endpoints:** All 11 `/api/inventory/*` endpoints
+
+**Types to add:**
+- `InventoryRecord { id: number; productId: number; sku: string; availableStock: number; reservedStock?: number; minimumStock?: number; location?: string; isLowStock: boolean }`
+- `CreateInventoryDto`, `UpdateInventoryDto`
+- `StockCheckRequest { productId: number; quantity: number }`
+- `StockCheckResponse { available: boolean; availableStock: number }`
+
+**api fns namespace `api.inventory`:** `create`, `getAll`, `getLowStock`, `getByProduct`, `getBySku`, `getById`, `update`, `delete`, `checkStock`, `reserveStock`, `releaseStock`
+
+**queryKeys:** `inventory.all`, `inventory.lowStock`, `inventory.byProduct(productId)`, `inventory.bySku(sku)`, `inventory.detail(id)`
+
+**Hooks:** `useInventory`, `useLowStockInventory`, `useInventoryByProduct(productId)`, `useInventoryBySku(sku)`, `useInventoryById(id)`, `useUpdateInventory`, `useDeleteInventory`, `useCheckStock`, `useReserveStock`, `useReleaseStock`
+
+**Checkout dependency note:** `checkStock`/`reserveStock`/`releaseStock` are the inventory fns most immediately needed by `CheckoutPage.tsx` — implement these first within the batch
+
+**Dependencies:** Batch C (`CheckoutPage.tsx` currently calls `getMultipleWithInventory` as a workaround; the inventory batch enables a proper stock-check step before order submission)
+
+**Model + Effort:** Sonnet · High (11 endpoints; reserve/release have optimistic-update implications for checkout)
+
+---
+
+### Batch F — Social *(self-contained feature)*
+
+**Endpoints:** All 12 `/api/social/*` endpoints
+
+**Types to add:**
+- `Post { id: number; userId: number; content: string; imageUrls?: string[]; videoUrl?: string; likeCount: number; createdAt: string }`
+- `Comment { id: number; postId: number; userId: number; content: string; reply_count: number; createdAt: string }`
+- `CommentTree extends Comment` with nested `replies: CommentTree[]`
+- `CreatePostDto`, `CreateCommentDto { content: string }`, `CreateReplyDto { content: string; postId: number }`
+
+**api fns namespace `api.social`:** `createPost`, `getFeed`, `getPostsByUser`, `getPostById`, `likePost`, `unlikePost`, `deletePost`, `createComment`, `getComments`, `deleteComment`, `createReply`, `getReplies`
+
+**queryKeys:** `social.feed(page)`, `social.postsByUser(userId)`, `social.post(id)`, `social.comments(postId)`, `social.replies(commentId)`
+
+**Hooks:** `useCreatePost`, `useSocialFeed`, `usePostsByUser`, `usePost(id)`, `useLikePost`, `useUnlikePost`, `useDeletePost`, `useCreateComment`, `usePostComments(postId)`, `useDeleteComment`, `useCreateReply`, `useCommentReplies(commentId)`
+
+**Dependencies:** Batch A (posts/comments are authored by the current user; need `useCurrentUser`)
+
+**Model + Effort:** Opus · High (largest single feature namespace; like/unlike have optimistic update UX expectations; comment tree has recursive shape)
+
+---
+
+### Batch G — Notification *(depends on WS batch H)*
+
+**Endpoints:** GET /notifications · PATCH /notifications/:id/read
+
+**Types to add:**
+- `Notification { id: number; user_id: number; type: string; order_id: number; message: string; is_read: boolean; created_at: string }`
+
+**api fns namespace `api.notifications`:** `getList(page?, limit?)`, `markRead(id)`
+
+**queryKeys:** `notifications.list(page)`, `notifications.unreadCount`
+
+**Hooks:** `useNotifications(page?)`, `useMarkNotificationRead()`
+
+**Integration note:** the HTTP polling hook and the WS push hook (Batch H) should both invalidate `queryKeys.notifications.list` so the notification bell stays in sync whether the update arrives via HTTP refetch or WS push
+
+**Dependencies:** Batch H (WS) for real-time; Batch A (user identity for filtering)
+
+**Model + Effort:** Sonnet · Medium
+
+---
+
+### Batch H — WebSocket (Notification + Chat) *(depends on Batches F, G)*
+
+**Connections:**
+- Notification WS: `ws://localhost:3010`, namespace `/`, event: `notification`
+- Chat WS: `ws://localhost:3011/chat`, namespace `/chat`, client events: `join`, `send_message`; server events: `new_message`, `error`
+
+**Types to add:**
+- `WsNotificationPayload` (reuse `Notification` type from Batch G)
+- `WsMessage` (reuse `Message` type from Batch I)
+- `WsChatError { message: string }`
+
+**Hooks:**
+- `useNotificationSocket()` — connects to port 3010 with `withCredentials: true`; on `notification` event, appends to query cache for `notifications.list` and increments unread count; disconnects on unmount
+- `useChatSocket(conversationId)` — connects to port 3011/chat; emits `join` on connect; on `new_message`, appends to `chat.messages(conversationId)` query cache; exposes `sendMessage(content, parentMessageId?)` fn; handles `error` event
+
+**Setup note:** both sockets authenticate via HttpOnly cookie (`withCredentials: true`) — no manual token. Use `socket.io-client`. Check if already installed: `package.json` should be verified before Batch H starts.
+
+**Dependencies:** Batch G (notification cache shape); Batch I (chat message cache shape); `socket.io-client` package may need installing (check `package.json` first — do not `npm install` without confirming)
+
+**Model + Effort:** Sonnet · High (socket lifecycle, cache integration, cleanup on unmount)
+
+---
+
+### Batch I — Chat HTTP *(depends on Batch A)*
+
+**Endpoints:** POST /chat/conversations · GET /chat/conversations · GET /chat/conversations/:id/messages
+
+**Types to add:**
+- `Conversation { id: number; user1Id: number; user2Id: number; createdAt: string }`
+- `Message { id: number; conversationId: number; senderId: number; content: string; parentMessageId: number | null; createdAt: string }`
+- `CreateConversationDto { otherUserId: number }`
+
+**api fns namespace `api.chat`:** `createConversation(otherUserId)`, `getConversations()`, `getMessages(conversationId, page?, limit?)`
+
+**queryKeys:** `chat.conversations`, `chat.messages(conversationId)`
+
+**Hooks:** `useCreateConversation`, `useConversations`, `useConversationMessages(conversationId)`
+
+**Dependencies:** Batch A (current user), Batch H (WS sends/receives messages into the same cache keys)
+
+**Model + Effort:** Sonnet · Medium
+
+---
+
+### Batch J — Upload *(depends on Batches B, F — product/social image upload)*
+
+**Endpoints:** POST /upload/signature
+
+**Types to add:**
+- `UploadSignature { signature: string; timestamp: number; cloudName: string; apiKey: string; folder: string }`
+
+**api fn:** `api.upload.getSignature(folder: string)`
+
+**queryKeys:** none (this is a mutation, not a query — signatures are one-time use)
+
+**Hook:** `useUploadSignature()` — useMutation that fetches signature, then the component uploads directly to Cloudinary using the returned credentials
+
+**Dependencies:** Batch B (product image upload in `CreateProductModal`); Batch F (post image upload); the Cloudinary upload itself uses the Cloudinary SDK or a direct `fetch` to Cloudinary's API — not through `api/index.ts`
+
+**Model + Effort:** Haiku · Low (single endpoint, well-defined flow)
+
+---
+
+### Batch K — Misc *(standalone)*
+
+**Endpoints:** GET /gateway/health
+
+**Types to add:**
+- `HealthStatus { status: string; timestamp: string; uptime: number; memory: { used: number; total: number }; services: Record<string, string> }`
+
+**api fn:** `api.misc.health()`
+
+**queryKeys:** `misc.health`
+
+**Hook:** `useHealthCheck()` — useQuery with a long `staleTime` (e.g. 30 s); primarily for an admin dashboard or status page
+
+**Dependencies:** none
+
+**Model + Effort:** Haiku · Low
+
+---
+
+## 3. Suggested Execution Order
+
+| # | Batch | Rationale |
+|---|---|---|
+| 1 | **A — Auth / User** | Foundation: removes localStorage user cache; `useCurrentUser` is imported by nearly every other feature |
+| 2 | **C — Order fixes** | P2/P3 are active checkout bugs — broken payload and convention violation; fix before adding new features |
+| 3 | **D — Payment options** | Checkout immediately needs payment method list; small batch, high checkout UX impact |
+| 4 | **B — Product CRUD** | Enables the product management surface (edit, delete, filter by category/brand); P1 + P4 cleanup |
+| 5 | **E — Inventory** | Unlocks proper checkout stock-check flow; reserve/release-stock blocks order submission correctness |
+| 6 | **J — Upload** | Needed before social posts and product images can be uploaded; low effort |
+| 7 | **F — Social** | Largest feature; depends on user identity (A) and upload (J) being ready |
+| 8 | **G — Notification HTTP** | Depends on user identity; wire before WS so HTTP fallback works first |
+| 9 | **I — Chat HTTP** | HTTP layer before adding WS real-time on top |
+| 10 | **H — WebSocket** | Add real-time layer last — cache keys from G and I must exist first |
+| 11 | **K — Misc / Health** | No dependencies; add opportunistically alongside any other batch |
+
+---
+
+## Changelog
+
+### Fix-first pass — 2026-06-02
+Files changed: 6 touched, 1 created
+- `src/types/index.ts` — `PaginatedResponse<T>` shape corrected; `PaymentMethod` type; `CreateOrderDto`; `CreateOrderItemDto` extended
+- `src/api/index.ts` — `getList` typed; `getById` removed; `orders.create` takes `CreateOrderDto`; `orders.getByUser` return type fixed
+- `src/features/product/useProduct.ts` — unwrap removed; query keys migrated to factory
+- `src/features/order/useOrdersByUser.ts` — created (new)
+- `src/features/order/OrderHistoryPage.tsx` — raw await replaced with `useOrdersByUser` hook
+- `src/features/cart/CheckoutPage.tsx` — payment method typed; full `CreateOrderDto` payload
+
+P0 consumers touched by `PaginatedResponse` reconcile: `useProduct.ts`, `OrderHistoryPage.tsx` (both had their own defensive unwrap — now both gone). No other consumers affected.
+
+---
+
+## 4. Implementation Notes (carry-forward from reference)
+
+**Cookie auth**
+All requests use `credentials: 'include'`. The global `request()` fn in `api/index.ts` already sets this. Never add `Authorization` header or pass tokens manually.
+
+**Order `total` field**
+TypeORM returns `DECIMAL` columns as strings. Always parse with `Number(order.total)` before arithmetic. The `Order` type should reflect `total: string` (raw) or document the coercion site.
+
+**`PaginatedResponse<T>` shape**
+```
+{ data: T[]; total: number; page: number; limit: number; totalPages: number; hasNext: boolean }
+```
+Current `PaginatedResponse<T>` in `types/index.ts` has a different shape (`data.items` instead of `data[]`). Reconcile this before implementing paginated hooks — the type definition must match what the API actually returns.
+
+**Upload flow**
+`POST /api/upload/signature` → returns Cloudinary credentials → client uploads *directly* to Cloudinary (not through the backend). The `api/index.ts` fn only calls the signature endpoint; the actual file upload goes to Cloudinary's API.
+
+**WebSocket auth**
+Both gateways (port 3010 and 3011/chat) authenticate via the `access_token` HttpOnly cookie. Connect with `withCredentials: true` — no manual token passing. `handshake.auth.token` / `handshake.query.token` work as dev-only fallbacks.
+
+**WebSocket ports**
+- Notification: `ws://localhost:3010` (no namespace path)
+- Chat: `ws://localhost:3011/chat` (namespace `/chat`)
+Use `VITE_WS_NOTIFICATION_URL` / `VITE_WS_CHAT_URL` env vars rather than hardcoding ports.
+
+**GHN webhook**
+`POST /ghn/webhook` is called by GHN's shipping service directly to the backend. It is excluded from the `/api/` prefix. No frontend implementation needed.
+
+**`socket.io-client` dependency**
+Before implementing Batch H, check `package.json`. If `socket.io-client` is not listed, confirm with the user before running `npm install` — `npm install` is blocked in project settings by default.

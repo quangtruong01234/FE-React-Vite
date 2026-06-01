@@ -2,13 +2,14 @@ import type {
   User,
   Product,
   ProductWithInventory,
+  PaginatedResponse,
   Brand,
   Category,
   Order,
   ProductParams,
   LoginDto,
   RegisterDto,
-  CreateOrderItemDto,
+  CreateOrderDto,
   CreateProductDto,
   ApiError,
 } from '@/types';
@@ -46,13 +47,10 @@ export const api = {
   },
 
   products: {
-    getList: (params: ProductParams = {}): Promise<unknown> => {
+    getList: (params: ProductParams = {}): Promise<PaginatedResponse<ProductWithInventory>> => {
       const qs = new URLSearchParams(params as Record<string, string>).toString();
-      return request(`/products/with-inventory/all${qs ? `?${qs}` : ''}`);
+      return request<PaginatedResponse<ProductWithInventory>>(`/products/with-inventory/all${qs ? `?${qs}` : ''}`);
     },
-
-    getById: (id: number): Promise<Product> =>
-      request<Product>(`/products/${id}`),
 
     getWithInventory: (id: number): Promise<ProductWithInventory> =>
       request<ProductWithInventory>(`/products/${id}/with-inventory`),
@@ -74,10 +72,10 @@ export const api = {
   },
 
   orders: {
-    create: (items: CreateOrderItemDto[]): Promise<Order> =>
-      request<Order>('/order', { method: 'POST', body: JSON.stringify({ items }) }),
+    create: (data: CreateOrderDto): Promise<Order> =>
+      request<Order>('/order', { method: 'POST', body: JSON.stringify(data) }),
 
-    getByUser: (userId: number): Promise<Order[]> =>
-      request<Order[]>(`/order/user/${userId}`),
+    getByUser: (userId: number): Promise<PaginatedResponse<Order>> =>
+      request<PaginatedResponse<Order>>(`/order/user/${userId}`),
   },
 };

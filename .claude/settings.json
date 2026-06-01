@@ -44,6 +44,7 @@
     "PostToolUse": [],
     "Stop": [
       {
+        "_comment": "Stop hooks are informational only — they do not block or gate anything. Command 1 (tsc) surfaces TypeScript errors for awareness after each agent turn; fix them manually if needed. Command 2 (notification) is Windows/PowerShell-specific and will fail silently on macOS/Linux.",
         "hooks": [
           {
             "type": "command",

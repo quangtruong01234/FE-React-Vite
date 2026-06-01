@@ -120,4 +120,4 @@ Do NOT mark this command as done if any `// TODO:` is unresolved — these are p
 
 ---
 
-**Model:** Sonnet | **Effort:** Medium
+**Model:** Sonnet 4.6 | **Effort:** Medium
