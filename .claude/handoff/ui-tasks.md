@@ -168,7 +168,7 @@
 | Phase | Màn | Trạng thái |
 |---|---|---|
 | 0 | Foundation / Fixes | ✅ DONE (fix-first pass) — xem `snapshot.md` |
-| 1 | Social Feed | 🔴 Chưa bắt đầu |
+| 1 | Social Feed | 🟡 Code done — pending verify |
 | 2 | Post Detail + Comments | 🔴 Chưa bắt đầu |
 | 3 | Marketplace | 🔴 Chưa bắt đầu |
 | 4 | App Shell + Commerce | 🔴 Chưa bắt đầu |
@@ -177,5 +177,7 @@
 | 7 | Profile | 🔴 Chưa bắt đầu |
 | 8 | Shop Dashboard | 🔴 Chưa bắt đầu |
 | 9 | Admin Dashboard | 🔴 Chưa bắt đầu |
+
+> Phase 1 visual pass done (2026-06-02): Composer rewritten to match design (Avatar + pill input + Ảnh shortcut); PostCard NaN timestamp fixed, MoreHorizontal + Globe icon added, action row border corrected; tabs made sticky with backdrop-blur. Remaining gap: full 3-col AppShell (Header + LeftRail + RightRail) is Phase 4 scope — not implemented here. Verify thủ công: feed phân trang, like optimistic, bài mới hiện đầu feed.
 
 > Phase 0 types/api đã được chuẩn hoá trong fix-first pass (`PaginatedResponse`, `PaymentMethod`, `CreateOrderDto`, `useOrdersByUser`). Một số items của Phase 0 (StatusBadge, useRole, social/chat/notification namespaces trong api) vẫn cần tạo trước khi bắt đầu Phase 1.

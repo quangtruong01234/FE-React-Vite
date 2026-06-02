@@ -1,11 +1,15 @@
-import { useState, type ReactElement, type ChangeEvent, type FormEvent } from 'react';
+import { useState, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, User as UserIcon, Lock, Globe, Users } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { useLogin } from './useLogin';
+import { registerSchema, type RegisterFormData } from './auth.schema';
 import { api } from '@/api';
 import { useAuthContext } from '@/context/AuthContext';
 import type { User } from '@/types';
+import { cn } from '@/lib/utils';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { TextField } from '@/components/shared/TextField';
 import { OnlinePill } from '@/components/shared/OnlinePill';
@@ -21,13 +25,6 @@ const ghostBtn =
 // ─── Naked link-style button (overrides global button CSS in index.css) ───────
 const linkBtn =
   'bg-transparent !border-none p-0 rounded-none text-tb-amber font-semibold text-[13px] cursor-pointer';
-
-// ─── Register form types ──────────────────────────────────────────────────────
-interface RegisterFormState {
-  username: string;
-  email: string;
-  password: string;
-}
 
 interface RegisterFormProps {
   onBack: () => void;
@@ -99,54 +96,34 @@ function LeftPanel(): ReactElement {
 
 // ─── Register form ────────────────────────────────────────────────────────────
 function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactElement {
-  const [form, setForm] = useState<RegisterFormState>({ username: '', email: '', password: '' });
-  const [errors, setErrors] = useState<Partial<RegisterFormState>>({});
-  const [apiError, setApiError] = useState('');
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<RegisterFormData>({ resolver: zodResolver(registerSchema) });
 
   const { mutateAsync: registerMutate, isPending: registerPending } = useMutation({
-    mutationFn: (data: RegisterFormState) => api.auth.register(data),
-    onError: (err: unknown) => {
-      const msg = err && typeof err === 'object' && 'message' in err
-        ? String((err as { message: unknown }).message)
-        : 'Đăng ký thất bại. Vui lòng thử lại.';
-      setApiError(msg);
-    },
+    mutationFn: (data: RegisterFormData) => api.auth.register(data),
   });
 
   const { mutateAsync: loginAfterRegister, isPending: loginPending } = useMutation({
-    mutationFn: (creds: Pick<RegisterFormState, 'username' | 'password'>) =>
+    mutationFn: (creds: Pick<RegisterFormData, 'username' | 'password'>) =>
       api.auth.login(creds),
   });
 
-  const loading = registerPending || loginPending;
+  const loading = registerPending || loginPending || isSubmitting;
 
-  function validate(): Partial<RegisterFormState> {
-    const errs: Partial<RegisterFormState> = {};
-    if (!form.username.trim()) errs.username = 'Vui lòng nhập tên đăng nhập';
-    if (!form.email.trim()) errs.email = 'Vui lòng nhập email';
-    else if (!/\S+@\S+\.\S+/.test(form.email)) errs.email = 'Email không hợp lệ';
-    if (!form.password) errs.password = 'Vui lòng nhập mật khẩu';
-    else if (form.password.length < 6) errs.password = 'Mật khẩu tối thiểu 6 ký tự';
-    return errs;
-  }
-
-  function handleChange(e: ChangeEvent<HTMLInputElement>): void {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-    if (errors[name as keyof RegisterFormState]) setErrors((prev) => ({ ...prev, [name]: '' }));
-    if (apiError) setApiError('');
-  }
-
-  async function handleSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
-    e.preventDefault();
-    const errs = validate();
-    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+  async function onSubmit(data: RegisterFormData): Promise<void> {
     try {
-      await registerMutate({ username: form.username, email: form.email, password: form.password });
-      const user = await loginAfterRegister({ username: form.username, password: form.password });
+      await registerMutate(data);
+      const user = await loginAfterRegister({ username: data.username, password: data.password });
       onRegisterSuccess(user);
-    } catch {
-      // error handled in onError
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: unknown }).message)
+        : 'Đăng ký thất bại. Vui lòng thử lại.';
+      setError('root', { message: msg });
     }
   }
 
@@ -163,41 +140,65 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
         </div>
 
         <div className="tb-enter tb-stagger flex flex-col gap-[14px]">
-          {apiError && (
+          {errors.root?.message && (
             <div className="bg-red-950/40 border border-tb-red/40 rounded-tb-input text-tb-red text-[13px] px-[14px] py-[10px] text-center">
-              {apiError}
+              {errors.root.message}
             </div>
           )}
 
-          <form className="flex flex-col gap-[14px]" onSubmit={(e) => void handleSubmit(e)} noValidate>
+          <form className="flex flex-col gap-[14px]" onSubmit={(e) => void handleSubmit(onSubmit)(e)} noValidate>
             <div className="flex flex-col gap-1">
-              <TextField
-                id="reg-username" name="username" label="Tên đăng nhập"
+              <label htmlFor="reg-username" className="font-body font-[500] text-[11px] leading-[1.4] text-tb-secondary tracking-[0.04em] uppercase">
+                Tên đăng nhập
+              </label>
+              <input
+                id="reg-username"
                 placeholder="Nhập tên đăng nhập"
-                value={form.username} onChange={handleChange}
-                hasError={!!errors.username} autoFocus
+                autoFocus
+                className={cn(
+                  'h-[44px] bg-tb-elevated border rounded-[10px] px-[14px] text-white font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
+                  'focus:border-[rgba(245,158,11,0.5)] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)]',
+                  errors.username ? 'border-tb-red focus:border-tb-red focus:shadow-[0_0_0_4px_rgba(239,68,68,0.10)]' : 'border-tb-border',
+                )}
+                {...register('username')}
               />
-              {errors.username && <span className="text-xs text-tb-red">{errors.username}</span>}
+              {errors.username && <span className="text-xs text-tb-red">{errors.username.message}</span>}
             </div>
 
             <div className="flex flex-col gap-1">
-              <TextField
-                id="reg-email" name="email" type="email" label="Email"
+              <label htmlFor="reg-email" className="font-body font-[500] text-[11px] leading-[1.4] text-tb-secondary tracking-[0.04em] uppercase">
+                Email
+              </label>
+              <input
+                id="reg-email"
+                type="email"
                 placeholder="Nhập địa chỉ email"
-                value={form.email} onChange={handleChange}
-                hasError={!!errors.email}
+                className={cn(
+                  'h-[44px] bg-tb-elevated border rounded-[10px] px-[14px] text-white font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
+                  'focus:border-[rgba(245,158,11,0.5)] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)]',
+                  errors.email ? 'border-tb-red focus:border-tb-red focus:shadow-[0_0_0_4px_rgba(239,68,68,0.10)]' : 'border-tb-border',
+                )}
+                {...register('email')}
               />
-              {errors.email && <span className="text-xs text-tb-red">{errors.email}</span>}
+              {errors.email && <span className="text-xs text-tb-red">{errors.email.message}</span>}
             </div>
 
             <div className="flex flex-col gap-1">
-              <TextField
-                id="reg-password" name="password" type="password" label="Mật khẩu"
-                placeholder="Tối thiểu 6 ký tự"
-                value={form.password} onChange={handleChange}
-                hasError={!!errors.password}
+              <label htmlFor="reg-password" className="font-body font-[500] text-[11px] leading-[1.4] text-tb-secondary tracking-[0.04em] uppercase">
+                Mật khẩu
+              </label>
+              <input
+                id="reg-password"
+                type="password"
+                placeholder="Tối thiểu 8 ký tự"
+                className={cn(
+                  'h-[44px] bg-tb-elevated border rounded-[10px] px-[14px] text-white font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
+                  'focus:border-[rgba(245,158,11,0.5)] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)]',
+                  errors.password ? 'border-tb-red focus:border-tb-red focus:shadow-[0_0_0_4px_rgba(239,68,68,0.10)]' : 'border-tb-border',
+                )}
+                {...register('password')}
               />
-              {errors.password && <span className="text-xs text-tb-red">{errors.password}</span>}
+              {errors.password && <span className="text-xs text-tb-red">{errors.password.message}</span>}
             </div>
 
             <GradientButton type="submit" disabled={loading} size="lg" className="w-full">

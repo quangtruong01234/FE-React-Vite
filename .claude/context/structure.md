@@ -28,8 +28,9 @@ frontend/src/
 │   ├── AuthContext.tsx         # AuthProvider + useAuthContext()
 │   └── CartContext.tsx         # CartProvider — cart state + localStorage persistence
 ├── components/
-│   ├── ui/                     # shadcn/ui (DO NOT EDIT)
-│   └── shared/                 # Avatar, GradientButton, LiveBadge, OnlinePill, PriceText, TextField
+│   ├── ui/                     # shadcn/ui (DO NOT EDIT — write-blocked; install only via `npx shadcn add`)
+│   └── shared/                 # Custom shared components: Avatar, GradientButton, LiveBadge, OnlinePill,
+│                               # PriceText, StatusBadge, TextField. All non-shadcn reusable components go here.
 ├── features/
 │   ├── auth/                   # LoginPage.tsx, useLogin.ts
 │   ├── cart/                   # CartSidebar.tsx, CheckoutPage.tsx

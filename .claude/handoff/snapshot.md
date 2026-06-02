@@ -454,6 +454,78 @@ Each batch follows the same execution order within it:
 
 ## Changelog
 
+### Phase 1 — Social Feed — 2026-06-02
+Files created: 5 · Files changed: 1
+
+- src/features/social/useFeed.ts — useInfiniteQuery
+  queryKeys.social.feed(); likePost / useUnlikePost với
+  optimistic update trên pages[] cache; rollback onError
+- src/features/social/ProductChip.tsx — thumbnail + tên +
+  giá (font-mono) + "Mua nhanh" → CartContext
+- src/features/social/PostCard.tsx — author header, content,
+  image grid, ProductChip row, action row (like/comment/share
+  với số đếm thật); like gọi useLikePost/useUnlikePost
+- src/features/social/FeedPage.tsx — composer bar + tabs
+  (Dành cho bạn / Đang theo dõi) + PostCard list;
+  IntersectionObserver → fetchNextPage; skeleton / empty /
+  error states
+- src/features/social/CreatePostModal.tsx — RHF + zod;
+  text + Cloudinary image upload (getSignature flow) +
+  product attach by name/SKU; invalidate social.feed onSuccess
+- src/router.tsx — route index → FeedPage;
+  route /marketplace → component lưới sản phẩm cũ
+
+Ref: design_handoff_trybuy_ui/reference/app/feed.jsx
+Verify pending: feed phân trang, like optimistic, bài mới đầu feed.
+
+---
+
+### Phase 0 completion pass — 2026-06-02
+Files changed: 5 touched, 2 created
+
+- src/types/index.ts — User extended (name, avatar, role, isActive);
+  Order.status đủ 6 giá trị; types mới: Post, Comment, CommentTree,
+  Notification, Conversation, Message, PaymentOption, PaymentResult,
+  InventoryRecord, UploadSignature, HealthStatus, OrderWithBuyer + DTOs
+- src/api/index.ts — toQuery() helper; auth.me(); namespaces mới:
+  users, social, notifications, chat, payment, inventory, upload, misc;
+  products + orders extended với Batch B/C fns
+- src/hooks/queryKeys.ts — key groups mới: brands, categories, social,
+  notifications, conversations, messages, payment, inventory, misc
+- tailwind.config.js — tokens mới: accent-violet (#8b5cf6),
+  accent-blue (#3b82f6); pattern badge: bg-*/10 + text-* + border-*/20
+- src/components/shared/StatusBadge.tsx — tạo mới (không phải ui/ —
+  shadcn write-blocked); 6 trạng thái → accent-* tokens
+- src/hooks/useRole.ts — tạo mới; api.auth.me() → { me, role,
+  isSeller, isAdmin }; role values: "admin"/"seller"/"user"
+
+npm run build — zero TS errors. Phase 0 ✅ complete.
+
+---
+
+### RHF + Zod migration pass — 2026-06-02
+Files changed: 5 touched, 3 created
+
+- `.claude/context/conventions.md` — section Form Handling viết lại:
+  RHF + Zod đã install; pattern chuẩn (register / Controller / zodResolver);
+  schema co-locate rule; thay thế dòng "neither installed yet"
+- `src/features/auth/auth.schema.ts` — tạo mới: `loginSchema`, `registerSchema`,
+  `LoginFormData`, `RegisterFormData`
+- `src/features/cart/checkout.schema.ts` — tạo mới: `checkoutSchema` (shipping_address,
+  payment_method enum zalopay|vnpay|cod), `CheckoutFormData`
+- `src/features/product/product.schema.ts` — tạo mới: `createProductSchema` (10 fields,
+  z.coerce cho number fields), `CreateProductFormData`
+- `src/features/auth/LoginPage.tsx` — migrate sang useForm + zodResolver; xoá
+  useState form fields + validate thủ công; server error → setError('root')
+- `src/features/cart/CheckoutPage.tsx` — 4 useState address fields → useForm;
+  payment_method via Controller; shipping_address via register
+- `src/features/product/CreateProductModal.tsx` — 30+ dòng validate thủ công → zodResolver;
+  shadcn Select/Checkbox → Controller; z.coerce.number() cho price/stock/brandId
+
+Dependencies installed: react-hook-form, zod, @hookform/resolvers
+
+---
+
 ### Fix-first pass — 2026-06-02
 Files changed: 6 touched, 1 created
 - `src/types/index.ts` — `PaginatedResponse<T>` shape corrected; `PaymentMethod` type; `CreateOrderDto`; `CreateOrderItemDto` extended

@@ -2,6 +2,7 @@ import { type ReactElement, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
 import { useAuthContext } from '@/context/AuthContext';
 import LoginPage from '@/features/auth/LoginPage';
+import FeedPage from '@/features/social/FeedPage';
 import ProductListPage from '@/features/product/ProductListPage';
 import ProductDetail from '@/features/product/ProductDetail';
 import CheckoutPage from '@/features/cart/CheckoutPage';
@@ -33,7 +34,8 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
     children: [
-      { index: true, element: <ProductListPage /> },
+      { index: true, element: <FeedPage /> },
+      { path: 'marketplace', element: <ProductListPage /> },
       { path: 'product/:id', element: <ProductDetail /> },
       { path: 'checkout', element: <CheckoutPage /> },
       { path: 'orders', element: <OrderHistoryPage /> },

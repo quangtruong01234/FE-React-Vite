@@ -73,6 +73,7 @@ DESIGN DECISIONS — không thay đổi:
 - [ ] Route params parsed safely (`Number(id)` with `enabled` guard, not `parseInt(id!)`)
 
 ### 8. Performance
+> Rule source: context/performance.md
 - [ ] Heavy computation in render wrapped in `useMemo` (only where measurable)
 - [ ] Callbacks passed to memoized children wrapped in `useCallback`
 - [ ] Large lists (> ~100 items) consider virtualization

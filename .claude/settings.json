@@ -3,7 +3,10 @@
     "allow": [
       "Read(**)",
       "Edit(src/**)",
-      "Edit(.claude/**)",
+      "Edit(.claude/context/**)",
+      "Edit(.claude/commands/**)",
+      "Edit(.claude/agents/**)",
+      "Edit(.claude/*.md)",
       "Edit(tailwind.config.*)",
       "Edit(vite.config.*)",
       "Edit(tsconfig*.json)",
@@ -37,7 +40,9 @@
       "Bash(pnpm *)",
       "Bash(bun *)",
       "Bash(git push*)",
-      "Bash(git reset --hard*)"
+      "Bash(git reset --hard*)",
+      "Edit(.claude/settings.json)",
+      "Edit(.claude/settings.local.json)"
     ]
   },
   "hooks": {

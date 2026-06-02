@@ -1,13 +1,15 @@
 import { useState, useEffect, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Banknote, CreditCard, Wallet, ChevronRight, CheckCircle } from 'lucide-react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { checkoutSchema, type CheckoutFormData } from './checkout.schema';
 import { api } from '@/api';
 import { useCart } from '@/context/CartContext';
-import type { CreateOrderDto, PaymentMethod } from '@/types';
+import type { CreateOrderDto } from '@/types';
 import { formatPrice, cn } from '@/lib/utils';
 import { GradientButton } from '@/components/shared/GradientButton';
-import { TextField } from '@/components/shared/TextField';
 
 const PAYMENT_METHODS: { id: PaymentMethod; label: string; Icon: typeof Banknote }[] = [
   { id: 'cod',     label: 'Thanh toán khi nhận hàng (COD)', Icon: Banknote  },
@@ -18,10 +20,20 @@ const PAYMENT_METHODS: { id: PaymentMethod; label: string; Icon: typeof Banknote
 export default function CheckoutPage(): ReactElement {
   const navigate = useNavigate();
   const { items, clearCart, totalPrice, updateQty, removeItem } = useCart();
-  const [error, setError] = useState('');
   const [stockError, setStockError] = useState<Record<number, string>>({});
   const [successOrder, setSuccessOrder] = useState<{ id: number | string } | null>(null);
   const queryClient = useQueryClient();
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<CheckoutFormData>({
+    resolver: zodResolver(checkoutSchema),
+    defaultValues: { payment_method: 'cod' },
+  });
 
   useEffect(() => {
     if (!successOrder) return;
@@ -29,30 +41,18 @@ export default function CheckoutPage(): ReactElement {
     return () => clearTimeout(timer);
   }, [successOrder, navigate]);
 
-  // Address fields — UI only, does not affect handlePlaceOrder
-  const [addrName, setAddrName]     = useState('');
-  const [addrPhone, setAddrPhone]   = useState('');
-  const [addrStreet, setAddrStreet] = useState('');
-  const [addrWard, setAddrWard]     = useState('');
-  const [payment, setPayment] = useState<PaymentMethod>('cod');
-
-  const { mutateAsync: placeOrder, isPending: loading } = useMutation({
+  const { mutateAsync: placeOrder, isPending: mutationPending } = useMutation({
     mutationFn: (dto: CreateOrderDto) => api.orders.create(dto),
     onSuccess: (order) => {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       clearCart();
       setSuccessOrder({ id: order?.id ?? '' });
     },
-    onError: (err: unknown) => {
-      const msg = typeof err === 'object' && err !== null && 'message' in err
-        ? String((err as { message: unknown }).message)
-        : 'Đặt hàng thất bại. Vui lòng thử lại.';
-      setError(msg);
-    },
   });
 
-  async function handlePlaceOrder(): Promise<void> {
-    setError('');
+  const loading = mutationPending || isSubmitting;
+
+  async function onSubmit(data: CheckoutFormData): Promise<void> {
     setStockError({});
 
     try {
@@ -77,17 +77,23 @@ export default function CheckoutPage(): ReactElement {
       // skip stock check on error — backend will validate
     }
 
-    const shippingAddress = [addrName, addrPhone, addrStreet, addrWard].filter(Boolean).join(', ');
-    await placeOrder({
-      payment_method: payment,
-      shipping_address: shippingAddress,
-      items: items.map((item) => ({
-        product_id: item.productId,
-        product_name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-      })),
-    });
+    try {
+      await placeOrder({
+        payment_method: data.payment_method,
+        shipping_address: data.shipping_address,
+        items: items.map((item) => ({
+          product_id: item.productId,
+          product_name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+      });
+    } catch (err: unknown) {
+      const msg = typeof err === 'object' && err !== null && 'message' in err
+        ? String((err as { message: unknown }).message)
+        : 'Đặt hàng thất bại. Vui lòng thử lại.';
+      setError('root', { message: msg });
+    }
   }
 
   if (successOrder) {
@@ -138,13 +144,14 @@ export default function CheckoutPage(): ReactElement {
       </div>
 
       {/* Two-column layout */}
+      <form onSubmit={(e) => void handleSubmit(onSubmit)(e)} noValidate>
       <div className="max-w-[1080px] mx-auto px-6 py-6 pb-12 grid grid-cols-[1fr_380px] gap-8 items-start">
 
         {/* LEFT — form */}
         <div className="flex flex-col gap-4">
-          {error && (
+          {errors.root?.message && (
             <div className="bg-red-950/30 border border-accent-red text-accent-red px-4 py-3 rounded-xl text-sm">
-              {error}
+              {errors.root.message}
             </div>
           )}
 
@@ -153,39 +160,24 @@ export default function CheckoutPage(): ReactElement {
             <h2 className="m-0 font-display font-bold text-base uppercase tracking-[0.04em] text-white">
               1. Địa chỉ giao hàng
             </h2>
-            <div className="grid grid-cols-2 gap-4">
-              <TextField
-                label="Họ và tên"
-                placeholder="Nguyễn Văn A"
-                value={addrName}
-                onChange={(e) => setAddrName(e.target.value)}
-                autoComplete="name"
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="shipping_address" className="font-body font-[500] text-[11px] leading-[1.4] text-ink-sec tracking-[0.04em] uppercase">
+                Địa chỉ giao hàng đầy đủ
+              </label>
+              <input
+                id="shipping_address"
+                placeholder="Họ tên, số điện thoại, số nhà, đường, phường, quận, tỉnh"
+                autoComplete="shipping street-address"
+                className={cn(
+                  'h-[44px] bg-canvas-base border rounded-[10px] px-[14px] text-ink-pri font-body text-[14px] outline-none placeholder:text-ink-muted transition-[border-color,box-shadow] duration-[120ms]',
+                  'focus:border-[rgba(245,158,11,0.5)] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)]',
+                  errors.shipping_address ? 'border-accent-red focus:border-accent-red focus:shadow-[0_0_0_4px_rgba(239,68,68,0.10)]' : 'border-bdr',
+                )}
+                {...register('shipping_address')}
               />
-              <TextField
-                label="Số điện thoại"
-                placeholder="098 *** ***"
-                value={addrPhone}
-                onChange={(e) => setAddrPhone(e.target.value)}
-                autoComplete="tel"
-              />
-              <div className="col-span-2">
-                <TextField
-                  label="Địa chỉ"
-                  placeholder="Số nhà, tên đường"
-                  value={addrStreet}
-                  onChange={(e) => setAddrStreet(e.target.value)}
-                  autoComplete="street-address"
-                />
-              </div>
-              <div className="col-span-2">
-                <TextField
-                  label="Phường / Quận / Tỉnh"
-                  placeholder="P. Bến Nghé, Q.1, TP. HCM"
-                  value={addrWard}
-                  onChange={(e) => setAddrWard(e.target.value)}
-                  autoComplete="address-level2"
-                />
-              </div>
+              {errors.shipping_address && (
+                <span className="text-xs text-accent-red">{errors.shipping_address.message}</span>
+              )}
             </div>
           </div>
 
@@ -194,33 +186,42 @@ export default function CheckoutPage(): ReactElement {
             <h2 className="m-0 font-display font-bold text-base uppercase tracking-[0.04em] text-white">
               2. Phương thức thanh toán
             </h2>
-            <div className="flex flex-col gap-[10px]">
-              {PAYMENT_METHODS.map(({ id, label, Icon }) => {
-                const active = payment === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setPayment(id)}
-                    className={cn(
-                      'flex items-center gap-[14px] px-[18px] py-[14px] text-left rounded-tb-cta border w-full cursor-pointer',
-                      active ? 'bg-amber-400/[0.08] border-amber-400/50' : 'bg-tb-elevated border-tb-border',
-                    )}
-                  >
-                    <span className={cn(
-                      'w-5 h-5 rounded-full shrink-0 border-2 inline-flex items-center justify-center',
-                      active ? 'border-tb-amber' : 'border-tb-muted',
-                    )}>
-                      {active && <span className="w-[10px] h-[10px] rounded-full bg-tb-amber" />}
-                    </span>
-                    <Icon size={18} color={active ? '#F59E0B' : '#A1A1AA'} />
-                    <span className="flex-1 font-body font-semibold text-sm text-white">
-                      {label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            <Controller
+              name="payment_method"
+              control={control}
+              render={({ field }) => (
+                <div className="flex flex-col gap-[10px]">
+                  {PAYMENT_METHODS.map(({ id, label, Icon }) => {
+                    const active = field.value === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => field.onChange(id)}
+                        className={cn(
+                          'flex items-center gap-[14px] px-[18px] py-[14px] text-left rounded-tb-cta border w-full cursor-pointer',
+                          active ? 'bg-amber-400/[0.08] border-amber-400/50' : 'bg-tb-elevated border-tb-border',
+                        )}
+                      >
+                        <span className={cn(
+                          'w-5 h-5 rounded-full shrink-0 border-2 inline-flex items-center justify-center',
+                          active ? 'border-tb-amber' : 'border-tb-muted',
+                        )}>
+                          {active && <span className="w-[10px] h-[10px] rounded-full bg-tb-amber" />}
+                        </span>
+                        <Icon size={18} color={active ? '#F59E0B' : '#A1A1AA'} />
+                        <span className="flex-1 font-body font-semibold text-sm text-white">
+                          {label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {errors.payment_method && (
+                    <span className="text-xs text-accent-red">{errors.payment_method.message}</span>
+                  )}
+                </div>
+              )}
+            />
           </div>
 
           {/* Product list */}
@@ -303,7 +304,7 @@ export default function CheckoutPage(): ReactElement {
           </div>
 
           <GradientButton
-            onClick={() => void handlePlaceOrder()}
+            type="submit"
             disabled={loading || Object.keys(stockError).length > 0}
             className="w-full py-4 text-lg font-bold rounded-xl">
             {loading ? 'Đang đặt hàng...' : 'XÁC NHẬN ĐẶT HÀNG →'}
@@ -319,6 +320,7 @@ export default function CheckoutPage(): ReactElement {
         </div>
 
       </div>
+      </form>
     </div>
   );
 }

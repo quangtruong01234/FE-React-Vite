@@ -54,3 +54,8 @@ React 19 · Vite · TypeScript strict · React Router DOM **v7** · TanStack Que
 
 - React Router DOM v7 only. Navigate via `<Link>` / `useNavigate` — never `window.location`.
 - Routes: `/login`, `/`, `/product/:id`, `/checkout`, `/orders`. Details → `context/structure.md`.
+
+## Performance
+- Choose the better complexity/render approach up front (Map/Set lookups over nested find/filter; thin JSX; stable keys; memoize Context values) — but do NOT add memoization speculatively.
+- Route-level pages lazy-load (`React.lazy` + `<Suspense>`); import lodash per-method (`lodash/debounce`), never the whole lib.
+- Details + examples → `context/performance.md`

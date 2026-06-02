@@ -91,6 +91,16 @@ Two alias pairs resolve to identical hex values but carry different intent:
 | `text-accent-red` | `#EF4444` | `text-tb-red` (same hex) |
 | `text-accent-cyan` | `#06b6d4` | **none** — alias only |
 | `text-accent-green` | `#10b981` | **none** — alias only |
+| `text-accent-violet` | `#8b5cf6` | **none** — alias only (shipped badge) |
+| `text-accent-blue` | `#3b82f6` | **none** — alias only (delivering badge) |
+
+### Badge pattern — `accent-*` tokens
+
+```tsx
+// bg-<token>/10  +  text-<token>  +  border-<token>/20
+<span className="bg-accent-violet/10 text-accent-violet border border-accent-violet/20">Shipped</span>
+<span className="bg-accent-blue/10 text-accent-blue border border-accent-blue/20">Delivering</span>
+```
 
 ## Gradients
 
