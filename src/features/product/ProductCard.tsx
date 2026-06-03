@@ -92,7 +92,7 @@ export default function ProductCard({ product }: ProductCardProps): ReactElement
             disabled={outOfStock}
             onClick={handleAddToCart}
             className={cn(
-              'w-9 h-9 rounded-tb-input bg-tb-gradient text-ink-pri flex items-center justify-center border-0 shadow-tb-cta',
+              'rounded-tb-input bg-tb-gradient text-ink-pri flex items-center justify-center border-0 shadow-tb-cta',
               'hover:opacity-90 active:scale-95 transition flex-none cursor-pointer',
               'disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none',
             )}
