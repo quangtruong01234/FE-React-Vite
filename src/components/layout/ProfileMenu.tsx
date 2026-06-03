@@ -2,7 +2,6 @@ import { useRef, useState, useEffect, type ReactElement } from 'react';
 import { User, Package, Store, LayoutDashboard, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/shared/Avatar';
 import { useRole } from '@/hooks/useRole';
 import { api } from '@/api';

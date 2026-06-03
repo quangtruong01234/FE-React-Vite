@@ -52,7 +52,7 @@ export function NotificationBell(): ReactElement {
       <button
         onClick={() => setOpen(o => !o)}
         aria-label="Thông báo"
-        className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-[10px] w-9 h-9 flex items-center justify-center cursor-pointer hover:border-accent-amber transition-colors"
+        className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-[10px] flex items-center justify-center cursor-pointer hover:border-accent-amber transition-colors"
       >
         <Bell size={16} />
         {unreadCount > 0 && (

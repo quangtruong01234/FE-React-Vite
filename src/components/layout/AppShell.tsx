@@ -15,9 +15,9 @@ export function AppShell({ children, rightRail }: AppShellProps): ReactElement {
       <Header />
       <div
         className={cn(
-          'max-w-[1180px] mx-auto px-5 pt-6 pb-24 grid gap-6 items-start',
+          'w-full px-5 pt-6 pb-24 grid gap-6 items-start',
           rightRail !== undefined
-            ? 'md:grid-cols-[210px_1fr] lg:grid-cols-[210px_minmax(0,1fr)_300px]'
+            ? 'md:grid-cols-[210px_1fr] lg:grid-cols-[240px_minmax(0,1fr)_320px]'
             : 'md:grid-cols-[210px_minmax(0,1fr)]',
         )}
       >
