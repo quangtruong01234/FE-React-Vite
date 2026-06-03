@@ -7,14 +7,21 @@ import { useChat } from './useChat';
 import { cn } from '@/lib/utils';
 import type { Conversation } from '@/types';
 
-function relativeTime(iso: string): string {
-  const ms = new Date(iso).getTime();
-  if (isNaN(ms)) return '';
-  const diff = Math.floor((Date.now() - ms) / 1000);
-  if (diff < 60) return `${diff}s`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-  return `${Math.floor(diff / 86400)}d`;
+function formatMessageTime(iso: string): string {
+  const normalized = iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z';
+  const date = new Date(normalized);
+  if (isNaN(date.getTime())) return '';
+  const hhmm = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startOfYesterday = startOfToday - 86400000;
+  const sevenDaysAgo = startOfToday - 6 * 86400000;
+  const dayOfWeek = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+  const t = date.getTime();
+  if (t >= startOfToday) return hhmm;
+  if (t >= startOfYesterday) return `Hôm qua ${hhmm}`;
+  if (t >= sevenDaysAgo) return `${dayOfWeek[date.getDay()]} ${hhmm}`;
+  return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()} ${hhmm}`;
 }
 
 interface ChatThreadProps {
@@ -76,7 +83,7 @@ export function ChatThread({ conversation, onBack }: ChatThreadProps): ReactElem
         )}
 
         {!isLoading && messages.map((m, i) => {
-          const isMe = meId !== undefined && m.senderId === meId;
+          const isMe = meId !== undefined && Number(m.senderId) === Number(meId);
           const prevMsg = messages[i - 1];
           const showAvatar = !isMe && (i === 0 || prevMsg?.senderId !== m.senderId);
 
@@ -98,7 +105,7 @@ export function ChatThread({ conversation, onBack }: ChatThreadProps): ReactElem
               )}>
                 {m.content}
                 <div className={cn('text-[10px] mt-0.5', isMe ? 'text-ink-pri/70' : 'text-ink-muted')}>
-                  {relativeTime(m.createdAt)}
+                  {formatMessageTime(m.createdAt)}
                 </div>
               </div>
             </div>
@@ -125,9 +132,9 @@ export function ChatThread({ conversation, onBack }: ChatThreadProps): ReactElem
         <button
           onClick={handleSend}
           disabled={!text.trim()}
-          className="w-10 h-10 rounded-full bg-tb-gradient text-ink-pri flex items-center justify-center cursor-pointer border-0 disabled:opacity-40 disabled:cursor-not-allowed flex-none"
+          className="rounded-full bg-tb-gradient text-ink-pri flex items-center justify-center cursor-pointer border-0 disabled:opacity-40 disabled:cursor-not-allowed flex-none"
         >
-          <Send size={16} />
+          <Send size={18} color="#FFFFFF" strokeWidth={2.5} />
         </button>
       </div>
     </div>

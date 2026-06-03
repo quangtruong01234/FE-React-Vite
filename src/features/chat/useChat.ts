@@ -6,7 +6,7 @@ import { queryKeys } from '@/hooks/queryKeys';
 import { api } from '@/api';
 import type { Conversation, Message, PaginatedResponse } from '@/types';
 
-const CHAT_URL = (import.meta.env.VITE_CHAT_URL as string | undefined) ?? 'http://localhost:3011';
+const CHAT_URL = (import.meta.env.VITE_CHAT_URL as string | undefined) ?? 'http://localhost:3000';
 
 type ChatSocket = Socket<
   { new_message: (msg: Message) => void; error: (err: string) => void },
@@ -34,7 +34,7 @@ export function useChat(conversationId: number): {
     enabled: conversationId > 0,
   });
 
-  const httpMessages = page?.data ?? [];
+  const httpMessages = (page?.data ?? []).slice().reverse();
   const messages = mergeMessages(httpMessages, socketMessages);
 
   const socketRef = useRef<ChatSocket | null>(null);
@@ -46,7 +46,7 @@ export function useChat(conversationId: number): {
     const socket: ChatSocket = io(`${CHAT_URL}/chat`, { withCredentials: true });
     socketRef.current = socket;
 
-    socket.emit('join', conversationId);
+    socket.emit('join', { conversationId });
     prevConvRef.current = conversationId;
 
     socket.on('new_message', (msg: Message) => {
