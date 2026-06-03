@@ -76,10 +76,10 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
       form.append('file', file);
       form.append('signature', sig.signature);
       form.append('timestamp', String(sig.timestamp));
-      form.append('api_key', sig.apiKey);
+      form.append('api_key', sig.api_key);
       form.append('folder', sig.folder);
       const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${sig.cloudName}/image/upload`,
+        `https://api.cloudinary.com/v1_1/${sig.cloud_name}/image/upload`,
         { method: 'POST', body: form },
       );
       if (!res.ok) throw new Error('Upload thất bại');
@@ -116,7 +116,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
                 type="button"
                 disabled={uploading}
                 onClick={() => fileInputRef.current?.click()}
-                className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-tb-gradient text-ink-pri border-2 border-canvas-surface flex items-center justify-center cursor-pointer disabled:opacity-40"
+                className="absolute bottom-0 right-0 p-2 rounded-full bg-tb-gradient text-ink-pri border-2 border-canvas-surface flex items-center justify-center cursor-pointer disabled:opacity-40 overflow-visible"
               >
                 {uploading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
               </button>
