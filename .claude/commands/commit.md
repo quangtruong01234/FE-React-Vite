@@ -1,14 +1,12 @@
-# /commit — Generate Conventional Commit
+# /commit — Commit Changes
 
-Inspect staged diff, generate a Conventional Commit message. Default mode shows message for review. Auto-commit is available via `--auto`.
+Group all pending changes by scope and create separate commits.
 
 ## How to invoke
 
 ```
-/commit              # inspect staged, show message for review
-/commit --all        # stage all tracked changes first, then show for review
-/commit --auto       # staged only, commit automatically
-/commit --all --auto # stage all + commit automatically
+/commit              # show proposed commits for review
+/commit --auto       # create commits automatically
 ```
 
 ---
@@ -19,110 +17,104 @@ Inspect staged diff, generate a Conventional Commit message. Default mode shows 
 
 ```bash
 git status
-git diff --cached --stat
-git diff --cached
+git diff --stat        # unstaged
+git diff --cached --stat  # staged
 ```
 
-If nothing staged → report `[NOTHING STAGED] Use git add first.` and stop.
+If nothing changed → report `[NOTHING TO COMMIT]` and stop.
 
-### Step 2 — Classify
+### Step 2 — Group files by scope
 
-Pick ONE type:
+Map each file to a scope:
 
-| Type | Use when |
-|---|---|
-| `feat` | New user-facing feature |
-| `fix` | Bug fix |
-| `refactor` | Code restructure, no behavior change |
-| `perf` | Performance improvement |
-| `style` | Formatting, whitespace, no logic change |
-| `docs` | Documentation only |
-| `test` | Add or update tests |
-| `build` | Build system, deps, config |
-| `chore` | Routine tasks, no src/ impact (e.g. `.claude/settings.json`, `.claude/commands/`) |
-| `docs` | Documentation only — includes `.claude/context/`, `.claude/handoff/`, `*.md` |
-| `revert` | Reverting a previous commit |
+| File path pattern                     | Scope      |
+|---------------------------------------|------------|
+| `src/features/auth/`                  | `auth`     |
+| `src/features/product/`               | `product`  |
+| `src/features/cart/`                  | `cart`     |
+| `src/features/orders/`                | `orders`   |
+| `src/features/social/`                | `social`   |
+| `src/features/<other>/`               | `<other>`  |
+| `src/api/`, `src/types/`, `src/hooks/`, `src/components/`, `src/router.tsx` | `core` |
+| `.claude/` (any file)                 | `claude`   |
+| `tailwind.config.js`, `vite.config.*`, `tsconfig.*`, `package.*` | `build` |
 
-### Step 3 — Determine scope (optional but preferred)
+Files that span multiple feature scopes → group into `core` unless one scope clearly dominates.
 
-From the file paths in the diff:
-- Changes only in `src/features/auth/` → scope: `auth`
-- Changes only in `src/features/cart/` → scope: `cart`
-- Changes in `src/api/` → scope: `api`
-- Changes in `.claude/` (commands, settings, any config) → scope: `claude`
-- Changes across multiple features → no scope, or pick the dominant one
+### Step 3 — Classify each group
 
-### Step 4 — Write the message
+Pick ONE type per commit:
+
+| Type       | Use when                                      |
+|------------|-----------------------------------------------|
+| `feat`     | New user-facing feature or component          |
+| `fix`      | Bug fix                                       |
+| `refactor` | Code restructure, no behavior change          |
+| `perf`     | Performance improvement                       |
+| `style`    | Formatting/whitespace only, no logic change   |
+| `docs`     | Documentation only                            |
+| `test`     | Add or update tests                           |
+| `build`    | Build system, config, deps                    |
+| `chore`    | Routine tasks — `.claude/` files, tooling     |
+
+**Banned:** "update", "fix bug", "change", "edit", "wip" — never use as a type.
+
+### Step 4 — Write commit messages
 
 Format:
 ```
 <type>(<scope>): <subject>
-
-<body — optional, 72 char wrap, explains WHY not WHAT>
-
-<footer — optional, e.g. BREAKING CHANGE: ..., Refs: TB-123>
 ```
 
 Subject rules:
 - ≤ 72 chars
 - Imperative mood ("add", "fix", "remove" — not "added", "fixes")
 - No trailing period
-- Lowercase first letter (after `<type>(<scope>):`)
+- Lowercase first letter
 
-Body rules:
-- Only if change is non-obvious or breaks something
-- Skip if the subject is self-explanatory
+Body: only if the change is non-obvious or breaks something. Skip if self-explanatory.
 
-### Step 5 — Output
+### Step 5 — Output plan
 
-Present the message in a copy-paste block:
-
-````
-── Proposed Commit ──────────────────────────────
-Files changed: 3
-  M src/features/auth/LoginPage.tsx
-  M src/features/auth/useLogin.ts
-  M src/context/AuthContext.tsx
+Present the proposed commits grouped in order:
 
 ```
-feat(auth): persist user identity in localStorage after login
-
-Temporary workaround — backend GET /user/me has shipped but the
-FE migration is pending (see context/auth.md FOLLOW-UP). Stores
-{ id, username, email } from the login response so the app shows
-the current user across reloads.
-```
-
-To commit:
-  git commit -m "<paste subject>" -m "<paste body>"
-
-Or open editor:
-  git commit
+── Proposed Commits ─────────────────────────────
+1. feat(social)  → src/features/social/
+2. feat(core)    → src/api/index.ts, src/types/index.ts, src/hooks/queryKeys.ts, src/hooks/useRole.ts
+3. feat(product) → src/features/product/
+4. fix(auth)     → src/features/auth/
+5. fix(cart)     → src/features/cart/
+6. chore(build)  → tailwind.config.js
+7. chore(claude) → .claude/
 ─────────────────────────────────────────────────
-````
+```
 
 ### Step 5.5 — Auto-commit (only if `--auto` flag is present)
 
-Run:
+For each group in order:
 ```bash
-git add -A   # only if --all was also passed
-git commit -m "<subject>" -m "<body>"
+git add <files in group>
+git commit -m "<type>(<scope>): <subject>"
 ```
 
-Then confirm:
+Do **not** push. After all commits, report:
+
 ```
-[AUTO-COMMITTED] <type>(<scope>): <subject>
-Commit hash: <git rev-parse --short HEAD>
+── Committed ────────────────────────────────────
+[1/5] feat(social): add feed page, post card, and create post modal  abc1234
+[2/5] feat(core): expand api client and types for social/orders/inventory  def5678
+...
+─────────────────────────────────────────────────
 ```
 
-### Step 6 — Self-check
+### Step 6 — Self-check (per commit)
 
-Before presenting, verify:
 - [ ] Subject ≤ 72 chars
-- [ ] Type is from the allowed list
-- [ ] Scope (if any) matches actual files changed
-- [ ] No `console.log` or `// TODO without ticket` was added (warn user if present)
-- [ ] No secrets / `.env` content in the diff (REFUSE TO PROCEED if found)
+- [ ] Type is from the allowed list, not banned
+- [ ] Scope matches the files in that group
+- [ ] No `console.log` or bare `// TODO` added (warn if found)
+- [ ] No `.env` / secrets in diff (REFUSE TO PROCEED if found)
 
 ---
 

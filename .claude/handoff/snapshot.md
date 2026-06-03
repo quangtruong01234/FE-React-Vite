@@ -1,6 +1,6 @@
 # API Application Handoff — Snapshot
 
-**Date:** 2026-06-02
+**Date:** 2026-06-03
 **Source of truth:** `.claude/context/backend-api.md`
 **Compared against:** `frontend/src/api/index.ts`, `frontend/src/features/**`, `frontend/src/hooks/**`, `frontend/src/types/index.ts`
 
@@ -10,9 +10,9 @@
 
 | Bucket | Count | Meaning |
 |---|---|---|
-| ✅ Applied | 12 | Registered in `api/index.ts` AND consumed by a hook/query |
+| ✅ Applied | 40 | Registered in `api/index.ts` AND consumed by a hook/query |
 | 🟡 Partial | 0 | Registered but wrong shape / no hook / dead code |
-| 🔴 Missing | 50 | No api fn, no hook at all |
+| 🔴 Missing | 22 | No api fn, no hook at all |
 | **Total** | **62** | 60 HTTP endpoints + 2 WebSocket connections |
 
 ---
@@ -26,54 +26,54 @@
 | POST | /api/user/register | ✅ | `auth.register` | `LoginPage.tsx` (inline useMutation) |
 | POST | /api/user/login | ✅ | `auth.login` | `useLogin.ts` + `LoginPage.tsx` |
 | POST | /api/user/logout | ✅ | `auth.logout` | `useAuth.ts` (useMutation) |
-| GET | /api/user/me | 🔴 | — | — |
-| GET | /api/user/:id | 🔴 | — | — |
-| PATCH | /api/user/:id | 🔴 | — | — |
-| GET | /api/user/all | 🔴 | — | — |
+| GET | /api/user/me | ✅ | `auth.me` | `useRole.ts` (useQuery · `queryKeys.auth.me`) · consumed by `ProfilePage.tsx`, `LeftRail.tsx`, layout guards |
+| GET | /api/user/:id | ✅ | `users.getById` | `ProfilePage.tsx` (inline useQuery · `queryKeys.users.detail(userId)`) |
+| PATCH | /api/user/:id | ✅ | `users.update` | `EditProfileModal.tsx` (useMutation · invalidates `queryKeys.users.detail` + `queryKeys.auth.me`) |
+| GET | /api/user/all | 🔴 | `users.getAll` | — (api fn registered; no hook/consumer — reserved for Phase 9 `AdminUsers`) |
 
 ### 1.2 Product
 
 | Method | Path | Bucket | api fn | Hook / consumer |
 |---|---|---|---|---|
 | POST | /api/products | ✅ | `products.create` | `CreateProductModal.tsx` (inline useMutation) |
-| GET | /api/products | 🔴 | — | — |
-| GET | /api/products/search | 🔴 | — | — |
+| GET | /api/products | 🔴 | `products.getPlainList` | — (api fn not yet added; deferred to Phase 8/9) |
+| GET | /api/products/search | 🔴 | `products.search` | — (api fn registered; no hook/consumer — Header search navigates to `/marketplace?search=` which uses `getList` with params) |
 | GET | /api/products/brands | ✅ | `products.getBrands` | `CreateProductModal.tsx` (inline useQuery) |
-| POST | /api/products/brands | 🔴 | — | — |
-| GET | /api/products/brands/:id | 🔴 | — | — |
+| POST | /api/products/brands | 🔴 | `products.createBrand` | — (api fn registered; no hook/consumer — reserved for Phase 9 `AdminTaxonomy`) |
+| GET | /api/products/brands/:id | 🔴 | `products.getBrandById` | — (api fn registered; no consumer) |
 | GET | /api/products/categories | ✅ | `products.getCategories` | `CreateProductModal.tsx` (inline useQuery) |
-| POST | /api/products/categories | 🔴 | — | — |
-| GET | /api/products/categories/:id | 🔴 | — | — |
-| GET | /api/products/category/:categoryId | 🔴 | — | — |
-| GET | /api/products/brand/:brandId | 🔴 | — | — |
-| GET | /api/products/sku/:sku | 🔴 | — | — |
+| POST | /api/products/categories | 🔴 | `products.createCategory` | — (api fn registered; no hook/consumer — reserved for Phase 9 `AdminTaxonomy`) |
+| GET | /api/products/categories/:id | 🔴 | `products.getCategoryById` | — (api fn registered; no consumer) |
+| GET | /api/products/category/:categoryId | 🔴 | `products.getByCategory` | — (api fn registered; no hook — `MarketplacePage` uses `getList` with `categoryId` param instead) |
+| GET | /api/products/brand/:brandId | 🔴 | `products.getByBrand` | — (api fn registered; no hook — `MarketplacePage` uses `getList` with `brandId` param instead) |
+| GET | /api/products/sku/:sku | 🔴 | `products.getBySku` | — (api fn registered; no consumer) |
 | GET | /api/products/:id | 🔴 | — | intentionally deferred — removed from `api/index.ts`; `ProductDetail.tsx` uses `getWithInventory` which also covers stock; re-register only if a no-inventory context emerges in future |
-| PATCH | /api/products/:id | 🔴 | — | — |
-| DELETE | /api/products/:id | 🔴 | — | — |
-| GET | /api/products/with-inventory/all | ✅ | `products.getList` | `useProduct.ts` (useQuery · `queryKeys.products.list(params)` / `queryKeys.products.all` · typed `PaginatedResponse<ProductWithInventory>`) |
+| PATCH | /api/products/:id | 🔴 | `products.update` | — (api fn registered; no hook/consumer — reserved for Phase 8 `MyProducts`) |
+| DELETE | /api/products/:id | 🔴 | `products.delete` | — (api fn registered; no hook/consumer — reserved for Phase 8 `MyProducts`) |
+| GET | /api/products/with-inventory/all | ✅ | `products.getList` | `useProducts.ts` (useQuery · `queryKeys.products.list(params)` / `queryKeys.products.all` · typed `PaginatedResponse<ProductWithInventory>`) · consumed by `MarketplacePage.tsx` |
 | GET | /api/products/:id/with-inventory | ✅ | `products.getWithInventory` | `ProductDetail.tsx` (inline useQuery) |
 | POST | /api/products/with-inventory/multiple | ✅ | `products.getMultipleWithInventory` | `CheckoutPage.tsx` (direct await in mutation) |
-| GET | /api/products/:id/stock-check | 🔴 | — | — |
+| GET | /api/products/:id/stock-check | 🔴 | `products.checkStock` | — (api fn registered; no hook/consumer — reserved for Phase 8 checkout stock-check) |
 
 ### 1.3 Order
 
 | Method | Path | Bucket | api fn | Hook / consumer |
 |---|---|---|---|---|
 | POST | /api/order | ✅ | `orders.create` | `CheckoutPage.tsx` (inline useMutation · full `CreateOrderDto` with `payment_method: PaymentMethod`, `shipping_address`, `product_name` per item) |
-| GET | /api/order/admin/orders | 🔴 | — | — |
-| GET | /api/order/:id | 🔴 | — | — |
+| GET | /api/order/admin/orders | 🔴 | `orders.getAdminOrders` | — (api fn registered; no consumer — `AdminPage.tsx` is a stub; reserved for Phase 9) |
+| GET | /api/order/:id | ✅ | `orders.getById` | `useOrder.ts` (useQuery · `queryKeys.orders.detail(orderId)`) · consumed by `OrderDetailPage.tsx` |
 | GET | /api/order/user/:id | ✅ | `orders.getByUser` | `useOrdersByUser.ts` (useQuery · `queryKeys.orders.byUser(userId)` · `PaginatedResponse<Order>`) → consumed by `OrderHistoryPage.tsx` |
-| PATCH | /api/order/:id/cancel | 🔴 | — | — |
-| GET | /api/order/:id/invoice | 🔴 | — | — |
-| GET | /api/order/:id/payment-url | 🔴 | — | — |
+| PATCH | /api/order/:id/cancel | ✅ | `orders.cancel` | `useCancelOrder.ts` (useMutation · invalidates `orders.detail` + `orders.byUser`) · consumed by `OrderDetailPage.tsx` |
+| GET | /api/order/:id/invoice | ✅ | `orders.getInvoice` | `useOrderInvoice.ts` (useMutation · Blob download → anchor click) · consumed by `OrderDetailPage.tsx` |
+| GET | /api/order/:id/payment-url | ✅ | `orders.getPaymentUrl` | `useOrderPaymentUrl.ts` (useMutation · `window.location.href = order_url`) · consumed by `OrderDetailPage.tsx` |
 
 ### 1.4 Payment
 
 | Method | Path | Bucket | api fn | Hook / consumer |
 |---|---|---|---|---|
-| GET | /api/payment/options | 🔴 | — | — |
-| GET | /api/gateway/payment-result | 🔴 | — | — |
-| POST | /ghn/webhook | 🔴 | — | — |
+| GET | /api/payment/options | ✅ | `payment.getOptions` | `usePaymentOptions.ts` (useQuery · `queryKeys.payment.options`) · consumed by `CheckoutPage.tsx` |
+| GET | /api/gateway/payment-result | ✅ | `payment.getResult` | `PaymentResultPage.tsx` (inline useQuery · reads search params → displays success/failure) |
+| POST | /ghn/webhook | 🔴 | — | Server-to-server callback from GHN shipping service — no frontend implementation needed |
 
 > `POST /ghn/webhook` is a server-to-server callback called by GHN. No frontend action needed — omit from implementation.
 
@@ -81,68 +81,68 @@
 
 | Method | Path | Bucket | api fn | Hook / consumer |
 |---|---|---|---|---|
-| POST | /api/inventory | 🔴 | — | — |
-| GET | /api/inventory | 🔴 | — | — |
-| GET | /api/inventory/low-stock | 🔴 | — | — |
-| GET | /api/inventory/product/:productId | 🔴 | — | — |
-| GET | /api/inventory/sku/:sku | 🔴 | — | — |
-| GET | /api/inventory/:id | 🔴 | — | — |
-| PUT | /api/inventory/:id | 🔴 | — | — |
-| DELETE | /api/inventory/:id | 🔴 | — | — |
-| POST | /api/inventory/check-stock | 🔴 | — | — |
-| POST | /api/inventory/reserve-stock | 🔴 | — | — |
-| POST | /api/inventory/release-stock | 🔴 | — | — |
+| POST | /api/inventory | 🔴 | `inventory.create` | — (api fn registered; no hook/consumer — reserved for Phase 8 `ShopInventory`) |
+| GET | /api/inventory | 🔴 | `inventory.getAll` | — (api fn registered; no hook/consumer) |
+| GET | /api/inventory/low-stock | 🔴 | `inventory.getLowStock` | — (api fn registered; no hook/consumer — reserved for Phase 8 low-stock alert) |
+| GET | /api/inventory/product/:productId | 🔴 | `inventory.getByProduct` | — (api fn registered; no hook/consumer) |
+| GET | /api/inventory/sku/:sku | 🔴 | `inventory.getBySku` | — (api fn registered; no hook/consumer) |
+| GET | /api/inventory/:id | 🔴 | `inventory.getById` | — (api fn registered; no hook/consumer) |
+| PUT | /api/inventory/:id | 🔴 | `inventory.update` | — (api fn registered; no hook/consumer — reserved for Phase 8 `ShopInventory`) |
+| DELETE | /api/inventory/:id | 🔴 | `inventory.delete` | — (api fn registered; no hook/consumer) |
+| POST | /api/inventory/check-stock | 🔴 | `inventory.checkStock` | — (api fn registered; no hook/consumer) |
+| POST | /api/inventory/reserve-stock | 🔴 | `inventory.reserveStock` | — (api fn registered; no hook/consumer) |
+| POST | /api/inventory/release-stock | 🔴 | `inventory.releaseStock` | — (api fn registered; no hook/consumer) |
 
 ### 1.6 Social
 
 | Method | Path | Bucket | api fn | Hook / consumer |
 |---|---|---|---|---|
-| POST | /api/social/posts | 🔴 | — | — |
-| GET | /api/social/posts | 🔴 | — | — |
-| GET | /api/social/posts/user/:userId | 🔴 | — | — |
-| GET | /api/social/posts/:id | 🔴 | — | — |
-| POST | /api/social/posts/:id/like | 🔴 | — | — |
-| DELETE | /api/social/posts/:id/like | 🔴 | — | — |
-| DELETE | /api/social/posts/:id | 🔴 | — | — |
-| POST | /api/social/posts/:id/comments | 🔴 | — | — |
-| GET | /api/social/posts/:id/comments | 🔴 | — | — |
-| DELETE | /api/social/comments/:id | 🔴 | — | — |
-| POST | /api/social/comments/:id/replies | 🔴 | — | — |
-| GET | /api/social/comments/:id/replies | 🔴 | — | — |
+| POST | /api/social/posts | ✅ | `social.createPost` | `CreatePostModal.tsx` (useMutation · RHF + zod · invalidates `social.feed` onSuccess) |
+| GET | /api/social/posts | ✅ | `social.getFeed` | `useFeed.ts` (useInfiniteQuery · `queryKeys.social.feed(1)` · IntersectionObserver pagination) · consumed by `FeedPage.tsx` |
+| GET | /api/social/posts/user/:userId | ✅ | `social.getPostsByUser` | `ProfilePage.tsx` (inline useQuery · `queryKeys.social.postsByUser(userId)`) |
+| GET | /api/social/posts/:id | ✅ | `social.getPostById` | `PostDetailPage.tsx` (inline useQuery · `queryKeys.social.post(id)`) |
+| POST | /api/social/posts/:id/like | ✅ | `social.likePost` | `useLikePost` in `useFeed.ts` (useMutation · optimistic update on `pages[]` cache · rollback onError) · consumed by `PostCard.tsx`, `PostDetailPage.tsx` |
+| DELETE | /api/social/posts/:id/like | ✅ | `social.unlikePost` | `useUnlikePost` in `useFeed.ts` (useMutation · optimistic decrement · rollback onError) · consumed by `PostCard.tsx`, `PostDetailPage.tsx` |
+| DELETE | /api/social/posts/:id | ✅ | `social.deletePost` | `PostCard.tsx` / `PostDetailPage.tsx` (inline useMutation) |
+| POST | /api/social/posts/:id/comments | ✅ | `social.createComment` | `useCreateComment` in `useComments.ts` (useMutation · invalidates `social.comments(postId)`) · consumed by `PostDetailPage.tsx` |
+| GET | /api/social/posts/:id/comments | ✅ | `social.getComments` | `useComments` in `useComments.ts` (useQuery · `queryKeys.social.comments(postId)`) · consumed by `PostDetailPage.tsx` |
+| DELETE | /api/social/comments/:id | ✅ | `social.deleteComment` | `useDeleteComment` in `useComments.ts` (useMutation · invalidates comments + replies caches) · consumed by `CommentNode.tsx` |
+| POST | /api/social/comments/:id/replies | ✅ | `social.createReply` | `useCreateReply` in `useComments.ts` (useMutation · invalidates `social.replies(commentId)`) · consumed by `CommentNode.tsx` |
+| GET | /api/social/comments/:id/replies | ✅ | `social.getReplies` | `useReplies` in `useComments.ts` (useQuery · `queryKeys.social.replies(commentId)` · lazy `enabled` flag) · consumed by `CommentNode.tsx` |
 
 ### 1.7 Notification
 
 | Method | Path | Bucket | api fn | Hook / consumer |
 |---|---|---|---|---|
-| GET | /api/notifications | 🔴 | — | — |
-| PATCH | /api/notifications/:id/read | 🔴 | — | — |
+| GET | /api/notifications | ✅ | `notifications.getList` | `useNotifications.ts` (useQuery · `queryKeys.notifications.list(1)` · page 1 limit 50) · consumed by `NotificationsPage.tsx`, `NotificationBell.tsx` |
+| PATCH | /api/notifications/:id/read | ✅ | `notifications.markRead` | `useNotifications.ts` (useMutation · optimistic `is_read: true` update · rollback onError) · consumed by `NotificationsPage.tsx`, `NotificationBell.tsx` |
 
 ### 1.8 Chat (HTTP)
 
 | Method | Path | Bucket | api fn | Hook / consumer |
 |---|---|---|---|---|
-| POST | /api/chat/conversations | 🔴 | — | — |
-| GET | /api/chat/conversations | 🔴 | — | — |
-| GET | /api/chat/conversations/:id/messages | 🔴 | — | — |
+| POST | /api/chat/conversations | ✅ | `chat.createConversation` | `MessagesPage.tsx` (inline useMutation) |
+| GET | /api/chat/conversations | ✅ | `chat.getConversations` | `useConversations` in `useChat.ts` (useQuery · `queryKeys.conversations.all`) · consumed by `MessagesPage.tsx` |
+| GET | /api/chat/conversations/:id/messages | ✅ | `chat.getMessages` | `useChat` in `useChat.ts` (useQuery · `queryKeys.messages.byConversation(conversationId)`) · consumed by `ChatThread.tsx` |
 
 ### 1.9 Upload
 
 | Method | Path | Bucket | api fn | Hook / consumer |
 |---|---|---|---|---|
-| POST | /api/upload/signature | 🔴 | — | — |
+| POST | /api/upload/signature | ✅ | `upload.getSignature` | `CreatePostModal.tsx` (direct await in mutation · Cloudinary upload flow) · `EditProfileModal.tsx` (avatar upload) |
 
 ### 1.10 Misc
 
 | Method | Path | Bucket | api fn | Hook / consumer |
 |---|---|---|---|---|
-| GET | /api/gateway/health | 🔴 | — | — |
+| GET | /api/gateway/health | 🔴 | `misc.health` | — (api fn registered; no hook/consumer — reserved for admin status page) |
 
 ### 1.11 WebSocket
 
 | Connection | URL | Bucket | Consumer |
 |---|---|---|---|
-| Notification WS | `ws://localhost:3010` | 🔴 | — |
-| Chat WS | `ws://localhost:3011/chat` | 🔴 | — |
+| Notification WS | `ws://localhost:3010` | ✅ | `useNotifications.ts` — socket.io `withCredentials: true`; `on('notification')` → prepend to `notifications.list(1)` cache + increment `unreadCount` |
+| Chat WS | `ws://localhost:3011/chat` | ✅ | `useChat.ts` — socket.io `/chat` namespace `withCredentials: true`; `emit('join', conversationId)` on connect; `on('new_message')` → merge into messages + update conversation preview; `emit('send_message')` on send |
 
 ---
 
@@ -453,6 +453,78 @@ Each batch follows the same execution order within it:
 ---
 
 ## Changelog
+
+### Phase 7 — Profile + Edit — 2026-06-03
+Files created: 2 · Files changed: 1
+
+- src/features/user/ProfilePage.tsx — tạo mới; cover + avatar + tên + bio + stats; tabs Bài viết / Sản phẩm / Giới thiệu; inline useQuery `users.getById` + `social.getPostsByUser` + `products.getList`; nút Chỉnh sửa chỉ hiện cho chủ tài khoản (`useRole`)
+- src/features/user/EditProfileModal.tsx — tạo mới; RHF + zod; name / email / avatar (Cloudinary upload flow); PATCH /api/user/:id; invalidate `queryKeys.users.detail` + `queryKeys.auth.me`
+- src/router.tsx — thêm route `/profile/:id` → ProfilePage (lazy)
+
+### Phase 6 — Chat / Messaging — 2026-06-03
+Files created: 3 · Files changed: 1
+
+- src/features/chat/useChat.ts — tạo mới; `useConversations` (useQuery `conversations.all`); `useChat(conversationId)` (useQuery messages + socket.io `/chat` namespace; `emit('join')` khi mở thread; `on('new_message')` → merge vào cache; `emit('send_message')`); `mergeMessages` dedup by id
+- src/features/chat/MessagesPage.tsx — tạo mới; layout 2 cột `[300px_1fr]`; list hội thoại bên trái; ChatThread bên phải; tạo conversation mới
+- src/features/chat/ChatThread.tsx — tạo mới; bong bóng tin (trái/phải theo senderId); input gửi tin; scroll to bottom
+- src/router.tsx — thêm route `/messages` → MessagesPage (lazy)
+
+### Phase 5 — Notifications + Realtime — 2026-06-03
+Files created: 2 · Files changed: 1
+
+- src/features/notifications/useNotifications.ts — tạo mới; useQuery `notifications.list(1)` limit 50; useMutation `markRead` với optimistic update + rollback; socket.io `ws://localhost:3010` `withCredentials: true`; `on('notification')` → prepend cache + tăng unreadCount; cleanup on unmount
+- src/features/notifications/NotificationsPage.tsx — tạo mới; danh sách phân trang; nhóm theo ngày; click → navigate đơn hàng; nút "Đọc tất cả"
+- src/router.tsx — thêm route `/notifications` → NotificationsPage (lazy)
+
+### Phase 4C — Commerce (order lifecycle) — 2026-06-03
+Files created: 5 · Files changed: 2
+
+- src/features/order/useOrder.ts — tạo mới; useQuery `orders.detail(orderId)` → `OrderDetailPage`
+- src/features/order/useCancelOrder.ts — tạo mới; useMutation `orders.cancel`; invalidate `orders.detail` + `orders.byUser`
+- src/features/order/useOrderInvoice.ts — tạo mới; useMutation; Blob download → anchor click → `order-{id}.pdf`
+- src/features/order/useOrderPaymentUrl.ts — tạo mới; useMutation; `window.location.href = order_url`
+- src/features/order/OrderDetailPage.tsx — tạo mới; timeline 6 bước; nút Hủy / Tải PDF / Thanh toán; StatusBadge
+- src/features/cart/usePaymentOptions.ts — tạo mới; useQuery `payment.options` → CheckoutPage picker
+- src/features/payment/PaymentResultPage.tsx — tạo mới; đọc search params; inline useQuery `payment.getResult`; hiển thị success/failure + link đơn hàng
+- src/router.tsx — thêm routes `/order/:id`, `/payment-result`
+
+### Phase 4B — Router + Guards + Lazy-loading — 2026-06-03
+Files created: 1 · Files changed: 1
+
+- src/components/auth/ProtectedRoute.tsx — tạo mới; `useRole()` → redirect `/login` nếu chưa authen; role guard prop cho `/admin` (isAdmin) và `/shop` (isSeller || isAdmin)
+- src/router.tsx — bọc authenticated routes trong AppShell + ProtectedRoute; lazy import tất cả page-level components; thêm routes `/marketplace`, `/post/:id`, `/profile/:id`, `/messages`, `/notifications`, `/order/:id`, `/payment-result`
+
+### Phase 4A — App Shell (6 layout components) — 2026-06-03
+Files created: 6 · Files changed: 0
+
+- src/components/layout/AppShell.tsx — tạo mới; wrapper `min-h-screen bg-canvas-base`; grid `md:[210px_1fr] lg:[210px_1fr_300px]`; rightRail optional
+- src/components/layout/Header.tsx — tạo mới; Logo + search (submit → `/marketplace?search=`); nút Tạo dropdown; icon Tin nhắn (badge); NotificationBell; icon Giỏ hàng (badge); ProfileMenu
+- src/components/layout/LeftRail.tsx — tạo mới; nav links theo role; Kênh người bán chỉ `isSeller || isAdmin`; Quản trị sàn chỉ `isAdmin`
+- src/components/layout/RightRail.tsx — tạo mới; seller nổi bật + trending products
+- src/components/layout/NotificationBell.tsx — tạo mới; dropdown 360px; badge gradient unread count; mark-read per item; link Xem tất cả
+- src/components/layout/ProfileMenu.tsx — tạo mới; avatar → dropdown theo role; Đăng xuất
+
+### Phase 3B — Header search — 2026-06-03
+Files changed: 1
+
+- src/components/layout/Header.tsx — nối ô search → điều hướng `/marketplace?search=...`; bỏ `readOnly`; debounce 300ms
+
+### Phase 3A — Marketplace core — 2026-06-03
+Files created: 3 · Files changed: 2
+
+- src/features/product/MarketplacePage.tsx — tạo mới; sidebar filter (category / brand / giá min-max) + lưới ProductCard + sort + phân trang `hasNext`
+- src/features/product/ProductCard.tsx — tạo mới; ảnh, tên, giá, badge brand, nút Thêm vào giỏ; không có Like/Comment giả
+- src/features/product/useProducts.ts — tạo mới (thay `useProduct.ts`); nhận params `{ search, categoryId, brandId, minPrice, maxPrice, sortBy, sortOrder, page }`; xoá `Math.random()`
+- src/router.tsx — thêm route `/marketplace` → MarketplacePage
+- src/features/product/useProduct.ts — đã xoá (thay bằng useProducts.ts)
+
+### Phase 2 — Post Detail + Comments — 2026-06-03
+Files created: 3 · Files changed: 1
+
+- src/features/social/PostDetailPage.tsx — tạo mới; header post + nội dung + ảnh + action row + section bình luận; inline useQuery `social.getPostById`
+- src/features/social/CommentNode.tsx — tạo mới; đệ quy render reply; ô trả lời inline; nút xoá chỉ chủ comment; load thêm replies theo depth
+- src/features/social/useComments.ts — tạo mới; `useComments(postId)`, `useReplies(commentId)`, `useCreateComment`, `useCreateReply`, `useDeleteComment`
+- src/router.tsx — thêm route `/post/:id` → PostDetailPage
 
 ### Phase 1 — Social Feed — 2026-06-02
 Files created: 5 · Files changed: 1
