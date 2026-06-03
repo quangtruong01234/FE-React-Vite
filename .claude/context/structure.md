@@ -95,7 +95,7 @@ Rules:
 **Current location:** `src/features/product/ChatRoom.tsx`
 **Should be:** `src/features/chat/ChatRoom.tsx` (new folder)
 
-`ChatRoom.tsx` implements chat UI — it has no product-specific logic and belongs with the Chat WS gateway (port 3011), not with product browsing. It is currently a mock placeholder so the move is low-risk, but it should be done as a dedicated PR to avoid noise in the WS implementation PR.
+`ChatRoom.tsx` implements chat UI — it has no product-specific logic and belongs with the Chat WS gateway (port 3000), not with product browsing. It is currently a mock placeholder so the move is low-risk, but it should be done as a dedicated PR to avoid noise in the WS implementation PR.
 
 When moving:
 - Create `src/features/chat/` folder

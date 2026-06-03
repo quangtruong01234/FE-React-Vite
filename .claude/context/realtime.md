@@ -13,7 +13,7 @@
 | Purpose | URL | Namespace | Events from server | Events from client |
 |---|---|---|---|---|
 | Notifications | `ws://localhost:3010` | `/` (default) | `notification` | none — server-push only |
-| Chat | `ws://localhost:3011/chat` | `/chat` | `new_message`, `error` | `join`, `send_message` |
+| Chat | `ws://localhost:3000/chat` | `/chat` | `new_message`, `error` | `join`, `send_message` |
 
 Auth: both gateways read the `access_token` HttpOnly cookie automatically when `withCredentials: true`. No token passing in handshake options.
 
@@ -39,7 +39,7 @@ import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import type { Message } from '@/types';
 
-const CHAT_URL = import.meta.env.VITE_CHAT_URL ?? 'http://localhost:3011';
+const CHAT_URL = import.meta.env.VITE_CHAT_URL ?? 'http://localhost:3000';
 
 export function useChatSocket(conversationId: number) {
   const [messages, setMessages] = useState<Message[]>([]);

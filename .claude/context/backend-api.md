@@ -1126,10 +1126,10 @@ socket.on('notification', (data) => console.log(data));
 
 | Property  | Value                                           |
 |-----------|-------------------------------------------------|
-| Port      | 3011                                            |
+| Port      | 3000                                            |
 | Namespace | `/chat`                                         |
 | CORS      | `FRONTEND_URL` env (default `http://localhost:5173`) |
-| URL       | `ws://localhost:3011/chat` (or via nginx `/chat/`) |
+| URL       | `ws://localhost:3000/chat` (or via nginx `/chat/`) |
 
 **Authentication** (on connect):
 Cookie `access_token` is sent automatically when `withCredentials: true` — no manual token required.
@@ -1154,7 +1154,7 @@ Invalid/missing token → immediate disconnect.
 **Example (socket.io-client):**
 ```js
 import { io } from 'socket.io-client';
-const socket = io('http://localhost:3011/chat', {
+const socket = io('http://localhost:3000/chat', {
   withCredentials: true, // sends access_token cookie automatically
 });
 socket.emit('join', { conversationId: 1 });
@@ -1170,7 +1170,7 @@ socket.on('new_message', (msg) => console.log(msg));
 - **JWT**: never stored in localStorage — HttpOnly cookie only
 - **Pagination**: every paginated endpoint returns `PaginatedResponse<T>` with `totalPages` + `hasNext`
 - **Upload flow**: `POST /api/upload/signature` → upload directly to Cloudinary (not through server)
-- **WS auth**: both WS gateways (notification port 3010, chat port 3011/chat) read the `access_token` HttpOnly cookie automatically — connect with `withCredentials: true`, no manual token handling needed. `handshake.auth.token` / `handshake.query.token` still work as dev fallbacks.
+- **WS auth**: both WS gateways (notification port 3010, chat port 3000/chat) read the `access_token` HttpOnly cookie automatically — connect with `withCredentials: true`, no manual token handling needed. `handshake.auth.token` / `handshake.query.token` still work as dev fallbacks.
 - **WS JWT claim**: both gateways read `payload.userId` — matches how the JWT is signed.
 - **`total` field on orders**: TypeORM returns `DECIMAL` as string — parse with `Number()` before arithmetic
 - **GHN webhook**: excluded from `/api/` prefix — route is `/ghn/webhook`

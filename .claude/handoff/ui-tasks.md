@@ -99,7 +99,7 @@
 
 - [ ] **`src/features/chat/MessagesPage.tsx`** *(mới)* — Layout 2 cột (`[300px_1fr]`); mobile: 1 cột; list hội thoại bên trái, `ChatThread` bên phải
 - [ ] **`src/features/chat/ChatThread.tsx`** *(mới)* — Bong bóng tin (trái/phải theo `senderId`); input gửi tin; scroll to bottom khi có tin mới
-- [ ] **`src/features/chat/useChat.ts`** *(mới)* — `useQuery` conversations + messages; socket.io `ws://localhost:3011/chat` (`withCredentials`); `emit('join', conversationId)` khi mở thread; `emit('send_message', ...)` khi gửi; `on('new_message')` → append cache
+- [ ] **`src/features/chat/useChat.ts`** *(mới)* — `useQuery` conversations + messages; socket.io `ws://localhost:3000/chat` (`withCredentials`); `emit('join', conversationId)` khi mở thread; `emit('send_message', ...)` khi gửi; `on('new_message')` → append cache
 - [ ] **`src/router.tsx`** *(sửa)* — Thêm route `/messages`
 - [ ] **Verify:** Mở hội thoại; gửi/nhận tin realtime; preview tin cuối ở list conversations
 

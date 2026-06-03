@@ -5,6 +5,18 @@ Guidance for Claude Code inside `frontend/`.
 **TryBuy** — React 19 + Vite frontend for a microservices e-commerce platform.
 Dark-theme design system using custom `tb-*` Tailwind tokens. Package manager: **npm**.
 
+## Styling — Mandatory (always apply)
+
+All styling = **Tailwind utility classes only**. Không có ngoại lệ nào trừ `Avatar.tsx`.
+
+- ❌ No inline `style={{}}` — no `.css` / `.module.css` files
+- ❌ No hardcoded hex — no raw Tailwind palette (`text-gray-500`, `bg-blue-600`)
+- ✅ Conditional classes: `cn()` từ `@/lib/utils`
+- ✅ Fonts: `font-display` / `font-body` / `font-mono` — không dùng `font-sans`
+
+→ Token tables + full rules: load `context/styling.md` + `tokens.md`
+  khi task **viết hoặc chỉnh Tailwind classes** (không cần load cho task logic / API / data)
+
 ## Always-loaded rules
 
 @context/core.md
@@ -17,7 +29,7 @@ Dark-theme design system using custom `tb-*` Tailwind tokens. Package manager: *
 | ------------------------------------------------------------------------------------------- | ---------------------------------- |
 | Folder layout, file naming, where to put a new file, routes                                 | `context/structure.md`             |
 | Writing/editing hooks, `useQuery`/`useMutation`, query keys                                 | `context/data-fetching.md`         |
-| Tailwind classes, colors, tokens, styling a component                                       | `context/styling.md` + `tokens.md` |
+| Viết hoặc chỉnh Tailwind classes, chọn màu / token, fix layout / UI bug                    | `context/styling.md` + `tokens.md` |
 | Login, logout, auth state, cookies, 401 handling                                            | `context/auth.md`                  |
 | Forms, component structure, lodash, TS rules, env vars                                      | `context/conventions.md`           |
 | Calling an API endpoint, `api` object, `request()` contract                                 | `api-reference.md`                 |
@@ -48,6 +60,10 @@ Dark-theme design system using custom `tb-*` Tailwind tokens. Package manager: *
 | `code-reviewer`    | Deep multi-file review before PR   |
 | `debugger`         | Persistent bug, >3 attempts failed |
 | `refactor-planner` | Plan-only, no edits                |
+
+## UI Patterns — Known Rules
+
+- **Icon button tròn**: dùng `size-{n} grid place-items-center` (không dùng `w-{n} h-{n} flex items-center justify-center`). Thêm `shrink-0` trên icon bên trong để tránh SVG bị ép nhỏ.
 
 ## Quick Commands
 

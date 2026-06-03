@@ -142,7 +142,7 @@
 | Connection | URL | Bucket | Consumer |
 |---|---|---|---|
 | Notification WS | `ws://localhost:3010` | ✅ | `useNotifications.ts` — socket.io `withCredentials: true`; `on('notification')` → prepend to `notifications.list(1)` cache + increment `unreadCount` |
-| Chat WS | `ws://localhost:3011/chat` | ✅ | `useChat.ts` — socket.io `/chat` namespace `withCredentials: true`; `emit('join', conversationId)` on connect; `on('new_message')` → merge into messages + update conversation preview; `emit('send_message')` on send |
+| Chat WS | `ws://localhost:3000/chat` | ✅ | `useChat.ts` — socket.io `/chat` namespace `withCredentials: true`; `emit('join', conversationId)` on connect; `on('new_message')` → merge into messages + update conversation preview; `emit('send_message')` on send |
 
 ---
 
@@ -356,7 +356,7 @@ Each batch follows the same execution order within it:
 
 **Connections:**
 - Notification WS: `ws://localhost:3010`, namespace `/`, event: `notification`
-- Chat WS: `ws://localhost:3011/chat`, namespace `/chat`, client events: `join`, `send_message`; server events: `new_message`, `error`
+- Chat WS: `ws://localhost:3000/chat`, namespace `/chat`, client events: `join`, `send_message`; server events: `new_message`, `error`
 
 **Types to add:**
 - `WsNotificationPayload` (reuse `Notification` type from Batch G)
@@ -365,7 +365,7 @@ Each batch follows the same execution order within it:
 
 **Hooks:**
 - `useNotificationSocket()` — connects to port 3010 with `withCredentials: true`; on `notification` event, appends to query cache for `notifications.list` and increments unread count; disconnects on unmount
-- `useChatSocket(conversationId)` — connects to port 3011/chat; emits `join` on connect; on `new_message`, appends to `chat.messages(conversationId)` query cache; exposes `sendMessage(content, parentMessageId?)` fn; handles `error` event
+- `useChatSocket(conversationId)` — connects to port 3000/chat; emits `join` on connect; on `new_message`, appends to `chat.messages(conversationId)` query cache; exposes `sendMessage(content, parentMessageId?)` fn; handles `error` event
 
 **Setup note:** both sockets authenticate via HttpOnly cookie (`withCredentials: true`) — no manual token. Use `socket.io-client`. Check if already installed: `package.json` should be verified before Batch H starts.
 
@@ -629,11 +629,11 @@ Current `PaginatedResponse<T>` in `types/index.ts` has a different shape (`data.
 `POST /api/upload/signature` → returns Cloudinary credentials → client uploads *directly* to Cloudinary (not through the backend). The `api/index.ts` fn only calls the signature endpoint; the actual file upload goes to Cloudinary's API.
 
 **WebSocket auth**
-Both gateways (port 3010 and 3011/chat) authenticate via the `access_token` HttpOnly cookie. Connect with `withCredentials: true` — no manual token passing. `handshake.auth.token` / `handshake.query.token` work as dev-only fallbacks.
+Both gateways (port 3010 and 3000/chat) authenticate via the `access_token` HttpOnly cookie. Connect with `withCredentials: true` — no manual token passing. `handshake.auth.token` / `handshake.query.token` work as dev-only fallbacks.
 
 **WebSocket ports**
 - Notification: `ws://localhost:3010` (no namespace path)
-- Chat: `ws://localhost:3011/chat` (namespace `/chat`)
+- Chat: `ws://localhost:3000/chat` (namespace `/chat`)
 Use `VITE_WS_NOTIFICATION_URL` / `VITE_WS_CHAT_URL` env vars rather than hardcoding ports.
 
 **GHN webhook**
