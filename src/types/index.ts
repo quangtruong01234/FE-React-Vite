@@ -179,6 +179,8 @@ export interface ProductParams {
   isActive?: boolean;
   categoryId?: number;
   brandId?: number;
+  minPrice?: number;
+  maxPrice?: number;
 }
 
 export interface LoginDto {
