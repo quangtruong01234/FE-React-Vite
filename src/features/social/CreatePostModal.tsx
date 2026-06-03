@@ -2,7 +2,8 @@ import { useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ImagePlus, Loader2, X } from 'lucide-react';
+import { ImagePlus, Loader2, Video, X } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 import {
   Dialog,
   DialogContent,
@@ -12,9 +13,23 @@ import {
 import { GradientButton } from '@/components/shared/GradientButton';
 import { queryKeys } from '@/hooks/queryKeys';
 import { api } from '@/api';
+import { uploadImage, uploadVideo, deleteMedia } from '@/lib/cloudinary';
 import { cn } from '@/lib/utils';
 import { createPostSchema, type CreatePostFormData } from './social.schema';
-import type { Product } from '@/types';
+
+const MAX_IMAGES = 4;
+
+interface MediaItem {
+  url: string;
+  publicId: string;
+  type: 'image' | 'video';
+}
+
+interface UploadState {
+  active: boolean;
+  percent: number;
+  error: string | null;
+}
 
 interface CreatePostModalProps {
   open: boolean;
@@ -23,16 +38,12 @@ interface CreatePostModalProps {
 
 export default function CreatePostModal({ open, onClose }: CreatePostModalProps) {
   const queryClient = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { currentUser } = useAuth();
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
-  const [imageUrls, setImageUrls] = useState<string[]>([]);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-
-  const [productQuery, setProductQuery] = useState('');
-  const [productResults, setProductResults] = useState<Product[]>([]);
-  const [searchingProduct, setSearchingProduct] = useState(false);
-  const [attachedProduct, setAttachedProduct] = useState<Product | null>(null);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const [upload, setUpload] = useState<UploadState>({ active: false, percent: 0, error: null });
 
   const {
     register,
@@ -43,73 +54,115 @@ export default function CreatePostModal({ open, onClose }: CreatePostModalProps)
   } = useForm<CreatePostFormData>({ resolver: zodResolver(createPostSchema) });
 
   const { mutateAsync: createPost } = useMutation({
-    mutationFn: (data: CreatePostFormData) =>
-      api.social.createPost({ content: data.content, imageUrls }),
+    mutationFn: (data: CreatePostFormData) => {
+      const imageUrls = mediaItems.filter((m) => m.type === 'image').map((m) => m.url);
+      const videoItem = mediaItems.find((m) => m.type === 'video');
+      return api.social.createPost({
+        content: data.content,
+        imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+        videoUrl: videoItem?.url,
+      });
+    },
     onSuccess: () => {
+      // Post saved — media is now referenced, don't delete
+      setMediaItems([]);
       void queryClient.invalidateQueries({ queryKey: queryKeys.social.feed(1) });
-      handleClose();
+      reset();
+      setUpload({ active: false, percent: 0, error: null });
+      onClose();
     },
   });
 
   function handleClose() {
+    // Delete any uploaded-but-not-posted media from Cloudinary
+    const orphans = mediaItems.map((m) => m.publicId).filter(Boolean);
+    orphans.forEach((pid) => { void deleteMedia(pid); });
     reset();
-    setImageUrls([]);
-    setUploadError(null);
-    setProductQuery('');
-    setProductResults([]);
-    setAttachedProduct(null);
+    setMediaItems([]);
+    setUpload({ active: false, percent: 0, error: null });
     onClose();
   }
 
-  async function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function uploadImageFiles(files: File[]) {
+    const currentImages = mediaItems.filter((m) => m.type === 'image').length;
+    const available = MAX_IMAGES - currentImages;
+    const toUpload = files.slice(0, available);
+    if (!toUpload.length) return;
 
-    setUploadingImage(true);
-    setUploadError(null);
+    setUpload({ active: true, percent: 0, error: null });
 
     try {
-      const sig = await api.upload.getSignature('posts');
-
-      const form = new FormData();
-      form.append('file', file);
-      form.append('signature', sig.signature);
-      form.append('timestamp', String(sig.timestamp));
-      form.append('api_key', sig.apiKey);
-      form.append('folder', sig.folder);
-
-      const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${sig.cloudName}/image/upload`,
-        { method: 'POST', body: form },
-      );
-
-      if (!res.ok) throw new Error('Upload thất bại');
-
-      const json = (await res.json()) as { secure_url: string };
-      setImageUrls((prev) => [...prev, json.secure_url]);
+      const uploaded: Array<{ url: string; publicId: string }> = [];
+      for (let i = 0; i < toUpload.length; i++) {
+        const result = await uploadImage(toUpload[i], currentUser?.id ?? 0, (p) => {
+          const base = (i / toUpload.length) * 100;
+          setUpload((prev) => ({ ...prev, percent: Math.round(base + p / toUpload.length) }));
+        });
+        uploaded.push(result);
+      }
+      setMediaItems((prev) => [
+        ...prev,
+        ...uploaded.map(({ url, publicId }) => ({ url, publicId, type: 'image' as const })),
+      ]);
     } catch (err: unknown) {
-      setUploadError(err instanceof Error ? err.message : 'Upload thất bại');
+      setUpload((prev) => ({
+        ...prev,
+        error: err instanceof Error ? err.message : 'Upload ảnh thất bại',
+      }));
     } finally {
-      setUploadingImage(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      setUpload((prev) => ({ ...prev, active: false, percent: 0 }));
+      if (imageInputRef.current) imageInputRef.current.value = '';
     }
   }
 
-  async function handleProductSearch(q: string) {
-    setProductQuery(q);
-    if (q.trim().length < 2) {
-      setProductResults([]);
-      return;
-    }
-    setSearchingProduct(true);
+  async function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    await uploadImageFiles(files);
+  }
+
+  async function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const imageFiles = Array.from(e.clipboardData.items)
+      .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+      .map((item) => item.getAsFile())
+      .filter((f): f is File => f !== null);
+
+    if (!imageFiles.length) return;
+    e.preventDefault();
+    await uploadImageFiles(imageFiles);
+  }
+
+  async function handleVideoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUpload({ active: true, percent: 0, error: null });
+
     try {
-      const res = await api.products.search(q.trim());
-      setProductResults(res.data.slice(0, 5));
-    } catch {
-      setProductResults([]);
+      const result = await uploadVideo(file, currentUser?.id ?? 0, (p) => {
+        setUpload((prev) => ({ ...prev, percent: p }));
+      });
+      // If replacing an existing video, delete the old one from Cloudinary
+      const oldVideo = mediaItems.find((m) => m.type === 'video');
+      if (oldVideo) void deleteMedia(oldVideo.publicId);
+      setMediaItems((prev) => [
+        ...prev.filter((m) => m.type === 'image'),
+        { url: result.url, publicId: result.publicId, type: 'video' },
+      ]);
+    } catch (err: unknown) {
+      setUpload((prev) => ({
+        ...prev,
+        error: err instanceof Error ? err.message : 'Upload video thất bại',
+      }));
     } finally {
-      setSearchingProduct(false);
+      setUpload((prev) => ({ ...prev, active: false, percent: 0 }));
+      if (videoInputRef.current) videoInputRef.current.value = '';
     }
+  }
+
+  function removeMedia(index: number) {
+    const item = mediaItems[index];
+    if (item) void deleteMedia(item.publicId);
+    setMediaItems((prev) => prev.filter((_, i) => i !== index));
   }
 
   async function onSubmit(data: CreatePostFormData) {
@@ -121,156 +174,164 @@ export default function CreatePostModal({ open, onClose }: CreatePostModalProps)
     }
   }
 
+  const imageCount = mediaItems.filter((m) => m.type === 'image').length;
+  const hasVideo = mediaItems.some((m) => m.type === 'video');
+  const canAddImage = imageCount < MAX_IMAGES && !upload.active;
+  const canAddVideo = !hasVideo && !upload.active;
+
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
-      <DialogContent className="max-w-xl bg-canvas-surface border-bdr text-ink-pri p-0 gap-0">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-xl max-h-[90vh] flex flex-col bg-canvas-surface border-bdr text-ink-pri p-0 gap-0">
         <DialogHeader className="px-5 pt-5 pb-0">
           <DialogTitle className="font-display text-lg text-ink-pri">
             Tạo bài viết
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4 p-5">
-          {/* Textarea */}
-          <textarea
-            {...register('content')}
-            rows={4}
-            placeholder="Chia sẻ điều gì đó về sản phẩm, review, deal hot…"
-            className={cn(
-              'w-full bg-transparent border-0 outline-none resize-none',
-              'text-ink-pri text-base font-body leading-relaxed',
-              'placeholder:text-ink-muted',
-            )}
-          />
-          {errors.content && (
-            <p className="text-sm text-accent-red -mt-2">{errors.content.message}</p>
-          )}
-
-          {/* Image previews */}
-          {imageUrls.length > 0 && (
-            <div className={cn('grid gap-0.5', imageUrls.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
-              {imageUrls.map((url, i) => (
-                <div key={url} className="relative group">
-                  <img
-                    src={url}
-                    alt=""
-                    className="w-full aspect-square object-cover rounded-tb-cta"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setImageUrls((prev) => prev.filter((_, j) => j !== i))}
-                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-ink-pri border-0 cursor-pointer flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <X size={13} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Upload error */}
-          {uploadError && (
-            <p className="text-sm text-accent-red">{uploadError}</p>
-          )}
-
-          {/* Product search */}
-          <div className="flex flex-col gap-2">
-            <div className="relative">
-              <input
-                type="text"
-                value={productQuery}
-                onChange={(e) => { void handleProductSearch(e.target.value); }}
-                placeholder="Tìm và gắn sản phẩm (tuỳ chọn)…"
-                className={cn(
-                  'w-full bg-canvas-elevated border border-bdr rounded-tb-input',
-                  'px-3 py-2.5 text-sm text-ink-pri placeholder:text-ink-muted',
-                  'outline-none focus:border-accent-amber/50 transition-colors',
-                )}
-              />
-              {searchingProduct && (
-                <Loader2 size={14} className="absolute right-3 top-3 text-ink-muted animate-spin" />
+        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col min-h-0 flex-1">
+          {/* Scrollable body */}
+          <div className="flex flex-col gap-4 px-5 pt-4 pb-2 overflow-y-auto max-h-[60vh]">
+            {/* Textarea */}
+            <textarea
+              {...register('content')}
+              rows={4}
+              placeholder="Chia sẻ điều gì đó về sản phẩm, review, deal hot…"
+              onPaste={(e) => { void handlePaste(e); }}
+              className={cn(
+                'w-full bg-transparent border-0 outline-none resize-none',
+                'text-ink-pri text-base font-body leading-relaxed',
+                'placeholder:text-ink-muted',
               )}
-            </div>
+            />
+            {errors.content && (
+              <p className="text-sm text-accent-red -mt-2">{errors.content.message}</p>
+            )}
 
-            {/* Dropdown results */}
-            {productResults.length > 0 && !attachedProduct && (
-              <ul className="bg-canvas-elevated border border-bdr rounded-tb-card overflow-hidden">
-                {productResults.map((p) => (
-                  <li key={p.id}>
+            {/* Media previews */}
+            {mediaItems.length > 0 && (
+              <div className={cn(
+                'grid gap-0.5',
+                mediaItems.length === 1 ? 'grid-cols-1' : 'grid-cols-2',
+              )}>
+                {mediaItems.map((item, i) => (
+                  <div key={item.url} className="relative group">
+                    {item.type === 'image' ? (
+                      <img
+                        src={item.url}
+                        alt=""
+                        className="w-full max-h-60 object-contain rounded-tb-cta bg-canvas-elevated"
+                      />
+                    ) : (
+                      <video
+                        src={item.url}
+                        controls
+                        className="w-full aspect-video object-cover rounded-tb-cta"
+                      />
+                    )}
                     <button
                       type="button"
-                      onClick={() => {
-                        setAttachedProduct(p);
-                        setProductQuery('');
-                        setProductResults([]);
-                      }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-canvas-surface transition-colors border-0 cursor-pointer bg-transparent"
+                      onClick={() => removeMedia(i)}
+                      className="absolute top-2 right-2 size-7 rounded-full bg-black/60 text-ink-pri border-0 cursor-pointer flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                     >
-                      {p.imageUrl && (
-                        <img src={p.imageUrl} alt="" className="w-8 h-8 rounded-lg object-cover flex-none" />
-                      )}
-                      <span className="text-sm text-ink-pri truncate flex-1">{p.name}</span>
+                      <X size={13} className="shrink-0" />
                     </button>
-                  </li>
+                  </div>
                 ))}
-              </ul>
+              </div>
             )}
 
-            {/* Attached product chip preview */}
-            {attachedProduct && (
-              <div className="flex items-center gap-2 bg-canvas-elevated border border-bdr rounded-tb-input px-3 py-2">
-                {attachedProduct.imageUrl && (
-                  <img src={attachedProduct.imageUrl} alt="" className="w-8 h-8 rounded-lg object-cover flex-none" />
-                )}
-                <span className="text-sm text-ink-pri truncate flex-1">{attachedProduct.name}</span>
-                <button
-                  type="button"
-                  onClick={() => setAttachedProduct(null)}
-                  className="text-ink-muted hover:text-ink-sec cursor-pointer bg-transparent border-0 p-0 flex-none"
-                >
-                  <X size={14} />
-                </button>
+            {/* Upload progress */}
+            {upload.active && (
+              <div className="flex flex-col gap-1.5">
+                <div className="h-1.5 bg-canvas-elevated rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-accent-amber transition-all duration-200 rounded-full"
+                    style={{ width: `${upload.percent}%` }}
+                  />
+                </div>
+                <p className="text-xs text-ink-muted font-body">{upload.percent}% đã tải lên</p>
               </div>
+            )}
+
+            {/* Upload error */}
+            {upload.error && (
+              <p className="text-sm text-accent-red">{upload.error}</p>
+            )}
+
+            {/* Server error */}
+            {errors.root && (
+              <p className="text-sm text-accent-red">{errors.root.message}</p>
             )}
           </div>
 
-          {/* Server error */}
-          {errors.root && (
-            <p className="text-sm text-accent-red">{errors.root.message}</p>
-          )}
-
-          {/* Footer actions */}
-          <div className="flex items-center justify-between border-t border-bdr pt-4 -mx-5 px-5">
+          {/* Footer — always visible, never clipped */}
+          <div className="flex items-center justify-between border-t border-bdr px-5 py-3 flex-shrink-0">
             <div className="flex items-center gap-1">
-              {/* Image upload trigger */}
+              {/* Image upload */}
               <button
                 type="button"
-                disabled={uploadingImage || imageUrls.length >= 4}
-                onClick={() => fileInputRef.current?.click()}
+                disabled={!canAddImage}
+                onClick={() => imageInputRef.current?.click()}
+                title={`Thêm ảnh (tối đa ${MAX_IMAGES})`}
                 className={cn(
-                  'w-9 h-9 rounded-full flex items-center justify-center',
-                  'bg-transparent border-0 cursor-pointer',
+                  'p-2 rounded-full flex items-center justify-center',
+                  'bg-transparent border-0 cursor-pointer overflow-visible',
                   'text-accent-green hover:bg-canvas-elevated transition-colors',
                   'disabled:opacity-40 disabled:cursor-not-allowed',
                 )}
               >
-                {uploadingImage ? <Loader2 size={18} className="animate-spin" /> : <ImagePlus size={18} />}
+                {upload.active ? (
+                  <Loader2 size="18" className="animate-spin" />
+                ) : (
+                  <ImagePlus size="18" />
+                )}
               </button>
               <input
-                ref={fileInputRef}
+                ref={imageInputRef}
                 type="file"
                 accept="image/*"
+                multiple
                 className="hidden"
                 onChange={(e) => { void handleImageSelect(e); }}
               />
+
+              {/* Video upload */}
+              <button
+                type="button"
+                disabled={!canAddVideo}
+                onClick={() => videoInputRef.current?.click()}
+                title="Thêm video"
+                className={cn(
+                  'p-2 rounded-full flex items-center justify-center',
+                  'bg-transparent border-0 cursor-pointer overflow-visible',
+                  'text-accent-amber hover:bg-canvas-elevated transition-colors',
+                  'disabled:opacity-40 disabled:cursor-not-allowed',
+                )}
+              >
+                <Video size="18" />
+              </button>
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(e) => { void handleVideoSelect(e); }}
+              />
+
+              {/* Image count badge */}
+              {imageCount > 0 && (
+                <span className="text-xs text-ink-muted font-body ml-1">
+                  {imageCount}/{MAX_IMAGES} ảnh
+                </span>
+              )}
             </div>
 
             <GradientButton
               type="submit"
-              disabled={isSubmitting || uploadingImage}
+              disabled={isSubmitting || upload.active}
               size="sm"
             >
-              {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : null}
+              {isSubmitting ? <Loader2 size="14" className="animate-spin" /> : null}
               Đăng bài
             </GradientButton>
           </div>

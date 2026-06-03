@@ -15,7 +15,7 @@ export function useComments(postId: number) {
 export function useReplies(commentId: number, enabled = false) {
   return useQuery<CommentTree>({
     queryKey: queryKeys.social.replies(commentId),
-    queryFn: () => api.social.getReplies(commentId),
+    queryFn: () => api.social.getReplies(commentId) as Promise<CommentTree>,
     enabled: enabled && commentId > 0,
   });
 }
@@ -37,8 +37,9 @@ export function useCreateReply() {
   return useMutation({
     mutationFn: ({ commentId, content, postId: _postId }: { commentId: number; content: string; postId: number }) =>
       api.social.createReply(commentId, { content, postId: _postId }),
-    onSuccess: (_data: Comment, { commentId }) => {
+    onSuccess: (_data: Comment, { commentId, postId }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.social.replies(commentId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.social.comments(postId) });
     },
     onError: (error: unknown) => {
       console.error('Create reply failed', error);

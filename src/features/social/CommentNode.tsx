@@ -53,7 +53,7 @@ export function CommentNode({
     resolver: zodResolver(replySchema),
   });
 
-  const replyCount = comment.reply_count;
+  const replyCount = repliesData ? repliesData.children.length : (comment.replyCount ?? 0);
   const isOwn = meId !== undefined && meId === comment.userId;
 
   async function onReplySubmit(data: ReplyFormData): Promise<void> {
@@ -72,7 +72,7 @@ export function CommentNode({
     });
   }
 
-  const replies = repliesData && 'replies' in repliesData ? repliesData.replies : undefined;
+  const replies = repliesData?.children ?? [];
 
   return (
     <div className={cn(depth > 0 && 'ml-5 pl-4 border-l border-bdr')}>
@@ -145,7 +145,7 @@ export function CommentNode({
           )}
 
           {/* Show/hide replies */}
-          {replyCount > 0 && (
+          {(replyCount > 0 || showReplies) && (
             <div className="mt-1">
               {!showReplies && (
                 <button
@@ -153,7 +153,7 @@ export function CommentNode({
                   onClick={() => setShowReplies(true)}
                   className="text-xs font-semibold text-accent-amber bg-transparent border-0 cursor-pointer p-0 hover:underline"
                 >
-                  Xem {replyCount} phản hồi
+                  Xem tất cả {replyCount} phản hồi
                 </button>
               )}
               {showReplies && repliesLoading && (
@@ -162,7 +162,7 @@ export function CommentNode({
                   <Skeleton className="h-4 w-36 bg-canvas-elevated rounded" />
                 </div>
               )}
-              {showReplies && !repliesLoading && replies && replies.length > 0 && (
+              {showReplies && !repliesLoading && (
                 <>
                   <button
                     type="button"

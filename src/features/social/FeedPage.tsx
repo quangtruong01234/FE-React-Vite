@@ -22,6 +22,12 @@ export default function FeedPage() {
   const [showModal, setShowModal] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    function handleGlobalCreate(): void { setShowModal(true); }
+    window.addEventListener('tb:createpost', handleGlobalCreate);
+    return () => window.removeEventListener('tb:createpost', handleGlobalCreate);
+  }, []);
+
   const {
     data,
     isLoading,
@@ -56,26 +62,7 @@ export default function FeedPage() {
   const userName = currentUser?.name ?? currentUser?.username ?? 'bạn';
 
   return (
-    <div className="min-h-screen bg-canvas-base">
-      <div className="max-w-[600px] mx-auto px-4 py-6 flex flex-col gap-4">
-
-        {/* Composer bar — matches design: avatar + pill input + ảnh shortcut */}
-        <div className="flex items-center gap-3 bg-canvas-surface border border-bdr rounded-tb-card px-4 py-3">
-          <Avatar src={currentUser?.avatar ?? undefined} alt={userName} size={40} />
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex-1 text-left bg-canvas-elevated border border-bdr rounded-full px-4 py-2.5 text-ink-muted text-sm cursor-pointer hover:border-tb-muted transition-colors font-body"
-          >
-            {userName} ơi, bạn đang nghĩ gì?
-          </button>
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-1.5 text-accent-green font-semibold text-sm bg-transparent border-0 cursor-pointer px-2 font-body"
-          >
-            <Image size={18} />
-            Ảnh
-          </button>
-        </div>
+    <div className="max-w-[950px] mx-auto flex flex-col gap-4">
 
         <CreatePostModal open={showModal} onClose={() => setShowModal(false)} />
 
@@ -153,7 +140,16 @@ export default function FeedPage() {
           <Skeleton className="h-32 w-full rounded-tb-card" />
         )}
 
-      </div>
+        {/* End of feed */}
+        {!isLoading && !isFetchingNextPage && !hasNextPage && posts.length > 0 && (
+          <div className="flex flex-col items-center gap-2 py-8 text-center">
+            <div className="w-10 h-10 rounded-full bg-canvas-elevated flex items-center justify-center">
+              <PenLine size="18" className="text-ink-muted" />
+            </div>
+            <p className="text-ink-muted text-sm font-body">Bạn đã xem hết bài viết rồi!</p>
+          </div>
+        )}
+
     </div>
   );
 }

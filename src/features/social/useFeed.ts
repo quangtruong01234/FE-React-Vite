@@ -2,7 +2,7 @@ import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-q
 import type { InfiniteData } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queryKeys';
 import { api } from '@/api';
-import type { PaginatedResponse, Post } from '@/types';
+import type { LikeResult, PaginatedResponse, Post } from '@/types';
 
 type FeedCache = InfiniteData<PaginatedResponse<Post>>;
 
@@ -17,6 +17,26 @@ export function useFeed() {
   });
 }
 
+function updateFeedLike(
+  queryClient: ReturnType<typeof useQueryClient>,
+  feedKey: ReturnType<typeof queryKeys.social.feed>,
+  postId: number,
+  patch: Partial<Post>,
+): void {
+  queryClient.setQueryData<FeedCache>(feedKey, (old) => {
+    if (!old) return old;
+    return {
+      ...old,
+      pages: old.pages.map((page) => ({
+        ...page,
+        data: page.data.map((post) =>
+          post.id === postId ? { ...post, ...patch } : post,
+        ),
+      })),
+    };
+  });
+}
+
 export function useLikePost() {
   const queryClient = useQueryClient();
   const feedKey = queryKeys.social.feed(1);
@@ -26,31 +46,16 @@ export function useLikePost() {
     onMutate: async (postId: number) => {
       await queryClient.cancelQueries({ queryKey: feedKey });
       const snapshot = queryClient.getQueryData<FeedCache>(feedKey);
-
-      queryClient.setQueryData<FeedCache>(feedKey, (old) => {
-        if (!old) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page) => ({
-            ...page,
-            data: page.data.map((post) =>
-              post.id === postId
-                ? { ...post, likeCount: post.likeCount + 1 }
-                : post,
-            ),
-          })),
-        };
-      });
-
+      updateFeedLike(queryClient, feedKey, postId, { isLiked: true, likeCount: (snapshot?.pages.flatMap((p) => p.data).find((p) => p.id === postId)?.likeCount ?? 0) + 1 });
       return { snapshot };
+    },
+    onSuccess: (result: LikeResult, postId: number) => {
+      updateFeedLike(queryClient, feedKey, postId, { isLiked: true, likeCount: result.likeCount });
     },
     onError: (_err, _postId, context) => {
       if (context?.snapshot !== undefined) {
         queryClient.setQueryData<FeedCache>(feedKey, context.snapshot);
       }
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: feedKey });
     },
   });
 }
@@ -64,31 +69,17 @@ export function useUnlikePost() {
     onMutate: async (postId: number) => {
       await queryClient.cancelQueries({ queryKey: feedKey });
       const snapshot = queryClient.getQueryData<FeedCache>(feedKey);
-
-      queryClient.setQueryData<FeedCache>(feedKey, (old) => {
-        if (!old) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page) => ({
-            ...page,
-            data: page.data.map((post) =>
-              post.id === postId
-                ? { ...post, likeCount: Math.max(0, post.likeCount - 1) }
-                : post,
-            ),
-          })),
-        };
-      });
-
+      const current = snapshot?.pages.flatMap((p) => p.data).find((p) => p.id === postId)?.likeCount ?? 0;
+      updateFeedLike(queryClient, feedKey, postId, { isLiked: false, likeCount: Math.max(0, current - 1) });
       return { snapshot };
+    },
+    onSuccess: (result: LikeResult, postId: number) => {
+      updateFeedLike(queryClient, feedKey, postId, { isLiked: false, likeCount: result.likeCount });
     },
     onError: (_err, _postId, context) => {
       if (context?.snapshot !== undefined) {
         queryClient.setQueryData<FeedCache>(feedKey, context.snapshot);
       }
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: feedKey });
     },
   });
 }

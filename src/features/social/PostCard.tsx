@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { Globe, Heart, MessageCircle, MoreHorizontal, Share2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/shared/Avatar';
 import { useLikePost, useUnlikePost } from './useFeed';
@@ -20,77 +20,84 @@ function relativeTime(iso: string): string {
 }
 
 export default function PostCard({ post }: PostCardProps) {
-  const [liked, setLiked] = useState(false);
-  const { mutate: likePost } = useLikePost();
-  const { mutate: unlikePost } = useUnlikePost();
+  const navigate = useNavigate();
+  const { mutate: likePost, isPending: isLiking } = useLikePost();
+  const { mutate: unlikePost, isPending: isUnliking } = useUnlikePost();
 
-  function handleLike() {
-    if (liked) {
-      setLiked(false);
+  function handleLike(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (isLiking || isUnliking) return;
+    if (post.isLiked) {
       unlikePost(post.id);
     } else {
-      setLiked(true);
       likePost(post.id);
     }
   }
 
-  const displayLikeCount = liked ? post.likeCount + 1 : post.likeCount;
   const time = relativeTime(post.createdAt);
+  const authorName = post.author.name ?? post.author.username;
 
   return (
     <article className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden transition-all duration-300 hover:border-bdr/80">
       {/* header */}
-      <div className="flex items-center gap-3 p-3.5">
-        <Avatar size={42} />
+      <div className="flex items-center gap-3 p-4">
+        <Avatar src={post.author.avatar ?? undefined} alt={authorName} size={48} />
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm text-ink-pri">
-            User #{post.userId}
+          <div className="font-semibold text-[17px] text-ink-pri">
+            {authorName}
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-ink-muted">
+          <div className="flex items-center gap-1.5 text-[13px] text-ink-muted">
             {time && <span>{time}</span>}
             {time && <span>·</span>}
-            <Globe size={11} />
+            <Globe size="13" />
           </div>
         </div>
-        <button className="text-ink-sec p-2 rounded-full hover:bg-canvas-elevated transition-colors cursor-pointer border-0 bg-transparent">
-          <MoreHorizontal size={18} />
+        <button className="text-ink-sec p-2 rounded-full hover:bg-canvas-elevated transition-colors cursor-pointer border-0 bg-transparent overflow-visible">
+          <MoreHorizontal size="20" />
         </button>
       </div>
 
       {/* content */}
       {post.content && (
-        <div className="px-4 pb-3">
-          <p className="m-0 text-[15px] leading-relaxed text-ink-pri font-body">
+        <div className="px-5 pb-4">
+          <p className="m-0 text-[18px] leading-relaxed text-ink-pri font-body">
             {post.content}
           </p>
         </div>
       )}
 
-      {/* image grid — 1 image: full width, 2+: 2-col grid */}
+      {/* image grid */}
       {post.imageUrls && post.imageUrls.length > 0 && (
         post.imageUrls.length === 1 ? (
-          <img
-            src={post.imageUrls[0]}
-            alt=""
-            className="w-full max-h-[520px] object-cover aspect-[3/2]"
-          />
+          <div className="bg-black flex items-center justify-center max-h-[520px] overflow-hidden">
+            <img
+              src={post.imageUrls[0]}
+              alt=""
+              className="max-w-full max-h-[520px] object-contain"
+            />
+          </div>
         ) : (
-          <div className="grid grid-cols-2 gap-0.5">
-            {post.imageUrls.slice(0, 2).map((url, i) => (
-              <img key={i} src={url} alt="" className="w-full aspect-square object-cover" />
+          <div className={cn('grid gap-0.5', post.imageUrls.length === 2 ? 'grid-cols-2' : post.imageUrls.length === 3 ? 'grid-cols-3' : 'grid-cols-2')}>
+            {post.imageUrls.slice(0, 4).map((url, i) => (
+              <div key={i} className="bg-black aspect-square overflow-hidden flex items-center justify-center">
+                <img src={url} alt="" className="max-w-full max-h-full object-contain" />
+              </div>
             ))}
           </div>
         )
       )}
 
       {/* stats row */}
-      <div className="flex items-center justify-between px-4 pt-3 pb-2 text-xs text-ink-sec">
+      <div className="flex items-center justify-between px-5 pt-3 pb-2 text-[13px] text-ink-sec">
         <span className="flex items-center gap-1.5">
-          <span className="w-4 h-4 rounded-full bg-tb-gradient inline-flex items-center justify-center">
-            <Heart size={9} color="#fff" />
+          <span className="w-5 h-5 rounded-full bg-tb-gradient inline-flex items-center justify-center">
+            <Heart size="11" color="#fff" />
           </span>
-          {displayLikeCount.toLocaleString('vi-VN')}
+          {post.likeCount.toLocaleString('vi-VN')}
         </span>
+        {post.commentCount > 0 && (
+          <span>{post.commentCount.toLocaleString('vi-VN')} bình luận</span>
+        )}
       </div>
 
       {/* action row */}
@@ -98,25 +105,27 @@ export default function PostCard({ post }: PostCardProps) {
         <button
           onClick={handleLike}
           className={cn(
-            'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg',
-            'bg-transparent border-0 cursor-pointer font-semibold text-sm transition-colors',
-            liked ? 'text-accent-red' : 'text-ink-sec hover:bg-canvas-elevated',
+            'flex-1 flex items-center justify-center gap-2 py-3 rounded-lg',
+            'bg-transparent border-0 cursor-pointer font-semibold text-[16px] transition-colors overflow-visible',
+            post.isLiked ? 'text-accent-red' : 'text-ink-sec hover:bg-canvas-elevated',
           )}
         >
           <Heart
-            size={17}
-            className={cn(liked && 'fill-current')}
+            size="19"
+            className={cn(post.isLiked && 'fill-current')}
           />
           Thích
         </button>
 
-        <button className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-transparent border-0 cursor-pointer font-semibold text-sm text-ink-sec hover:bg-canvas-elevated transition-colors">
-          <MessageCircle size={17} />
+        <button
+          onClick={() => void navigate(`/post/${post.id}`)}
+          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg bg-transparent border-0 cursor-pointer font-semibold text-[16px] text-ink-sec hover:bg-canvas-elevated transition-colors overflow-visible">
+          <MessageCircle size="19" />
           Bình luận
         </button>
 
-        <button className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-transparent border-0 cursor-pointer font-semibold text-sm text-ink-sec hover:bg-canvas-elevated transition-colors">
-          <Share2 size={17} />
+        <button className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg bg-transparent border-0 cursor-pointer font-semibold text-[16px] text-ink-sec hover:bg-canvas-elevated transition-colors overflow-visible">
+          <Share2 size="19" />
           Chia sẻ
         </button>
       </div>

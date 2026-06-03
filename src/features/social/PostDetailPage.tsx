@@ -121,15 +121,15 @@ export default function PostDetailPage(): ReactElement {
       <article className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
         {/* Author header */}
         <div className="flex items-center gap-3 p-4">
-          <Link to={`/profile/${post.userId}`}>
-            <Avatar size={44} />
+          <Link to={`/profile/${post.author.id}`}>
+            <Avatar src={post.author.avatar ?? undefined} alt={post.author.name ?? post.author.username} size={44} />
           </Link>
           <div className="flex-1 min-w-0">
             <Link
-              to={`/profile/${post.userId}`}
+              to={`/profile/${post.author.id}`}
               className="flex items-center gap-1 font-semibold text-[15px] text-ink-pri hover:text-accent-amber transition-colors"
             >
-              Người dùng #{post.userId}
+              {post.author.name ?? post.author.username}
             </Link>
             <div className="flex items-center gap-1.5 text-xs text-ink-muted">
               <span>{relativeTime(post.createdAt)}</span>
@@ -173,7 +173,7 @@ export default function PostDetailPage(): ReactElement {
             </span>
             {displayLikeCount.toLocaleString('vi-VN')}
           </span>
-          <span>{comments.length} bình luận</span>
+          <span>{post.commentCount.toLocaleString('vi-VN')} bình luận</span>
         </div>
 
         {/* Action row */}
@@ -202,7 +202,7 @@ export default function PostDetailPage(): ReactElement {
         {/* Comments */}
         <div className="px-4 py-3">
           <div className="text-sm font-bold text-ink-pri mb-2">
-            Bình luận ({comments.length})
+            Bình luận ({post.commentCount})
           </div>
           {commentsLoading && (
             <div className="flex flex-col gap-3 py-2">
@@ -244,7 +244,7 @@ export default function PostDetailPage(): ReactElement {
           <button
             type="submit"
             disabled={isSubmitting || createComment.isPending}
-            className="w-10 h-10 rounded-full bg-tb-gradient text-ink-pri flex items-center justify-center cursor-pointer border-0 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="p-2.5 rounded-full bg-tb-gradient text-ink-pri flex items-center justify-center cursor-pointer border-0 disabled:opacity-40 disabled:cursor-not-allowed overflow-visible"
           >
             <Send size={16} />
           </button>
