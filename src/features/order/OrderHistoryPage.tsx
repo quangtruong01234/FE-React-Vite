@@ -1,19 +1,12 @@
 import { useState, type ReactElement } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Package, ChevronDown, Search } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { ArrowLeft, Package, Search } from 'lucide-react';
 import { useAuthContext } from '@/context/AuthContext';
 import { useOrdersByUser } from './useOrdersByUser';
+import { StatusBadge } from '@/components/shared/StatusBadge';
 import type { Order } from '@/types';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatPrice } from '@/lib/utils';
-
-const STATUS_LABEL: Record<string, string> = { pending: 'Chờ xử lý', completed: 'Hoàn thành', canceled: 'Đã hủy' };
-const STATUS_BADGE: Record<string, string> = {
-  pending:   'bg-accent-amber/10 text-accent-amber border-accent-amber/20',
-  completed: 'bg-accent-green/10 text-accent-green border-accent-green/20',
-  canceled:  'bg-accent-red/10 text-accent-red border-accent-red/20',
-};
 
 type OrderFilterKey = 'all' | 'pending' | 'completed' | 'canceled';
 const FILTER_OPTS: { id: OrderFilterKey; label: string }[] = [
@@ -36,7 +29,6 @@ export default function OrderHistoryPage(): ReactElement {
   if (!currentUser) return <></>;
   const userId = currentUser.id;
 
-  const [expanded, setExpanded] = useState<number | null>(null);
   const [filterTab, setFilterTab] = useState<OrderFilterKey>('all');
   const [search, setSearch] = useState('');
 
@@ -159,11 +151,12 @@ export default function OrderHistoryPage(): ReactElement {
         {!loading && filteredOrders.length > 0 && (
           <div className="flex flex-col gap-3">
             {filteredOrders.map((order) => (
-              <div key={order.id} className="bg-canvas-surface border border-bdr rounded-xl overflow-hidden">
-                <div
-                  onClick={() => setExpanded(expanded === order.id ? null : order.id)}
-                  className="p-5 cursor-pointer grid grid-cols-[72px_1fr_auto_auto_auto] gap-6 items-center hover:bg-canvas-elevated transition-colors"
-                >
+              <Link
+                key={order.id}
+                to={`/order/${order.id}`}
+                className="bg-canvas-surface border border-bdr rounded-xl overflow-hidden hover:border-amber-400/30 hover:bg-canvas-elevated/40 transition-colors block"
+              >
+                <div className="p-5 grid grid-cols-[72px_1fr_auto_auto] gap-6 items-center">
                   {/* Thumbnail */}
                   <div className="w-[72px] h-[72px] rounded-xl bg-canvas-elevated flex items-center justify-center flex-shrink-0">
                     <Package size={28} className="text-tb-muted" />
@@ -183,37 +176,14 @@ export default function OrderHistoryPage(): ReactElement {
                   </div>
 
                   {/* Status */}
-                  <Badge className={cn('text-xs whitespace-nowrap', STATUS_BADGE[order.status] ?? 'bg-canvas-elevated text-ink-sec border-bdr')}>
-                    {STATUS_LABEL[order.status] ?? order.status}
-                  </Badge>
+                  <StatusBadge status={order.status} />
 
                   {/* Price */}
                   <div className="font-mono font-bold text-accent-amber whitespace-nowrap text-right">
-                    {formatPrice(order.total)}
-                  </div>
-
-                  {/* Chevron */}
-                  <div className="w-9 h-9 border border-bdr rounded-lg flex items-center justify-center text-ink-sec flex-shrink-0">
-                    <ChevronDown
-                      size={16}
-                      className={cn('transition-transform duration-200', expanded === order.id && 'rotate-180')}
-                    />
+                    {formatPrice(Number(order.total))}
                   </div>
                 </div>
-
-                {expanded === order.id && Array.isArray(order.items) && order.items.length > 0 && (
-                  <div className="border-t border-bdr px-5 py-3 flex flex-col gap-1.5">
-                    {order.items.map((item) => (
-                      <div key={item.id} className="flex justify-between text-sm">
-                        <span className="text-ink-sec">
-                          Product <span className="font-mono text-ink-pri">#{item.product_id}</span> × {item.quantity}
-                        </span>
-                        <span className="font-mono text-ink-pri">{formatPrice(item.price * item.quantity)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              </Link>
             ))}
           </div>
         )}

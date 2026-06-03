@@ -1,0 +1,122 @@
+import { type ReactElement } from 'react';
+import { Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
+import { CheckCircle, XCircle, CreditCard } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/api';
+import { GradientButton } from '@/components/shared/GradientButton';
+import { cn } from '@/lib/utils';
+
+export default function PaymentResultPage(): ReactElement {
+  const [searchParams] = useSearchParams();
+
+  const params = Object.fromEntries(searchParams.entries());
+  const orderId = searchParams.get('order') ?? searchParams.get('vnp_TxnRef') ?? '';
+  const method = searchParams.get('method') ?? 'zalopay';
+  const gwLabel = method === 'vnpay' ? 'VNPay' : 'ZaloPay';
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['payment-result', params],
+    queryFn: () => api.payment.getResult(params),
+    enabled: Object.keys(params).length > 0,
+    retry: false,
+  });
+
+  const isSuccess = data?.status === 'success' || data?.status === '1' || data?.status === '00';
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-canvas-base flex items-center justify-center p-4">
+        <div className="bg-canvas-surface border border-bdr rounded-2xl p-10 max-w-md w-full flex flex-col items-center gap-5 text-center">
+          <div className="relative w-20 h-20 flex items-center justify-center">
+            <span className="absolute inset-0 rounded-full border-4 border-amber-500/20" />
+            <span className="absolute inset-0 rounded-full border-4 border-transparent border-t-amber-500 animate-spin" />
+            <CreditCard size={28} className="text-accent-amber" />
+          </div>
+          <div>
+            <h2 className="font-display font-black text-2xl text-white m-0 mb-1">
+              Đang xác nhận thanh toán…
+            </h2>
+            <p className="text-sm text-ink-sec m-0">Đang chờ phản hồi từ cổng {gwLabel}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-canvas-base flex items-center justify-center p-4">
+      <div className="bg-canvas-surface border border-bdr rounded-2xl p-10 max-w-md w-full flex flex-col items-center gap-5 text-center">
+        {isSuccess ? (
+          <>
+            <div className="w-20 h-20 rounded-full bg-green-500/15 flex items-center justify-center">
+              <CheckCircle size={44} className="text-green-400" />
+            </div>
+            <div>
+              <h2 className="font-display font-black text-2xl text-white m-0 mb-1">
+                Thanh toán thành công!
+              </h2>
+              <p className="text-sm text-ink-sec m-0">
+                Đơn hàng{' '}
+                {orderId && (
+                  <span className="font-mono text-accent-amber">#{orderId}</span>
+                )}{' '}
+                đã được thanh toán qua {gwLabel}.
+              </p>
+            </div>
+            <div className="w-full flex flex-col gap-2.5">
+              {orderId && (
+                <Link to={`/order/${orderId}`}>
+                  <GradientButton className="w-full">
+                    Xem chi tiết đơn hàng →
+                  </GradientButton>
+                </Link>
+              )}
+              <Link
+                to="/"
+                className={cn(
+                  'w-full px-4 py-2.5 rounded-tb-input border border-bdr bg-canvas-elevated',
+                  'text-ink-pri font-semibold text-sm text-center hover:border-accent-amber transition-colors block',
+                )}
+              >
+                Về trang chủ
+              </Link>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="w-20 h-20 rounded-full bg-red-500/15 flex items-center justify-center">
+              <XCircle size={44} className="text-red-400" />
+            </div>
+            <div>
+              <h2 className="font-display font-black text-2xl text-white m-0 mb-1">
+                Thanh toán thất bại
+              </h2>
+              <p className="text-sm text-ink-sec m-0">
+                Giao dịch qua {gwLabel} không thành công. Vui lòng thử lại.
+              </p>
+            </div>
+            <div className="w-full flex flex-col gap-2.5">
+              {orderId && (
+                <Link to={`/order/${orderId}`}>
+                  <GradientButton className="w-full">
+                    Quay lại đơn hàng
+                  </GradientButton>
+                </Link>
+              )}
+              <Link
+                to="/orders"
+                className={cn(
+                  'w-full px-4 py-2.5 rounded-tb-input border border-bdr bg-canvas-elevated',
+                  'text-ink-pri font-semibold text-sm text-center hover:border-accent-amber transition-colors block',
+                )}
+              >
+                Xem tất cả đơn hàng
+              </Link>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

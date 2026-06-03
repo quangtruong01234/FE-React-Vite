@@ -5,20 +5,23 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { checkoutSchema, type CheckoutFormData } from './checkout.schema';
+import { usePaymentOptions } from './usePaymentOptions';
 import { api } from '@/api';
 import { useCart } from '@/context/CartContext';
-import type { CreateOrderDto } from '@/types';
+import type { CreateOrderDto, PaymentMethod } from '@/types';
 import { formatPrice, cn } from '@/lib/utils';
 import { GradientButton } from '@/components/shared/GradientButton';
+import { Skeleton } from '@/components/ui/skeleton';
 
-const PAYMENT_METHODS: { id: PaymentMethod; label: string; Icon: typeof Banknote }[] = [
-  { id: 'cod',     label: 'Thanh toán khi nhận hàng (COD)', Icon: Banknote  },
-  { id: 'zalopay', label: 'ZaloPay',                         Icon: Wallet    },
-  { id: 'vnpay',   label: 'VNPay',                           Icon: CreditCard },
-];
+const PAYMENT_ICON: Record<string, typeof Banknote> = {
+  cod:     Banknote,
+  zalopay: Wallet,
+  vnpay:   CreditCard,
+};
 
 export default function CheckoutPage(): ReactElement {
   const navigate = useNavigate();
+  const { options: paymentOptions, isLoading: paymentLoading } = usePaymentOptions();
   const { items, clearCart, totalPrice, updateQty, removeItem } = useCart();
   const [stockError, setStockError] = useState<Record<number, string>>({});
   const [successOrder, setSuccessOrder] = useState<{ id: number | string } | null>(null);
@@ -191,31 +194,40 @@ export default function CheckoutPage(): ReactElement {
               control={control}
               render={({ field }) => (
                 <div className="flex flex-col gap-[10px]">
-                  {PAYMENT_METHODS.map(({ id, label, Icon }) => {
-                    const active = field.value === id;
-                    return (
-                      <button
-                        key={id}
-                        type="button"
-                        onClick={() => field.onChange(id)}
-                        className={cn(
-                          'flex items-center gap-[14px] px-[18px] py-[14px] text-left rounded-tb-cta border w-full cursor-pointer',
-                          active ? 'bg-amber-400/[0.08] border-amber-400/50' : 'bg-tb-elevated border-tb-border',
-                        )}
-                      >
-                        <span className={cn(
-                          'w-5 h-5 rounded-full shrink-0 border-2 inline-flex items-center justify-center',
-                          active ? 'border-tb-amber' : 'border-tb-muted',
-                        )}>
-                          {active && <span className="w-[10px] h-[10px] rounded-full bg-tb-amber" />}
-                        </span>
-                        <Icon size={18} color={active ? '#F59E0B' : '#A1A1AA'} />
-                        <span className="flex-1 font-body font-semibold text-sm text-white">
-                          {label}
-                        </span>
-                      </button>
-                    );
-                  })}
+                  {paymentLoading ? (
+                    <>
+                      <Skeleton className="h-[52px] rounded-tb-cta bg-canvas-elevated" />
+                      <Skeleton className="h-[52px] rounded-tb-cta bg-canvas-elevated" />
+                      <Skeleton className="h-[52px] rounded-tb-cta bg-canvas-elevated" />
+                    </>
+                  ) : (
+                    paymentOptions.map(({ id, name }) => {
+                      const active = field.value === id;
+                      const Icon = PAYMENT_ICON[id] ?? Banknote;
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => field.onChange(id as PaymentMethod)}
+                          className={cn(
+                            'flex items-center gap-[14px] px-[18px] py-[14px] text-left rounded-tb-cta border w-full cursor-pointer',
+                            active ? 'bg-amber-400/[0.08] border-amber-400/50' : 'bg-tb-elevated border-tb-border',
+                          )}
+                        >
+                          <span className={cn(
+                            'w-5 h-5 rounded-full shrink-0 border-2 inline-flex items-center justify-center',
+                            active ? 'border-tb-amber' : 'border-tb-muted',
+                          )}>
+                            {active && <span className="w-[10px] h-[10px] rounded-full bg-tb-amber" />}
+                          </span>
+                          <Icon size={18} color={active ? '#F59E0B' : '#A1A1AA'} />
+                          <span className="flex-1 font-body font-semibold text-sm text-white">
+                            {name}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
                   {errors.payment_method && (
                     <span className="text-xs text-accent-red">{errors.payment_method.message}</span>
                   )}
