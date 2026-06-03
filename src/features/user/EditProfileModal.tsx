@@ -1,0 +1,201 @@
+import { useRef, useState, type ReactElement } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useMutation } from '@tanstack/react-query';
+import { Camera, Loader2 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { GradientButton } from '@/components/shared/GradientButton';
+import { Avatar } from '@/components/shared/Avatar';
+import { queryClient } from '@/lib/queryClient';
+import { queryKeys } from '@/hooks/queryKeys';
+import { api } from '@/api';
+import { cn } from '@/lib/utils';
+import type { User } from '@/types';
+
+const schema = z.object({
+  name: z.string().min(1, 'Tên không được trống'),
+  email: z.string().email('Email không hợp lệ'),
+  avatar: z.string().optional(),
+});
+type FormData = z.infer<typeof schema>;
+
+interface EditProfileModalProps {
+  open: boolean;
+  onClose: () => void;
+  user: User;
+}
+
+export function EditProfileModal({ open, onClose, user }: EditProfileModalProps): ReactElement {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    values: {
+      name: user.name ?? user.username,
+      email: user.email,
+      avatar: user.avatar ?? undefined,
+    },
+  });
+
+  const updateUser = useMutation({
+    mutationFn: (data: FormData) => api.users.update(user.id, {
+      name: data.name,
+      email: data.email,
+      avatar: data.avatar,
+    }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(user.id) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
+      handleClose();
+    },
+  });
+
+  function handleClose(): void {
+    setAvatarPreview(null);
+    setUploadError(null);
+    onClose();
+  }
+
+  async function handleAvatarSelect(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const sig = await api.upload.getSignature('avatars');
+      const form = new FormData();
+      form.append('file', file);
+      form.append('signature', sig.signature);
+      form.append('timestamp', String(sig.timestamp));
+      form.append('api_key', sig.apiKey);
+      form.append('folder', sig.folder);
+      const res = await fetch(
+        `https://api.cloudinary.com/v1_1/${sig.cloudName}/image/upload`,
+        { method: 'POST', body: form },
+      );
+      if (!res.ok) throw new Error('Upload thất bại');
+      const json = (await res.json()) as { secure_url: string };
+      setAvatarPreview(json.secure_url);
+      setValue('avatar', json.secure_url);
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : 'Upload thất bại');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  async function onSubmit(data: FormData): Promise<void> {
+    await updateUser.mutateAsync(data);
+  }
+
+  const displayAvatar = avatarPreview ?? user.avatar ?? undefined;
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
+      <DialogContent className="max-w-md bg-canvas-surface border-bdr text-ink-pri p-0 gap-0">
+        <DialogHeader className="px-5 pt-5 pb-0">
+          <DialogTitle className="font-display text-lg text-ink-pri">Chỉnh sửa hồ sơ</DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={(e) => void handleSubmit(onSubmit)(e)} className="flex flex-col gap-4 p-5">
+          {/* Avatar upload */}
+          <div className="flex flex-col items-center gap-2">
+            <div className="relative">
+              <Avatar src={displayAvatar} alt={user.name ?? user.username} size={84} />
+              <button
+                type="button"
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-tb-gradient text-ink-pri border-2 border-canvas-surface flex items-center justify-center cursor-pointer disabled:opacity-40"
+              >
+                {uploading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
+              </button>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => { void handleAvatarSelect(e); }}
+            />
+            {uploadError && <p className="text-xs text-accent-red">{uploadError}</p>}
+          </div>
+
+          {/* Name */}
+          <div className="flex flex-col gap-1.5">
+            <label className="font-body font-medium text-[11px] text-ink-muted tracking-[0.04em] uppercase">
+              Tên hiển thị
+            </label>
+            <input
+              {...register('name')}
+              className={cn(
+                'bg-canvas-elevated border border-bdr rounded-tb-input',
+                'px-3.5 py-2.5 text-sm text-ink-pri placeholder:text-ink-muted',
+                'outline-none focus:border-accent-amber/50 transition-colors',
+                errors.name && 'border-accent-red',
+              )}
+            />
+            {errors.name && <p className="text-xs text-accent-red">{errors.name.message}</p>}
+          </div>
+
+          {/* Email */}
+          <div className="flex flex-col gap-1.5">
+            <label className="font-body font-medium text-[11px] text-ink-muted tracking-[0.04em] uppercase">
+              Email
+            </label>
+            <input
+              {...register('email')}
+              type="email"
+              className={cn(
+                'bg-canvas-elevated border border-bdr rounded-tb-input',
+                'px-3.5 py-2.5 text-sm text-ink-pri placeholder:text-ink-muted',
+                'outline-none focus:border-accent-amber/50 transition-colors',
+                errors.email && 'border-accent-red',
+              )}
+            />
+            {errors.email && <p className="text-xs text-accent-red">{errors.email.message}</p>}
+          </div>
+
+          {/* Server error */}
+          {updateUser.error && (
+            <p className="text-sm text-accent-red">
+              {typeof updateUser.error === 'object' && 'message' in updateUser.error
+                ? String((updateUser.error as { message: unknown }).message)
+                : 'Cập nhật thất bại'}
+            </p>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-1">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="flex-1 bg-canvas-elevated border border-bdr rounded-tb-cta py-2.5 text-sm font-semibold text-ink-sec cursor-pointer hover:border-accent-amber/50 transition-colors"
+            >
+              Hủy
+            </button>
+            <GradientButton
+              type="submit"
+              disabled={isSubmitting || uploading || updateUser.isPending}
+              size="sm"
+              className="flex-1"
+            >
+              {(isSubmitting || updateUser.isPending) && <Loader2 size={14} className="animate-spin" />}
+              Lưu thay đổi
+            </GradientButton>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
