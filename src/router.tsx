@@ -24,8 +24,19 @@ const AdminPage          = lazy(() => import('@/features/admin/AdminPage'));
 function AppLayout(): ReactElement {
   return (
     <ProtectedRoute>
-      <AppShell rightRail={<RightRail />}>
+      <AppShell>
         <Outlet />
+      </AppShell>
+      <CartSidebar />
+    </ProtectedRoute>
+  );
+}
+
+function FeedLayout(): ReactElement {
+  return (
+    <ProtectedRoute>
+      <AppShell rightRail={<RightRail />}>
+        <FeedPage />
       </AppShell>
       <CartSidebar />
     </ProtectedRoute>
@@ -43,13 +54,21 @@ export const router = createBrowserRouter([
   },
   {
     path: '/',
+    index: true,
+    element: (
+      <Suspense fallback={<PageSkeleton />}>
+        <FeedLayout />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/',
     element: (
       <Suspense fallback={<PageSkeleton />}>
         <AppLayout />
       </Suspense>
     ),
     children: [
-      { index: true,               element: <FeedPage /> },
       { path: 'post/:id',          element: <PostDetailPage /> },
       { path: 'marketplace',       element: <MarketplacePage /> },
       { path: 'product/:id',       element: <ProductDetail /> },

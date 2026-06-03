@@ -90,9 +90,15 @@ export const api = {
   },
 
   products: {
-    getList: (params: ProductParams = {}): Promise<PaginatedResponse<ProductWithInventory>> => {
+    getList: async (params: ProductParams = {}): Promise<PaginatedResponse<ProductWithInventory>> => {
       const qs = new URLSearchParams(params as Record<string, string>).toString();
-      return request<PaginatedResponse<ProductWithInventory>>(`/products/with-inventory/all${qs ? `?${qs}` : ''}`);
+      const result = await request<PaginatedResponse<ProductWithInventory> | ProductWithInventory[]>(`/products/with-inventory/all${qs ? `?${qs}` : ''}`);
+      if (Array.isArray(result)) {
+        const page = params.page ?? 1;
+        const limit = params.limit ?? result.length;
+        return { data: result, total: result.length, page, limit, totalPages: 1, hasNext: false };
+      }
+      return result;
     },
 
     getWithInventory: (id: number): Promise<ProductWithInventory> =>
@@ -300,10 +306,16 @@ export const api = {
   },
 
   upload: {
-    getSignature: (folder: string): Promise<UploadSignature> => {
-      const qs = toQuery({ folder });
-      return request<UploadSignature>(`/upload/signature${qs}`);
+    getSignature: (folder: string, userId?: number, publicId?: string): Promise<UploadSignature> => {
+      const qs = toQuery({ folder, userId, publicId });
+      return request<UploadSignature>(`/upload/signature${qs}`, { method: 'POST' });
     },
+
+    deleteMedia: (public_id: string): Promise<{ result: string }> =>
+      request<{ result: string }>('/upload/media', {
+        method: 'DELETE',
+        body: JSON.stringify({ public_id }),
+      }),
   },
 
   misc: {

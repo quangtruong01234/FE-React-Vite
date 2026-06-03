@@ -251,14 +251,25 @@ export interface PaymentResult {
 
 // --- Social ---
 
+export interface PostAuthor {
+  id: number;
+  username: string;
+  name?: string;
+  avatar: string | null;
+}
+
 export interface Post {
   id: number;
   userId: number;
   content: string;
-  imageUrls?: string[];
-  videoUrl?: string;
-  likeCount: number;
+  imageUrls: string[] | null;
+  videoUrl: string | null;
   createdAt: string;
+  updatedAt: string;
+  likeCount: number;
+  commentCount: number;
+  isLiked: boolean;
+  author: PostAuthor;
 }
 
 export interface Comment {
@@ -266,12 +277,12 @@ export interface Comment {
   postId: number;
   userId: number;
   content: string;
-  reply_count: number;
+  replyCount?: number;
   createdAt: string;
 }
 
 export interface CommentTree extends Comment {
-  replies: CommentTree[];
+  children: CommentTree[];
 }
 
 export interface CreatePostDto {
@@ -332,9 +343,10 @@ export interface CreateConversationDto {
 export interface UploadSignature {
   signature: string;
   timestamp: number;
-  cloudName: string;
-  apiKey: string;
+  cloud_name: string;
+  api_key: string;
   folder: string;
+  public_id: string;
 }
 
 // --- Health ---
