@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type ReactElement } from 'react';
-import type { EnrichedProduct } from './useProduct';
+import type { EnrichedProduct } from './useProducts';
 
 interface Message {
   id: number;
