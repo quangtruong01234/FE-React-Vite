@@ -1,44 +1,81 @@
-import { type ReactElement, type ReactNode } from 'react';
+import { lazy, Suspense, type ReactElement } from 'react';
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
-import { useAuthContext } from '@/context/AuthContext';
-import LoginPage from '@/features/auth/LoginPage';
-import FeedPage from '@/features/social/FeedPage';
-import ProductListPage from '@/features/product/ProductListPage';
-import ProductDetail from '@/features/product/ProductDetail';
-import CheckoutPage from '@/features/cart/CheckoutPage';
-import OrderHistoryPage from '@/features/order/OrderHistoryPage';
+import { AppShell } from '@/components/layout/AppShell';
+import { RightRail } from '@/components/layout/RightRail';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { PageSkeleton } from '@/components/shared/PageSkeleton';
 import CartSidebar from '@/features/cart/CartSidebar';
 
-function RequireAuth({ children }: { children: ReactNode }): ReactElement {
-  const { currentUser } = useAuthContext();
-  if (!currentUser) return <Navigate to="/login" replace />;
-  return <>{children}</>;
-}
+const LoginPage          = lazy(() => import('@/features/auth/LoginPage'));
+const FeedPage           = lazy(() => import('@/features/social/FeedPage'));
+const PostDetailPage     = lazy(() => import('@/features/social/PostDetailPage'));
+const MarketplacePage    = lazy(() => import('@/features/product/MarketplacePage'));
+const ProductDetail      = lazy(() => import('@/features/product/ProductDetail'));
+const CheckoutPage       = lazy(() => import('@/features/cart/CheckoutPage'));
+const OrderHistoryPage   = lazy(() => import('@/features/order/OrderHistoryPage'));
+const ProfilePage        = lazy(() => import('@/features/user/ProfilePage'));
+const MessagesPage       = lazy(() => import('@/features/chat/MessagesPage'));
+const NotificationsPage  = lazy(() => import('@/features/notifications/NotificationsPage'));
+const OrderDetailPage    = lazy(() => import('@/features/order/OrderDetailPage'));
+const PaymentResultPage  = lazy(() => import('@/features/payment/PaymentResultPage'));
+const ShopPage           = lazy(() => import('@/features/shop/ShopPage'));
+const AdminPage          = lazy(() => import('@/features/admin/AdminPage'));
 
-function RootLayout(): ReactElement {
+function AppLayout(): ReactElement {
   return (
-    <>
-      <Outlet />
+    <ProtectedRoute>
+      <AppShell rightRail={<RightRail />}>
+        <Outlet />
+      </AppShell>
       <CartSidebar />
-    </>
+    </ProtectedRoute>
   );
 }
 
 export const router = createBrowserRouter([
-  { path: '/login', element: <LoginPage /> },
+  {
+    path: '/login',
+    element: (
+      <Suspense fallback={<PageSkeleton />}>
+        <LoginPage />
+      </Suspense>
+    ),
+  },
   {
     path: '/',
     element: (
-      <RequireAuth>
-        <RootLayout />
-      </RequireAuth>
+      <Suspense fallback={<PageSkeleton />}>
+        <AppLayout />
+      </Suspense>
     ),
     children: [
-      { index: true, element: <FeedPage /> },
-      { path: 'marketplace', element: <ProductListPage /> },
-      { path: 'product/:id', element: <ProductDetail /> },
-      { path: 'checkout', element: <CheckoutPage /> },
-      { path: 'orders', element: <OrderHistoryPage /> },
+      { index: true,               element: <FeedPage /> },
+      { path: 'post/:id',          element: <PostDetailPage /> },
+      { path: 'marketplace',       element: <MarketplacePage /> },
+      { path: 'product/:id',       element: <ProductDetail /> },
+      { path: 'checkout',          element: <CheckoutPage /> },
+      { path: 'orders',            element: <OrderHistoryPage /> },
+      { path: 'order/:id',         element: <OrderDetailPage /> },
+      { path: 'payment-result',    element: <PaymentResultPage /> },
+      { path: 'profile/:id',       element: <ProfilePage /> },
+      { path: 'messages',          element: <MessagesPage /> },
+      { path: 'notifications',     element: <NotificationsPage /> },
+      {
+        path: 'shop',
+        element: (
+          <ProtectedRoute requiredRole="seller">
+            <ShopPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin',
+        element: (
+          <ProtectedRoute requiredRole="admin">
+            <AdminPage />
+          </ProtectedRoute>
+        ),
+      },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },
