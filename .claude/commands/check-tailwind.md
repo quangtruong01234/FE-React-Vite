@@ -11,10 +11,11 @@ Scan `frontend/src/` and report styling violations. Do not auto-fix — only rep
 
 <!--
 DESIGN DECISIONS — không thay đổi:
-1. 6 grep patterns chạy tách biệt, không merge thành 1 regex
+1. 7 checks chạy tách biệt, không merge thành 1 regex (Check 7 là 2-step grep: filter rồi check)
 2. Exception list cố định: index.css, main.tsx, Avatar.tsx
 3. Output format: [VIOLATION] filepath — type at line N
 4. Summary cuối cùng có count per category
+5. Check 7 là heuristic 🟡 (grep không xác định được vuông/không runtime) — verify thật bằng /verify-ui hoặc MCP
 -->
 
 ---
@@ -22,6 +23,7 @@ DESIGN DECISIONS — không thay đổi:
 ## Pre-check
 
 Verify `frontend/src/index.css` exists and starts with:
+
 ```css
 @tailwind base;
 @tailwind components;
@@ -32,7 +34,7 @@ If missing, report `[CRITICAL] index.css missing or malformed` and stop.
 
 ---
 
-## Scan Protocol — 6 Checks
+## Scan Protocol — 7 Checks
 
 ### Check 1 — inline `style={{}}` props
 
@@ -103,6 +105,20 @@ Scope: frontend/src/**/*.tsx
 
 Severity: 🟡 yellow — not a hard error (sometimes needed for pixel-perfect), but worth flagging.
 
+### Check 7 — circular button không dùng `size-*` (oval / off-center risk)
+
+Nút bo tròn (`rounded-full`) nên dùng `size-*` (ép `width = height`) để tránh biến thành **bầu dục**, và `grid place-items-center` để icon căn giữa thật (xem icon-button rule trong CLAUDE.md). `rounded-full` trên element không vuông + `flex items-center justify-center` là nguồn bug căn giữa hay gặp nhất.
+
+```
+Step 1 — filter: \brounded-full\b
+Step 2 — trong các dòng đó, flag nếu KHÔNG có \bsize-\d và thoả một trong:
+  (a) có "flex items-center justify-center"   → nên đổi sang "grid place-items-center"
+  (b) có cả \bw-\S+ lẫn \bh-\S+ riêng         → nên gộp thành size-*
+Scope: frontend/src/**/*.tsx
+```
+
+Severity: 🟡 yellow — heuristic, KHÔNG phải mọi case đều sai (vd badge/pill cố ý dài). grep không biết element có vuông lúc render hay không → phải verify visual bằng `/verify-ui` hoặc screenshot qua Chrome DevTools MCP trước khi sửa.
+
 ---
 
 ## Output Format
@@ -114,9 +130,11 @@ Severity: 🟡 yellow — not a hard error (sometimes needed for pixel-perfect),
 [🔴 VIOLATION] src/features/product/ProductListPage.tsx:376 — hardcoded hex [#1C1C1E] (use bg-tb-elevated)
 [🔴 VIOLATION] src/features/order/OrderCard.tsx:24 — raw palette text-gray-500 (use text-tb-muted)
 [🟡 WARN]      src/features/product/ProductDetail.tsx:88 — arbitrary value w-[437px]
+[🟡 WARN]      src/features/profile/FollowListModal.tsx:31 — rounded-full + w-/h- (use size-* grid place-items-center)
 ```
 
 If clean:
+
 ```
 [✅ CLEAN] No Tailwind violations found in frontend/src/
 ```
@@ -125,13 +143,14 @@ If clean:
 
 ```
 ── Tailwind Audit Summary ──────────────────────
-  Files scanned       : N
-  🔴 Inline styles    : a
-  🔴 .css files       : b
-  🔴 .css imports     : c
-  🔴 Hardcoded hex    : d
-  🔴 Raw palette      : e
-  🟡 Arbitrary values : f
-  Total violations    : a+b+c+d+e+f
+  Files scanned        : N
+  🔴 Inline styles     : a
+  🔴 .css files        : b
+  🔴 .css imports      : c
+  🔴 Hardcoded hex     : d
+  🔴 Raw palette       : e
+  🟡 Arbitrary values  : f
+  🟡 Circular non-size : g
+  Total violations     : a+b+c+d+e+f+g
 ────────────────────────────────────────────────
 ```

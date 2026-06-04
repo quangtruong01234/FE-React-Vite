@@ -11,7 +11,9 @@ These are the non-negotiable rules. Violating any of these breaks the build or t
 - **Search before creating** — no duplicate hooks/components/utils. Use `/audit-duplicates`.
 - **After every change:** run `npm run build` (includes `tsc --noEmit`). Never mark done with TS errors.
 - **No new dependencies** without asking. `npm install` is blocked in `settings.json`.
-- **Never edit `src/components/ui/`** — shadcn-managed. Install via `npx shadcn add`.
+- **UI lookup order (MANDATORY):** Before writing any new UI, check in this order: `src/components/ui/` → `src/components/shared/` → feature folder → only then create new. Never create a component that duplicates one already in `ui/` or `shared/`.
+- **DRY — UI:** If the same UI pattern appears in 2+ places, stop and propose extracting it to `src/components/shared/` before continuing.
+- **DRY — Logic:** If the same hook/util logic appears in 2+ feature folders, propose extracting it to `src/hooks/` or `src/lib/` before continuing.
 
 ## Stack (versions matter)
 
