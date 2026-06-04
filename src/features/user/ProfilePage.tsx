@@ -1,30 +1,43 @@
 import { useState, type ReactElement } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Pencil, MessageCircle, Mail, Shield, CheckCircle, Newspaper, Package } from 'lucide-react';
+import { useParams, Link } from 'react-router-dom';
+import { Pencil, MessageCircle, Mail, Shield, CheckCircle, Newspaper, Package, UserCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { EditProfileModal } from './EditProfileModal';
+import { FollowListModal } from './FollowListModal';
 import PostCard from '@/features/social/PostCard';
-import { useRole } from '@/hooks/useRole';
+import { useFollowers, useFollowing, useFollowUser, useUnfollowUser, useIsFollowing } from '@/features/social/useFollow';
+import { useAuthContext } from '@/context/AuthContext';
 import { queryKeys } from '@/hooks/queryKeys';
 import { api } from '@/api';
 import { cn } from '@/lib/utils';
 
-type TabKey = 'posts' | 'products' | 'about';
+type TabKey = 'posts' | 'products' | 'about' | 'following';
 
 export default function ProfilePage(): ReactElement {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const userId = Number(id ?? 0);
 
-  const role = useRole();
-  const isMe = role?.me?.id !== undefined && role.me.id === userId;
+  const { currentUser } = useAuthContext();
+  const viewerId = currentUser?.id ?? 0;
+  const isMe = viewerId !== 0 && viewerId === userId;
 
   const [tab, setTab] = useState<TabKey>('posts');
   const [editing, setEditing] = useState(false);
   const [postsLoaded, setPostsLoaded] = useState(false);
+  const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null);
+
+  const { data: followersData } = useFollowers(userId);
+  const { data: followingData } = useFollowing(userId);
+  const { isFollowing, isLoading: isFollowLoading } = useIsFollowing(viewerId, userId);
+
+  const { mutate: follow, isPending: isFollowPending } = useFollowUser(userId, viewerId);
+  const { mutate: unfollow, isPending: isUnfollowPending } = useUnfollowUser(userId, viewerId);
+
+  const followersCount = followersData?.total ?? 0;
+  const followingCount = followingData?.total ?? 0;
 
   const { data: user, isLoading: userLoading, error: userError } = useQuery({
     queryKey: queryKeys.users.detail(userId),
@@ -83,6 +96,7 @@ export default function ProfilePage(): ReactElement {
 
   const TABS: { key: TabKey; label: string }[] = [
     { key: 'posts', label: `Bài viết${posts.length > 0 ? ` (${posts.length})` : ''}` },
+    { key: 'following', label: `Đang theo dõi${followingCount > 0 ? ` (${followingCount})` : ''}` },
     { key: 'products', label: 'Sản phẩm' },
     { key: 'about', label: 'Giới thiệu' },
   ];
@@ -101,6 +115,23 @@ export default function ProfilePage(): ReactElement {
               {user.name ?? user.username}
             </h1>
             <p className="text-sm text-ink-muted m-0">@{user.username}</p>
+            {/* Follower / following counts */}
+            <div className="flex gap-4 mt-1.5">
+              <button
+                type="button"
+                onClick={() => setFollowModal('followers')}
+                className="text-xs text-ink-sec hover:text-ink-pri transition-colors cursor-pointer border-0 bg-transparent p-0"
+              >
+                <span className="font-semibold text-ink-pri">{followersCount}</span> người theo dõi
+              </button>
+              <button
+                type="button"
+                onClick={() => setFollowModal('following')}
+                className="text-xs text-ink-sec hover:text-ink-pri transition-colors cursor-pointer border-0 bg-transparent p-0"
+              >
+                <span className="font-semibold text-ink-pri">{followingCount}</span> đang theo dõi
+              </button>
+            </div>
           </div>
           {isMe ? (
             <button
@@ -113,9 +144,28 @@ export default function ProfilePage(): ReactElement {
             </button>
           ) : (
             <div className="flex gap-2 pb-1 flex-none">
-              <GradientButton size="sm" className="rounded-full">
-                Theo dõi
-              </GradientButton>
+              {isFollowLoading ? (
+                <Skeleton className="h-9 w-28 rounded-full bg-canvas-elevated" />
+              ) : isFollowing ? (
+                <button
+                  type="button"
+                  onClick={() => unfollow()}
+                  disabled={isUnfollowPending}
+                  className="flex items-center gap-1.5 bg-canvas-elevated border border-bdr rounded-full px-4 py-2 text-sm font-semibold text-ink-pri cursor-pointer hover:border-accent-red/50 hover:text-accent-red transition-colors disabled:opacity-50"
+                >
+                  <UserCheck size={14} className="shrink-0" />
+                  Đang theo dõi
+                </button>
+              ) : (
+                <GradientButton
+                  size="sm"
+                  className="rounded-full"
+                  onClick={() => follow()}
+                  disabled={isFollowPending || viewerId === 0}
+                >
+                  Theo dõi
+                </GradientButton>
+              )}
               <Link
                 to="/messages"
                 className="bg-canvas-elevated border border-bdr rounded-full w-9 h-9 flex items-center justify-center text-ink-sec hover:border-accent-amber/50 transition-colors"
@@ -171,6 +221,27 @@ export default function ProfilePage(): ReactElement {
           </>
         )}
 
+        {tab === 'following' && (
+          <div className="bg-canvas-surface border border-bdr rounded-tb-card divide-y divide-bdr">
+            {followingData?.data.length === 0 && (
+              <div className="py-14 flex flex-col items-center gap-2 text-center">
+                <UserCheck size={32} className="text-ink-muted" />
+                <p className="text-sm text-ink-sec m-0">Chưa theo dõi ai</p>
+              </div>
+            )}
+            {followingData?.data.map((item) => (
+              <Link
+                key={item.user.id}
+                to={`/profile/${item.user.id}`}
+                className="flex items-center gap-3 px-4 py-3 hover:bg-canvas-elevated transition-colors no-underline"
+              >
+                <Avatar src={item.user.avatar ?? undefined} alt={item.user.username} size={40} />
+                <span className="text-sm font-semibold text-ink-pri">@{item.user.username}</span>
+              </Link>
+            ))}
+          </div>
+        )}
+
         {tab === 'products' && (
           // api.products.getList does not support userId filter — products tab not available
           <div className="bg-canvas-surface border border-bdr rounded-tb-card py-14 flex flex-col items-center gap-2 text-center">
@@ -208,6 +279,13 @@ export default function ProfilePage(): ReactElement {
           user={user}
         />
       )}
+
+      <FollowListModal
+        open={followModal !== null}
+        onClose={() => setFollowModal(null)}
+        userId={userId}
+        mode={followModal ?? 'followers'}
+      />
     </div>
   );
 }
