@@ -33,10 +33,14 @@ export const queryKeys = {
   },
   social: {
     feed: (page: number) => ['social', 'feed', page] as const,
+    followingFeed: (userId: number) => ['social', 'following-feed', userId] as const,
     postsByUser: (userId: number) => ['social', 'user', userId, 'posts'] as const,
     post: (id: number) => ['social', 'posts', id] as const,
     comments: (postId: number) => ['social', 'posts', postId, 'comments'] as const,
     replies: (commentId: number) => ['social', 'comments', commentId, 'replies'] as const,
+    followers: (userId: number) => ['social', 'user', userId, 'followers'] as const,
+    following: (userId: number) => ['social', 'user', userId, 'following'] as const,
+    isFollowing: (viewerId: number, targetId: number) => ['social', 'is-following', viewerId, targetId] as const,
   },
   notifications: {
     list: (page: number) => ['notifications', 'list', page] as const,

@@ -32,6 +32,17 @@ function AppLayout(): ReactElement {
   );
 }
 
+function MessagesLayout(): ReactElement {
+  return (
+    <ProtectedRoute>
+      <AppShell fixedHeight>
+        <MessagesPage />
+      </AppShell>
+      <CartSidebar />
+    </ProtectedRoute>
+  );
+}
+
 function FeedLayout(): ReactElement {
   return (
     <ProtectedRoute>
@@ -62,6 +73,14 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    path: '/messages',
+    element: (
+      <Suspense fallback={<PageSkeleton />}>
+        <MessagesLayout />
+      </Suspense>
+    ),
+  },
+  {
     path: '/',
     element: (
       <Suspense fallback={<PageSkeleton />}>
@@ -77,7 +96,6 @@ export const router = createBrowserRouter([
       { path: 'order/:id',         element: <OrderDetailPage /> },
       { path: 'payment-result',    element: <PaymentResultPage /> },
       { path: 'profile/:id',       element: <ProfilePage /> },
-      { path: 'messages',          element: <MessagesPage /> },
       { path: 'notifications',     element: <NotificationsPage /> },
       {
         path: 'shop',

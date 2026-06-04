@@ -304,6 +304,31 @@ export interface LikeResult {
   likeCount: number;
 }
 
+// --- Follow ---
+
+export interface FollowResult {
+  followed: boolean;
+  followingId: number;
+}
+
+export interface FollowUser {
+  id: number;
+  username: string;
+  avatar: string | null;
+}
+
+export interface FollowerItem {
+  followerId: number;
+  createdAt: string;
+  user: FollowUser;
+}
+
+export interface FollowingItem {
+  followingId: number;
+  createdAt: string;
+  user: FollowUser;
+}
+
 // --- Notification ---
 
 export interface Notification {

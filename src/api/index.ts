@@ -26,6 +26,9 @@ import type {
   CreateCommentDto,
   CreateReplyDto,
   LikeResult,
+  FollowResult,
+  FollowerItem,
+  FollowingItem,
   Notification,
   Conversation,
   Message,
@@ -244,6 +247,27 @@ export const api = {
     getReplies: (commentId: number, depth?: number): Promise<CommentTree> => {
       const qs = depth !== undefined ? toQuery({ depth }) : '';
       return request<CommentTree>(`/social/comments/${commentId}/replies${qs}`);
+    },
+
+    followUser: (id: number): Promise<FollowResult> =>
+      request<FollowResult>(`/social/users/${id}/follow`, { method: 'POST' }),
+
+    unfollowUser: (id: number): Promise<FollowResult> =>
+      request<FollowResult>(`/social/users/${id}/follow`, { method: 'DELETE' }),
+
+    getFollowers: (id: number, page = 1, limit = 20): Promise<PaginatedResponse<FollowerItem>> => {
+      const qs = toQuery({ page, limit });
+      return request<PaginatedResponse<FollowerItem>>(`/social/users/${id}/followers${qs}`);
+    },
+
+    getFollowing: (id: number, page = 1, limit = 20): Promise<PaginatedResponse<FollowingItem>> => {
+      const qs = toQuery({ page, limit });
+      return request<PaginatedResponse<FollowingItem>>(`/social/users/${id}/following${qs}`);
+    },
+
+    getFollowingFeed: (id: number, page = 1, limit = 20): Promise<PaginatedResponse<Post>> => {
+      const qs = toQuery({ page, limit });
+      return request<PaginatedResponse<Post>>(`/social/users/${id}/feed${qs}`);
     },
   },
 

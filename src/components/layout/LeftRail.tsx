@@ -9,7 +9,7 @@ import { Avatar } from '@/components/shared/Avatar';
 import { useCart } from '@/context/CartContext';
 import { useRole } from '@/hooks/useRole';
 
-export function LeftRail(): ReactElement {
+export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactElement {
   const location = useLocation();
   const { totalCount, openCart } = useCart();
   const roleState = useRole();
@@ -34,7 +34,7 @@ export function LeftRail(): ReactElement {
   }
 
   return (
-    <aside className="sticky top-[76px] self-start hidden md:flex flex-col gap-1 pb-20">
+    <aside className={cn('hidden md:flex flex-col gap-1', fullHeight ? 'h-full overflow-y-auto pb-6' : 'sticky top-[76px] self-start pb-20')}>
       {me && (
         <Link
           to={`/profile/${me.id}`}

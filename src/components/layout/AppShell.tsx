@@ -7,9 +7,22 @@ import { RightRail } from './RightRail';
 interface AppShellProps {
   children: ReactNode;
   rightRail?: ReactNode;
+  fixedHeight?: boolean;
 }
 
-export function AppShell({ children, rightRail }: AppShellProps): ReactElement {
+export function AppShell({ children, rightRail, fixedHeight }: AppShellProps): ReactElement {
+  if (fixedHeight) {
+    return (
+      <div className="h-screen overflow-hidden bg-canvas-base flex flex-col">
+        <Header />
+        <div className="flex-1 overflow-hidden grid md:grid-cols-[210px_minmax(0,1fr)] px-5 pt-6 gap-6 min-h-0 items-stretch">
+          <LeftRail fullHeight />
+          <main className="min-w-0 min-h-0 overflow-hidden">{children}</main>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-canvas-base">
       <Header />
