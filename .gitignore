@@ -10,3 +10,6 @@ Thumbs.db
 .vite/
 coverage/
 design_handoff_trybuy_ui
+
+# Local test data
+.claude/test-accounts.md
