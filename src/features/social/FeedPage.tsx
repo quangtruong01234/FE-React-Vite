@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Image, PenLine } from 'lucide-react';
+import { PenLine } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/context/AuthContext';
-import { Avatar } from '@/components/shared/Avatar';
 import { useFeed } from './useFeed';
+import { useFollowingFeed } from './useFollow';
 import PostCard from './PostCard';
 import CreatePostModal from './CreatePostModal';
 import type { Post } from '@/types';
@@ -28,15 +28,11 @@ export default function FeedPage() {
     return () => window.removeEventListener('tb:createpost', handleGlobalCreate);
   }, []);
 
-  const {
-    data,
-    isLoading,
-    isError,
-    error,
-    hasNextPage,
-    fetchNextPage,
-    isFetchingNextPage,
-  } = useFeed();
+  const forYouQuery = useFeed();
+  const followingQuery = useFollowingFeed(currentUser?.id ?? 0, activeTab === 'following');
+
+  const activeQuery = activeTab === 'following' ? followingQuery : forYouQuery;
+  const { data, isLoading, isError, error, hasNextPage, fetchNextPage, isFetchingNextPage } = activeQuery;
 
   // Flatten pages → posts once, O(n) total
   const posts: Post[] = data?.pages.flatMap((page) => page.data) ?? [];
@@ -58,8 +54,6 @@ export default function FeedPage() {
     observer.observe(el);
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
-
-  const userName = currentUser?.name ?? currentUser?.username ?? 'bạn';
 
   return (
     <div className="max-w-[950px] mx-auto flex flex-col gap-4">
@@ -118,8 +112,17 @@ export default function FeedPage() {
             <div className="w-14 h-14 rounded-full bg-canvas-elevated flex items-center justify-center">
               <PenLine size={24} className="text-ink-muted" />
             </div>
-            <p className="text-ink-pri font-semibold font-body">Chưa có bài viết</p>
-            <p className="text-ink-muted text-sm font-body">Hãy là người đầu tiên chia sẻ điều gì đó!</p>
+            {activeTab === 'following' ? (
+              <>
+                <p className="text-ink-pri font-semibold font-body">Chưa có bài viết từ người theo dõi</p>
+                <p className="text-ink-muted text-sm font-body">Hãy theo dõi thêm người để xem bài viết của họ!</p>
+              </>
+            ) : (
+              <>
+                <p className="text-ink-pri font-semibold font-body">Chưa có bài viết</p>
+                <p className="text-ink-muted text-sm font-body">Hãy là người đầu tiên chia sẻ điều gì đó!</p>
+              </>
+            )}
           </div>
         )}
 
