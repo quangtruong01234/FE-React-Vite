@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { io, type Socket } from 'socket.io-client';
 import { queryClient } from '@/lib/queryClient';
 import { queryKeys } from '@/hooks/queryKeys';
@@ -25,20 +25,28 @@ export function useChat(conversationId: number): {
   messages: Message[];
   isLoading: boolean;
   sendMessage: (content: string) => void;
+  hasNextPage: boolean;
+  fetchNextPage: () => void;
+  isFetchingNextPage: boolean;
 } {
   const [socketMessages, setSocketMessages] = useState<Message[]>([]);
 
-  const { data: page, isLoading } = useQuery({
+  const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: queryKeys.messages.byConversation(conversationId),
-    queryFn: () => api.chat.getMessages(conversationId),
+    queryFn: ({ pageParam }) => api.chat.getMessages(conversationId, pageParam as number, 10),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, _allPages, lastPageParam) =>
+      lastPage.hasNext ? (lastPageParam as number) + 1 : undefined,
     enabled: conversationId > 0,
   });
 
-  const httpMessages = (page?.data ?? []).slice().reverse();
+  // All pages: page 1 = newest 10, page 2 = next older 10, etc.
+  // flatMap then reverse gives oldest→newest order for display
+  const allPageMessages = data?.pages.flatMap((p) => p.data) ?? [];
+  const httpMessages = allPageMessages.slice().reverse();
   const messages = mergeMessages(httpMessages, socketMessages);
 
   const socketRef = useRef<ChatSocket | null>(null);
-  const prevConvRef = useRef<number>(0);
 
   useEffect(() => {
     if (conversationId <= 0) return;
@@ -47,12 +55,10 @@ export function useChat(conversationId: number): {
     socketRef.current = socket;
 
     socket.emit('join', { conversationId });
-    prevConvRef.current = conversationId;
 
     socket.on('new_message', (msg: Message) => {
       if (msg.conversationId === conversationId) {
         setSocketMessages((prev) => [...prev, msg]);
-        // update conversation list preview
         queryClient.setQueryData<Conversation[]>(queryKeys.conversations.all, (old) => {
           if (!old) return old;
           return old.map((c) =>
@@ -78,7 +84,7 @@ export function useChat(conversationId: number): {
     socketRef.current?.emit('send_message', { conversationId, content });
   }
 
-  return { messages, isLoading, sendMessage };
+  return { messages, isLoading, sendMessage, hasNextPage, fetchNextPage, isFetchingNextPage };
 }
 
 function mergeMessages(http: Message[], socket: Message[]): Message[] {
@@ -88,5 +94,4 @@ function mergeMessages(http: Message[], socket: Message[]): Message[] {
   return [...http, ...fresh];
 }
 
-// re-export PaginatedResponse shape for convenience
 export type { PaginatedResponse };

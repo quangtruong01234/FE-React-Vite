@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
 import { ArrowLeft, Send } from 'lucide-react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRole } from '@/hooks/useRole';
 import { useChat } from './useChat';
 import { cn } from '@/lib/utils';
-import type { Conversation } from '@/types';
+import type { Conversation, User } from '@/types';
 
 function formatMessageTime(iso: string): string {
   const normalized = iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z';
@@ -27,19 +27,81 @@ function formatMessageTime(iso: string): string {
 interface ChatThreadProps {
   conversation: Conversation;
   onBack: () => void;
+  otherUser?: User;
 }
 
-export function ChatThread({ conversation, onBack }: ChatThreadProps): ReactElement {
+export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps): ReactElement {
   const role = useRole();
   const meId = role?.me?.id;
 
-  const { messages, isLoading, sendMessage } = useChat(conversation.id);
+  const { messages, isLoading, sendMessage, hasNextPage, fetchNextPage, isFetchingNextPage } =
+    useChat(conversation.id);
   const [text, setText] = useState('');
-  const endRef = useRef<HTMLDivElement>(null);
 
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const topSentinelRef = useRef<HTMLDivElement>(null);
+  const prevScrollHeightRef = useRef(0);
+  const shouldPreserveScrollRef = useRef(false);
+  const initialLoadDoneRef = useRef(false);
+
+  // Reset state when switching conversations
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]);
+    initialLoadDoneRef.current = false;
+    shouldPreserveScrollRef.current = false;
+  }, [conversation.id]);
+
+  // Capture scroll height before load-more fetch starts (useEffect = after paint)
+  useEffect(() => {
+    if (isFetchingNextPage) {
+      prevScrollHeightRef.current = scrollAreaRef.current?.scrollHeight ?? 0;
+      shouldPreserveScrollRef.current = true;
+    }
+  }, [isFetchingNextPage]);
+
+  // Manage scroll position after DOM updates (useLayoutEffect = before paint)
+  useLayoutEffect(() => {
+    const el = scrollAreaRef.current;
+    if (!el || isFetchingNextPage) return;
+
+    if (shouldPreserveScrollRef.current) {
+      // Older messages prepended: anchor scroll so current messages stay visible
+      el.scrollTop = el.scrollHeight - prevScrollHeightRef.current;
+      shouldPreserveScrollRef.current = false;
+      return;
+    }
+
+    if (!initialLoadDoneRef.current) {
+      // Initial load: jump to bottom once loading is done
+      if (!isLoading) {
+        el.scrollTop = el.scrollHeight;
+        initialLoadDoneRef.current = true;
+      }
+      return;
+    }
+
+    // New socket message: scroll to bottom only if already near bottom
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distanceFromBottom < 150) el.scrollTop = el.scrollHeight;
+  }, [messages.length, isFetchingNextPage, isLoading]);
+
+  // IntersectionObserver: load older messages when top sentinel enters view
+  useEffect(() => {
+    const sentinel = topSentinelRef.current;
+    const root = scrollAreaRef.current;
+    if (!sentinel || !root) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          void fetchNextPage();
+        }
+      },
+      { root, rootMargin: '80px' },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   function handleSend(): void {
     const trimmed = text.trim();
@@ -58,19 +120,39 @@ export function ChatThread({ conversation, onBack }: ChatThreadProps): ReactElem
         >
           <ArrowLeft size={16} />
         </button>
-        <Avatar size={40} />
+        <Avatar
+          size={40}
+          src={otherUser?.avatar ?? undefined}
+          alt={otherUser?.name ?? otherUser?.username ?? ''}
+          initials={(otherUser?.name ?? otherUser?.username ?? '?').charAt(0).toUpperCase()}
+        />
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm text-ink-pri truncate">
-            Hội thoại #{conversation.id}
+            {otherUser?.name ?? otherUser?.username ?? `Hội thoại #${conversation.id}`}
           </div>
-          <div className="text-xs text-ink-muted">
-            ID {conversation.user1Id} · {conversation.user2Id}
-          </div>
+          {otherUser?.username && (
+            <div className="text-xs text-ink-muted">@{otherUser.username}</div>
+          )}
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2 min-h-0">
+      <div ref={scrollAreaRef} className="flex-1 overflow-y-auto p-4 flex flex-col gap-2 min-h-0">
+
+        {/* Top sentinel — triggers load-more when scrolled into view */}
+        <div ref={topSentinelRef} className="h-px" />
+
+        {/* Spacer pushes messages to bottom when content doesn't fill the container */}
+        <div className="flex-1" />
+
+        {/* Loading older messages indicator */}
+        {isFetchingNextPage && (
+          <div className="flex justify-center py-2">
+            <Skeleton className="h-6 w-24 rounded-full" />
+          </div>
+        )}
+
+        {/* Initial loading skeletons */}
         {isLoading && (
           <>
             {[1, 2, 3].map((i) => (
@@ -112,7 +194,6 @@ export function ChatThread({ conversation, onBack }: ChatThreadProps): ReactElem
           );
         })}
 
-        <div ref={endRef} />
       </div>
 
       {/* Input */}

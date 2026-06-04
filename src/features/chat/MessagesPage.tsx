@@ -1,12 +1,15 @@
-import { useState, type ReactElement } from 'react';
+import { useState, useMemo, type ReactElement } from 'react';
 import { MessageSquare, Search } from 'lucide-react';
+import { useQueries } from '@tanstack/react-query';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRole } from '@/hooks/useRole';
+import { queryKeys } from '@/hooks/queryKeys';
+import { api } from '@/api';
 import { useConversations } from './useChat';
 import { ChatThread } from './ChatThread';
 import { cn } from '@/lib/utils';
-import type { Conversation } from '@/types';
+import type { Conversation, User } from '@/types';
 
 function timeAgo(iso: string): string {
   const ms = new Date(iso).getTime();
@@ -27,18 +30,47 @@ export default function MessagesPage(): ReactElement {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
 
-  const filtered = search.trim()
-    ? conversations.filter((c) => String(c.id).includes(search.trim()))
-    : conversations;
-
-  const selectedConv = conversations.find((c) => c.id === selectedId) ?? null;
-
   function otherUserId(c: Conversation): number {
     return meId !== undefined && c.user1Id === meId ? c.user2Id : c.user1Id;
   }
 
+  const otherUserIds = useMemo(() => {
+    const ids = new Set<number>();
+    conversations.forEach((c) => ids.add(otherUserId(c)));
+    return Array.from(ids);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations, meId]);
+
+  const userResults = useQueries({
+    queries: otherUserIds.map((id) => ({
+      queryKey: queryKeys.users.detail(id),
+      queryFn: () => api.users.getById(id),
+      staleTime: 5 * 60 * 1000,
+    })),
+  });
+
+  const userMap = useMemo(() => {
+    const map = new Map<number, User>();
+    userResults.forEach((r, i) => {
+      if (r.data) map.set(otherUserIds[i], r.data);
+    });
+    return map;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userResults, otherUserIds]);
+
+  const filtered = search.trim()
+    ? conversations.filter((c) => {
+        const otherId = otherUserId(c);
+        const u = userMap.get(otherId);
+        const label = u?.name ?? u?.username ?? String(otherId);
+        return label.toLowerCase().includes(search.trim().toLowerCase());
+      })
+    : conversations;
+
+  const selectedConv = conversations.find((c) => c.id === selectedId) ?? null;
+
   return (
-    <div className="h-[calc(100vh-150px)] bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden grid grid-cols-1 md:grid-cols-[300px_1fr]">
+    <div className="h-full bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden grid grid-cols-1 md:grid-cols-[300px_1fr]">
       {/* Conversation list */}
       <div className={cn('border-r border-bdr flex flex-col min-h-0', selectedConv && 'hidden md:flex')}>
         <div className="px-4 py-3.5 border-b border-bdr flex-none">
@@ -81,6 +113,9 @@ export default function MessagesPage(): ReactElement {
           {!isLoading && filtered.map((c) => {
             const isActive = c.id === selectedId;
             const otherId = otherUserId(c);
+            const otherUser = userMap.get(otherId);
+            const displayName = otherUser?.name ?? otherUser?.username ?? `Người dùng #${otherId}`;
+            const initials = displayName.charAt(0).toUpperCase();
             return (
               <button
                 key={c.id}
@@ -91,18 +126,18 @@ export default function MessagesPage(): ReactElement {
                   isActive ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated/50',
                 )}
               >
-                <Avatar size={46} />
+                <Avatar size={46} src={otherUser?.avatar ?? undefined} alt={displayName} initials={initials} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1">
                     <span className="font-semibold text-sm text-ink-pri truncate">
-                      Người dùng #{otherId}
+                      {displayName}
                     </span>
                     <span className="text-[10px] text-ink-muted flex-none">
                       {timeAgo(c.createdAt)}
                     </span>
                   </div>
                   <div className="text-xs text-ink-sec truncate">
-                    Hội thoại #{c.id}
+                    @{otherUser?.username ?? otherId}
                   </div>
                 </div>
               </button>
@@ -112,11 +147,12 @@ export default function MessagesPage(): ReactElement {
       </div>
 
       {/* Thread area */}
-      <div className="min-h-0">
+      <div className="min-h-0 overflow-hidden flex flex-col">
         {selectedConv ? (
           <ChatThread
             conversation={selectedConv}
             onBack={() => setSelectedId(null)}
+            otherUser={userMap.get(otherUserId(selectedConv))}
           />
         ) : (
           <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-6">
