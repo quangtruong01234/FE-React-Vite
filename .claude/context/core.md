@@ -61,3 +61,9 @@ React 19 · Vite · TypeScript strict · React Router DOM **v7** · TanStack Que
 - Choose the better complexity/render approach up front (Map/Set lookups over nested find/filter; thin JSX; stable keys; memoize Context values) — but do NOT add memoization speculatively.
 - Route-level pages lazy-load (`React.lazy` + `<Suspense>`); import lodash per-method (`lodash/debounce`), never the whole lib.
 - Details + examples → `context/performance.md`
+
+## Lodash — hard rules
+
+- **Prefer lodash** over hand-rolled implementations for array/object/string utilities (e.g. `groupBy`, `orderBy`, `debounce`, `cloneDeep`, `pick`, `omit`).
+- Exception: if lodash demonstrably causes a performance problem (profiled, not assumed), replace it with a native JS equivalent.
+- Always import per-method: `import groupBy from 'lodash/groupBy'` — never `import _ from 'lodash'`.
