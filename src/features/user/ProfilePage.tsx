@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Pencil, MessageCircle, Mail, Shield, CheckCircle, Newspaper, Package, UserCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Avatar } from '@/components/shared/Avatar';
@@ -24,6 +24,7 @@ export default function ProfilePage(): ReactElement {
   const viewerId = currentUser?.id ?? 0;
   const isMe = viewerId !== 0 && viewerId === userId;
 
+  const navigate = useNavigate();
   const [tab, setTab] = useState<TabKey>('posts');
   const [editing, setEditing] = useState(false);
   const [postsLoaded, setPostsLoaded] = useState(false);
@@ -166,12 +167,14 @@ export default function ProfilePage(): ReactElement {
                   Theo dõi
                 </GradientButton>
               )}
-              <Link
-                to="/messages"
+              <button
+                type="button"
+                onClick={() => void navigate('/messages', { state: { otherUserId: userId } })}
                 className="bg-canvas-elevated border border-bdr rounded-full w-9 h-9 flex items-center justify-center text-ink-sec hover:border-accent-amber/50 transition-colors"
+                aria-label="Nhắn tin"
               >
-                <MessageCircle size={15} />
-              </Link>
+                <MessageCircle size={15} className="shrink-0" />
+              </button>
             </div>
           )}
         </div>
@@ -259,7 +262,7 @@ export default function ProfilePage(): ReactElement {
             <div className="flex items-center gap-3 text-sm text-ink-pri">
               <Shield size={16} className="text-ink-sec flex-none" />
               Vai trò:
-              <span className="uppercase font-semibold text-accent-amber">{user.role}</span>
+              <span className="uppercase font-semibold text-accent-amber">{user.role.rol_name}</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-ink-pri">
               <CheckCircle size={16} className="text-ink-sec flex-none" />
@@ -286,6 +289,7 @@ export default function ProfilePage(): ReactElement {
         userId={userId}
         mode={followModal ?? 'followers'}
       />
+
     </div>
   );
 }
