@@ -1,10 +1,9 @@
-import { useState, type ReactElement } from 'react';
+import { useState, useEffect, type ReactElement } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Truck, Shield, RotateCcw, Heart, ShoppingCart, ChevronRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
-import { useCart } from '@/context/CartContext';
-import type { CartItem } from '@/types';
+import { useCart, useAddToCart } from '@/hooks/useCart';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -23,10 +22,18 @@ const FALLBACK = 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?a
 export default function ProductDetail(): ReactElement {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { items, addItem, openCart } = useCart();
+  const { data: cart } = useCart();
+  const addToCart = useAddToCart();
 
   const [quantity, setQuantity] = useState(1);
   const [activeImg, setActiveImg] = useState(0);
+  const [selectedTiers, setSelectedTiers] = useState<Record<number, number>>({});
+  const [variantError, setVariantError] = useState('');
+
+  useEffect(() => {
+    setSelectedTiers({});
+    setVariantError('');
+  }, [id]);
 
   const { data: detail, isLoading: loading, error } = useQuery({
     queryKey: ['product', id],
@@ -78,19 +85,45 @@ if (loading) {
   const available  = inventory?.availableStock ?? null;
   const isLowStock = inventory?.isLowStock ?? false;
   const maxQty     = available != null ? Math.min(available, 99) : 99;
-  const inCart     = items.find(i => i.productId === detail.id);
+  const inCart     = cart?.items.find(i => i.productId === detail.id);
   const sellerName = detail.brand?.name ?? detail.user?.name ?? 'Shop Official';
-  const imgSrc     = detail.imageUrl ?? FALLBACK;
-  const gallery    = [imgSrc, FALLBACK, FALLBACK, FALLBACK];
+  const gallery    = (detail.imageUrls?.length ?? 0) > 0
+    ? (detail.imageUrls as string[])
+    : [detail.imageUrl ?? FALLBACK];
+
+  const hasVariants = (detail.variations?.length ?? 0) > 0;
+  const allTiersSelected = !hasVariants ||
+    (detail.variations ?? []).every((_, i) => selectedTiers[i] !== undefined);
+  const matchedSku = (hasVariants && allTiersSelected)
+    ? detail.skus?.find(s => s.tierIdx.every((v, i) => v === selectedTiers[i]))
+    : undefined;
+  const effectivePrice = (hasVariants && matchedSku) ? matchedSku.price : Number(detail.price);
+  const skuOutOfStock = hasVariants && allTiersSelected && matchedSku != null && matchedSku.stockQuantity === 0;
+
+  function handleSelectTier(tierIdx: number, optIdx: number): void {
+    setSelectedTiers(prev => ({ ...prev, [tierIdx]: optIdx }));
+    if (variantError) setVariantError('');
+  }
 
   function handleAddToCart(): void {
     if (!detail) return;
-addItem({
-      productId: detail.id, name: detail.name,
-      price: Number(detail.price), image: detail.imageUrl ?? '',
-      quantity, stockQuantity: available ?? 99,
-    } satisfies CartItem);
-    openCart();
+    if (hasVariants) {
+      if (!allTiersSelected) {
+        setVariantError('Vui lòng chọn đầy đủ phân loại sản phẩm');
+        return;
+      }
+      if (!matchedSku) {
+        setVariantError('Phân loại này hiện không có hàng');
+        return;
+      }
+      addToCart.mutate({ productId: Number(detail.id), quantity, skuId: Number(matchedSku.id) }, {
+        onSuccess: () => window.dispatchEvent(new CustomEvent('tb:opencart')),
+      });
+    } else {
+      addToCart.mutate({ productId: Number(detail.id), quantity }, {
+        onSuccess: () => window.dispatchEvent(new CustomEvent('tb:opencart')),
+      });
+    }
   }
 
   return (
@@ -184,7 +217,7 @@ addItem({
             </div>
 
             {/* Price */}
-            <PriceText price={Number(detail.price)} size="lg" />
+            <PriceText price={effectivePrice} size="lg" />
 
             {/* SKU badge */}
             {detail.sku && (
@@ -194,6 +227,30 @@ addItem({
                 </Badge>
               </div>
             )}
+
+            {/* Variant selector */}
+            {hasVariants && (detail.variations ?? []).map((variation, tierIdx) => (
+              <div key={tierIdx} className="flex flex-col gap-2">
+                <span className="font-body font-semibold text-sm text-ink-pri">{variation.name}</span>
+                <div className="flex flex-wrap gap-2">
+                  {variation.options.map((opt, optIdx) => (
+                    <button
+                      key={optIdx}
+                      type="button"
+                      onClick={() => handleSelectTier(tierIdx, optIdx)}
+                      className={cn(
+                        'px-3.5 py-2 rounded-lg border text-sm font-body transition-colors cursor-pointer',
+                        selectedTiers[tierIdx] === optIdx
+                          ? 'border-accent-amber text-accent-amber bg-accent-amber/10'
+                          : 'border-bdr bg-canvas-elevated text-ink-pri hover:border-accent-amber/50',
+                      )}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
 
             {/* Inventory */}
             {available !== null && (
@@ -230,18 +287,24 @@ addItem({
               </div>
             )}
 
+            {/* Variant error */}
+            {variantError && (
+              <p className="m-0 text-sm text-accent-red">{variantError}</p>
+            )}
+
             {/* CTAs */}
             <div className="flex gap-3">
-              {available === 0 ? (
+              {available === 0 || skuOutOfStock ? (
                 <button disabled className="flex-1 h-14 text-base font-semibold text-ink-muted bg-canvas-elevated border border-bdr rounded-xl cursor-not-allowed opacity-60">
                   Hết hàng
                 </button>
               ) : (
                 <GradientButton
                   onClick={handleAddToCart}
+                  disabled={addToCart.isPending || !allTiersSelected}
                   className={cn('flex-1 h-14 text-base', inCart && 'opacity-90')}>
                   <ShoppingCart size={16} />
-                  {inCart ? `THÊM VÀO GIỎ (+${quantity})` : 'THÊM VÀO GIỎ HÀNG'}
+                  {addToCart.isPending ? 'Đang thêm…' : !allTiersSelected ? 'Chọn phân loại' : inCart ? `THÊM VÀO GIỎ (+${quantity})` : 'THÊM VÀO GIỎ HÀNG'}
                 </GradientButton>
               )}
               <button
