@@ -1,92 +1,30 @@
-import { useRef, useState, useEffect, type ReactElement } from 'react';
+import { useState, useEffect, type ReactElement } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Search, Plus, MessageSquare, ShoppingCart, PenLine, Package } from 'lucide-react';
+import { Search, Plus, MessageSquare, ShoppingCart, Store } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GradientButton } from '@/components/shared/GradientButton';
-import { useCart } from '@/context/CartContext';
+import { useCart } from '@/hooks/useCart';
 import { useRole } from '@/hooks/useRole';
 import { NotificationBell } from './NotificationBell';
 import { ProfileMenu } from './ProfileMenu';
-
-interface CreateMenuProps {
-  isSeller: boolean;
-}
-
-function CreateMenu({ isSeller }: CreateMenuProps): ReactElement {
-  const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent): void {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  function handleCreatePost(): void {
-    setOpen(false);
-    window.dispatchEvent(new CustomEvent('tb:createpost'));
-  }
-
-  function handleCreateProduct(): void {
-    setOpen(false);
-    void navigate('/shop');
-  }
-
-  return (
-    <div className="relative" ref={ref}>
-      <GradientButton
-        size="sm"
-        className="rounded-full px-4 py-2 text-sm"
-        onClick={() => setOpen(o => !o)}
-      >
-        <Plus size="15" /> Tạo
-      </GradientButton>
-
-      {open && (
-        <div className="absolute right-0 top-10 w-52 bg-canvas-surface border border-bdr rounded-tb-card shadow-tb-card z-[120] p-1.5">
-          <button
-            onClick={handleCreatePost}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] bg-transparent border-0 cursor-pointer hover:bg-canvas-elevated transition-colors text-left"
-          >
-            <span className="w-8 h-8 rounded-full bg-accent-amber/10 text-accent-amber flex items-center justify-center">
-              <PenLine size={15} />
-            </span>
-            <div>
-              <div className="text-sm font-semibold text-ink-pri">Bài viết</div>
-              <div className="text-[11px] text-ink-muted">Chia sẻ lên feed</div>
-            </div>
-          </button>
-          {isSeller && (
-            <button
-              onClick={handleCreateProduct}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] bg-transparent border-0 cursor-pointer hover:bg-canvas-elevated transition-colors text-left"
-            >
-              <span className="w-8 h-8 rounded-full bg-accent-amber/10 text-accent-amber flex items-center justify-center">
-                <Package size={15} />
-              </span>
-              <div>
-                <div className="text-sm font-semibold text-ink-pri">Sản phẩm</div>
-                <div className="text-[11px] text-ink-muted">Đăng bán mặt hàng</div>
-              </div>
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+import CartDrawer from '@/features/cart/CartDrawer';
 
 export function Header(): ReactElement {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') ?? '');
-  const { totalCount, openCart } = useCart();
+  const [cartOpen, setCartOpen] = useState(false);
+  const { data: cart } = useCart();
+
+  useEffect(() => {
+    const handler = () => setCartOpen(true);
+    window.addEventListener('tb:opencart', handler);
+    return () => window.removeEventListener('tb:opencart', handler);
+  }, []);
   const roleState = useRole();
   const isSeller = roleState?.isSeller ?? false;
-  const isAdmin = roleState?.isAdmin ?? false;
+
+  const totalCount = cart?.items.reduce((sum, i) => sum + i.quantity, 0) ?? 0;
 
   function handleSearchSubmit(e: React.FormEvent): void {
     e.preventDefault();
@@ -122,7 +60,24 @@ export function Header(): ReactElement {
         </form>
 
         <div className="flex items-center gap-3 ml-auto">
-          <CreateMenu isSeller={isSeller || isAdmin} />
+          <GradientButton
+            size="sm"
+            className="rounded-full px-4 py-2 text-sm"
+            onClick={() => window.dispatchEvent(new CustomEvent('tb:createpost'))}
+          >
+            <Plus size="15" /> Tạo bài viết
+          </GradientButton>
+
+          {/* Seller channel */}
+          {isSeller && (
+            <Link
+              to="/shop"
+              aria-label="Kênh người bán"
+              className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-[10px] p-2.5 flex items-center justify-center hover:border-accent-amber transition-colors"
+            >
+              <Store size="20" />
+            </Link>
+          )}
 
           {/* Messages */}
           <Link
@@ -138,7 +93,7 @@ export function Header(): ReactElement {
 
           {/* Cart */}
           <button
-            onClick={openCart}
+            onClick={() => setCartOpen(true)}
             aria-label="Giỏ hàng"
             className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-[10px] p-2.5 flex items-center justify-center cursor-pointer hover:border-accent-amber transition-colors overflow-visible"
           >
@@ -157,6 +112,8 @@ export function Header(): ReactElement {
           <ProfileMenu />
         </div>
       </div>
+
+      <CartDrawer isOpen={cartOpen} onClose={() => setCartOpen(false)} />
     </header>
   );
 }

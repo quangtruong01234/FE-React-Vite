@@ -35,9 +35,8 @@ export function useAuth(): AuthState {
   });
 
   function loginSuccess(user: User): void {
-    const safe: User = { id: user.id, username: user.username, email: user.email };
-    localStorage.setItem('user', JSON.stringify(safe));
-    setCurrentUser(safe);
+    localStorage.setItem('user', JSON.stringify(user));
+    setCurrentUser(user);
   }
 
   function handleUnauthorized(): void {

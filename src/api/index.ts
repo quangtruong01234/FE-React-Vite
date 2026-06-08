@@ -38,6 +38,9 @@ import type {
   PaymentOption,
   PaymentResult,
   ApiError,
+  ServerCart,
+  AddToCartDto,
+  UpdateCartItemDto,
 } from '@/types';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
@@ -340,6 +343,23 @@ export const api = {
         method: 'DELETE',
         body: JSON.stringify({ public_id }),
       }),
+  },
+
+  cart: {
+    get: (): Promise<ServerCart | null> =>
+      request<ServerCart | null>('/cart'),
+
+    addItem: (data: AddToCartDto): Promise<ServerCart> =>
+      request<ServerCart>('/cart', { method: 'POST', body: JSON.stringify(data) }),
+
+    updateItem: (itemId: number, data: UpdateCartItemDto): Promise<void> =>
+      request(`/cart/items/${itemId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+    removeItem: (itemId: number): Promise<void> =>
+      request(`/cart/items/${itemId}`, { method: 'DELETE' }),
+
+    clear: (): Promise<void> =>
+      request('/cart', { method: 'DELETE' }),
   },
 
   misc: {

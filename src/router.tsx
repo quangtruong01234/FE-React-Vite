@@ -100,7 +100,7 @@ export const router = createBrowserRouter([
       {
         path: 'shop',
         element: (
-          <ProtectedRoute requiredRole="seller">
+          <ProtectedRoute requiredRole="shop">
             <ShopPage />
           </ProtectedRoute>
         ),

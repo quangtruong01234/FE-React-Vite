@@ -6,6 +6,7 @@ export const queryKeys = {
     list: (params: ProductParams) => ['products', 'list', params] as const,
     detail: (id: number) => ['products', id] as const,
     withInventory: (id: number) => ['products', id, 'inventory'] as const,
+    cartItems: (ids: number[]) => ['products', 'cart-items', ids] as const,
     bySku: (sku: string) => ['products', 'sku', sku] as const,
     byCategory: (categoryId: number) => ['products', 'category', categoryId] as const,
     byBrand: (brandId: number) => ['products', 'brand', brandId] as const,
@@ -61,6 +62,9 @@ export const queryKeys = {
     byProduct: (productId: number) => ['inventory', 'product', productId] as const,
     bySku: (sku: string) => ['inventory', 'sku', sku] as const,
     detail: (id: number) => ['inventory', id] as const,
+  },
+  cart: {
+    all: ['cart'] as const,
   },
   misc: {
     health: ['misc', 'health'] as const,

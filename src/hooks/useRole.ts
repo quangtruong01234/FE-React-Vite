@@ -5,7 +5,7 @@ import type { User } from '@/types';
 
 interface RoleState {
   me: User;
-  role: string;
+  roleName: string;
   isSeller: boolean;
   isAdmin: boolean;
 }
@@ -19,10 +19,12 @@ export function useRole(): RoleState | undefined {
 
   if (!me) return undefined;
 
+  const roleName = me.role.rol_name;
+
   return {
     me,
-    role: me.role,
-    isSeller: me.role === 'seller',
-    isAdmin: me.role === 'admin',
+    roleName,
+    isSeller: roleName === 'shop',
+    isAdmin: roleName === 'admin',
   };
 }

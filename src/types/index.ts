@@ -1,11 +1,32 @@
+export interface RoleGrant {
+  actions: string[];
+  attributes: string;
+  conditions: string;
+  resourceId: number;
+}
+
+export interface Role {
+  rol_id: number;
+  rol_name: string;
+  rol_slug: string;
+  rol_status: string;
+  rol_description: string;
+  rol_created_by: string;
+  rol_updated_by: string;
+  rol_grants: RoleGrant[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface User {
   id: number;
   username: string;
   email: string;
-  name?: string;
+  name?: string | null;
   avatar?: string | null;
-  role: string;
+  role: Role;
   isActive: boolean;
+  createdAt?: string;
 }
 
 export interface UpdateUserDto {
@@ -64,6 +85,7 @@ export interface CreateInventoryDto {
   availableStock: number;
   minimumStock?: number;
   location?: string;
+  isActive?: boolean;
 }
 
 export interface UpdateInventoryDto {
@@ -94,6 +116,7 @@ export interface Product {
   description: string;
   price: number;
   imageUrl?: string;
+  imageUrls?: string[] | null;
   sku: string;
   condition: 'new' | 'used' | 'refurbished';
   brandId?: number;
@@ -115,8 +138,25 @@ export interface Product {
   updatedAt?: string;
 }
 
+export interface Variation {
+  name: string;
+  options: string[];
+}
+
+export interface ProductSku {
+  id: number;
+  sku: string;
+  price: number;
+  stock: number;
+  stockQuantity: number;
+  tierIdx: number[];
+  imageUrl?: string;
+}
+
 export interface ProductWithInventory extends Product {
   inventory: Inventory;
+  variations?: Variation[];
+  skus?: ProductSku[];
 }
 
 export interface CartItem {
@@ -126,6 +166,42 @@ export interface CartItem {
   image: string;
   quantity: number;
   stockQuantity: number;
+}
+
+export interface Cart {
+  items: CartItem[];
+  total: number;
+}
+
+export interface ServerCartItem {
+  id: number;
+  cartId: number;
+  productId: number;
+  skuId: number | null;
+  skuTierIdx: string | null;
+  quantity: number;
+  price: number;
+  productName: string;
+  imageUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ServerCart {
+  id: number;
+  userId: number;
+  items: ServerCartItem[];
+  createdAt: string;
+}
+
+export interface AddToCartDto {
+  productId: number;
+  quantity: number;
+  skuId?: number;
+}
+
+export interface UpdateCartItemDto {
+  quantity: number;
 }
 
 export interface OrderItem {
@@ -195,38 +271,57 @@ export interface RegisterDto {
 }
 
 export interface CreateOrderItemDto {
-  product_id: number;
-  product_name: string;
+  productId: number;
+  productName: string;
   quantity: number;
   price: number;
 }
 
 export interface CreateOrderDto {
-  payment_method: PaymentMethod;
-  shipping_address: string;
+  paymentMethod: PaymentMethod;
+  shippingAddress: string;
   items: CreateOrderItemDto[];
+}
+
+export interface VariationItem {
+  name: string;
+  options: string[];
+}
+
+export interface SkuItem {
+  tierIdx: string;
+  price: number;
+  stockQuantity?: number;
+  sku?: string;
+  isActive?: boolean;
 }
 
 export interface CreateProductDto {
   name: string;
   description: string;
-  price: number;
-  stockQuantity: number;
-  sku: string;
+  price?: number;
+  stockQuantity?: number;
+  sku?: string;
   brandId?: number;
-  categoryId: number;
+  categoryId?: number;
+  categoryIds?: number[];
   condition: string;
   imageUrl?: string;
+  image_urls?: string[];
   sellerNotes?: string;
-  userId: number;
-  isFeatured: boolean;
-  isTrending: boolean;
-  rating: number;
-  ratingCount: number;
-  likesCount: number;
-  commentsCount: number;
-  sharesCount: number;
-  viewCount: number;
+  weight?: number;
+  isActive?: boolean;
+  userId?: number;
+  isFeatured?: boolean;
+  isTrending?: boolean;
+  rating?: number;
+  ratingCount?: number;
+  likesCount?: number;
+  commentsCount?: number;
+  sharesCount?: number;
+  viewCount?: number;
+  variations?: VariationItem[];
+  skuList?: SkuItem[];
 }
 
 export interface ApiError {

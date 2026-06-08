@@ -18,7 +18,7 @@ export function RightRail(): ReactElement {
 
   // TODO: filter by role when API supports it
   const sellers: User[] = (usersData ?? [])
-    .filter(u => u.role === 'seller' || u.role === 'admin')
+    .filter(u => u.role.rol_name === 'shop' || u.role.rol_name === 'admin')
     .slice(0, 5);
 
   const { data: productsData, isLoading: loadingProducts } = useQuery<PaginatedResponse<ProductWithInventory>>({
@@ -66,7 +66,7 @@ export function RightRail(): ReactElement {
                   {s.name ?? s.username}
                   <BadgeCheck size={13} className="text-accent-amber flex-none" />
                 </div>
-                <div className="text-[11px] text-ink-muted">{s.role}</div>
+                <div className="text-[11px] text-ink-muted">{s.role.rol_name}</div>
               </div>
             </Link>
           ))}
