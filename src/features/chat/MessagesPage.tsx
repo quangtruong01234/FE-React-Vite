@@ -1,11 +1,13 @@
-import { useState, useMemo, type ReactElement } from 'react';
+import { useState, useMemo, useEffect, useRef, type ReactElement } from 'react';
 import { MessageSquare, Search } from 'lucide-react';
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useMutation } from '@tanstack/react-query';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRole } from '@/hooks/useRole';
 import { queryKeys } from '@/hooks/queryKeys';
 import { api } from '@/api';
+import { queryClient } from '@/lib/queryClient';
 import { useConversations } from './useChat';
 import { ChatThread } from './ChatThread';
 import { cn } from '@/lib/utils';
@@ -26,9 +28,34 @@ export default function MessagesPage(): ReactElement {
   const role = useRole();
   const meId = role?.me?.id;
 
+  const location = useLocation();
+  const navigate = useNavigate();
+  const initOtherUserId = (location.state as { otherUserId?: number } | null)?.otherUserId;
+
   const { conversations, isLoading } = useConversations();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
+
+  const { mutate: openConversation } = useMutation({
+    mutationFn: (otherUserId: number) => api.chat.createConversation({ otherUserId }),
+    onSuccess: (conv) => {
+      setSelectedId(conv.id);
+      queryClient.setQueryData<Conversation[]>(queryKeys.conversations.all, (old) => {
+        if (!old) return [conv];
+        if (old.some((c) => c.id === conv.id)) return old;
+        return [conv, ...old];
+      });
+    },
+  });
+
+  const handledRef = useRef(false);
+  useEffect(() => {
+    if (handledRef.current || !initOtherUserId) return;
+    handledRef.current = true;
+    openConversation(initOtherUserId);
+    navigate('/messages', { replace: true, state: null });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function otherUserId(c: Conversation): number {
     return meId !== undefined && c.user1Id === meId ? c.user2Id : c.user1Id;

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
-import { ArrowLeft, Send } from 'lucide-react';
+import { ArrowLeft, Loader2, Send } from 'lucide-react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRole } from '@/hooks/useRole';
@@ -105,8 +105,8 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
 
   function handleSend(): void {
     const trimmed = text.trim();
-    if (!trimmed) return;
-    sendMessage(trimmed);
+    if (!trimmed || meId === undefined) return;
+    sendMessage(trimmed, meId);
     setText('');
   }
 
@@ -179,16 +179,29 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
                   ? <Avatar size={26} />
                   : <span className="w-[26px] flex-none" />
               )}
-              <div className={cn(
-                'px-3.5 py-2 text-sm leading-relaxed break-words rounded-2xl',
-                isMe
-                  ? 'bg-tb-gradient text-ink-pri rounded-br-md'
-                  : 'bg-canvas-elevated border border-bdr text-ink-pri rounded-bl-md',
-              )}>
-                {m.content}
-                <div className={cn('text-[10px] mt-0.5', isMe ? 'text-ink-pri/70' : 'text-ink-muted')}>
-                  {formatMessageTime(m.createdAt)}
+              <div className="flex flex-col">
+                <div className={cn(
+                  'px-3.5 py-2 text-sm leading-relaxed break-words rounded-2xl',
+                  isMe
+                    ? 'bg-tb-gradient text-ink-pri rounded-br-md'
+                    : 'bg-canvas-elevated border border-bdr text-ink-pri rounded-bl-md',
+                  m.status === 'error' && 'opacity-60',
+                )}>
+                  {m.content}
+                  <div className={cn('text-[10px] mt-0.5', isMe ? 'text-ink-pri/70' : 'text-ink-muted')}>
+                    {formatMessageTime(m.createdAt)}
+                  </div>
                 </div>
+                {isMe && m.status === 'sending' && (
+                  <div className="flex justify-end mt-1">
+                    <Loader2 size={11} className="animate-spin text-ink-muted shrink-0" />
+                  </div>
+                )}
+                {isMe && m.status === 'error' && (
+                  <div className="flex justify-end mt-1">
+                    <span className="text-[10px] text-accent-red">Gửi thất bại</span>
+                  </div>
+                )}
               </div>
             </div>
           );
