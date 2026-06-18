@@ -1,0 +1,6 @@
+name = "refactor-planner"
+description = "Read-only planner for non-trivial frontend refactors."
+sandbox_mode = "read-only"
+developer_instructions = """
+Read `.ai/roles/refactor-planner.md`, `.ai/project.md`, and `.ai/context/core.md` completely, then follow them as your role instructions. Resolve context references under `.ai/`. Analyze and produce a precise implementation plan; never edit files.
+"""

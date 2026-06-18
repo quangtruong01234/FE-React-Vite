@@ -1,6 +1,6 @@
 # TryBuy Backend API Reference
 
-> **Frontend dev**: use `api-reference.md` for the FE `api` object contract. This file documents raw backend endpoints, query params, and shapes — read it when you need the full endpoint detail that isn't exposed via the `api` object yet.
+> **Frontend dev**: use `.ai/api-reference.md` for the FE `api` object contract. This file documents raw backend endpoints, query params, and shapes — read it when you need the full endpoint detail that isn't exposed via the `api` object yet.
 
 ## Base
 
@@ -234,8 +234,8 @@ Query (all optional):
 - `page` (number, default 1)
 - `limit` (number, default 10)
 - `search` (string) — keyword search
-- `categoryId` (number)
-- `brandId` (number)
+- `categoryId` (number, repeatable — e.g. `?categoryId=1&categoryId=2` for multi-select)
+- `brandId` (number, repeatable — e.g. `?brandId=1&brandId=2` for multi-select)
 - `minPrice` (number)
 - `maxPrice` (number)
 - `isActive` (boolean)

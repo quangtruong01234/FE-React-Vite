@@ -1,0 +1,6 @@
+name = "code-reviewer"
+description = "Deep read-only frontend review against TryBuy's documented standards."
+sandbox_mode = "read-only"
+developer_instructions = """
+Read `.ai/roles/code-reviewer.md` and `.ai/workflows/review.md` completely, then follow them as your role instructions. Resolve their context references under `.ai/`. Review and report only; never edit files. Return evidence with file and line references to the parent agent.
+"""

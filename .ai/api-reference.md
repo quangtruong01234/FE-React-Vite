@@ -2,7 +2,7 @@
 
 Backend: NestJS gateway at `http://localhost:3000/api` (env: `VITE_API_URL`).
 All HTTP calls go through the `api` object in `src/api/index.ts`.
-For full backend endpoint details (paths, query params, all fields), see `context/backend-api.md`.
+For full backend endpoint details (paths, query params, all fields), see `.ai/context/backend-api.md`.
 
 ## Conventions
 
@@ -60,7 +60,7 @@ interface PaginatedResponse<T> {
 | `api.orders.getByUser` | GET | `/order/user/:userId` | `PaginatedResponse<Order>` |
 
 > `GET /user/me` — backend has shipped this endpoint but the FE `api` object has no method for it yet.
-> Auth state still uses the localStorage fallback. See `context/auth.md` FOLLOW-UP for the migration task.
+> Auth state still uses the localStorage fallback. See `.ai/context/auth.md` FOLLOW-UP for the migration task.
 
 ## request() — how it works
 

@@ -29,7 +29,7 @@ React 19 · Vite · TypeScript strict · React Router DOM **v7** · TanStack Que
 - Mutations use `isPending`, not `isLoading` (v5)
 - Query keys from `hooks/queryKeys.ts` factory — never inline `['products']`
 - IDs are `number` everywhere — never `string`
-- Details + examples → `context/data-fetching.md`
+- Details + examples → `.ai/context/data-fetching.md`
 
 ## Styling — hard rules
 
@@ -37,30 +37,31 @@ React 19 · Vite · TypeScript strict · React Router DOM **v7** · TanStack Que
 - No separate `.css`/`.module.css` (only `index.css`).
 - No hardcoded hex (`[#...]`) and no raw palette (`text-gray-500`) — use `tb-*` tokens.
 - Conditional classes via `cn()` from `lib/utils.ts` — not template literals.
-- Tokens reference → `tokens.md` · styling guide → `context/styling.md`
+- Tokens reference → `.ai/tokens.md` · styling guide → `.ai/context/styling.md`
 
 ## Auth — hard rules
 
 - `credentials: 'include'` is global in `request()` — never add per-call.
 - Auth state via `useAuthContext()` — never read `localStorage` in components.
 - Never store raw JWT in localStorage. 401 → redirect `/login` via `useNavigate`.
-- Details → `context/auth.md`
+- Details → `.ai/context/auth.md`
 
 ## TypeScript — hard rules
 
 - Strict mode. No `any`. No `!` non-null assertion. No `@ts-ignore`.
 - `catch (error: unknown)` then narrow.
 - Explicit return types on non-trivial exported functions.
+- **No snake_case** in FE-owned code (variables, props, function params, DTO fields). Exception: type fields that mirror a backend/external-API response verbatim (e.g. `created_at`, `public_id` from Cloudinary) — keep as-is to avoid transform overhead.
 
 ## Routing
 
 - React Router DOM v7 only. Navigate via `<Link>` / `useNavigate` — never `window.location`.
-- Routes: `/login`, `/`, `/product/:id`, `/checkout`, `/orders`. Details → `context/structure.md`.
+- Routes: `/login`, `/`, `/product/:id`, `/checkout`, `/orders`. Details → `.ai/context/structure.md`.
 
 ## Performance
 - Choose the better complexity/render approach up front (Map/Set lookups over nested find/filter; thin JSX; stable keys; memoize Context values) — but do NOT add memoization speculatively.
 - Route-level pages lazy-load (`React.lazy` + `<Suspense>`); import lodash per-method (`lodash/debounce`), never the whole lib.
-- Details + examples → `context/performance.md`
+- Details + examples → `.ai/context/performance.md`
 
 ## Lodash — hard rules
 

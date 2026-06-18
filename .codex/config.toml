@@ -1,0 +1,22 @@
+# Codex project configuration. Loaded only when this repository is trusted.
+# Keep model, authentication, and personal preferences in the user's global config.
+
+# Leave enough room for root and future nested AGENTS.md guidance.
+project_doc_max_bytes = 65536
+
+# Keep generated commands inside the workspace and require user approval for
+# sandbox escapes. Sandboxed commands have no direct network access.
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+approvals_reviewer = "user"
+
+[sandbox_workspace_write]
+network_access = false
+
+[agents]
+max_threads = 3
+max_depth = 1
+
+[mcp_servers.chrome-devtools]
+command = "cmd"
+args = ["/c", "npx", "-y", "chrome-devtools-mcp@latest"]

@@ -17,7 +17,7 @@
 
 Auth: both gateways read the `access_token` HttpOnly cookie automatically when `withCredentials: true`. No token passing in handshake options.
 
-Full event payloads → `context/backend-api.md` §WebSocket.
+Full event payloads → `.ai/context/backend-api.md` §WebSocket.
 
 ---
 
@@ -108,7 +108,7 @@ This file is a mock placeholder that violates several future conventions — doc
 1. **No hook abstraction** — message state and send logic are inline in the component. When real WS is wired, these must move to `useChatSocket`.
 2. **Inline `Message` type** — defines its own `{ id, sender, text, isMe }` interface; the backend shape is `{ id, conversationId, senderId, content, parentMessageId, createdAt }`. Types must align when implementing.
 3. **`setTimeout` fake response** — must be removed entirely when real socket is connected.
-4. **Wrong folder** — see FOLLOW-UP in `context/structure.md`.
+4. **Wrong folder** — see FOLLOW-UP in `.ai/context/structure.md`.
 
 ---
 

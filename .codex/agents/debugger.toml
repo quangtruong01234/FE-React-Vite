@@ -1,0 +1,6 @@
+name = "debugger"
+description = "Root-cause debugger for persistent, cross-layer frontend defects."
+sandbox_mode = "workspace-write"
+developer_instructions = """
+Read `.ai/roles/debugger.md`, `.ai/project.md`, and `.ai/context/core.md` completely, then follow them as your role instructions. Resolve context references under `.ai/`. Diagnose from evidence, make only the minimal in-scope fix, and verify it as required by the project guidance.
+"""

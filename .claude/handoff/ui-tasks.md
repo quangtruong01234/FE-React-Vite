@@ -12,7 +12,7 @@
 
 - [ ] **`src/types/index.ts`** — Bổ sung `Order.status` đủ 6 giá trị: `'pending' | 'processing' | 'shipped' | 'delivering' | 'completed' | 'canceled'`
 - [ ] **`src/types/index.ts`** — Thêm types: `Post`, `Comment`, `Notification`, `Conversation`, `Message`, `PaymentOption`, `HealthStatus`, `UploadSignature`
-- [ ] **`src/api/index.ts`** — Thêm đầy đủ namespaces: `social`, `notifications`, `chat`, `payment`, `inventory`, `users`, `admin` (theo `context/backend-api.md`)
+- [ ] **`src/api/index.ts`** — Thêm đầy đủ namespaces: `social`, `notifications`, `chat`, `payment`, `inventory`, `users`, `admin` (theo `.ai/context/backend-api.md`)
 - [ ] **`src/hooks/queryKeys.ts`** — Thêm keys: `posts`, `comments`, `notifications`, `conversations`, `messages`, `me`, `users`
 - [ ] **`src/components/ui/StatusBadge.tsx`** *(mới)* — Map 6 trạng thái đơn → màu badge (`pending`→amber, `processing`→cyan, `shipped`→violet, `delivering`→blue, `completed`→green, `canceled`→red). Ref: `reference/app/ui.jsx` → `STATUS_BADGE`
 - [ ] **`src/hooks/useRole.ts`** *(mới)* — `useQuery` GET `/api/user/me` → trả `{ me, role, isSeller, isAdmin }`. `isSeller = me.id` khớp sản phẩm hoặc do API xác định.

@@ -1,7 +1,7 @@
 # API Application Handoff — Snapshot
 
 **Date:** 2026-06-03
-**Source of truth:** `.claude/context/backend-api.md`
+**Source of truth:** `.ai/context/backend-api.md`
 **Compared against:** `frontend/src/api/index.ts`, `frontend/src/features/**`, `frontend/src/hooks/**`, `frontend/src/types/index.ts`
 
 ---
@@ -154,7 +154,7 @@ These were registered in `api/index.ts` but were broken or mismatched against th
 - Original: `Promise<unknown>` — breaks type safety downstream in `useProduct.ts`
 - Original fix plan: change signature to `Promise<PaginatedResponse<ProductWithInventory>>` and remove the defensive runtime unwrapping in `useProduct.ts` once the type is correct
 - ✅ DONE — getList typed; runtime unwrapping removed from `useProduct.ts`
-- P0 / bonus: `useProduct.ts` query keys migrated from inline `['products']` to `queryKeys.products.list(params)` / `queryKeys.products.all` — previously a known inconsistency called out in `context/data-fetching.md`
+- P0 / bonus: `useProduct.ts` query keys migrated from inline `['products']` to `queryKeys.products.list(params)` / `queryKeys.products.all` — previously a known inconsistency called out in `.ai/context/data-fetching.md`
 
 **P2 — `orders.create` missing fields** (`api/index.ts:77`)
 - Original: sends `{ items }` only
@@ -578,7 +578,7 @@ npm run build — zero TS errors. Phase 0 ✅ complete.
 ### RHF + Zod migration pass — 2026-06-02
 Files changed: 5 touched, 3 created
 
-- `.claude/context/conventions.md` — section Form Handling viết lại:
+- `.ai/context/conventions.md` — section Form Handling viết lại:
   RHF + Zod đã install; pattern chuẩn (register / Controller / zodResolver);
   schema co-locate rule; thay thế dòng "neither installed yet"
 - `src/features/auth/auth.schema.ts` — tạo mới: `loginSchema`, `registerSchema`,

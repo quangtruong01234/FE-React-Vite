@@ -47,7 +47,7 @@ const { currentUser, loginSuccess, logout } = useAuthContext();
 
 ## FOLLOW-UP: Remove localStorage user cache
 
-**Status:** Backend `GET /user/me` has shipped (see `context/backend-api.md` §Auth & User). The `localStorage` user cache in `src/hooks/useAuth.ts` is a stale workaround that should be replaced.
+**Status:** Backend `GET /user/me` has shipped (see `.ai/context/backend-api.md` §Auth & User). The `localStorage` user cache in `src/hooks/useAuth.ts` is a stale workaround that should be replaced.
 
 **What the migration requires:**
 

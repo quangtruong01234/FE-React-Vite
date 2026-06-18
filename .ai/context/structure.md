@@ -100,4 +100,4 @@ Rules:
 When moving:
 - Create `src/features/chat/` folder
 - Update the import in `src/features/product/ProductDetail.tsx` (or wherever `ChatRoom` is consumed)
-- Update `context/structure.md` folder map to list `features/chat/`
+- Update `.ai/context/structure.md` folder map to list `features/chat/`

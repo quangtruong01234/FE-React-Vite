@@ -1,14 +1,14 @@
 # Styling Guide
 
-> Full token tables (color, gradient, radius, font, shadow, hex→token map) → `tokens.md`.
-> This file is the _how_; `tokens.md` is the _what_.
+> Full token tables (color, gradient, radius, font, shadow, hex→token map) → `.ai/tokens.md`.
+> This file is the _how_; `.ai/tokens.md` is the _what_.
 
 ## Rules
 
 - Tailwind utility classes only — no inline `style={{}}` (sole exception: `Avatar.tsx` dynamic sizing via CSS custom properties)
 - No separate `.css` / `.module.css` files — only `index.css`
 - No `.css` imports in components (except `main.tsx` → `index.css`)
-- No hardcoded hex (`text-[#52525B]`) — use semantic aliases (`canvas-*`, `ink-*`, `accent-*`, `bdr`) or `tb-*` tokens; see `tokens.md` "Which System to Use"
+- No hardcoded hex (`text-[#52525B]`) — use semantic aliases (`canvas-*`, `ink-*`, `accent-*`, `bdr`) or `tb-*` tokens; see `.ai/tokens.md` "Which System to Use"
 - No raw Tailwind palette (`text-gray-500`, `bg-blue-600`) — use tokens; `accent-cyan` and `accent-green` are alias-only (no `tb-*` equivalent) and are the correct tokens for those colors
 - No arbitrary spacing/sizing (`w-[437px]`) — use the Tailwind scale
 - Fonts: `font-display` / `font-body` / `font-mono` — never bare `font-sans`
@@ -79,7 +79,7 @@ Nút icon tròn = `size-* grid place-items-center` (rule gốc trong CLAUDE.md).
 
 ## Token quick-reference
 
-Most-used (full list and system guidance in `tokens.md`):
+Most-used (full list and system guidance in `.ai/tokens.md`):
 
 - Backgrounds: `bg-canvas-base` (page), `bg-canvas-surface` (cards), `bg-canvas-elevated` (inputs)
 - Text: `text-ink-pri` (white), `text-ink-sec`, `text-ink-muted`
@@ -106,4 +106,4 @@ Available: `button`, `badge`, `card`, `dialog`, `input`, `label`, `select`, `sep
 
 ## Known violations — do not repeat
 
-See `tokens.md` → "Known Violations" table. Summary: `ProductListPage.tsx` and `LoginPage.tsx` have hardcoded hex that should be tokens; `Avatar.tsx` `style={{}}` is a deliberate exception.
+See `.ai/tokens.md` → "Known Violations" table. Summary: `ProductListPage.tsx` and `LoginPage.tsx` have hardcoded hex that should be tokens; `Avatar.tsx` `style={{}}` is a deliberate exception.
