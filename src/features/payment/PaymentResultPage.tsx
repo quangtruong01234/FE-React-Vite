@@ -1,9 +1,11 @@
-import { type ReactElement } from 'react';
+import { useEffect, useRef, type ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { useSearchParams } from 'react-router-dom';
 import { CheckCircle, XCircle, CreditCard } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
+import { useRemoveCartItem, useClearCart } from '@/hooks/useCart';
+import { getPendingCheckout, clearPendingCheckout } from '@/features/cart/pendingCheckout';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { cn } from '@/lib/utils';
 
@@ -11,8 +13,11 @@ export default function PaymentResultPage(): ReactElement {
   const [searchParams] = useSearchParams();
 
   const params = Object.fromEntries(searchParams.entries());
-  const orderId = searchParams.get('order') ?? searchParams.get('vnp_TxnRef') ?? '';
-  const method = searchParams.get('method') ?? 'zalopay';
+  // Only a numeric `order` param is a real order id — vnp_TxnRef/apptransid are gateway
+  // transaction refs, and multi-seller payments cover several orders at once.
+  const orderParam = searchParams.get('order') ?? '';
+  const orderId = /^\d+$/.test(orderParam) ? orderParam : '';
+  const method = searchParams.get('method') ?? (searchParams.has('vnp_TxnRef') ? 'vnpay' : 'zalopay');
   const gwLabel = method === 'vnpay' ? 'VNPay' : 'ZaloPay';
 
   const { data, isLoading } = useQuery({
@@ -23,6 +28,27 @@ export default function PaymentResultPage(): ReactElement {
   });
 
   const isSuccess = data?.status === 'success' || data?.status === '1' || data?.status === '00';
+
+  const removeCartItem = useRemoveCartItem();
+  const clearCart = useClearCart();
+  const consumedRef = useRef(false);
+
+  // P0-04: the cart was deliberately kept intact through the gateway redirect.
+  // Now that payment is confirmed successful, remove exactly the items this
+  // checkout covered. A failed/cancelled payment never reaches here, so the
+  // cart survives for a retry.
+  useEffect(() => {
+    if (!isSuccess || consumedRef.current) return;
+    const pending = getPendingCheckout();
+    if (!pending) return;
+    consumedRef.current = true;
+    if (pending.clearAll) {
+      clearCart.mutate();
+    } else {
+      pending.cartItemIds.forEach((id) => removeCartItem.mutate(id));
+    }
+    clearPendingCheckout();
+  }, [isSuccess, clearCart, removeCartItem]);
 
   if (isLoading) {
     return (
@@ -57,21 +83,22 @@ export default function PaymentResultPage(): ReactElement {
                 Thanh toán thành công!
               </h2>
               <p className="text-sm text-ink-sec m-0">
-                Đơn hàng{' '}
-                {orderId && (
-                  <span className="font-mono text-accent-amber">#{orderId}</span>
-                )}{' '}
-                đã được thanh toán qua {gwLabel}.
+                {orderId ? (
+                  <>
+                    Đơn hàng <span className="font-mono text-accent-amber">#{orderId}</span> đã
+                    được thanh toán qua {gwLabel}.
+                  </>
+                ) : (
+                  <>Đơn hàng của bạn đã được thanh toán qua {gwLabel}.</>
+                )}
               </p>
             </div>
             <div className="w-full flex flex-col gap-2.5">
-              {orderId && (
-                <Link to={`/order/${orderId}`}>
-                  <GradientButton className="w-full">
-                    Xem chi tiết đơn hàng →
-                  </GradientButton>
-                </Link>
-              )}
+              <Link to={orderId ? `/order/${orderId}` : '/orders'}>
+                <GradientButton className="w-full">
+                  {orderId ? 'Xem chi tiết đơn hàng →' : 'Xem đơn hàng của tôi →'}
+                </GradientButton>
+              </Link>
               <Link
                 to="/"
                 className={cn(
