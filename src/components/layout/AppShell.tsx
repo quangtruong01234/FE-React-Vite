@@ -2,7 +2,9 @@ import { type ReactElement, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { Header } from './Header';
 import { LeftRail } from './LeftRail';
+import { MobileNav } from './MobileNav';
 import { RightRail } from './RightRail';
+import { GlobalCreatePost } from '@/features/social/GlobalCreatePost';
 
 interface AppShellProps {
   children: ReactNode;
@@ -19,6 +21,7 @@ export function AppShell({ children, rightRail, fixedHeight }: AppShellProps): R
           <LeftRail fullHeight />
           <main className="min-w-0 min-h-0 overflow-hidden">{children}</main>
         </div>
+        <GlobalCreatePost />
       </div>
     );
   }
@@ -38,6 +41,8 @@ export function AppShell({ children, rightRail, fixedHeight }: AppShellProps): R
         <main className="min-w-0">{children}</main>
         {rightRail !== undefined && <RightRail />}
       </div>
+      <MobileNav />
+      <GlobalCreatePost />
     </div>
   );
 }

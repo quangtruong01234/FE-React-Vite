@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { IconButton } from './IconButton';
 
 interface ModalCloseButtonProps {
   onClick: () => void;
@@ -8,17 +9,15 @@ interface ModalCloseButtonProps {
 
 export function ModalCloseButton({ onClick, className }: ModalCloseButtonProps) {
   return (
-    <button
-      type="button"
+    <IconButton
       onClick={onClick}
       className={cn(
-        'size-8 grid place-items-center rounded-full p-0',
+        'size-8 rounded-full border-0 bg-transparent cursor-pointer shrink-0',
         'hover:bg-canvas-elevated text-ink-sec transition-colors',
-        'border-0 bg-transparent cursor-pointer shrink-0',
         className,
       )}
     >
       <X size={15} className="shrink-0" />
-    </button>
+    </IconButton>
   );
 }

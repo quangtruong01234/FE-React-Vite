@@ -6,12 +6,12 @@ import { cn } from '@/lib/utils';
 import type { Notification } from '@/types';
 
 const NOTI_ICON: Record<string, { icon: ReactElement; color: string }> = {
-  payment_completed: { icon: <CheckCircle size={16} />, color: 'text-accent-green bg-accent-green/10' },
-  order_shipped:     { icon: <Truck size={16} />,        color: 'text-accent-violet bg-accent-violet/10' },
-  order_canceled:    { icon: <XCircle size={16} />,      color: 'text-accent-red bg-accent-red/10' },
-  order_placed:      { icon: <ShoppingBag size={16} />,  color: 'text-accent-amber bg-accent-amber/10' },
-  comment:           { icon: <MessageCircle size={16} />, color: 'text-accent-amber bg-accent-amber/10' },
-  reply:             { icon: <Heart size={16} />,         color: 'text-accent-red bg-accent-red/10' },
+  payment_completed: { icon: <CheckCircle size={16} className="shrink-0" />, color: 'text-accent-green bg-accent-green/10' },
+  order_shipped:     { icon: <Truck size={16} className="shrink-0" />,        color: 'text-accent-violet bg-accent-violet/10' },
+  order_canceled:    { icon: <XCircle size={16} className="shrink-0" />,      color: 'text-accent-red bg-accent-red/10' },
+  order_placed:      { icon: <ShoppingBag size={16} className="shrink-0" />,  color: 'text-accent-amber bg-accent-amber/10' },
+  comment:           { icon: <MessageCircle size={16} className="shrink-0" />, color: 'text-accent-amber bg-accent-amber/10' },
+  reply:             { icon: <Heart size={16} className="shrink-0" />,         color: 'text-accent-red bg-accent-red/10' },
 };
 
 function relativeTime(dateStr: string): string {
@@ -42,8 +42,8 @@ export function NotificationBell(): ReactElement {
   function handleItemClick(n: Notification): void {
     markRead(n.id);
     setOpen(false);
-    if (n.order_id) {
-      navigate(`/order/${n.order_id}`);
+    if (n.orderId) {
+      navigate(`/order/${n.orderId}`);
     }
   }
 
@@ -52,9 +52,9 @@ export function NotificationBell(): ReactElement {
       <button
         onClick={() => setOpen(o => !o)}
         aria-label="Thông báo"
-        className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-[10px] flex items-center justify-center cursor-pointer hover:border-accent-amber transition-colors"
+        className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-[10px] p-2.5 grid place-items-center cursor-pointer hover:border-accent-amber transition-colors"
       >
-        <Bell size={16} />
+        <Bell size={16} className="shrink-0" />
         {unreadCount > 0 && (
           <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-tb-gradient text-ink-pri font-body font-bold text-[10px] rounded-full border-2 border-tb-base flex items-center justify-center leading-none">
             {unreadCount > 99 ? '99+' : unreadCount}
@@ -83,7 +83,7 @@ export function NotificationBell(): ReactElement {
             )}
             {preview.map((n) => {
               const meta = NOTI_ICON[n.type] ?? {
-                icon: <Bell size={16} />,
+                icon: <Bell size={16} className="shrink-0" />,
                 color: 'text-ink-sec bg-canvas-elevated',
               };
               return (
@@ -94,22 +94,22 @@ export function NotificationBell(): ReactElement {
                   className={cn(
                     'w-full text-left flex gap-3 px-4 py-3 border-b border-bdr/60 last:border-0',
                     'cursor-pointer transition-colors hover:bg-canvas-elevated',
-                    !n.is_read && 'bg-accent-amber/[0.04]',
+                    !n.isRead && 'bg-accent-amber/[0.04]',
                   )}
                 >
-                  <span className={cn('w-9 h-9 rounded-full flex-none flex items-center justify-center', meta.color)}>
+                  <span className={cn('size-9 rounded-full flex-none grid place-items-center', meta.color)}>
                     {meta.icon}
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className={cn(
                       'm-0 text-[13px] leading-snug',
-                      n.is_read ? 'text-ink-sec' : 'text-ink-pri font-medium',
+                      n.isRead ? 'text-ink-sec' : 'text-ink-pri font-medium',
                     )}>
                       {n.message}
                     </p>
-                    <span className="text-[11px] text-ink-muted">{relativeTime(n.created_at)}</span>
+                    <span className="text-[11px] text-ink-muted">{relativeTime(n.createdAt)}</span>
                   </div>
-                  {!n.is_read && <span className="w-2 h-2 rounded-full bg-accent-amber flex-none mt-1.5" />}
+                  {!n.isRead && <span className="w-2 h-2 rounded-full bg-accent-amber flex-none mt-1.5" />}
                 </button>
               );
             })}

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/queryKeys';
+import { canSell, canAdminister } from '@/lib/roleAccess';
 import type { User } from '@/types';
 
 interface RoleState {
@@ -24,7 +25,7 @@ export function useRole(): RoleState | undefined {
   return {
     me,
     roleName,
-    isSeller: roleName === 'shop',
-    isAdmin: roleName === 'admin',
+    isSeller: canSell(roleName),
+    isAdmin: canAdminister(roleName),
   };
 }

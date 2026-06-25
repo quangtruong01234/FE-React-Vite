@@ -56,6 +56,10 @@
   --tb-ring-amber:  0 0 0 4px rgba(245,158,11,0.10);
   --tb-grad:        linear-gradient(135deg, #F59E0B, #EF4444);
   --tb-grad-h:      linear-gradient(90deg, #F59E0B, #EF4444);
+
+  /* shadcn compat — keeps Skeleton + other primitives visible */
+  --muted: #1C1C1E;
+  --muted-foreground: #52525B;
 }
 
 @keyframes tb-slide-up {
@@ -107,3 +111,75 @@ button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
+
+/* Tiptap / ProseMirror editor content */
+.ProseMirror h2 {
+  font-family: 'Barlow Condensed', system-ui, sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0.75em 0 0.25em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ProseMirror strong { font-weight: 700; color: #ffffff; }
+.ProseMirror em { font-style: italic; color: #A1A1AA; }
+.ProseMirror ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+  color: #ffffff;
+}
+.ProseMirror ol {
+  list-style: decimal;
+  padding-left: 1.25rem;
+  color: #ffffff;
+}
+.ProseMirror li { margin: 0.2em 0; }
+.ProseMirror hr {
+  border: none;
+  border-top: 1px solid #27272A;
+  margin: 1em 0;
+}
+.ProseMirror img {
+  max-width: 100%;
+  border-radius: 10px;
+  margin: 0.5em 0;
+  display: block;
+}
+.ProseMirror p { margin: 0.25em 0; }
+
+/* Rich-text output (product description, post body, etc.) */
+.prose-tb h2 {
+  font-family: 'Barlow Condensed', system-ui, sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0.75em 0 0.25em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.prose-tb strong { font-weight: 700; color: #ffffff; }
+.prose-tb em { font-style: italic; color: #A1A1AA; }
+.prose-tb ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+  color: #A1A1AA;
+}
+.prose-tb ol {
+  list-style: decimal;
+  padding-left: 1.25rem;
+  color: #A1A1AA;
+}
+.prose-tb li { margin: 0.2em 0; }
+.prose-tb hr {
+  border: none;
+  border-top: 1px solid #27272A;
+  margin: 1em 0;
+}
+.prose-tb img {
+  max-width: 100%;
+  border-radius: 10px;
+  margin: 0.5em 0;
+  display: block;
+}
+.prose-tb p { margin: 0.25em 0; }

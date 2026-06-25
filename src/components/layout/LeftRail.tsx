@@ -1,17 +1,15 @@
 import { type ReactElement } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  Home, Store, MessageSquare, Bell, Package,
-  User, ShoppingCart, LayoutDashboard,
+  Store, LayoutDashboard, PlusCircle, Tag, Layers, ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/shared/Avatar';
-import { useCart } from '@/context/CartContext';
 import { useRole } from '@/hooks/useRole';
+import { getPrimaryNavItems } from './navItems';
 
 export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactElement {
   const location = useLocation();
-  const { totalCount, openCart } = useCart();
   const roleState = useRole();
 
   const me = roleState?.me;
@@ -20,13 +18,7 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
 
   const cur = '/' + (location.pathname.replace(/^\//, '').split('/')[0] ?? '');
 
-  const navItems = [
-    { icon: Home,         label: 'Bảng tin',       to: '/' },
-    { icon: Store,        label: 'Chợ sản phẩm',   to: '/marketplace' },
-    { icon: Bell,         label: 'Thông báo',       to: '/notifications', bullet: 0 },
-    { icon: Package,      label: 'Đơn hàng',        to: '/orders' },
-    ...(me ? [{ icon: User, label: 'Trang cá nhân', to: `/profile/${me.id}` }] : []),
-  ] as const;
+  const navItems = getPrimaryNavItems(me);
 
   function isActive(to: string): boolean {
     if (to === '/') return location.pathname === '/';
@@ -62,10 +54,10 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
             )}
           >
             <span className={cn(
-              'w-8 h-8 rounded-full flex-none inline-flex items-center justify-center',
+              'size-8 rounded-full flex-none grid place-items-center',
               active ? 'bg-tb-gradient text-white' : 'bg-canvas-elevated text-accent-amber',
             )}>
-              <item.icon size={16} />
+              <item.icon size={16} className="shrink-0" />
             </span>
             <span className={cn(
               'flex-1 font-body text-sm',
@@ -73,32 +65,11 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
             )}>
               {item.label}
             </span>
-            {'bullet' in item && (item as { bullet: number }).bullet > 0 && (
-              <span className="min-w-[22px] h-[22px] px-1.5 bg-tb-gradient text-white font-bold text-[11px] rounded-full inline-flex items-center justify-center">
-                {(item as { bullet: number }).bullet}
-              </span>
-            )}
           </Link>
         );
       })}
 
-      {/* Cart — opens sidebar, not a route */}
-      <button
-        onClick={openCart}
-        className="flex items-center gap-3 px-3 py-2.5 rounded-[10px] bg-transparent border-0 cursor-pointer hover:bg-canvas-elevated transition-colors w-full text-left"
-      >
-        <span className="w-8 h-8 rounded-full bg-canvas-elevated text-accent-amber flex-none inline-flex items-center justify-center">
-          <ShoppingCart size={16} />
-        </span>
-        <span className="flex-1 font-body font-medium text-sm text-ink-pri">Giỏ hàng</span>
-        {totalCount > 0 && (
-          <span className="min-w-[22px] h-[22px] px-1.5 bg-tb-gradient text-white font-bold text-[11px] rounded-full inline-flex items-center justify-center">
-            {totalCount}
-          </span>
-        )}
-      </button>
-
-      {(isSeller || isAdmin) && (
+      {isSeller && (
         <>
           <div className="h-px bg-bdr mx-3 my-2.5" />
           <Link
@@ -108,27 +79,78 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
               isActive('/shop') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
             )}
           >
-            <span className="w-8 h-8 rounded-full bg-accent-amber/10 text-accent-amber flex-none inline-flex items-center justify-center">
-              <Store size={16} />
+            <span className="size-8 rounded-full bg-accent-amber/10 text-accent-amber flex-none grid place-items-center">
+              <Store size={16} className="shrink-0" />
             </span>
             <span className="flex-1 font-body font-semibold text-sm text-ink-pri">Kênh người bán</span>
+          </Link>
+          <Link
+            to="/sell"
+            className={cn(
+              'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors',
+              isActive('/sell') && !location.pathname.startsWith('/sell/orders') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
+            )}
+          >
+            <span className="size-8 rounded-full bg-accent-amber/10 text-accent-amber flex-none grid place-items-center">
+              <PlusCircle size={16} className="shrink-0" />
+            </span>
+            <span className="flex-1 font-body font-semibold text-sm text-ink-pri">Đăng sản phẩm</span>
+          </Link>
+          <Link
+            to="/sell/orders"
+            className={cn(
+              'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors',
+              isActive('/sell/orders') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
+            )}
+          >
+            <span className="size-8 rounded-full bg-accent-amber/10 text-accent-amber flex-none grid place-items-center">
+              <ClipboardList size={16} className="shrink-0" />
+            </span>
+            <span className="flex-1 font-body font-semibold text-sm text-ink-pri">Đơn bán</span>
           </Link>
         </>
       )}
 
       {isAdmin && (
-        <Link
-          to="/admin"
-          className={cn(
-            'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors',
-            isActive('/admin') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
-          )}
-        >
-          <span className="w-8 h-8 rounded-full bg-accent-amber/10 text-accent-amber flex-none inline-flex items-center justify-center">
-            <LayoutDashboard size={16} />
-          </span>
-          <span className="flex-1 font-body font-semibold text-sm text-ink-pri">Quản trị sàn</span>
-        </Link>
+        <>
+          <div className="h-px bg-bdr mx-3 my-2.5" />
+          <Link
+            to="/admin"
+            className={cn(
+              'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors',
+              location.pathname === '/admin' ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
+            )}
+          >
+            <span className="size-8 rounded-full bg-accent-amber/10 text-accent-amber flex-none grid place-items-center">
+              <LayoutDashboard size={16} className="shrink-0" />
+            </span>
+            <span className="flex-1 font-body font-semibold text-sm text-ink-pri">Quản trị sàn</span>
+          </Link>
+          <Link
+            to="/admin/brands/pending"
+            className={cn(
+              'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors',
+              isActive('/admin/brands/pending') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
+            )}
+          >
+            <span className="size-8 rounded-full bg-accent-amber/10 text-accent-amber flex-none grid place-items-center">
+              <Tag size={16} className="shrink-0" />
+            </span>
+            <span className="flex-1 font-body font-semibold text-sm text-ink-pri">Duyệt thương hiệu</span>
+          </Link>
+          <Link
+            to="/admin/categories/pending"
+            className={cn(
+              'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors',
+              isActive('/admin/categories/pending') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
+            )}
+          >
+            <span className="size-8 rounded-full bg-accent-amber/10 text-accent-amber flex-none grid place-items-center">
+              <Layers size={16} className="shrink-0" />
+            </span>
+            <span className="flex-1 font-body font-semibold text-sm text-ink-pri">Duyệt danh mục</span>
+          </Link>
+        </>
       )}
     </aside>
   );

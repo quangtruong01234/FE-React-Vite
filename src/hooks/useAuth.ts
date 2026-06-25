@@ -1,52 +1,45 @@
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
+import { queryKeys } from '@/hooks/queryKeys';
 import type { User } from '@/types';
-
-// TODO: migrate to useQuery('/user/me') once backend adds GET /user/me endpoint
 
 interface AuthState {
   currentUser: User | null;
+  isLoading: boolean;
   loginSuccess: (user: User) => void;
   handleUnauthorized: () => void;
   logout: () => void;
 }
 
-function loadUser(): User | null {
-  try {
-    const raw = localStorage.getItem('user');
-    return raw ? (JSON.parse(raw) as User) : null;
-  } catch {
-    return null;
-  }
-}
-
 export function useAuth(): AuthState {
-  const [currentUser, setCurrentUser] = useState<User | null>(loadUser);
   const queryClient = useQueryClient();
+
+  const { data: currentUser = null, isLoading } = useQuery({
+    queryKey: queryKeys.auth.me,
+    queryFn: api.auth.me,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const { mutate: logoutMutate } = useMutation({
     mutationFn: () => api.auth.logout(),
     onSettled: () => {
-      localStorage.removeItem('user');
-      setCurrentUser(null);
-      void queryClient.invalidateQueries({ queryKey: ['auth'] });
+      queryClient.clear();
     },
   });
 
   function loginSuccess(user: User): void {
-    localStorage.setItem('user', JSON.stringify(user));
-    setCurrentUser(user);
+    queryClient.clear();
+    queryClient.setQueryData<User>(queryKeys.auth.me, user);
   }
 
   function handleUnauthorized(): void {
-    localStorage.removeItem('user');
-    setCurrentUser(null);
+    queryClient.clear();
   }
 
   function logout(): void {
     logoutMutate();
   }
 
-  return { currentUser, loginSuccess, handleUnauthorized, logout };
+  return { currentUser, isLoading, loginSuccess, handleUnauthorized, logout };
 }

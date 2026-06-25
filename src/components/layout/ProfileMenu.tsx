@@ -65,7 +65,7 @@ export function ProfileMenu(): ReactElement {
           >
             <Package size={15} className="text-ink-sec" /> Đơn hàng
           </button>
-          {(isSeller || isAdmin) && (
+          {isSeller && (
             <button
               onClick={() => go('/shop')}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-[10px] bg-transparent border-0 cursor-pointer hover:bg-canvas-elevated transition-colors text-left text-sm text-ink-pri"

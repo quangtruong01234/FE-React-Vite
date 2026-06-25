@@ -1,11 +1,11 @@
 import { lazy, Suspense, type ReactElement } from 'react';
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
+import { ApiErrorState } from '@/components/shared/ApiErrorState';
+import { registerUnauthorizedHandler } from '@/api';
 import { AppShell } from '@/components/layout/AppShell';
 import { RightRail } from '@/components/layout/RightRail';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { PageSkeleton } from '@/components/shared/PageSkeleton';
-import CartSidebar from '@/features/cart/CartSidebar';
-
 const LoginPage          = lazy(() => import('@/features/auth/LoginPage'));
 const FeedPage           = lazy(() => import('@/features/social/FeedPage'));
 const PostDetailPage     = lazy(() => import('@/features/social/PostDetailPage'));
@@ -19,7 +19,12 @@ const NotificationsPage  = lazy(() => import('@/features/notifications/Notificat
 const OrderDetailPage    = lazy(() => import('@/features/order/OrderDetailPage'));
 const PaymentResultPage  = lazy(() => import('@/features/payment/PaymentResultPage'));
 const ShopPage           = lazy(() => import('@/features/shop/ShopPage'));
-const AdminPage          = lazy(() => import('@/features/admin/AdminPage'));
+const AdminPage               = lazy(() => import('@/features/admin/AdminPage'));
+const PendingBrandsPage       = lazy(() => import('@/features/admin/PendingBrandsPage'));
+const PendingCategoriesPage   = lazy(() => import('@/features/admin/PendingCategoriesPage'));
+const CreateProductPage       = lazy(() => import('@/features/product/CreateProductPage'));
+const CartPage           = lazy(() => import('@/features/cart/CartPage'));
+const SellerOrdersPage   = lazy(() => import('@/features/order/SellerOrdersPage'));
 
 function AppLayout(): ReactElement {
   return (
@@ -27,7 +32,6 @@ function AppLayout(): ReactElement {
       <AppShell>
         <Outlet />
       </AppShell>
-      <CartSidebar />
     </ProtectedRoute>
   );
 }
@@ -38,7 +42,6 @@ function MessagesLayout(): ReactElement {
       <AppShell fixedHeight>
         <MessagesPage />
       </AppShell>
-      <CartSidebar />
     </ProtectedRoute>
   );
 }
@@ -49,7 +52,6 @@ function FeedLayout(): ReactElement {
       <AppShell rightRail={<RightRail />}>
         <FeedPage />
       </AppShell>
-      <CartSidebar />
     </ProtectedRoute>
   );
 }
@@ -91,6 +93,7 @@ export const router = createBrowserRouter([
       { path: 'post/:id',          element: <PostDetailPage /> },
       { path: 'marketplace',       element: <MarketplacePage /> },
       { path: 'product/:id',       element: <ProductDetail /> },
+      { path: 'cart',               element: <CartPage /> },
       { path: 'checkout',          element: <CheckoutPage /> },
       { path: 'orders',            element: <OrderHistoryPage /> },
       { path: 'order/:id',         element: <OrderDetailPage /> },
@@ -106,6 +109,31 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: 'sell',
+        element: (
+          <ProtectedRoute requiredRole="shop">
+            <CreateProductPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'sell/orders',
+        element: (
+          <ProtectedRoute requiredRole="shop">
+            <SellerOrdersPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'sell/:id',
+        element: (
+          <ProtectedRoute requiredRole="shop">
+            <CreateProductPage />
+          </ProtectedRoute>
+        ),
+      },
+      { path: '*', element: <ApiErrorState error={{ statusCode: 404, status: 404, message: 'Not found' }} /> },
+      {
         path: 'admin',
         element: (
           <ProtectedRoute requiredRole="admin">
@@ -113,7 +141,25 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+      {
+        path: 'admin/brands/pending',
+        element: (
+          <ProtectedRoute requiredRole="admin">
+            <PendingBrandsPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin/categories/pending',
+        element: (
+          <ProtectedRoute requiredRole="admin">
+            <PendingCategoriesPage />
+          </ProtectedRoute>
+        ),
+      },
     ],
   },
-  { path: '*', element: <Navigate to="/" replace /> },
+  { path: '*', element: <Navigate to="/" replace /> }, // fallback nếu chưa login (ProtectedRoute redirect /login trước)
 ]);
+
+registerUnauthorizedHandler(to => { void router.navigate(to); });

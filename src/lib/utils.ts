@@ -13,6 +13,15 @@ export function formatPrice(n: number): string {
 }
 
 /**
+ * Exact VND — full grouped digits, never abbreviated. Use for payment totals,
+ * order totals and line items where the precise amount matters.
+ */
+export function formatVnd(n: number): string {
+  if (n == null || isNaN(n)) return '—';
+  return n.toLocaleString('vi-VN') + ' đ';
+}
+
+/**
  * Builds a human-readable variant label from a SKU tier index string and product variations.
  * tierIdxStr: "[0,1]" + variations: [{name:"Màu",options:["Đỏ","Xanh"]},{name:"Size",options:["S","M"]}]
  * → "Đỏ / M"

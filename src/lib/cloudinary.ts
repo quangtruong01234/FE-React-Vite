@@ -68,8 +68,8 @@ async function uploadChunked(
 const POSTS_FOLDER = 'trybuy/posts';
 const PRODUCTS_FOLDER = 'trybuy/products';
 
-function makePublicId(folder: string, userId: number): string {
-  return `${folder}/${userId}_${Math.random().toString(36).slice(2, 9)}`;
+function makePublicId(userId: number): string {
+  return `${userId}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
 export async function uploadImage(
@@ -77,7 +77,7 @@ export async function uploadImage(
   userId: number,
   onProgress?: UploadProgressCallback,
 ): Promise<UploadResult> {
-  const publicId = makePublicId(POSTS_FOLDER, userId);
+  const publicId = makePublicId(userId);
   const sig = await api.upload.getSignature(POSTS_FOLDER, userId, publicId);
   return uploadChunked(file, sig, 'image', onProgress);
 }
@@ -87,7 +87,7 @@ export async function uploadVideo(
   userId: number,
   onProgress?: UploadProgressCallback,
 ): Promise<UploadResult> {
-  const publicId = makePublicId(POSTS_FOLDER, userId);
+  const publicId = makePublicId(userId);
   const sig = await api.upload.getSignature(POSTS_FOLDER, userId, publicId);
   return uploadChunked(file, sig, 'video', onProgress);
 }
@@ -97,7 +97,7 @@ export async function uploadProductImage(
   userId: number,
   onProgress?: UploadProgressCallback,
 ): Promise<UploadResult> {
-  const publicId = makePublicId(PRODUCTS_FOLDER, userId);
+  const publicId = makePublicId(userId);
   const sig = await api.upload.getSignature(PRODUCTS_FOLDER, userId, publicId);
   return uploadChunked(file, sig, 'image', onProgress);
 }
