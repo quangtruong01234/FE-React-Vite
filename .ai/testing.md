@@ -1,7 +1,8 @@
 # Testing — Vitest + RTL + MSW
 
-> Status: **Not installed yet.** This file is the playbook for when testing gets adopted.
-> Until installed, `/add-test` should refuse and suggest running the setup first.
+> Status: **Infra files present, deps not installed.** Config (`vite.config.ts` `test`), setup (`src/test/setup.ts`), MSW (`src/test/msw/`) and `renderWithProviders` exist, and tests are colocated (`sku.test.ts`, `orderSummary.test.ts`, `sellerOrderActions.test.ts`, `ProductCard.test.tsx`). The dev deps below are **not yet in `package.json`**, so `npm run test:run` can't execute until they're installed (blocked: `npm install`). Tracked as snapshot **P3-01**.
+>
+> **Rule:** every fix/logic change still ships with a colocated test (see core.md). Prefer extracting logic to a pure helper and unit-testing it; reserve component/hook tests (RTL + MSW) for behaviour that only exists in the component.
 
 ## Recommended Stack
 

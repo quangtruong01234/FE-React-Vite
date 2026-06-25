@@ -35,3 +35,7 @@ Do not add or run desktop notification scripts unless the user explicitly asks.
 - Use it only when the user explicitly requests runtime UI verification, or when browser reproduction is necessary to diagnose a UI or runtime issue.
 - Prefer repository API documentation and local source files for API contract work.
 - Before using Chrome DevTools MCP outside the `verify-ui` workflow, state why browser execution is necessary.
+- Before navigating with Chrome, verify that the local dev server is reachable. If it is not running, start Vite yourself outside the filesystem sandbox with user approval; native `esbuild.exe` cannot resolve workspace entry files inside the managed sandbox on this Windows environment.
+- Start Vite directly with `node .\node_modules\vite\bin\vite.js --host 127.0.0.1 --port 5173 --strictPort` using escalated sandbox permissions. Keep that command alive while Chrome verification runs, then terminate only the process started for the verification.
+- Do not use PowerShell `Start-Process` for this server. The managed process environment contains both `PATH` and `Path`, which makes `Start-Process` fail with a duplicate-key error.
+- Do not ask the user to run the dev server manually when Codex can start it with the approved command above. Do not kill or replace an existing process on port 5173; inspect and report the conflict instead.

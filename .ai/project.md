@@ -37,7 +37,7 @@ Read `.ai/context/core.md` before repository work.
 | WebSocket / chat / notifications / socket.io                                                | `.ai/context/realtime.md`              |
 | Writing tests                                                                               | `.ai/testing.md`                       |
 | Adding/editing components, hooks, lists, or hot-path render/compute — keeping the UI smooth | `.ai/context/performance.md`           |
-| Running Chrome DevTools MCP (`/verify-ui`), logging in to test the UI                      | `.ai-local/test-accounts.md`         |
+| Running Chrome DevTools MCP (`/verify-ui`), logging in to test the UI                      | `../.agent-local/test-accounts.md`   |
 
 ## Slash Commands
 

@@ -26,7 +26,7 @@ Load the matching source before acting:
 - WebSocket, chat, notifications: `.ai/context/realtime.md`
 - Tests: `.ai/testing.md`
 - Rendering and performance: `.ai/context/performance.md`
-- Runtime UI verification: `.ai-local/test-accounts.md`
+- Runtime UI verification: `../.agent-local/test-accounts.md`
 - Codex filesystem, command, approval, and MCP safety: `.ai/context/codex-safety.md`
 
 ## Codex workflows

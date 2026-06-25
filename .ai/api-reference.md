@@ -58,6 +58,7 @@ interface PaginatedResponse<T> {
 | `api.products.getCategories` | GET | `/products/categories` | `Category[]` |
 | `api.orders.create` | POST | `/order` | `Order` |
 | `api.orders.getByUser` | GET | `/order/user/:userId` | `PaginatedResponse<Order>` |
+| `api.orders.getStatusCounts` | GET | `/order/user/:userId/status-counts` | `OrderStatusCounts` |
 
 > `GET /user/me` — backend has shipped this endpoint but the FE `api` object has no method for it yet.
 > Auth state still uses the localStorage fallback. See `.ai/context/auth.md` FOLLOW-UP for the migration task.

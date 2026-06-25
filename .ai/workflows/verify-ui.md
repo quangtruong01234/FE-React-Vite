@@ -5,8 +5,21 @@ Mở trang thật trong Chrome, screenshot + đọc computed style / box model, 
 ## Yêu cầu trước khi chạy
 
 - Chrome DevTools MCP đã cài + tool `mcp__chrome-devtools__*` load được. Nếu chưa → báo user bật MCP (xem setup trong repo). Đừng đoán bằng cách đọc class.
-- Dev server đang chạy. Nếu chưa → nhắc user `npm run dev`.
+- Dev server đang chạy. Nếu chưa, Codex tự khởi động Vite ngoài sandbox bằng lệnh bên dưới sau khi xin approval; không yêu cầu user chạy thủ công.
 - MCP nặng context (~20k token) — chỉ bật cho task UI/visual, không để thường trực.
+
+### Khởi động Vite cho Chrome verification trên Windows
+
+Lệnh chuẩn:
+
+```powershell
+node .\node_modules\vite\bin\vite.js --host 127.0.0.1 --port 5173 --strictPort
+```
+
+- Chạy lệnh với escalated sandbox permissions. `esbuild.exe` bị managed sandbox chặn khi resolve file trong workspace; chạy trong sandbox sẽ báo `Cannot read directory "../../..": Access is denied` và không load được `vite.config.ts`.
+- Giữ process sống trong suốt phiên Chrome MCP, sau đó terminate đúng process do phiên verify tạo ra.
+- Không dùng PowerShell `Start-Process`: environment có cả `PATH` và `Path`, làm lệnh này fail vì duplicate key.
+- `--strictPort` phải được giữ nguyên. Nếu port 5173 đang bị chiếm, không kill process lạ; kiểm tra server hiện có trước, nếu không phải project này thì báo conflict.
 
 ## How to invoke
 
@@ -29,7 +42,7 @@ DESIGN DECISIONS — không thay đổi:
 
 ## Protocol
 
-1. Pre-check MCP tools + dev server (mục trên). Thiếu → báo và dừng.
+1. Pre-check MCP tools + dev server (mục trên). Thiếu MCP → báo và dừng. Dev server chưa chạy → khởi động theo quy tắc Windows ở trên, sau đó xác nhận Chrome truy cập được URL trước khi verify.
 2. Nếu có `--login`: navigate `/login` → fill user/pass → submit → `wait_for` redirect.
 3. `navigate_page` → `<url>`. `take_screenshot` full page.
 4. Có mô tả element → `take_snapshot`, định vị element đó. Không có → quét các hotspot ở Checks bên dưới.

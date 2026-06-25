@@ -517,6 +517,7 @@ Errors:
 
 Auth: Cookie
 Description: Get paginated orders for a given user. Returns `PaginatedResponse<Order>`.
+Each order item is server-enriched with `skuId`, `skuLabel` (e.g. `"Màu sắc: Đỏ, Size: M"`, or `null` when the product has no variations) and `image` (first product image realtime, or `null`). The whole page is batch-enriched. Product **name** is NOT included — hydrate via `useProductsByIds` when needed.
 
 Params: `id` (string, user ID) [required]
 Query:
@@ -524,6 +525,22 @@ Query:
 - `limit` (number, 1–100, default 10) [optional]
 
 Response 200: `PaginatedResponse<Order>`
+
+> The same `skuId` / `skuLabel` / `image` enrichment applies to `GET /api/order/:id`.
+
+---
+
+### GET /api/order/user/:id/status-counts
+
+Auth: Cookie
+Description: Full-history order count per status for a user (not page-scoped) — drives the buyer filter-tab badges. Returns `OrderStatusCounts`.
+
+Params: `id` (string, user ID) [required]
+
+Response 200:
+```json
+{ "all": 21, "pending": 3, "confirmed": 4, "processing": 5, "shipped": 2, "delivering": 1, "completed": 5, "canceled": 1 }
+```
 
 ---
 

@@ -5,7 +5,7 @@
 - Components: PascalCase — `ProductListPage.tsx`, `CartSidebar.tsx`
 - Hooks: camelCase + `use` prefix — `useAuth.ts`, `useLogin.ts`, `useProduct.ts`
 - No `services/` folder — all HTTP calls live in `api/index.ts`
-- Types: all in `types/index.ts`
+- Types: split by feature/domain under `types/` (e.g. `product.ts`, `order.ts`, `cart.ts`); `types/index.ts` is the barrel — always import from `@/types`
 
 ## Folder Structure
 
@@ -19,8 +19,12 @@ frontend/src/
 │   └── utils.ts                # cn(), formatPrice()
 ├── api/
 │   └── index.ts                # request() wrapper + api object
-├── types/
-│   └── index.ts                # All TypeScript interfaces
+├── types/                      # Split by feature/domain; index.ts re-exports (barrel)
+│   ├── index.ts                # Barrel — import from '@/types'
+│   ├── common.ts               # PaginatedResponse, ApiError, HealthStatus
+│   ├── auth.ts · user.ts · catalog.ts · inventory.ts
+│   ├── product.ts · cart.ts · payment.ts · order.ts
+│   └── social.ts · notification.ts · chat.ts · upload.ts
 ├── hooks/
 │   ├── queryKeys.ts            # Centralized query key factory
 │   └── useAuth.ts              # Auth state + logout mutation
