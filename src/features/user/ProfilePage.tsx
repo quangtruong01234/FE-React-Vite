@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useState, useEffect, type ReactElement } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Pencil, MessageCircle, Mail, Shield, CheckCircle, Newspaper, Package, UserCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -8,11 +8,16 @@ import { GradientButton } from '@/components/shared/GradientButton';
 import { EditProfileModal } from './EditProfileModal';
 import { FollowListModal } from './FollowListModal';
 import PostCard from '@/features/social/PostCard';
+import ProductCard from '@/features/product/ProductCard';
+import { useProducts } from '@/features/product/useProducts';
 import { useFollowers, useFollowing, useFollowUser, useUnfollowUser, useIsFollowing } from '@/features/social/useFollow';
 import { useAuthContext } from '@/context/AuthContext';
 import { queryKeys } from '@/hooks/queryKeys';
+import { Pagination } from '@/components/shared/Pagination';
 import { api } from '@/api';
 import { cn } from '@/lib/utils';
+
+const PAGE_SIZE = 10;
 
 type TabKey = 'posts' | 'products' | 'about' | 'following';
 
@@ -28,7 +33,16 @@ export default function ProfilePage(): ReactElement {
   const [tab, setTab] = useState<TabKey>('posts');
   const [editing, setEditing] = useState(false);
   const [postsLoaded, setPostsLoaded] = useState(false);
+  const [productsLoaded, setProductsLoaded] = useState(false);
+  const [postsPageNum, setPostsPageNum] = useState(1);
+  const [productsPageNum, setProductsPageNum] = useState(1);
   const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null);
+
+  // Reset pagination when navigating to a different profile
+  useEffect(() => {
+    setPostsPageNum(1);
+    setProductsPageNum(1);
+  }, [userId]);
 
   const { data: followersData } = useFollowers(userId);
   const { data: followingData } = useFollowing(userId);
@@ -47,16 +61,27 @@ export default function ProfilePage(): ReactElement {
   });
 
   const { data: postsPage, isLoading: postsLoading } = useQuery({
-    queryKey: queryKeys.social.postsByUser(userId),
-    queryFn: () => api.social.getPostsByUser(userId),
+    queryKey: queryKeys.social.postsByUser(userId, postsPageNum),
+    queryFn: () => api.social.getPostsByUser(userId, postsPageNum, PAGE_SIZE),
     enabled: postsLoaded && userId > 0,
   });
 
   const posts = postsPage?.data ?? [];
+  const postsTotal = postsPage?.total ?? 0;
+  const postsTotalPages = postsPage?.totalPages ?? 0;
+
+  const { data: productsPage, isLoading: productsLoading } = useProducts(
+    { userId, page: productsPageNum, limit: PAGE_SIZE, isActive: true },
+    { enabled: productsLoaded && userId > 0 },
+  );
+  const products = productsPage?.data ?? [];
+  const productsTotal = productsPage?.total ?? 0;
+  const productsTotalPages = productsPage?.totalPages ?? 0;
 
   function handleTabChange(next: TabKey): void {
     setTab(next);
     if (next === 'posts') setPostsLoaded(true);
+    if (next === 'products') setProductsLoaded(true);
   }
 
   // Trigger posts load on first render if already on posts tab
@@ -96,9 +121,9 @@ export default function ProfilePage(): ReactElement {
   }
 
   const TABS: { key: TabKey; label: string }[] = [
-    { key: 'posts', label: `Bài viết${posts.length > 0 ? ` (${posts.length})` : ''}` },
+    { key: 'posts', label: `Bài viết${postsTotal > 0 ? ` (${postsTotal})` : ''}` },
     { key: 'following', label: `Đang theo dõi${followingCount > 0 ? ` (${followingCount})` : ''}` },
-    { key: 'products', label: 'Sản phẩm' },
+    { key: 'products', label: `Sản phẩm${productsTotal > 0 ? ` (${productsTotal})` : ''}` },
     { key: 'about', label: 'Giới thiệu' },
   ];
 
@@ -221,6 +246,14 @@ export default function ProfilePage(): ReactElement {
                 {posts.map((p) => <PostCard key={p.id} post={p} />)}
               </div>
             )}
+            {!postsLoading && (
+              <Pagination
+                page={postsPageNum}
+                totalPages={postsTotalPages}
+                onPageChange={setPostsPageNum}
+                className="mt-6"
+              />
+            )}
           </>
         )}
 
@@ -246,11 +279,34 @@ export default function ProfilePage(): ReactElement {
         )}
 
         {tab === 'products' && (
-          // api.products.getList does not support userId filter — products tab not available
-          <div className="bg-canvas-surface border border-bdr rounded-tb-card py-14 flex flex-col items-center gap-2 text-center">
-            <Package size={32} className="text-ink-muted" />
-            <p className="text-sm text-ink-sec m-0">Chưa đăng bán sản phẩm nào</p>
-          </div>
+          <>
+            {productsLoading && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="aspect-[3/4] w-full rounded-tb-card bg-canvas-elevated" />
+                ))}
+              </div>
+            )}
+            {!productsLoading && products.length === 0 && (
+              <div className="bg-canvas-surface border border-bdr rounded-tb-card py-14 flex flex-col items-center gap-2 text-center">
+                <Package size={32} className="text-ink-muted" />
+                <p className="text-sm text-ink-sec m-0">Chưa đăng bán sản phẩm nào</p>
+              </div>
+            )}
+            {!productsLoading && products.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {products.map((p) => <ProductCard key={p.id} product={p} />)}
+              </div>
+            )}
+            {!productsLoading && (
+              <Pagination
+                page={productsPageNum}
+                totalPages={productsTotalPages}
+                onPageChange={setProductsPageNum}
+                className="mt-6"
+              />
+            )}
+          </>
         )}
 
         {tab === 'about' && (
