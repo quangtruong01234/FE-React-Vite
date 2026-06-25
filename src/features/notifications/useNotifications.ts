@@ -1,48 +1,52 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { io, type Socket } from 'socket.io-client';
 import { queryClient } from '@/lib/queryClient';
 import { queryKeys } from '@/hooks/queryKeys';
 import { api } from '@/api';
-import type { Notification, PaginatedResponse } from '@/types';
+import type { Notification } from '@/types';
+import type { NotifCache } from './notificationCache';
+import { acquireNotificationSocket } from './notificationSocket';
 
-const NOTIF_URL = (import.meta.env.VITE_WS_NOTIFICATION_URL as string | undefined) ?? 'http://localhost:3010';
+const PAGE_SIZE = 10;
 
-type NotifCache = PaginatedResponse<Notification>;
-type NotifSocket = Socket<{ notification: (n: Notification) => void }, Record<never, never>>;
-
-export function useNotifications(): {
+export function useNotifications(page = 1): {
   notifications: Notification[];
   unreadCount: number;
+  totalPages: number;
   isLoading: boolean;
   markRead: (id: number) => void;
   markAllRead: () => void;
 } {
+  const listKey = queryKeys.notifications.list(page);
+
   const { data, isLoading } = useQuery({
-    queryKey: queryKeys.notifications.list(1),
-    queryFn: () => api.notifications.getList(1, 50),
+    queryKey: listKey,
+    queryFn: () => api.notifications.getList(page, PAGE_SIZE),
   });
 
   const notifications = data?.data ?? [];
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const totalPages = data?.totalPages ?? 0;
+  // Unread count is derived from the loaded page only; a global badge needs a
+  // dedicated backend unread-count endpoint (see snapshot handoff).
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   const markReadMutation = useMutation({
     mutationFn: (id: number) => api.notifications.markRead(id),
     onMutate: async (id: number) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.notifications.list(1) });
-      const snapshot = queryClient.getQueryData<NotifCache>(queryKeys.notifications.list(1));
-      queryClient.setQueryData<NotifCache>(queryKeys.notifications.list(1), (old) => {
+      await queryClient.cancelQueries({ queryKey: listKey });
+      const snapshot = queryClient.getQueryData<NotifCache>(listKey);
+      queryClient.setQueryData<NotifCache>(listKey, (old) => {
         if (!old) return old;
         return {
           ...old,
-          data: old.data.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
+          data: old.data.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
         };
       });
       return { snapshot };
     },
     onError: (_err, _id, ctx) => {
       if (ctx?.snapshot) {
-        queryClient.setQueryData(queryKeys.notifications.list(1), ctx.snapshot);
+        queryClient.setQueryData(listKey, ctx.snapshot);
       }
     },
   });
@@ -52,27 +56,12 @@ export function useNotifications(): {
   }
 
   function markAllRead(): void {
-    notifications.filter((n) => !n.is_read).forEach((n) => markReadMutation.mutate(n.id));
+    notifications.filter((n) => !n.isRead).forEach((n) => markReadMutation.mutate(n.id));
   }
 
-  const socketRef = useRef<NotifSocket | null>(null);
+  // Subscribe to the single app-scoped socket; ref-counted so multiple
+  // consumers (bell + page) share one connection and never double-insert.
+  useEffect(() => acquireNotificationSocket(), []);
 
-  useEffect(() => {
-    const socket: NotifSocket = io(NOTIF_URL, { withCredentials: true });
-    socketRef.current = socket;
-
-    socket.on('notification', (newNotif: Notification) => {
-      queryClient.setQueryData<NotifCache>(queryKeys.notifications.list(1), (old) => {
-        if (!old) return old;
-        return { ...old, data: [newNotif, ...old.data], total: old.total + 1 };
-      });
-    });
-
-    return () => {
-      socket.disconnect();
-      socketRef.current = null;
-    };
-  }, []);
-
-  return { notifications, unreadCount, isLoading, markRead, markAllRead };
+  return { notifications, unreadCount, totalPages, isLoading, markRead, markAllRead };
 }

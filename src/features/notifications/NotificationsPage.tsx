@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useNotifications } from './useNotifications';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Pagination } from '@/components/shared/Pagination';
 import { cn } from '@/lib/utils';
 import type { Notification } from '@/types';
 
@@ -37,7 +38,7 @@ function groupByDate(notifications: Notification[]): { label: string; items: Not
     { label: 'Cũ hơn', items: [] },
   ];
   for (const n of notifications) {
-    const age = now - new Date(n.created_at).getTime();
+    const age = now - new Date(n.createdAt).getTime();
     if (age < DAY) {
       groups[0].items.push(n);
     } else if (age < 2 * DAY) {
@@ -55,16 +56,17 @@ type FilterKey = 'all' | 'unread';
 
 export default function NotificationsPage(): ReactElement {
   const navigate = useNavigate();
-  const { notifications, unreadCount, isLoading, markRead, markAllRead } = useNotifications();
+  const [page, setPage] = useState(1);
+  const { notifications, unreadCount, totalPages, isLoading, markRead, markAllRead } = useNotifications(page);
   const [tab, setTab] = useState<FilterKey>('all');
 
-  const list = tab === 'unread' ? notifications.filter((n) => !n.is_read) : notifications;
+  const list = tab === 'unread' ? notifications.filter((n) => !n.isRead) : notifications;
   const groups = groupByDate(list);
 
   function handleClick(n: Notification): void {
     markRead(n.id);
-    if (n.order_id) {
-      navigate(`/order/${n.order_id}`);
+    if (n.orderId) {
+      navigate(`/order/${n.orderId}`);
     }
   }
 
@@ -156,7 +158,7 @@ export default function NotificationsPage(): ReactElement {
                       className={cn(
                         'w-full text-left flex gap-3 px-4 py-3.5 border-b border-bdr/60 last:border-0',
                         'cursor-pointer transition-colors hover:bg-canvas-elevated',
-                        !n.is_read && 'bg-accent-amber/[0.04]',
+                        !n.isRead && 'bg-accent-amber/[0.04]',
                       )}
                     >
                       <span className={cn('w-10 h-10 rounded-full flex-none flex items-center justify-center', meta.color)}>
@@ -165,13 +167,13 @@ export default function NotificationsPage(): ReactElement {
                       <div className="flex-1 min-w-0">
                         <p className={cn(
                           'm-0 text-sm leading-snug',
-                          n.is_read ? 'text-ink-sec' : 'text-ink-pri font-medium',
+                          n.isRead ? 'text-ink-sec' : 'text-ink-pri font-medium',
                         )}>
                           {n.message}
                         </p>
-                        <span className="text-xs text-ink-muted">{relativeTime(n.created_at)}</span>
+                        <span className="text-xs text-ink-muted">{relativeTime(n.createdAt)}</span>
                       </div>
-                      {!n.is_read && (
+                      {!n.isRead && (
                         <span className="w-2.5 h-2.5 rounded-full bg-accent-amber flex-none mt-1.5" />
                       )}
                     </button>
@@ -181,6 +183,15 @@ export default function NotificationsPage(): ReactElement {
             </div>
           ))}
         </div>
+      )}
+
+      {!isLoading && (
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          className="mt-6"
+        />
       )}
     </div>
   );
