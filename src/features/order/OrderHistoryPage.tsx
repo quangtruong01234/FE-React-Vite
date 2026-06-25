@@ -1,20 +1,26 @@
 import { useState, type ReactElement } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Package, Search } from 'lucide-react';
+import { ArrowLeft, Search } from 'lucide-react';
 import { useAuthContext } from '@/context/AuthContext';
 import { useOrdersByUser } from './useOrdersByUser';
+import { useOrderStatusCounts } from './useOrderStatusCounts';
+import { orderItemsSummary, orderCoverImage } from './orderSummary';
+import { orderFilterCounts, type OrderFilterKey } from './orderFilterCounts';
 import { StatusBadge } from '@/components/shared/StatusBadge';
-import type { Order } from '@/types';
+import { ProductThumb } from '@/components/shared/ProductThumb';
+import type { Order, OrderStatus } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn, formatPrice } from '@/lib/utils';
+import { cn, formatVnd } from '@/lib/utils';
 
-type OrderFilterKey = 'all' | 'pending' | 'completed' | 'canceled';
 const FILTER_OPTS: { id: OrderFilterKey; label: string }[] = [
   { id: 'all',       label: 'Tất cả' },
   { id: 'pending',   label: 'Đang xử lý' },
   { id: 'completed', label: 'Hoàn thành' },
   { id: 'canceled',  label: 'Đã hủy' },
 ];
+
+// "Đang xử lý" covers every in-flight status, not just the first one.
+const ACTIVE_STATUSES: OrderStatus[] = ['pending', 'confirmed', 'processing', 'shipped', 'delivering'];
 
 const formatDate = (dateStr: string): string => {
   if (!dateStr) return '';
@@ -26,40 +32,55 @@ const formatDate = (dateStr: string): string => {
 export default function OrderHistoryPage(): ReactElement {
   const navigate = useNavigate();
   const { currentUser } = useAuthContext();
-  if (!currentUser) return <></>;
-  const userId = currentUser.id;
+  // Hooks must run unconditionally — derive a safe id and gate the render below.
+  // `useOrdersByUser` no-ops while `userId <= 0` (its `enabled` guard).
+  const userId = currentUser?.id ?? 0;
 
   const [filterTab, setFilterTab] = useState<OrderFilterKey>('all');
   const [search, setSearch] = useState('');
 
-  const { data, isLoading: loading, error } = useOrdersByUser(userId);
+  const {
+    data,
+    isLoading: loading,
+    error,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useOrdersByUser(userId);
 
-  const orders: Order[] = data?.data ?? [];
+  const orders: Order[] = data?.pages.flatMap((p) => p.data) ?? [];
+
+  // Order items are server-enriched (productName/image/skuLabel) — no client hydration.
+  // Filter badges use full-history server counts, not just the loaded pages.
+  const { data: statusCounts } = useOrderStatusCounts(userId);
+
   const errorMsg = error
     ? (typeof error === 'object' && 'message' in error
         ? String((error as { message: unknown }).message)
         : 'Lỗi tải đơn hàng')
     : null;
 
-  const counts: Record<OrderFilterKey, number> = {
-    all:       orders.length,
-    pending:   orders.filter(o => o.status === 'pending').length,
-    completed: orders.filter(o => o.status === 'completed').length,
-    canceled:  orders.filter(o => o.status === 'canceled').length,
-  };
+  const counts = orderFilterCounts(statusCounts);
 
   const filteredOrders = (() => {
-    const byTab = filterTab === 'all' ? orders : orders.filter(o => o.status === filterTab);
+    const byTab =
+      filterTab === 'all'
+        ? orders
+        : filterTab === 'pending'
+          ? orders.filter(o => ACTIVE_STATUSES.includes(o.status))
+          : orders.filter(o => o.status === filterTab);
     if (!search.trim()) return byTab;
     return byTab.filter(o => String(o.id).includes(search.trim()));
   })();
+
+  if (!currentUser) return <></>;
 
   return (
     <div className="min-h-screen bg-canvas-base">
       {/* Nav bar */}
       <div className="bg-canvas-surface border-b border-bdr px-5 py-3 flex items-center gap-3">
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate(-1)}
           aria-label="Quay lại"
           className="bg-canvas-elevated border border-bdr rounded-lg px-3 py-2 text-ink-pri cursor-pointer text-sm hover:border-accent-amber transition-colors inline-flex items-center gap-1.5">
           <ArrowLeft size={16} /> Quay lại
@@ -150,7 +171,10 @@ export default function OrderHistoryPage(): ReactElement {
         {/* Order list */}
         {!loading && filteredOrders.length > 0 && (
           <div className="flex flex-col gap-3">
-            {filteredOrders.map((order) => (
+            {filteredOrders.map((order) => {
+              const cover = orderCoverImage(order.items);
+              const summary = orderItemsSummary(order.items);
+              return (
               <Link
                 key={order.id}
                 to={`/order/${order.id}`}
@@ -158,20 +182,21 @@ export default function OrderHistoryPage(): ReactElement {
               >
                 <div className="p-5 grid grid-cols-[72px_1fr_auto_auto] gap-6 items-center">
                   {/* Thumbnail */}
-                  <div className="w-[72px] h-[72px] rounded-xl bg-canvas-elevated flex items-center justify-center flex-shrink-0">
-                    <Package size={28} className="text-tb-muted" />
-                  </div>
+                  <ProductThumb
+                    src={cover}
+                    alt={order.items[0]?.productName ?? ''}
+                    iconSize={28}
+                    className="w-[72px] h-[72px] rounded-xl"
+                  />
 
                   {/* Title + meta */}
                   <div className="min-w-0">
                     <div className="flex items-center gap-2.5 mb-1">
                       <span className="font-mono font-bold text-[13px] text-white">#{order.id}</span>
-                      <span className="font-body text-xs text-ink-sec">{formatDate(order.created_at)}</span>
+                      <span className="font-body text-xs text-ink-sec">{formatDate(order.createdAt)}</span>
                     </div>
                     <div className="font-body text-sm text-ink-sec truncate">
-                      {Array.isArray(order.items) && order.items.length > 0
-                        ? `${order.items.length} sản phẩm`
-                        : 'Đơn hàng'}
+                      {summary}
                     </div>
                   </div>
 
@@ -180,11 +205,24 @@ export default function OrderHistoryPage(): ReactElement {
 
                   {/* Price */}
                   <div className="font-mono font-bold text-accent-amber whitespace-nowrap text-right">
-                    {formatPrice(Number(order.total))}
+                    {formatVnd(Number(order.total))}
                   </div>
                 </div>
               </Link>
-            ))}
+              );
+            })}
+
+            {/* Load more — server-paginated history */}
+            {hasNextPage && !search.trim() && filterTab === 'all' && (
+              <button
+                type="button"
+                onClick={() => { void fetchNextPage(); }}
+                disabled={isFetchingNextPage}
+                className="mt-1 self-center px-5 py-2.5 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-pri font-body font-semibold text-sm cursor-pointer hover:border-accent-amber transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isFetchingNextPage ? 'Đang tải…' : 'Tải thêm đơn hàng'}
+              </button>
+            )}
           </div>
         )}
       </div>

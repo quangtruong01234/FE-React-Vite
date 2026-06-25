@@ -1,4 +1,4 @@
-import { type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Check, Truck, MapPin, Wallet, FileDown, CreditCard, XCircle,
@@ -9,24 +9,73 @@ import { useOrderInvoice } from './useOrderInvoice';
 import { useOrderPaymentUrl } from './useOrderPaymentUrl';
 import { useRole } from '@/hooks/useRole';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { ProductThumb } from '@/components/shared/ProductThumb';
+import { StarRating } from '@/components/shared/StarRating';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GradientButton } from '@/components/shared/GradientButton';
-import { cn, formatPrice } from '@/lib/utils';
-import type { OrderStatus } from '@/types';
+import { cn, formatVnd } from '@/lib/utils';
+import type { ApiError, OrderStatus } from '@/types';
+import { PAYMENT_LABEL } from './orderConstants';
+import { useCreateReview } from '../product/useProductReviews';
 
-const TIMELINE: OrderStatus[] = ['pending', 'processing', 'shipped', 'delivering', 'completed'];
+function resolveReviewError(error: unknown): string {
+  const err = error as ApiError;
+  if (err?.statusCode === 404) return 'Đơn hàng chưa được xác nhận hoàn thành';
+  if (err?.statusCode === 409) return 'Bạn đã đánh giá sản phẩm này rồi';
+  return err?.message ?? 'Đã xảy ra lỗi';
+}
+
+function OrderItemReviewForm({ productId }: { productId: number }) {
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const createReview = useCreateReview(productId);
+
+  if (submitted) {
+    return <span className="font-body text-xs text-accent-amber">✓ Đã đánh giá</span>;
+  }
+
+  return (
+    <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-bdr">
+      <StarRating rating={rating} readOnly={false} onChange={setRating} size="sm" />
+      <textarea
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        placeholder="Nhận xét (không bắt buộc)"
+        maxLength={2000}
+        rows={2}
+        className="w-full resize-none rounded-tb-input border border-bdr bg-canvas-base text-ink-pri font-body text-xs px-3 py-2 placeholder:text-ink-muted focus:outline-none focus:border-accent-amber transition-colors"
+      />
+      {createReview.error && (
+        <p className="m-0 font-body text-xs text-accent-red">
+          {resolveReviewError(createReview.error)}
+        </p>
+      )}
+      <div>
+        <button
+          type="button"
+          disabled={createReview.isPending}
+          onClick={() => createReview.mutate(
+            { rating, comment: comment.trim() || null },
+            { onSuccess: () => setSubmitted(true) },
+          )}
+          className="px-4 py-1.5 rounded-tb-cta bg-accent-amber text-canvas-base font-body font-semibold text-xs transition-opacity disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed hover:opacity-90"
+        >
+          {createReview.isPending ? 'Đang gửi...' : 'Gửi đánh giá'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const TIMELINE: OrderStatus[] = ['pending', 'confirmed', 'processing', 'shipped', 'delivering', 'completed'];
 const TL_LABEL: Record<string, string> = {
   pending:    'Đã đặt',
+  confirmed:  'Đã xác nhận',
   processing: 'Đang chuẩn bị',
   shipped:    'Đã gửi GHN',
   delivering: 'Đang giao',
   completed:  'Hoàn thành',
-};
-
-const PAYMENT_LABEL: Record<string, string> = {
-  cod:     'Thanh toán khi nhận hàng (COD)',
-  zalopay: 'ZaloPay',
-  vnpay:   'VNPay',
 };
 
 function formatDate(dateStr: string): string {
@@ -79,8 +128,9 @@ export default function OrderDetailPage(): ReactElement {
 
   const isCanceled = order.status === 'canceled';
   const curStep = TIMELINE.indexOf(order.status);
-  const canCancel = order.status === 'pending' || order.status === 'processing';
-  const needsPayment = order.status === 'pending' && order.payment_method !== 'cod';
+  const canCancel = order.status === 'pending' || order.status === 'confirmed' || order.status === 'processing';
+  // Online orders stay unpaid through 'confirmed' — payment completion is what moves them to 'processing'
+  const needsPayment = (order.status === 'pending' || order.status === 'confirmed') && order.paymentMethod !== 'cod';
   const progressPct = curStep >= 0 ? (curStep / (TIMELINE.length - 1)) * 100 : 0;
 
   return (
@@ -97,7 +147,7 @@ export default function OrderDetailPage(): ReactElement {
       <div className="flex items-start justify-between gap-3 mb-6 flex-wrap">
         <div>
           <h1 className="font-display font-black text-3xl text-white m-0">Đơn hàng #{order.id}</h1>
-          <p className="text-sm text-ink-sec m-0 mt-1">Đặt lúc {formatDate(order.created_at)}</p>
+          <p className="text-sm text-ink-sec m-0 mt-1">Đặt lúc {formatDate(order.createdAt)}</p>
         </div>
         <StatusBadge status={order.status} />
       </div>
@@ -134,10 +184,10 @@ export default function OrderDetailPage(): ReactElement {
               />
             </div>
           </div>
-          {order.ghn_order_code && (
+          {order.ghnOrderCode && (
             <div className="mt-4 pt-4 border-t border-bdr flex items-center gap-2 text-sm text-ink-sec">
               <Truck size={15} className="text-accent-amber" />
-              Mã vận đơn GHN: <span className="font-mono text-white">{order.ghn_order_code}</span>
+              Mã vận đơn GHN: <span className="font-mono text-white">{order.ghnOrderCode}</span>
             </div>
           )}
         </div>
@@ -154,19 +204,19 @@ export default function OrderDetailPage(): ReactElement {
           <div className="text-xs font-semibold uppercase tracking-wide text-ink-muted mb-2 flex items-center gap-1.5">
             <MapPin size={13} /> Giao đến
           </div>
-          <div className="text-sm text-white leading-relaxed">{order.shipping_address}</div>
+          <div className="text-sm text-white leading-relaxed">{order.shippingAddress}</div>
         </div>
         <div className="bg-canvas-surface border border-bdr rounded-xl p-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-ink-muted mb-2 flex items-center gap-1.5">
             <Wallet size={13} /> Thanh toán
           </div>
           <div className="text-sm text-white font-semibold">
-            {PAYMENT_LABEL[order.payment_method] ?? order.payment_method}
+            {PAYMENT_LABEL[order.paymentMethod] ?? order.paymentMethod}
           </div>
           <div className="text-xs text-ink-sec mt-1">
             {needsPayment
               ? 'Chưa thanh toán'
-              : order.payment_method === 'cod'
+              : order.paymentMethod === 'cod'
                 ? 'Thu khi nhận hàng'
                 : 'Đã thanh toán'}
           </div>
@@ -178,24 +228,41 @@ export default function OrderDetailPage(): ReactElement {
         <div className="px-4 py-3 border-b border-bdr font-display font-bold uppercase text-sm tracking-wide text-ink-sec">
           Sản phẩm ({order.items.length})
         </div>
-        {order.items.map((item) => (
-          <div key={item.id} className="px-4 py-3 border-b border-bdr last:border-0 flex items-center gap-3">
-            <div className="w-14 h-14 rounded-[10px] bg-canvas-elevated flex-none" />
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium text-white truncate">
-                Sản phẩm #{item.product_id}
+        {order.items.map((item) => {
+          // Items are server-enriched with productName/image/skuLabel — no hydration.
+          return (
+          <div key={item.id} className="px-4 py-3 border-b border-bdr last:border-0 flex flex-col gap-0">
+            <div className="flex items-center gap-3">
+              <ProductThumb
+                src={item.image ?? ''}
+                alt={item.productName ?? ''}
+                to={`/product/${item.productId}`}
+                className="w-14 h-14 rounded-[10px]"
+              />
+              <div className="min-w-0 flex-1">
+                <Link
+                  to={`/product/${item.productId}`}
+                  className="text-sm font-medium text-white truncate block hover:text-accent-amber transition-colors"
+                >
+                  {item.productName ?? `Sản phẩm #${item.productId}`}
+                </Link>
+                {item.skuLabel && <div className="text-xs text-ink-sec truncate">{item.skuLabel}</div>}
+                <div className="text-xs text-ink-muted font-mono">SL: {item.quantity}</div>
               </div>
-              <div className="text-xs text-ink-muted font-mono">SL: {item.quantity}</div>
+              <span className="font-mono font-bold text-sm text-white whitespace-nowrap">
+                {formatVnd(item.price * item.quantity)}
+              </span>
             </div>
-            <span className="font-mono font-bold text-sm text-white whitespace-nowrap">
-              {formatPrice(item.price * item.quantity)}
-            </span>
+            {order.status === 'completed' && (
+              <OrderItemReviewForm productId={item.productId} />
+            )}
           </div>
-        ))}
+          );
+        })}
         <div className="px-4 py-3 flex justify-between items-center bg-canvas-elevated/40">
           <span className="font-semibold text-white">Tổng cộng</span>
           <span className="font-mono font-black text-xl text-accent-amber">
-            {formatPrice(Number(order.total))}
+            {formatVnd(Number(order.total))}
           </span>
         </div>
       </div>
@@ -230,6 +297,13 @@ export default function OrderDetailPage(): ReactElement {
           </button>
         )}
       </div>
+      {getPaymentUrl.isError && (
+        <p className="mt-3 mb-0 font-body text-sm text-accent-red">
+          {getPaymentUrl.error instanceof Error
+            ? getPaymentUrl.error.message
+            : 'Không thể lấy đường dẫn thanh toán. Vui lòng thử lại.'}
+        </p>
+      )}
     </div>
   );
 }
