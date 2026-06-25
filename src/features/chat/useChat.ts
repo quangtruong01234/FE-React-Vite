@@ -4,6 +4,8 @@ import { io, type Socket } from 'socket.io-client';
 import { queryClient } from '@/lib/queryClient';
 import { queryKeys } from '@/hooks/queryKeys';
 import { api } from '@/api';
+import { playMessageReceived } from '@/lib/chatSound';
+import type { ChatConnectionStatus } from './chatConnection';
 import type { Conversation, Message, PaginatedResponse } from '@/types';
 
 export type ChatMessage = Message & { status?: 'sending' | 'error' };
@@ -29,7 +31,7 @@ const CHAT_URL = (import.meta.env.VITE_CHAT_URL as string | undefined) ?? 'http:
 
 type ChatSocket = Socket<
   { new_message: (msg: Message) => void; error: (err: string) => void },
-  { join: (conversationId: number) => void; leave: (conversationId: number) => void; send_message: (payload: { conversationId: number; content: string }) => void }
+  { join: (payload: { conversationId: number }) => void; leave: (payload: { conversationId: number }) => void; send_message: (payload: { conversationId: number; content: string }) => void }
 >;
 
 export function useConversations(): { conversations: Conversation[]; isLoading: boolean } {
@@ -51,17 +53,24 @@ export function useConversations(): { conversations: Conversation[]; isLoading: 
   return { conversations, isLoading };
 }
 
-export function useChat(conversationId: number): {
+export function useChat(conversationId: number, currentUserId?: number): {
   messages: ChatMessage[];
   isLoading: boolean;
   sendMessage: (content: string, senderId: number) => void;
   hasNextPage: boolean;
   fetchNextPage: () => void;
   isFetchingNextPage: boolean;
+  connectionStatus: ChatConnectionStatus;
 } {
   const [socketMessages, setSocketMessages] = useState<Message[]>([]);
   const [pendingMessages, setPendingMessages] = useState<ChatMessage[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState<ChatConnectionStatus>('connecting');
   const tempIdRef = useRef(-1);
+
+  // Keep the latest viewer id in a ref so the socket handler reads it without
+  // re-subscribing on every account change (and never fires a stale sound).
+  const currentUserIdRef = useRef(currentUserId);
+  currentUserIdRef.current = currentUserId;
 
   const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: queryKeys.messages.byConversation(conversationId),
@@ -84,14 +93,30 @@ export function useChat(conversationId: number): {
   useEffect(() => {
     if (conversationId <= 0) return;
 
+    setConnectionStatus('connecting');
     const socket: ChatSocket = io(`${CHAT_URL}/chat`, { withCredentials: true });
     socketRef.current = socket;
 
-    socket.emit('join', { conversationId });
+    socket.on('connect', () => {
+      setConnectionStatus('connected');
+      socket.emit('join', { conversationId });
+    });
+
+    socket.on('disconnect', () => {
+      setConnectionStatus('disconnected');
+    });
+
+    // socket.io manager reconnection lifecycle
+    socket.io.on('reconnect_attempt', () => setConnectionStatus('reconnecting'));
+    socket.io.on('error', () => setConnectionStatus('reconnecting'));
 
     socket.on('new_message', (msg: Message) => {
       if (msg.conversationId === conversationId) {
         markActivity(conversationId);
+        const viewerId = currentUserIdRef.current;
+        if (viewerId !== undefined && msg.senderId !== viewerId) {
+          playMessageReceived();
+        }
         setSocketMessages((prev) => [...prev, msg]);
         setPendingMessages((prev) => {
           const idx = prev.findIndex((p) => p.content === msg.content && p.status === 'sending');
@@ -115,7 +140,9 @@ export function useChat(conversationId: number): {
     });
 
     return () => {
-      socket.emit('leave', conversationId);
+      socket.emit('leave', { conversationId });
+      socket.io.removeAllListeners();
+      socket.removeAllListeners();
       socket.disconnect();
       socketRef.current = null;
       setSocketMessages([]);
@@ -139,7 +166,7 @@ export function useChat(conversationId: number): {
     markActivity(conversationId);
   }
 
-  return { messages, isLoading, sendMessage, hasNextPage, fetchNextPage, isFetchingNextPage };
+  return { messages, isLoading, sendMessage, hasNextPage, fetchNextPage, isFetchingNextPage, connectionStatus };
 }
 
 function mergeMessages(http: Message[], socket: Message[]): Message[] {

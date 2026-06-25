@@ -4,6 +4,7 @@ import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRole } from '@/hooks/useRole';
 import { useChat } from './useChat';
+import { chatConnectionBanner } from './chatConnection';
 import { cn } from '@/lib/utils';
 import type { Conversation, User } from '@/types';
 
@@ -34,9 +35,10 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
   const role = useRole();
   const meId = role?.me?.id;
 
-  const { messages, isLoading, sendMessage, hasNextPage, fetchNextPage, isFetchingNextPage } =
-    useChat(conversation.id);
+  const { messages, isLoading, sendMessage, hasNextPage, fetchNextPage, isFetchingNextPage, connectionStatus } =
+    useChat(conversation.id, meId);
   const [text, setText] = useState('');
+  const banner = chatConnectionBanner(connectionStatus);
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
@@ -136,6 +138,20 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
         </div>
       </div>
 
+      {/* Connection status banner */}
+      {banner && (
+        <div
+          className={cn(
+            'px-4 py-1.5 text-xs font-medium text-center flex-none border-b border-bdr',
+            banner.tone === 'error'
+              ? 'bg-accent-red/10 text-accent-red'
+              : 'bg-canvas-elevated text-ink-sec',
+          )}
+        >
+          {banner.text}
+        </div>
+      )}
+
       {/* Messages */}
       <div ref={scrollAreaRef} className="flex-1 overflow-y-auto p-4 flex flex-col gap-2 min-h-0">
 
@@ -168,6 +184,7 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
           const isMe = meId !== undefined && Number(m.senderId) === Number(meId);
           const prevMsg = messages[i - 1];
           const showAvatar = !isMe && (i === 0 || prevMsg?.senderId !== m.senderId);
+          const isLastMine = isMe && !m.status && messages.slice(i + 1).every((n) => Number(n.senderId) !== Number(meId));
 
           return (
             <div
@@ -200,6 +217,11 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
                 {isMe && m.status === 'error' && (
                   <div className="flex justify-end mt-1">
                     <span className="text-[10px] text-accent-red">Gửi thất bại</span>
+                  </div>
+                )}
+                {isLastMine && (
+                  <div className="flex justify-end mt-1">
+                    <span className="text-[10px] text-ink-muted">Đã gửi</span>
                   </div>
                 )}
               </div>

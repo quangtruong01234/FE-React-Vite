@@ -31,8 +31,10 @@ export function ChatDialog({ otherUser, open, onClose }: ChatDialogProps): React
   });
 
   useEffect(() => {
-    if (open && conversation === null) {
+    if (open) {
       createConv();
+    } else {
+      setConversation(null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -57,7 +59,7 @@ export function ChatDialog({ otherUser, open, onClose }: ChatDialogProps): React
 
           {/* Close button — always visible, overlays top-right corner of header */}
           <DialogPrimitive.Close
-            className="absolute top-3 right-3 z-10 size-7 grid place-items-center rounded-full bg-canvas-elevated border border-bdr text-ink-muted hover:text-ink-pri hover:border-accent-amber/50 transition-colors"
+            className="absolute top-3 right-3 z-10 size-7 p-0 grid place-items-center rounded-full bg-canvas-elevated border border-bdr text-ink-muted hover:text-ink-pri hover:border-accent-amber/50 transition-colors"
             aria-label="Đóng"
           >
             <X size={14} className="shrink-0" />
