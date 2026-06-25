@@ -4,6 +4,7 @@ import type { User } from '@/types';
 
 interface AuthContextValue {
   currentUser: User | null;
+  isLoading: boolean;
   loginSuccess: (user: User) => void;
   handleUnauthorized: () => void;
   logout: () => void;

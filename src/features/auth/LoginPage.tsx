@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, User as UserIcon, Lock, Globe, Users } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,8 +12,6 @@ import type { User } from '@/types';
 import { cn } from '@/lib/utils';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { TextField } from '@/components/shared/TextField';
-import { OnlinePill } from '@/components/shared/OnlinePill';
-
 // ─── Ghost button (social login) ──────────────────────────────────────────────
 const ghostBtn =
   'inline-flex items-center justify-center gap-1.5 ' +
@@ -25,6 +23,11 @@ const ghostBtn =
 // ─── Naked link-style button (overrides global button CSS in index.css) ───────
 const linkBtn =
   'bg-transparent !border-none p-0 rounded-none text-tb-amber font-semibold text-[13px] cursor-pointer';
+
+// Social login, remember-me, and forgot-password have no backend endpoints
+// (auth = login/register/logout/me only) — disabled with a "sắp ra mắt" label
+// per P2-03 rather than shipping dead controls.
+const COMING_SOON_TITLE = 'Tính năng sắp ra mắt';
 
 interface RegisterFormProps {
   onBack: () => void;
@@ -59,8 +62,6 @@ function LeftPanel(): ReactElement {
       <TBLogo />
 
       <div className="flex flex-col gap-[22px] max-w-[480px]">
-        <OnlinePill count={1284} />
-
         <h1 className="m-0 font-display font-black text-[64px] tracking-[-0.02em] text-white leading-none">
           Săn deal LIVE<br />mỗi giây.
         </h1>
@@ -128,7 +129,7 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
   }
 
   return (
-    <div className="px-[64px] py-[60px] flex flex-col justify-center items-stretch">
+    <div className="px-6 py-12 md:px-[64px] md:py-[60px] flex flex-col justify-center items-stretch">
       <div className="max-w-[420px] w-full mx-auto flex flex-col gap-[22px]">
         <div>
           <h2 className="m-0 font-display font-black text-[36px] tracking-[-0.02em] text-white">
@@ -221,26 +222,26 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
 // ─── Login page ───────────────────────────────────────────────────────────────
 export default function LoginPage(): ReactElement {
   const [showRegister, setShowRegister] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const { loginSuccess } = useAuthContext();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   function handleAuthSuccess(user: User): void {
     loginSuccess(user);
-    void navigate('/');
+    void navigate(searchParams.get('next') ?? '/');
   }
 
   const { form, errors, isPending: loading, apiError, showPassword, handleChange, handleSubmit, togglePassword } =
     useLogin(handleAuthSuccess);
 
   return (
-    <main className="tb-enter min-h-screen grid grid-cols-[1.1fr_1fr]">
+    <main className="tb-enter min-h-screen grid grid-cols-1 md:grid-cols-[1.1fr_1fr]">
       <LeftPanel />
 
       {showRegister ? (
         <RegisterForm onBack={() => setShowRegister(false)} onRegisterSuccess={handleAuthSuccess} />
       ) : (
-        <section className="px-[64px] py-[60px] flex flex-col justify-center items-stretch">
+        <section className="px-6 py-12 md:px-[64px] md:py-[60px] flex flex-col justify-center items-stretch">
           <div className="max-w-[420px] w-full mx-auto flex flex-col gap-[22px]">
             <div>
               <h2 className="m-0 font-display font-black text-[36px] tracking-[-0.02em] text-white">
@@ -262,7 +263,7 @@ export default function LoginPage(): ReactElement {
                 <div className="flex flex-col gap-1">
                   <TextField
                     id="username" name="username"
-                    label="Số điện thoại / Email"
+                    label="Tài khoản"
                     placeholder="098 *** ***"
                     value={form.username} onChange={handleChange}
                     leftIcon={<UserIcon size={18} />}
@@ -297,18 +298,24 @@ export default function LoginPage(): ReactElement {
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <label className="inline-flex items-center gap-2 font-body text-[13px] text-tb-secondary cursor-pointer">
+                  <label
+                    title={COMING_SOON_TITLE}
+                    className="inline-flex items-center gap-2 font-body text-[13px] text-tb-muted cursor-not-allowed"
+                  >
                     <input
                       type="checkbox"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="accent-[#F59E0B]"
+                      disabled
+                      className="accent-[#F59E0B] cursor-not-allowed"
                     />
                     Ghi nhớ đăng nhập
+                    <span className="text-[11px] text-tb-muted">(sắp ra mắt)</span>
                   </label>
                   <button
                     type="button"
-                    className="bg-transparent !border-none p-0 font-body font-medium text-[13px] text-tb-amber cursor-pointer"
+                    disabled
+                    aria-disabled
+                    title={COMING_SOON_TITLE}
+                    className="bg-transparent !border-none p-0 font-body font-medium text-[13px] text-tb-muted cursor-not-allowed"
                   >
                     Quên mật khẩu?
                   </button>
@@ -326,13 +333,16 @@ export default function LoginPage(): ReactElement {
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
-                <button type="button" className={ghostBtn}>
+                <button type="button" disabled aria-disabled title={COMING_SOON_TITLE} className={cn(ghostBtn, 'cursor-not-allowed opacity-50 hover:text-tb-secondary hover:border-tb-border')}>
                   <Globe size={16} /> Google
                 </button>
-                <button type="button" className={ghostBtn}>
+                <button type="button" disabled aria-disabled title={COMING_SOON_TITLE} className={cn(ghostBtn, 'cursor-not-allowed opacity-50 hover:text-tb-secondary hover:border-tb-border')}>
                   <Users size={16} /> Facebook
                 </button>
               </div>
+              <p className="text-center -mt-0.5 mb-0 font-body text-[11px] text-tb-muted">
+                Đăng nhập mạng xã hội sắp ra mắt
+              </p>
 
               <p className="text-center mt-2 mb-0 font-body text-[13px] text-tb-secondary">
                 Chưa có tài khoản?{' '}
