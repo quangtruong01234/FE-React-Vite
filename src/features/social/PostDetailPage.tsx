@@ -9,9 +9,15 @@ import { api } from '@/api';
 import { queryKeys } from '@/hooks/queryKeys';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuthContext } from '@/context/AuthContext';
 import { CommentNode } from './CommentNode';
 import { useComments, useCreateComment } from './useComments';
 import { useLikePost, useUnlikePost } from './useFeed';
+import { useSharePost } from './useSharePost';
+import { ShareToast } from './ShareToast';
+import { PostActionMenu } from './PostActionMenu';
+import { AttachedProduct } from './AttachedProduct';
+import { openEditPost } from './composerEvents';
 import { cn } from '@/lib/utils';
 
 const commentSchema = z.object({ content: z.string().min(1) });
@@ -31,10 +37,12 @@ export default function PostDetailPage(): ReactElement {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const postId = Number(id ?? 0);
+  const { currentUser } = useAuthContext();
 
   const [liked, setLiked] = useState(false);
   const likePost = useLikePost();
   const unlikePost = useUnlikePost();
+  const { toast, share, copy } = useSharePost();
 
   const { data: post, isLoading: postLoading, error: postError } = useQuery({
     queryKey: queryKeys.social.post(postId),
@@ -107,6 +115,7 @@ export default function PostDetailPage(): ReactElement {
   }
 
   const displayLikeCount = liked ? post.likeCount + 1 : post.likeCount;
+  const isOwner = currentUser?.id != null && currentUser.id === post.author.id;
 
   return (
     <div className="max-w-[640px] mx-auto">
@@ -137,6 +146,14 @@ export default function PostDetailPage(): ReactElement {
               <Globe size={11} />
             </div>
           </div>
+          <PostActionMenu
+            postId={post.id}
+            isOwner={isOwner}
+            canReport={currentUser?.id != null}
+            onCopyLink={() => void copy(post.id)}
+            onEdit={() => openEditPost(post)}
+            onDeleted={() => navigate('/')}
+          />
         </div>
 
         {/* Content */}
@@ -147,6 +164,9 @@ export default function PostDetailPage(): ReactElement {
             </p>
           </div>
         )}
+
+        {/* Attached product */}
+        {post.productId != null && <AttachedProduct productId={post.productId} />}
 
         {/* Images */}
         {post.imageUrls && post.imageUrls.length > 0 && (
@@ -193,7 +213,9 @@ export default function PostDetailPage(): ReactElement {
             <MessageCircle size={17} />
             Bình luận
           </button>
-          <button className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-transparent border-0 cursor-pointer font-semibold text-sm text-ink-sec hover:bg-canvas-elevated transition-colors">
+          <button
+            onClick={() => void share(post.id)}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-transparent border-0 cursor-pointer font-semibold text-sm text-ink-sec hover:bg-canvas-elevated transition-colors">
             <Share2 size={17} />
             Chia sẻ
           </button>
@@ -250,6 +272,8 @@ export default function PostDetailPage(): ReactElement {
           </button>
         </form>
       </div>
+
+      <ShareToast message={toast} />
     </div>
   );
 }

@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { ImagePlus, Loader2, Video, X } from 'lucide-react';
+import { IconButton } from '@/components/shared/IconButton';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Dialog,
@@ -13,9 +14,13 @@ import {
 import { GradientButton } from '@/components/shared/GradientButton';
 import { queryKeys } from '@/hooks/queryKeys';
 import { api } from '@/api';
+import { useProductsByIds } from '@/hooks/useProductsByIds';
 import { uploadImage, uploadVideo, deleteMedia } from '@/lib/cloudinary';
 import { cn } from '@/lib/utils';
+import { ProductPicker } from './ProductPicker';
+import { useUpdatePost } from './useFeed';
 import { createPostSchema, type CreatePostFormData } from './social.schema';
+import type { Post, ProductWithInventory } from '@/types';
 
 const MAX_IMAGES = 4;
 
@@ -34,16 +39,44 @@ interface UploadState {
 interface CreatePostModalProps {
   open: boolean;
   onClose: () => void;
+  /** When set, the composer edits this post (PATCH) instead of creating one. */
+  editPost?: Post;
 }
 
-export default function CreatePostModal({ open, onClose }: CreatePostModalProps) {
+/** Seeds media from an existing post; publicId '' marks already-persisted media
+ *  (P0-05 pattern) so removing/cancelling never deletes it from Cloudinary. */
+function deriveInitialMedia(post?: Post): MediaItem[] {
+  if (!post) return [];
+  const items: MediaItem[] = (post.imageUrls ?? []).map((url) => ({ url, publicId: '', type: 'image' as const }));
+  if (post.videoUrl) items.push({ url: post.videoUrl, publicId: '', type: 'video' });
+  return items;
+}
+
+export default function CreatePostModal({ open, onClose, editPost }: CreatePostModalProps) {
   const queryClient = useQueryClient();
   const { currentUser } = useAuth();
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const isEdit = editPost != null;
 
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>(() => deriveInitialMedia(editPost));
   const [upload, setUpload] = useState<UploadState>({ active: false, percent: 0, error: null });
+  const [attachedProduct, setAttachedProduct] = useState<ProductWithInventory | null>(null);
+
+  // Hydrate the edited post's attached product once (posts carry only productId).
+  const attachedId = editPost?.productId ?? null;
+  const { productMap } = useProductsByIds(attachedId ? [attachedId] : []);
+  const productHydratedRef = useRef(false);
+  useEffect(() => {
+    if (productHydratedRef.current || attachedId == null) return;
+    const product = productMap.get(attachedId);
+    if (product) {
+      setAttachedProduct(product);
+      productHydratedRef.current = true;
+    }
+  }, [attachedId, productMap]);
+
+  const updatePost = useUpdatePost();
 
   const {
     register,
@@ -51,30 +84,22 @@ export default function CreatePostModal({ open, onClose }: CreatePostModalProps)
     setError,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<CreatePostFormData>({ resolver: zodResolver(createPostSchema) });
-
-  const { mutateAsync: createPost } = useMutation({
-    mutationFn: (data: CreatePostFormData) => {
-      const imageUrls = mediaItems.filter((m) => m.type === 'image').map((m) => m.url);
-      const videoItem = mediaItems.find((m) => m.type === 'video');
-      return api.social.createPost({
-        content: data.content,
-        imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
-        videoUrl: videoItem?.url,
-      });
-    },
-    onSuccess: () => {
-      // Post saved — media is now referenced, don't delete
-      setMediaItems([]);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.social.feed(1) });
-      reset();
-      setUpload({ active: false, percent: 0, error: null });
-      onClose();
-    },
+  } = useForm<CreatePostFormData>({
+    resolver: zodResolver(createPostSchema),
+    defaultValues: { content: editPost?.content ?? '' },
   });
 
+  function afterSuccess(): void {
+    // Post saved — media is now referenced, don't delete
+    setMediaItems([]);
+    void queryClient.invalidateQueries({ queryKey: queryKeys.social.feed(1) });
+    reset();
+    setUpload({ active: false, percent: 0, error: null });
+    onClose();
+  }
+
   function handleClose() {
-    // Delete any uploaded-but-not-posted media from Cloudinary
+    // Delete only freshly-uploaded media (persisted media has publicId '')
     const orphans = mediaItems.map((m) => m.publicId).filter(Boolean);
     orphans.forEach((pid) => { void deleteMedia(pid); });
     reset();
@@ -142,8 +167,9 @@ export default function CreatePostModal({ open, onClose }: CreatePostModalProps)
         setUpload((prev) => ({ ...prev, percent: p }));
       });
       // If replacing an existing video, delete the old one from Cloudinary
+      // (skip persisted media, which carries an empty publicId).
       const oldVideo = mediaItems.find((m) => m.type === 'video');
-      if (oldVideo) void deleteMedia(oldVideo.publicId);
+      if (oldVideo && oldVideo.publicId) void deleteMedia(oldVideo.publicId);
       setMediaItems((prev) => [
         ...prev.filter((m) => m.type === 'image'),
         { url: result.url, publicId: result.publicId, type: 'video' },
@@ -161,13 +187,33 @@ export default function CreatePostModal({ open, onClose }: CreatePostModalProps)
 
   function removeMedia(index: number) {
     const item = mediaItems[index];
-    if (item) void deleteMedia(item.publicId);
+    if (item && item.publicId) void deleteMedia(item.publicId);
     setMediaItems((prev) => prev.filter((_, i) => i !== index));
   }
 
   async function onSubmit(data: CreatePostFormData) {
+    const imageUrls = mediaItems.filter((m) => m.type === 'image').map((m) => m.url);
+    const videoItem = mediaItems.find((m) => m.type === 'video');
     try {
-      await createPost(data);
+      if (editPost) {
+        await updatePost.mutateAsync({
+          id: editPost.id,
+          data: {
+            content: data.content,
+            imageUrls,
+            videoUrl: videoItem?.url ?? null,
+            productId: attachedProduct?.id ?? null,
+          },
+        });
+      } else {
+        await api.social.createPost({
+          content: data.content,
+          imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+          videoUrl: videoItem?.url,
+          productId: attachedProduct?.id,
+        });
+      }
+      afterSuccess();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Đăng bài thất bại';
       setError('root', { message });
@@ -184,7 +230,7 @@ export default function CreatePostModal({ open, onClose }: CreatePostModalProps)
       <DialogContent className="w-[calc(100vw-2rem)] max-w-xl max-h-[90vh] flex flex-col bg-canvas-surface border-bdr text-ink-pri p-0 gap-0">
         <DialogHeader className="px-5 pt-5 pb-0">
           <DialogTitle className="font-display text-lg text-ink-pri">
-            Tạo bài viết
+            {isEdit ? 'Chỉnh sửa bài viết' : 'Tạo bài viết'}
           </DialogTitle>
         </DialogHeader>
 
@@ -228,17 +274,19 @@ export default function CreatePostModal({ open, onClose }: CreatePostModalProps)
                         className="w-full aspect-video object-cover rounded-tb-cta"
                       />
                     )}
-                    <button
-                      type="button"
+                    <IconButton
                       onClick={() => removeMedia(i)}
-                      className="absolute top-2 right-2 size-7 rounded-full bg-black/60 text-ink-pri border-0 cursor-pointer flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-2 right-2 size-7 rounded-full bg-black/60 text-ink-pri border-0 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <X size={13} className="shrink-0" />
-                    </button>
+                    </IconButton>
                   </div>
                 ))}
               </div>
             )}
+
+            {/* Attached product */}
+            <ProductPicker value={attachedProduct} onChange={setAttachedProduct} />
 
             {/* Upload progress */}
             {upload.active && (
@@ -332,7 +380,7 @@ export default function CreatePostModal({ open, onClose }: CreatePostModalProps)
               size="sm"
             >
               {isSubmitting ? <Loader2 size="14" className="animate-spin" /> : null}
-              Đăng bài
+              {isEdit ? 'Lưu' : 'Đăng bài'}
             </GradientButton>
           </div>
         </form>

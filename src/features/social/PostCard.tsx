@@ -1,4 +1,5 @@
-import { Globe, Heart, MessageCircle, MoreHorizontal, Share2, UserPlus, UserCheck, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Globe, Heart, MessageCircle, Share2, UserPlus, UserCheck, ChevronLeft, ChevronRight } from 'lucide-react';
+import { IconButton } from '@/components/shared/IconButton';
 import { useNavigate, Link } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -8,6 +9,11 @@ import { ModalCloseButton } from '@/components/shared/ModalCloseButton';
 import { useAuthContext } from '@/context/AuthContext';
 import { useLikePost, useUnlikePost } from './useFeed';
 import { useIsFollowing, useFollowUser, useUnfollowUser } from './useFollow';
+import { useSharePost } from './useSharePost';
+import { ShareToast } from './ShareToast';
+import { PostActionMenu } from './PostActionMenu';
+import { AttachedProduct } from './AttachedProduct';
+import { openEditPost } from './composerEvents';
 import type { Post } from '@/types';
 
 interface PostCardProps {
@@ -36,6 +42,8 @@ export default function PostCard({ post }: PostCardProps) {
   const { isFollowing, isLoading: isFollowLoading } = useIsFollowing(viewerId, post.author.id);
   const { mutate: follow, isPending: isFollowPending } = useFollowUser(post.author.id, viewerId);
   const { mutate: unfollow, isPending: isUnfollowPending } = useUnfollowUser(post.author.id, viewerId);
+
+  const { toast, share, copy } = useSharePost();
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const images = post.imageUrls ?? [];
@@ -134,9 +142,13 @@ export default function PostCard({ post }: PostCardProps) {
           </button>
         )}
 
-        <button className="text-ink-sec w-8 h-8 flex items-center justify-center rounded-full hover:bg-canvas-elevated transition-colors cursor-pointer border-0 bg-transparent overflow-visible">
-          <MoreHorizontal size="20" className="shrink-0" />
-        </button>
+        <PostActionMenu
+          postId={post.id}
+          isOwner={isOwnPost}
+          canReport={viewerId !== 0}
+          onCopyLink={() => void copy(post.id)}
+          onEdit={() => openEditPost(post)}
+        />
       </div>
 
       {/* content */}
@@ -147,6 +159,9 @@ export default function PostCard({ post }: PostCardProps) {
           </p>
         </div>
       )}
+
+      {/* attached product */}
+      {post.productId != null && <AttachedProduct productId={post.productId} />}
 
       {/* image grid */}
       {images.length > 0 && (
@@ -208,13 +223,12 @@ export default function PostCard({ post }: PostCardProps) {
 
           {/* Prev */}
           {images.length > 1 && (
-            <button
-              type="button"
+            <IconButton
               onClick={goPrev}
-              className="absolute left-4 size-10 grid place-items-center rounded-full bg-white/10 hover:bg-white/25 text-white border-0 p-0 cursor-pointer transition-colors z-10"
+              className="absolute left-4 size-10 rounded-full bg-white/10 hover:bg-white/25 text-white border-0 cursor-pointer transition-colors z-10"
             >
               <ChevronLeft size={22} className="shrink-0" />
-            </button>
+            </IconButton>
           )}
 
           {/* Image */}
@@ -227,13 +241,12 @@ export default function PostCard({ post }: PostCardProps) {
 
           {/* Next */}
           {images.length > 1 && (
-            <button
-              type="button"
+            <IconButton
               onClick={goNext}
-              className="absolute right-4 size-10 grid place-items-center rounded-full bg-white/10 hover:bg-white/25 text-white border-0 p-0 cursor-pointer transition-colors z-10"
+              className="absolute right-4 size-10 rounded-full bg-white/10 hover:bg-white/25 text-white border-0 cursor-pointer transition-colors z-10"
             >
               <ChevronRight size={22} className="shrink-0" />
-            </button>
+            </IconButton>
           )}
 
           {/* Counter */}
@@ -283,11 +296,15 @@ export default function PostCard({ post }: PostCardProps) {
           Bình luận
         </button>
 
-        <button className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg bg-transparent border-0 cursor-pointer font-semibold text-[16px] text-ink-sec hover:bg-canvas-elevated transition-colors overflow-visible">
+        <button
+          onClick={(e) => { e.stopPropagation(); void share(post.id); }}
+          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg bg-transparent border-0 cursor-pointer font-semibold text-[16px] text-ink-sec hover:bg-canvas-elevated transition-colors overflow-visible">
           <Share2 size="19" />
           Chia sẻ
         </button>
       </div>
+
+      <ShareToast message={toast} />
     </article>
   );
 }

@@ -1,8 +1,9 @@
 import { ShoppingCart, Tag } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { GradientButton } from '@/components/shared/GradientButton';
+import { ProductThumb } from '@/components/shared/ProductThumb';
 import { PriceText } from '@/components/shared/PriceText';
-import { useCart } from '@/context/CartContext';
+import { useAddToCart } from '@/hooks/useCart';
 import type { ProductWithInventory } from '@/types';
 
 interface ProductChipProps {
@@ -10,32 +11,19 @@ interface ProductChipProps {
 }
 
 export default function ProductChip({ product }: ProductChipProps) {
-  const { addItem } = useCart();
+  const addToCart = useAddToCart();
 
   function handleAddToCart() {
-    addItem({
-      productId: product.id,
-      name: product.name,
-      price: product.price,
-      image: product.imageUrl ?? '',
-      quantity: 1,
-      stockQuantity: product.inventory.availableStock,
-    });
+    addToCart.mutate({ productId: Number(product.id), quantity: 1 });
   }
 
   return (
     <div className="flex items-center gap-3 p-2.5 bg-canvas-elevated border border-bdr rounded-tb-cta">
-      {product.imageUrl ? (
-        <img
-          src={product.imageUrl}
-          alt={product.name}
-          className="w-14 h-14 rounded-lg flex-none object-cover"
-        />
-      ) : (
-        <div className="w-14 h-14 rounded-lg flex-none bg-canvas-surface flex items-center justify-center">
-          <ShoppingCart size={20} className="text-ink-muted" />
-        </div>
-      )}
+      <ProductThumb
+        src={product.imageUrl}
+        alt={product.name}
+        className="w-14 h-14 rounded-lg"
+      />
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 text-[10px] font-display font-bold uppercase tracking-wider text-accent-amber">
@@ -51,7 +39,7 @@ export default function ProductChip({ product }: ProductChipProps) {
         <PriceText price={product.price} size="sm" />
       </div>
 
-      <GradientButton size="sm" className="flex-none rounded-tb-input" onClick={handleAddToCart}>
+      <GradientButton size="sm" className="flex-none rounded-tb-input" onClick={handleAddToCart} disabled={addToCart.isPending}>
         <ShoppingCart size={14} />
         Mua nhanh
       </GradientButton>

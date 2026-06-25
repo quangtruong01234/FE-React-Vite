@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queryKeys';
 import { api } from '@/api';
-import type { FollowerItem, FollowingItem, PaginatedResponse } from '@/types';
+import type { FollowingItem, PaginatedResponse } from '@/types';
 
 export function useFollowers(userId: number) {
   return useQuery({

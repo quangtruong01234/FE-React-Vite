@@ -6,7 +6,6 @@ import { useAuthContext } from '@/context/AuthContext';
 import { useFeed } from './useFeed';
 import { useFollowingFeed } from './useFollow';
 import PostCard from './PostCard';
-import CreatePostModal from './CreatePostModal';
 import type { Post } from '@/types';
 
 const TABS = [
@@ -19,14 +18,7 @@ type TabId = (typeof TABS)[number]['id'];
 export default function FeedPage() {
   const { currentUser } = useAuthContext();
   const [activeTab, setActiveTab] = useState<TabId>('for-you');
-  const [showModal, setShowModal] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleGlobalCreate(): void { setShowModal(true); }
-    window.addEventListener('tb:createpost', handleGlobalCreate);
-    return () => window.removeEventListener('tb:createpost', handleGlobalCreate);
-  }, []);
 
   const forYouQuery = useFeed();
   const followingQuery = useFollowingFeed(currentUser?.id ?? 0, activeTab === 'following');
@@ -57,8 +49,6 @@ export default function FeedPage() {
 
   return (
     <div className="max-w-[950px] mx-auto flex flex-col gap-4">
-
-        <CreatePostModal open={showModal} onClose={() => setShowModal(false)} />
 
         {/* Tabs — sticky with backdrop blur */}
         <div className="sticky top-[72px] z-40 -mx-1 px-1 py-1 bg-canvas-base/80 backdrop-blur-sm">
