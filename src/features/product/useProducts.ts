@@ -42,13 +42,18 @@ export function enrichProductForUI(product: ProductWithInventory): EnrichedProdu
   };
 }
 
-export function useProducts(params: ProductParams = {}): {
+export function useProducts(
+  params: ProductParams = {},
+  options: { enabled?: boolean } = {},
+): {
   data: PaginatedResponse<ProductWithInventory> | undefined;
   isLoading: boolean;
+  isFetching: boolean;
   error: Error | null;
 } {
   return useQuery({
     queryKey: queryKeys.products.list(params),
     queryFn: () => api.products.getList(params),
+    enabled: options.enabled ?? true,
   });
 }

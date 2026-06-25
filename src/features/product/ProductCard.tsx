@@ -1,10 +1,11 @@
 import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Plus, ShoppingCart } from 'lucide-react';
 import { Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/utils';
-import { useCart } from '@/context/CartContext';
+import { useAddToCart } from '@/hooks/useCart';
+import { IconButton } from '@/components/shared/IconButton';
 import type { ProductWithInventory } from '@/types';
 
 interface ProductCardProps {
@@ -12,19 +13,13 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product }: ProductCardProps): ReactElement {
-  const { addItem } = useCart();
+  const addToCart = useAddToCart();
   const stock = product.inventory?.availableStock ?? 0;
   const outOfStock = stock === 0;
+  const coverImage = product.imageUrl ?? product.imageUrls?.[0] ?? '';
 
   function handleAddToCart(): void {
-    addItem({
-      productId: product.id,
-      name: product.name,
-      price: product.price,
-      image: product.imageUrl ?? '',
-      quantity: 1,
-      stockQuantity: stock,
-    });
+    addToCart.mutate({ productId: Number(product.id), quantity: 1 });
   }
 
   return (
@@ -33,15 +28,20 @@ export default function ProductCard({ product }: ProductCardProps): ReactElement
       'transition-all duration-300 hover:-translate-y-1 hover:border-accent-amber/30 hover:shadow-tb-card group',
     )}>
       <Link to={`/product/${product.id}`} className="relative block">
-        <img
-          src={product.imageUrl ?? ''}
-          alt={product.name}
-          width={400}
-          height={400}
-          className="w-full aspect-square object-cover"
-          loading="lazy"
-          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-        />
+        {coverImage ? (
+          <img
+            src={coverImage}
+            alt={product.name}
+            width={400}
+            height={400}
+            className="w-full aspect-square object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full aspect-square bg-canvas-elevated flex items-center justify-center">
+            <ShoppingCart size={32} className="text-ink-muted shrink-0" />
+          </div>
+        )}
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5">
           {product.isFeatured && (
             <span className="inline-flex items-center gap-1 px-2 py-1 bg-tb-gradient text-ink-pri font-display font-black text-[10px] tracking-wider uppercase rounded-tb-pill">
@@ -76,30 +76,40 @@ export default function ProductCard({ product }: ProductCardProps): ReactElement
           {product.name}
         </Link>
 
-        {product.ratingCount > 0 && (
-          <div className="flex items-center gap-1 text-xs text-ink-sec">
-            <Star size={12} className="text-accent-amber" fill="#F59E0B" />
-            <span>{product.rating}</span>
-            <span className="text-ink-muted">({product.ratingCount.toLocaleString('vi-VN')})</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2 text-[11px] text-ink-muted">
+          {product.ratingCount > 0 ? (
+            <span className="flex items-center gap-0.5">
+              <Star size={11} className="text-accent-amber shrink-0" fill="currentColor" />
+              <span className="text-ink-sec font-medium">{product.rating.toFixed(1)}</span>
+              <span>({product.ratingCount.toLocaleString('vi-VN')})</span>
+            </span>
+          ) : (
+            <span className="flex items-center gap-0.5">
+              <Star size={11} className="text-ink-muted shrink-0" />
+              <span>Chưa có đánh giá</span>
+            </span>
+          )}
+          {product.viewCount > 0 && (
+            <span className="text-ink-muted">· {product.viewCount.toLocaleString('vi-VN')} lượt xem</span>
+          )}
+        </div>
 
-        <div className="mt-auto flex items-end justify-between gap-2">
-          <span className="font-mono text-accent-amber font-semibold text-base">
+        <div className="mt-auto flex items-center justify-between gap-2">
+          <span className="font-mono text-accent-amber font-semibold text-base leading-none">
             {formatPrice(product.price)}
           </span>
-          <button
-            disabled={outOfStock}
+          <IconButton
+            disabled={outOfStock || addToCart.isPending}
             onClick={handleAddToCart}
+            aria-label="Thêm vào giỏ"
             className={cn(
-              'rounded-tb-input bg-tb-gradient text-ink-pri flex items-center justify-center border-0 shadow-tb-cta',
-              'hover:opacity-90 active:scale-95 transition flex-none cursor-pointer',
+              'size-8 rounded-lg bg-tb-gradient text-ink-pri shadow-tb-cta flex-none',
+              'hover:opacity-90 active:scale-95 transition cursor-pointer',
               'disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none',
             )}
-            aria-label="Thêm vào giỏ"
           >
-            <Plus size={16} />
-          </button>
+            <Plus size={16} className="shrink-0" />
+          </IconButton>
         </div>
       </div>
     </div>
