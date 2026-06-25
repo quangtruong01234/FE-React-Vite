@@ -1,5 +1,5 @@
-import { useState, useEffect, type ReactElement } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef, type ReactElement } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
   Banknote,
@@ -12,8 +12,15 @@ import {
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { checkoutSchema, type CheckoutFormData } from "./checkout.schema";
+import {
+  checkoutSchema,
+  buildShippingAddress,
+  ADDRESS_FIELDS,
+  type CheckoutFormData,
+} from "./checkout.schema";
 import { usePaymentOptions } from "./usePaymentOptions";
+import { setPendingCheckout } from "./pendingCheckout";
+import { buildCheckoutSignature, resolveIdempotencyKey } from "./idempotency";
 import { api } from "@/api";
 import {
   useCart,
@@ -22,8 +29,9 @@ import {
   useClearCart,
 } from "@/hooks/useCart";
 import type { CreateOrderDto, PaymentMethod, ProductWithInventory } from "@/types";
-import { formatPrice, cn, buildVariantLabel } from "@/lib/utils";
+import { formatVnd, cn, buildVariantLabel } from "@/lib/utils";
 import { GradientButton } from "@/components/shared/GradientButton";
+import { ProductThumb } from "@/components/shared/ProductThumb";
 import { Skeleton } from "@/components/ui/skeleton";
 import { queryKeys } from "@/hooks/queryKeys";
 
@@ -35,6 +43,9 @@ const PAYMENT_ICON: Record<string, typeof Banknote> = {
 
 export default function CheckoutPage(): ReactElement {
   const navigate = useNavigate();
+  const location = useLocation();
+  const selectedIds = new Set<number>((location.state as { selectedIds?: number[] } | null)?.selectedIds ?? []);
+
   const { options: paymentOptions, isLoading: paymentLoading } =
     usePaymentOptions();
   const {
@@ -46,15 +57,18 @@ export default function CheckoutPage(): ReactElement {
   const removeCartItem = useRemoveCartItem();
   const clearCart = useClearCart();
   const [stockError, setStockError] = useState<Record<number, string>>({});
-  const [successOrder, setSuccessOrder] = useState<{
-    id: number | string;
-  } | null>(null);
+  const [successOrderIds, setSuccessOrderIds] = useState<number[] | null>(null);
   const queryClient = useQueryClient();
 
-  const items = serverCart?.items ?? [];
+  const allItems = serverCart?.items ?? [];
+  const items = selectedIds.size > 0 ? allItems.filter(i => selectedIds.has(i.id)) : allItems;
   const productIds = [...new Set(items.map((i) => i.productId))].sort((a, b) => a - b);
 
-  const { data: productsData, isLoading: productsLoading } = useQuery({
+  const {
+    data: productsData,
+    isLoading: productsLoading,
+    isError: productsError,
+  } = useQuery({
     queryKey: queryKeys.products.cartItems(productIds),
     queryFn: () => api.products.getMultipleWithInventory(productIds),
     enabled: productIds.length > 0,
@@ -83,28 +97,94 @@ export default function CheckoutPage(): ReactElement {
     handleSubmit,
     control,
     setError,
+    clearErrors,
+    getValues,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<CheckoutFormData>({
     resolver: zodResolver(checkoutSchema),
-    defaultValues: { payment_method: "cod" },
+    defaultValues: { paymentMethod: "cod" },
   });
 
   useEffect(() => {
-    if (!successOrder) return;
+    if (!successOrderIds) return;
     const timer = setTimeout(() => void navigate("/orders"), 3000);
     return () => clearTimeout(timer);
-  }, [successOrder, navigate]);
+  }, [successOrderIds, navigate]);
+
+  // P0-04: a stable key per checkout intent. Reused across retries (double-
+  // submit / network hiccup) so the backend replays instead of duplicating;
+  // regenerated automatically when the cart contents change.
+  const idemKeyRef = useRef<{ signature: string; key: string } | null>(null);
 
   const { mutateAsync: placeOrder, isPending: mutationPending } = useMutation({
-    mutationFn: (dto: CreateOrderDto) => api.orders.create(dto),
-    onSuccess: (order) => {
-      void queryClient.invalidateQueries({ queryKey: ["orders"] });
-      clearCart.mutate();
-      setSuccessOrder({ id: order?.id ?? "" });
-    },
+    mutationFn: ({ dto, idempotencyKey }: { dto: CreateOrderDto; idempotencyKey: string }) =>
+      api.orders.create(dto, idempotencyKey),
   });
 
   const loading = mutationPending || isSubmitting;
+
+  // P1-C: best-effort GHN shipping-fee preview. GHN often rejects free-text
+  // addresses (502) in this environment, so failure must degrade gracefully —
+  // never block checkout.
+  const {
+    mutate: calcShipping,
+    data: shippingResult,
+    isPending: shippingPending,
+    isError: shippingFailed,
+    reset: resetShipping,
+  } = useMutation({
+    mutationFn: (shippingAddress: string) =>
+      api.orders.getShippingFee({
+        shippingAddress,
+        items: items.map((item) => {
+          const p = productMap.get(item.productId);
+          return {
+            productName: p?.name,
+            quantity: item.quantity,
+            price: getEffectivePrice(item),
+          };
+        }),
+      }),
+  });
+
+  const shippingFee = shippingResult?.shippingFee ?? 0;
+  const grandTotal = totalPrice + shippingFee;
+
+  // Recalculation needed whenever any address field changes.
+  useEffect(() => {
+    const sub = watch((_, { name }) => {
+      if (name && (ADDRESS_FIELDS as readonly string[]).includes(name)) {
+        resetShipping();
+      }
+    });
+    return () => sub.unsubscribe();
+  }, [watch, resetShipping]);
+
+  function handleCalcShipping(): void {
+    const data = getValues();
+    const missing = ADDRESS_FIELDS.some((f) => !String(data[f] ?? "").trim());
+    if (missing) {
+      setError("root", {
+        message: "Vui lòng nhập đầy đủ địa chỉ giao hàng trước khi tính phí.",
+      });
+      return;
+    }
+    clearErrors("root");
+    calcShipping(buildShippingAddress(data));
+  }
+
+  async function removeOrderedItemsFromCart(): Promise<void> {
+    try {
+      if (selectedIds.size > 0 && items.length < allItems.length) {
+        await Promise.all(items.map((item) => removeCartItem.mutateAsync(item.id)));
+      } else {
+        await clearCart.mutateAsync();
+      }
+    } catch {
+      // best-effort — orders are already placed, backend cart stays recoverable
+    }
+  }
 
   async function onSubmit(data: CheckoutFormData): Promise<void> {
     setStockError({});
@@ -138,22 +218,63 @@ export default function CheckoutPage(): ReactElement {
     }
 
     try {
-      await placeOrder({
-        paymentMethod: data.payment_method,
-        shippingAddress: data.shipping_address,
-        items: items.map((item) => {
-          const p = productMap.get(item.productId);
-          const sku = item.skuId != null ? p?.skus?.find((s) => Number(s.id) === item.skuId) : null;
-          const price = sku ? Number(sku.price) : Number(p?.price ?? 0);
-          return {
-            productId: item.productId,
-            productName: p?.name ?? '',
-            quantity: item.quantity,
-            price,
-            ...(item.skuId != null ? { skuId: item.skuId } : {}),
-          };
-        }),
+      const orderItems = items.map((item) => {
+        const p = productMap.get(item.productId);
+        return {
+          productId: item.productId,
+          productName: p?.name ?? '',
+          quantity: item.quantity,
+          ...(item.skuId != null ? { skuId: item.skuId } : {}),
+        };
       });
+      idemKeyRef.current = resolveIdempotencyKey(
+        idemKeyRef.current,
+        buildCheckoutSignature(orderItems),
+        () => crypto.randomUUID(),
+      );
+      const result = await placeOrder({
+        dto: {
+          paymentMethod: data.paymentMethod,
+          shippingAddress: buildShippingAddress(data),
+          items: orderItems,
+        },
+        idempotencyKey: idemKeyRef.current.key,
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
+      // Multi-seller checkout returns { orders, paymentUrl } with one payment covering all orders
+      const isMultiSeller = "orders" in result;
+      const orders = isMultiSeller ? result.orders : [result];
+      if (data.paymentMethod === 'cod') {
+        // COD has no gateway step — safe to clear the ordered items immediately.
+        void removeOrderedItemsFromCart();
+        setSuccessOrderIds(orders.map((o) => o.id));
+      } else {
+        const isPartial = selectedIds.size > 0 && items.length < allItems.length;
+        try {
+          const paymentUrl = isMultiSeller
+            ? result.paymentUrl
+            : (await api.orders.getPaymentUrl(result.id)).orderUrl;
+          if (!paymentUrl) throw new Error('Không nhận được đường dẫn thanh toán.');
+          // P0-04: do NOT clear the cart here. Record what this checkout covered
+          // so PaymentResultPage can remove exactly those items once the gateway
+          // confirms success — a cancelled/failed payment leaves the cart intact.
+          setPendingCheckout({
+            orderIds: orders.map((o) => o.id),
+            cartItemIds: isPartial ? items.map((i) => i.id) : [],
+            clearAll: !isPartial,
+          });
+          window.location.href = paymentUrl;
+        } catch {
+          // The order(s) already exist. Re-submitting would create duplicates,
+          // so route the user to the created order to retry payment on the SAME
+          // order (OrderDetailPage exposes a "Thanh toán ngay" action).
+          if (isMultiSeller || orders.length > 1) {
+            void navigate("/orders");
+          } else {
+            void navigate(`/order/${orders[0].id}`);
+          }
+        }
+      }
     } catch (err: unknown) {
       const msg =
         typeof err === "object" && err !== null && "message" in err
@@ -163,7 +284,41 @@ export default function CheckoutPage(): ReactElement {
     }
   }
 
-  if (successOrder) {
+  function renderAddressField(
+    name: (typeof ADDRESS_FIELDS)[number],
+    label: string,
+    placeholder: string,
+    autoComplete: string,
+  ): ReactElement {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <label
+          htmlFor={name}
+          className="font-body font-[500] text-[11px] leading-[1.4] text-ink-sec tracking-[0.04em] uppercase"
+        >
+          {label}
+        </label>
+        <input
+          id={name}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          className={cn(
+            "h-[44px] bg-canvas-base border rounded-[10px] px-[14px] text-ink-pri font-body text-[14px] outline-none placeholder:text-ink-muted transition-[border-color,box-shadow] duration-[120ms]",
+            "focus:border-[rgba(245,158,11,0.5)] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)]",
+            errors[name]
+              ? "border-accent-red focus:border-accent-red focus:shadow-[0_0_0_4px_rgba(239,68,68,0.10)]"
+              : "border-bdr",
+          )}
+          {...register(name)}
+        />
+        {errors[name] && (
+          <span className="text-xs text-accent-red">{errors[name]?.message}</span>
+        )}
+      </div>
+    );
+  }
+
+  if (successOrderIds) {
     return (
       <div className="min-h-screen bg-canvas-base flex items-center justify-center">
         <div className="bg-canvas-surface border border-bdr rounded-2xl p-10 max-w-md w-full mx-4 flex flex-col items-center gap-5 text-center">
@@ -175,7 +330,7 @@ export default function CheckoutPage(): ReactElement {
             <p className="font-body text-sm text-ink-sec m-0">
               Mã đơn hàng:{" "}
               <span className="font-mono text-accent-amber">
-                #{successOrder.id}
+                {successOrderIds.map((id) => `#${id}`).join(", ")}
               </span>
             </p>
           </div>
@@ -243,7 +398,7 @@ export default function CheckoutPage(): ReactElement {
   return (
     <div className="min-h-screen bg-canvas-base">
       {/* Header */}
-      <div className="bg-canvas-surface border-b border-bdr px-6 py-4 flex items-center gap-3">
+      <div className="bg-canvas-surface border-b border-bdr px-4 sm:px-6 py-4 flex items-center gap-3">
         <button
           onClick={() => navigate(-1)}
           className="bg-canvas-elevated border border-bdr rounded-lg px-3 py-2 text-ink-pri cursor-pointer text-sm hover:border-accent-amber transition-colors inline-flex items-center gap-1.5"
@@ -256,7 +411,7 @@ export default function CheckoutPage(): ReactElement {
       </div>
 
       {/* Breadcrumb */}
-      <div className="max-w-[1080px] mx-auto px-6 pt-5 flex items-center gap-2 font-body text-xs text-ink-muted">
+      <div className="max-w-[1080px] mx-auto px-4 sm:px-6 pt-5 flex items-center gap-2 font-body text-xs text-ink-muted">
         <span>Giỏ hàng</span>
         <ChevronRight size={12} />
         <span className="text-accent-amber font-semibold">Thanh toán</span>
@@ -266,7 +421,7 @@ export default function CheckoutPage(): ReactElement {
 
       {/* Two-column layout */}
       <form onSubmit={(e) => void handleSubmit(onSubmit)(e)} noValidate>
-        <div className="max-w-[1080px] mx-auto px-6 py-6 pb-12 grid grid-cols-[1fr_380px] gap-8 items-start">
+        <div className="max-w-[1080px] mx-auto px-4 sm:px-6 py-6 pb-12 grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 lg:gap-8 items-start">
           {/* LEFT — form */}
           <div className="flex flex-col gap-4">
             {errors.root?.message && (
@@ -280,31 +435,15 @@ export default function CheckoutPage(): ReactElement {
               <h2 className="m-0 font-display font-bold text-base uppercase tracking-[0.04em] text-white">
                 1. Địa chỉ giao hàng
               </h2>
-              <div className="flex flex-col gap-1.5">
-                <label
-                  htmlFor="shipping_address"
-                  className="font-body font-[500] text-[11px] leading-[1.4] text-ink-sec tracking-[0.04em] uppercase"
-                >
-                  Địa chỉ giao hàng đầy đủ
-                </label>
-                <input
-                  id="shipping_address"
-                  placeholder="Họ tên, số điện thoại, số nhà, đường, phường, quận, tỉnh"
-                  autoComplete="shipping street-address"
-                  className={cn(
-                    "h-[44px] bg-canvas-base border rounded-[10px] px-[14px] text-ink-pri font-body text-[14px] outline-none placeholder:text-ink-muted transition-[border-color,box-shadow] duration-[120ms]",
-                    "focus:border-[rgba(245,158,11,0.5)] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)]",
-                    errors.shipping_address
-                      ? "border-accent-red focus:border-accent-red focus:shadow-[0_0_0_4px_rgba(239,68,68,0.10)]"
-                      : "border-bdr",
-                  )}
-                  {...register("shipping_address")}
-                />
-                {errors.shipping_address && (
-                  <span className="text-xs text-accent-red">
-                    {errors.shipping_address.message}
-                  </span>
-                )}
+              <div className="grid sm:grid-cols-2 gap-4">
+                {renderAddressField("fullName", "Họ tên người nhận", "Nguyễn Văn A", "name")}
+                {renderAddressField("phone", "Số điện thoại", "0987654321", "tel")}
+              </div>
+              {renderAddressField("addressLine", "Số nhà, tên đường", "123 Nguyễn Huệ", "address-line1")}
+              <div className="grid sm:grid-cols-3 gap-4">
+                {renderAddressField("ward", "Phường/xã", "Phường Bến Nghé", "address-level3")}
+                {renderAddressField("district", "Quận/huyện", "Quận 1", "address-level2")}
+                {renderAddressField("province", "Tỉnh/thành phố", "TP. Hồ Chí Minh", "address-level1")}
               </div>
             </div>
 
@@ -314,7 +453,7 @@ export default function CheckoutPage(): ReactElement {
                 2. Phương thức thanh toán
               </h2>
               <Controller
-                name="payment_method"
+                name="paymentMethod"
                 control={control}
                 render={({ field }) => (
                   <div className="flex flex-col gap-[10px]">
@@ -361,9 +500,9 @@ export default function CheckoutPage(): ReactElement {
                         );
                       })
                     )}
-                    {errors.payment_method && (
+                    {errors.paymentMethod && (
                       <span className="text-xs text-accent-red">
-                        {errors.payment_method.message}
+                        {errors.paymentMethod.message}
                       </span>
                     )}
                   </div>
@@ -378,7 +517,11 @@ export default function CheckoutPage(): ReactElement {
                   3. Sản phẩm ({items.length})
                 </span>
               </div>
-              {items.map((item) => {
+              {productsError ? (
+                <div className="px-4 py-6 text-center text-accent-red text-sm">
+                  Không thể tải thông tin sản phẩm. Vui lòng thử lại.
+                </div>
+              ) : items.map((item) => {
                 const product = productMap.get(item.productId);
                 const name = product?.name ?? (productsLoading ? "" : "Sản phẩm không còn tồn tại");
                 const imageUrl = product?.imageUrls?.[0] ?? product?.imageUrl ?? "";
@@ -391,21 +534,17 @@ export default function CheckoutPage(): ReactElement {
                     stockError[item.productId] && "bg-red-950/20",
                   )}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     {productsLoading ? (
                       <Skeleton className="w-14 h-14 rounded-[10px] shrink-0" />
-                    ) : imageUrl ? (
-                      <img
+                    ) : (
+                      <ProductThumb
                         src={imageUrl}
                         alt={name}
-                        className="w-14 h-14 rounded-[10px] object-cover flex-shrink-0 bg-canvas-elevated"
+                        className="w-14 h-14 rounded-[10px]"
                       />
-                    ) : (
-                      <div className="w-14 h-14 rounded-[10px] flex-shrink-0 bg-canvas-elevated border border-bdr flex items-center justify-center text-2xl">
-                        🛍️
-                      </div>
                     )}
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-[120px] flex-1">
                       {productsLoading ? (
                         <Skeleton className="h-4 w-3/4 mb-1" />
                       ) : (
@@ -419,10 +558,10 @@ export default function CheckoutPage(): ReactElement {
                           </div>
                         ) : null}
                       <div className="text-xs mt-0.5 font-mono text-accent-amber">
-                        {formatPrice(getEffectivePrice(item))}
+                        {formatVnd(getEffectivePrice(item))}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
                       <button
                         type="button"
                         disabled={isMutating}
@@ -455,7 +594,7 @@ export default function CheckoutPage(): ReactElement {
                         +
                       </button>
                       <span className="font-mono font-bold text-sm text-ink-pri ml-2 min-w-[80px] text-right">
-                        {formatPrice(getEffectivePrice(item) * item.quantity)}
+                        {formatVnd(getEffectivePrice(item) * item.quantity)}
                       </span>
                     </div>
                   </div>
@@ -471,15 +610,33 @@ export default function CheckoutPage(): ReactElement {
           </div>
 
           {/* RIGHT — sticky summary */}
-          <div className="sticky top-[88px] flex flex-col gap-4">
+          <div className="lg:sticky lg:top-[88px] flex flex-col gap-4 w-full">
             <div className="bg-canvas-surface border border-bdr rounded-xl px-4 py-4">
               <div className="flex justify-between items-center mb-2 text-sm text-ink-sec">
                 <span>Tạm tính</span>
-                <span className="font-mono">{formatPrice(totalPrice)}</span>
+                <span className="font-mono">{formatVnd(totalPrice)}</span>
               </div>
-              <div className="flex justify-between items-center mb-2 text-sm text-ink-sec">
+              <div className="flex justify-between items-center mb-2 text-sm text-ink-sec gap-2">
                 <span>Phí vận chuyển</span>
-                <span className="text-accent-green font-medium">Miễn phí</span>
+                {shippingPending ? (
+                  <span className="text-ink-muted">Đang tính…</span>
+                ) : shippingResult ? (
+                  shippingFee === 0 ? (
+                    <span className="text-accent-green font-medium">Miễn phí</span>
+                  ) : (
+                    <span className="font-mono">{formatVnd(shippingFee)}</span>
+                  )
+                ) : shippingFailed ? (
+                  <span className="text-ink-muted">Tính khi giao hàng</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleCalcShipping}
+                    className="text-accent-amber font-medium hover:underline cursor-pointer"
+                  >
+                    Tính phí
+                  </button>
+                )}
               </div>
               <div className="flex justify-between items-center mb-3 text-sm text-ink-sec">
                 <span>Giảm giá</span>
@@ -490,14 +647,14 @@ export default function CheckoutPage(): ReactElement {
                   Tổng thanh toán
                 </span>
                 <span className="font-mono font-black text-2xl text-accent-amber">
-                  {formatPrice(totalPrice)}
+                  {formatVnd(grandTotal)}
                 </span>
               </div>
             </div>
 
             <GradientButton
               type="submit"
-              disabled={loading || Object.keys(stockError).length > 0}
+              disabled={loading || productsError || Object.keys(stockError).length > 0}
               className="w-full py-4 text-lg font-bold rounded-xl"
             >
               {loading ? "Đang đặt hàng..." : "XÁC NHẬN ĐẶT HÀNG →"}

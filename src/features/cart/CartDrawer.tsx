@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import { useNavigate } from "react-router-dom";
 import { Minus, Plus, Trash2 } from "lucide-react";
+import { IconButton } from '@/components/shared/IconButton';
 import { useQuery } from "@tanstack/react-query";
 import {
   useCart,
@@ -10,6 +11,7 @@ import {
 } from "@/hooks/useCart";
 import { GradientButton } from "@/components/shared/GradientButton";
 import { ModalCloseButton } from "@/components/shared/ModalCloseButton";
+import { ProductThumb } from "@/components/shared/ProductThumb";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatPrice, buildVariantLabel } from "@/lib/utils";
 import { api } from "@/api";
@@ -36,7 +38,11 @@ export default function CartDrawer({
     (a, b) => a - b,
   );
 
-  const { data: productsData, isLoading: productsLoading } = useQuery({
+  const {
+    data: productsData,
+    isLoading: productsLoading,
+    isError: productsError,
+  } = useQuery({
     queryKey: queryKeys.products.cartItems(productIds),
     queryFn: () => api.products.getMultipleWithInventory(productIds),
     enabled: productIds.length > 0,
@@ -95,7 +101,11 @@ export default function CartDrawer({
 
         {/* Items */}
         <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
-          {items.length === 0 ? (
+          {productsError ? (
+            <div className="text-center py-10 px-5 text-accent-red flex flex-col items-center gap-2">
+              <p className="m-0 text-sm">Không thể tải thông tin sản phẩm. Vui lòng thử lại.</p>
+            </div>
+          ) : items.length === 0 ? (
             <div className="text-center py-16 px-5 text-ink-sec flex flex-col items-center gap-3">
               <div className="text-5xl">🛒</div>
               <p className="m-0 text-sm">Giỏ hàng trống</p>
@@ -117,10 +127,11 @@ export default function CartDrawer({
                   {productsLoading ? (
                     <Skeleton className="w-24 h-24 rounded-lg shrink-0" />
                   ) : (
-                    <img
+                    <ProductThumb
                       src={imageUrl}
                       alt={name}
-                      className="w-24 h-24 object-cover rounded-lg flex-shrink-0 border border-bdr"
+                      iconSize={28}
+                      className="w-24 h-24 rounded-lg border border-bdr"
                     />
                   )}
                   <div className="flex-1 min-w-0">
@@ -142,21 +153,19 @@ export default function CartDrawer({
                       {formatPrice(getEffectivePrice(item))}
                     </p>
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
+                      <IconButton
                         disabled={isMutating}
                         onClick={() => handleDecrement(item.id, item.quantity)}
-                        className="size-7 grid place-items-center rounded-md border border-bdr bg-canvas-surface text-ink-pri transition-colors enabled:cursor-pointer enabled:hover:border-accent-amber disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="size-7 rounded-md border border-bdr bg-canvas-surface text-ink-pri transition-colors enabled:cursor-pointer enabled:hover:border-accent-amber disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Minus size={13} className="shrink-0" />
-                      </button>
+                      </IconButton>
 
                       <span className="font-mono text-sm font-bold min-w-[20px] text-center text-ink-pri">
                         {item.quantity}
                       </span>
 
-                      <button
-                        type="button"
+                      <IconButton
                         disabled={isMutating}
                         onClick={() =>
                           updateItem.mutate({
@@ -164,10 +173,10 @@ export default function CartDrawer({
                             quantity: item.quantity + 1,
                           })
                         }
-                        className="size-7 grid place-items-center rounded-md border border-bdr bg-canvas-surface text-ink-pri transition-colors enabled:cursor-pointer enabled:hover:border-accent-amber disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="size-7 rounded-md border border-bdr bg-canvas-surface text-ink-pri transition-colors enabled:cursor-pointer enabled:hover:border-accent-amber disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Plus size={13} className="shrink-0" />
-                      </button>
+                      </IconButton>
 
                       <button
                         type="button"
