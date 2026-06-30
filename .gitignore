@@ -10,7 +10,7 @@ Thumbs.db
 .vite/
 coverage/
 design_handoff_trybuy_ui
-
+*.tsbuildinfo
 # Playwright
 /test-results/
 /playwright-report/
