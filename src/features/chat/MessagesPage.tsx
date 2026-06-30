@@ -8,7 +8,7 @@ import { useRole } from '@/hooks/useRole';
 import { queryKeys } from '@/hooks/queryKeys';
 import { api } from '@/api';
 import { queryClient } from '@/lib/queryClient';
-import { useConversations } from './useChat';
+import { useConversations, useMarkConversationRead } from './useChat';
 import { ChatThread } from './ChatThread';
 import { cn } from '@/lib/utils';
 import type { Conversation, User } from '@/types';
@@ -33,8 +33,14 @@ export default function MessagesPage(): ReactElement {
   const initOtherUserId = (location.state as { otherUserId?: number } | null)?.otherUserId;
 
   const { conversations, isLoading } = useConversations();
+  const markConversationRead = useMarkConversationRead();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
+
+  function selectConversation(c: Conversation): void {
+    setSelectedId(c.id);
+    if (c.unreadCount > 0) markConversationRead(c.id);
+  }
 
   const { mutate: openConversation } = useMutation({
     mutationFn: (otherUserId: number) => api.chat.createConversation({ otherUserId }),
@@ -143,11 +149,15 @@ export default function MessagesPage(): ReactElement {
             const otherUser = userMap.get(otherId);
             const displayName = otherUser?.name ?? otherUser?.username ?? `Người dùng #${otherId}`;
             const initials = displayName.charAt(0).toUpperCase();
+            const hasUnread = c.unreadCount > 0;
+            const preview = c.lastMessage
+              ? (c.lastMessage.senderId === meId ? 'Bạn: ' : '') + c.lastMessage.content
+              : 'Bắt đầu cuộc trò chuyện';
             return (
               <button
                 key={c.id}
                 type="button"
-                onClick={() => setSelectedId(c.id)}
+                onClick={() => selectConversation(c)}
                 className={cn(
                   'w-full flex items-center gap-3 px-3 py-3 border-b border-bdr/50 cursor-pointer text-left transition-colors',
                   isActive ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated/50',
@@ -156,15 +166,22 @@ export default function MessagesPage(): ReactElement {
                 <Avatar size={46} src={otherUser?.avatar ?? undefined} alt={displayName} initials={initials} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1">
-                    <span className="font-semibold text-sm text-ink-pri truncate">
+                    <span className={cn('text-sm text-ink-pri truncate', hasUnread ? 'font-bold' : 'font-semibold')}>
                       {displayName}
                     </span>
                     <span className="text-[10px] text-ink-muted flex-none">
-                      {timeAgo(c.createdAt)}
+                      {timeAgo(c.lastMessage?.createdAt ?? c.createdAt)}
                     </span>
                   </div>
-                  <div className="text-xs text-ink-sec truncate">
-                    @{otherUser?.username ?? otherId}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={cn('text-xs truncate', hasUnread ? 'text-ink-pri font-medium' : 'text-ink-sec')}>
+                      {preview}
+                    </span>
+                    {hasUnread && (
+                      <span className="min-w-[18px] h-[18px] px-1 bg-tb-gradient text-ink-pri font-body font-bold text-[10px] rounded-full grid place-items-center leading-none flex-none">
+                        {c.unreadCount > 99 ? '99+' : c.unreadCount}
+                      </span>
+                    )}
                   </div>
                 </div>
               </button>

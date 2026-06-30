@@ -1,31 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
+import { useInfiniteQuery, useQuery, useMutation } from '@tanstack/react-query';
 import { io, type Socket } from 'socket.io-client';
 import { queryClient } from '@/lib/queryClient';
 import { queryKeys } from '@/hooks/queryKeys';
 import { api } from '@/api';
 import { playMessageReceived } from '@/lib/chatSound';
+import { applyIncomingMessage, markConversationReadInList } from './chatConversations';
+import { acquireChatPresenceSocket, setActiveConversation } from './chatPresenceSocket';
 import type { ChatConnectionStatus } from './chatConnection';
 import type { Conversation, Message, PaginatedResponse } from '@/types';
 
 export type ChatMessage = Message & { status?: 'sending' | 'error' };
-
-const STALE_KEY = 'tb:chat:activity';
-const STALE_MS = 3 * 24 * 60 * 60 * 1000;
-
-function readActivityMap(): Record<string, string> {
-  try {
-    return JSON.parse(localStorage.getItem(STALE_KEY) ?? '{}') as Record<string, string>;
-  } catch {
-    return {};
-  }
-}
-
-function markActivity(conversationId: number): void {
-  const map = readActivityMap();
-  map[String(conversationId)] = new Date().toISOString();
-  localStorage.setItem(STALE_KEY, JSON.stringify(map));
-}
 
 const CHAT_URL = (import.meta.env.VITE_CHAT_URL as string | undefined) ?? 'http://localhost:3000';
 
@@ -40,17 +25,34 @@ export function useConversations(): { conversations: Conversation[]; isLoading: 
     queryFn: () => api.chat.getConversations(),
   });
 
-  const conversations = useMemo(() => {
-    if (!data) return [];
-    const activityMap = readActivityMap();
-    const threshold = Date.now() - STALE_MS;
-    return data.filter((c) => {
-      const lastActivity = activityMap[String(c.id)] ?? c.createdAt;
-      return new Date(lastActivity).getTime() > threshold;
-    });
-  }, [data]);
+  // Backend returns conversations ordered most-recently-active first, with
+  // `lastMessage` + `unreadCount` per item — no client-side sort/staleness needed.
+  return { conversations: data ?? [], isLoading };
+}
 
-  return { conversations, isLoading };
+/**
+ * Open the single app-scoped chat presence socket so an online viewer hears a
+ * sound for any incoming message, on any thread, from anywhere in the app.
+ * Mount once high in the tree (the Header is always rendered when authenticated).
+ */
+export function useChatPresence(meId?: number): void {
+  useEffect(() => acquireChatPresenceSocket(meId), [meId]);
+}
+
+/**
+ * Mark a conversation read on the server and optimistically clear its unread
+ * badge in the cached list. Call when the viewer opens a thread.
+ */
+export function useMarkConversationRead(): (conversationId: number) => void {
+  const { mutate } = useMutation({
+    mutationFn: (conversationId: number) => api.chat.markConversationRead(conversationId),
+    onMutate: (conversationId: number) => {
+      queryClient.setQueryData<Conversation[]>(queryKeys.conversations.all, (old) =>
+        old ? markConversationReadInList(old, conversationId) : old,
+      );
+    },
+  });
+  return mutate;
 }
 
 export function useChat(conversationId: number, currentUserId?: number): {
@@ -90,6 +92,14 @@ export function useChat(conversationId: number, currentUserId?: number): {
 
   const socketRef = useRef<ChatSocket | null>(null);
 
+  // Tell the app-scoped presence socket which thread is open so it doesn't also
+  // beep for it (this thread's own socket below handles that).
+  useEffect(() => {
+    if (conversationId <= 0) return;
+    setActiveConversation(conversationId);
+    return () => setActiveConversation(null);
+  }, [conversationId]);
+
   useEffect(() => {
     if (conversationId <= 0) return;
 
@@ -112,7 +122,6 @@ export function useChat(conversationId: number, currentUserId?: number): {
 
     socket.on('new_message', (msg: Message) => {
       if (msg.conversationId === conversationId) {
-        markActivity(conversationId);
         const viewerId = currentUserIdRef.current;
         if (viewerId !== undefined && msg.senderId !== viewerId) {
           playMessageReceived();
@@ -123,12 +132,10 @@ export function useChat(conversationId: number, currentUserId?: number): {
           if (idx === -1) return prev;
           return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
         });
-        queryClient.setQueryData<Conversation[]>(queryKeys.conversations.all, (old) => {
-          if (!old) return old;
-          return old.map((c) =>
-            c.id === conversationId ? { ...c, updatedAt: msg.createdAt } : c,
-          ) as Conversation[];
-        });
+        // Refresh the list preview/order; this thread is open so it stays read.
+        queryClient.setQueryData<Conversation[]>(queryKeys.conversations.all, (old) =>
+          old ? applyIncomingMessage(old, msg, viewerId, conversationId) : old,
+        );
       }
     });
 
@@ -163,7 +170,6 @@ export function useChat(conversationId: number, currentUserId?: number): {
     };
     setPendingMessages((prev) => [...prev, pending]);
     socketRef.current?.emit('send_message', { conversationId, content });
-    markActivity(conversationId);
   }
 
   return { messages, isLoading, sendMessage, hasNextPage, fetchNextPage, isFetchingNextPage, connectionStatus };

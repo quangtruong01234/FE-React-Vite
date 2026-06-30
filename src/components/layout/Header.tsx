@@ -4,6 +4,8 @@ import { Search, Plus, MessageSquare, ShoppingCart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { useCart } from '@/hooks/useCart';
+import { useRole } from '@/hooks/useRole';
+import { useChatPresence } from '@/features/chat/useChat';
 import { NotificationBell } from './NotificationBell';
 import { ProfileMenu } from './ProfileMenu';
 import { openCreatePost } from '@/features/social/composerEvents';
@@ -14,6 +16,9 @@ export function Header(): ReactElement {
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') ?? '');
   const { data: cart } = useCart();
   const totalCount = cart?.items.length ?? 0;
+
+  // App-wide chat sound: play a beep for any incoming message while online.
+  useChatPresence(useRole()?.me?.id);
 
   function handleSearchSubmit(e: React.FormEvent): void {
     e.preventDefault();
