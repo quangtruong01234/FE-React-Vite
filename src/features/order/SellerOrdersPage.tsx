@@ -4,9 +4,10 @@ import { ArrowLeft, ChevronDown, MapPin, Package, Truck, User, Wallet } from 'lu
 import { useSellerOrders } from './useSellerOrders';
 import { useConfirmOrder } from './useConfirmOrder';
 import { useReadyToShip } from './useReadyToShip';
-import { useAdvanceOrder, type AdvanceKind } from './useAdvanceOrder';
 import { useSellerOrderDetail } from './useSellerOrderDetail';
 import { getSellerOrderAction, type SellerActionKind } from './sellerOrderActions';
+import { sellerOrderActionErrorMessage } from './sellerOrderActionError';
+import { ShippingAddressBlock } from './ShippingAddressBlock';
 import { PAYMENT_LABEL } from './orderConstants';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { IconButton } from '@/components/shared/IconButton';
@@ -15,10 +16,6 @@ import { Pagination } from '@/components/shared/Pagination';
 import type { OrderStatus, OrderWithBuyer, SellerOrderItemDetail } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatPrice } from '@/lib/utils';
-
-const ADVANCE_KINDS: readonly SellerActionKind[] = ['ship', 'deliver', 'complete'];
-const isAdvanceKind = (kind: SellerActionKind): kind is AdvanceKind =>
-  (ADVANCE_KINDS as readonly string[]).includes(kind);
 
 type FilterKey = 'all' | OrderStatus;
 
@@ -167,7 +164,7 @@ function OrderCard({
             <span className="font-body text-[11px] font-semibold uppercase tracking-wide text-ink-muted inline-flex items-center gap-1.5">
               <MapPin size={12} className="shrink-0" /> Giao đến
             </span>
-            <span className="font-body text-sm text-white leading-relaxed">{order.shippingAddress}</span>
+            <ShippingAddressBlock raw={order.shippingAddress} className="font-body" />
           </div>
 
           {/* GHN tracking */}
@@ -232,7 +229,6 @@ export default function SellerOrdersPage(): ReactElement {
   const { data, isLoading, error } = useSellerOrders(page, LIMIT, activeStatus);
   const confirmMutation = useConfirmOrder();
   const shipMutation = useReadyToShip();
-  const advanceMutation = useAdvanceOrder();
 
   const orders: OrderWithBuyer[] = data?.data ?? [];
   const totalPages = data?.totalPages ?? 1;
@@ -243,6 +239,15 @@ export default function SellerOrdersPage(): ReactElement {
         : 'Lỗi tải đơn hàng')
     : null;
 
+  // A seller action can now legitimately fail (e.g. ready-to-ship 400 when GHN
+  // cannot resolve the shipping address — order stays `confirmed`). Surface the
+  // failed order id + a friendly reason instead of silently swallowing it.
+  const actionError: { id: number; message: string } | null = shipMutation.isError
+    ? { id: shipMutation.variables, message: sellerOrderActionErrorMessage(shipMutation.error, 'ready-to-ship') }
+    : confirmMutation.isError
+      ? { id: confirmMutation.variables, message: sellerOrderActionErrorMessage(confirmMutation.error, 'confirm') }
+      : null;
+
   const handleTabChange = (key: FilterKey): void => {
     setFilterTab(key);
     setPage(1);
@@ -251,13 +256,11 @@ export default function SellerOrdersPage(): ReactElement {
   const handleAction = (kind: SellerActionKind, id: number): void => {
     if (kind === 'confirm') confirmMutation.mutate(id);
     else if (kind === 'ready-to-ship') shipMutation.mutate(id);
-    else if (isAdvanceKind(kind)) advanceMutation.mutate({ id, kind });
   };
 
   const pendingKindFor = (id: number): SellerActionKind | null => {
     if (confirmMutation.isPending && confirmMutation.variables === id) return 'confirm';
     if (shipMutation.isPending && shipMutation.variables === id) return 'ready-to-ship';
-    if (advanceMutation.isPending && advanceMutation.variables?.id === id) return advanceMutation.variables.kind;
     return null;
   };
 
@@ -287,6 +290,12 @@ export default function SellerOrdersPage(): ReactElement {
         {errorMsg && (
           <div className="bg-red-950/30 border border-accent-red text-accent-red px-4 py-3 rounded-xl mb-6 text-sm font-body">
             {errorMsg}
+          </div>
+        )}
+
+        {actionError && (
+          <div className="bg-red-950/30 border border-accent-red text-accent-red px-4 py-3 rounded-xl mb-6 text-sm font-body">
+            <span className="font-mono font-bold">#{actionError.id}</span> · {actionError.message}
           </div>
         )}
 

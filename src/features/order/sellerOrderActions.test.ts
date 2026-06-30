@@ -14,13 +14,14 @@ describe('getSellerOrderAction', () => {
     expect(action?.label).not.toMatch(/đã giao/i);
   });
 
-  it.each<[OrderStatus, string]>([
-    ['processing', 'ship'],
-    ['shipped', 'deliver'],
-    ['delivering', 'complete'],
-  ])('maps %s → %s (post-processing lifecycle)', (status, kind) => {
-    expect(getSellerOrderAction(status)?.kind).toBe(kind);
-  });
+  it.each<OrderStatus>(['processing', 'shipped', 'delivering'])(
+    'exposes no seller action once handed to GHN (%s is carrier/buyer-driven)',
+    (status) => {
+      // Shopee-style: after ready-to-ship the seller has no manual advance —
+      // shipped → delivering → completed are driven by the GHN webhook / buyer.
+      expect(getSellerOrderAction(status)).toBeNull();
+    },
+  );
 
   it.each<OrderStatus>(['completed', 'canceled'])(
     'exposes no seller action for terminal status %s',

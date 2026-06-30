@@ -12,6 +12,7 @@ import {
 import { GradientButton } from "@/components/shared/GradientButton";
 import { ModalCloseButton } from "@/components/shared/ModalCloseButton";
 import { ProductThumb } from "@/components/shared/ProductThumb";
+import { effectiveUnitPrice } from "./shippingFee";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatPrice, buildVariantLabel } from "@/lib/utils";
 import { api } from "@/api";
@@ -57,12 +58,7 @@ export default function CartDrawer({
   if (!isOpen) return null;
 
   function getEffectivePrice(item: (typeof items)[0]): number {
-    const product = productMap.get(item.productId);
-    if (item.skuId != null && product?.skus?.length) {
-      const sku = product.skus.find((s) => Number(s.id) === item.skuId);
-      if (sku) return Number(sku.price);
-    }
-    return Number(product?.price ?? 0);
+    return effectiveUnitPrice(item, productMap.get(item.productId));
   }
 
   const total = items.reduce(

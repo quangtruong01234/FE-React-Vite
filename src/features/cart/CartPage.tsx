@@ -11,6 +11,7 @@ import { IconButton } from '@/components/shared/IconButton';
 import { ProductThumb } from '@/components/shared/ProductThumb';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ProductWithInventory } from '@/types';
+import { effectiveUnitPrice } from './shippingFee';
 
 export default function CartPage(): ReactElement {
   const navigate = useNavigate();
@@ -42,12 +43,7 @@ export default function CartPage(): ReactElement {
   const isLoading = cartLoading || productsLoading;
 
   function getEffectivePrice(item: (typeof items)[0]): number {
-    const product = productMap.get(item.productId);
-    if (item.skuId != null && product?.skus?.length) {
-      const sku = product.skus.find(s => Number(s.id) === item.skuId);
-      if (sku) return Number(sku.price);
-    }
-    return Number(product?.price ?? 0);
+    return effectiveUnitPrice(item, productMap.get(item.productId));
   }
 
   const selectedItems = items.filter(i => selectedIds.has(i.id));

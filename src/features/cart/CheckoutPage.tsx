@@ -21,6 +21,8 @@ import {
 import { usePaymentOptions } from "./usePaymentOptions";
 import { setPendingCheckout } from "./pendingCheckout";
 import { buildCheckoutSignature, resolveIdempotencyKey } from "./idempotency";
+import { effectiveUnitPrice, buildShippingFeeItems } from "./shippingFee";
+import { resolvePaymentUrl } from "@/lib/paymentUrl";
 import { api } from "@/api";
 import {
   useCart,
@@ -78,12 +80,7 @@ export default function CheckoutPage(): ReactElement {
   productsData?.forEach((p) => productMap.set(Number(p.id), p));
 
   function getEffectivePrice(item: (typeof items)[0]): number {
-    const p = productMap.get(item.productId);
-    if (item.skuId != null && p?.skus?.length) {
-      const sku = p.skus.find((s) => Number(s.id) === item.skuId);
-      if (sku) return Number(sku.price);
-    }
-    return Number(p?.price ?? 0);
+    return effectiveUnitPrice(item, productMap.get(item.productId));
   }
 
   const totalPrice = items.reduce(
@@ -137,14 +134,7 @@ export default function CheckoutPage(): ReactElement {
     mutationFn: (shippingAddress: string) =>
       api.orders.getShippingFee({
         shippingAddress,
-        items: items.map((item) => {
-          const p = productMap.get(item.productId);
-          return {
-            productName: p?.name,
-            quantity: item.quantity,
-            price: getEffectivePrice(item),
-          };
-        }),
+        items: buildShippingFeeItems(items, productMap),
       }),
   });
 
@@ -251,9 +241,11 @@ export default function CheckoutPage(): ReactElement {
       } else {
         const isPartial = selectedIds.size > 0 && items.length < allItems.length;
         try {
+          // Single-order: poll payment-url — the gateway generates it
+          // asynchronously, so it can briefly be null right after create.
           const paymentUrl = isMultiSeller
             ? result.paymentUrl
-            : (await api.orders.getPaymentUrl(result.id)).orderUrl;
+            : (await resolvePaymentUrl(() => api.orders.getPaymentUrl(result.id))).orderUrl;
           if (!paymentUrl) throw new Error('Không nhận được đường dẫn thanh toán.');
           // P0-04: do NOT clear the cart here. Record what this checkout covered
           // so PaymentResultPage can remove exactly those items once the gateway

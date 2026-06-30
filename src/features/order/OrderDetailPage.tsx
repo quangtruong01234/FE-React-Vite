@@ -8,6 +8,7 @@ import { useCancelOrder } from './useCancelOrder';
 import { useOrderInvoice } from './useOrderInvoice';
 import { useOrderPaymentUrl } from './useOrderPaymentUrl';
 import { useRole } from '@/hooks/useRole';
+import { ShippingAddressBlock } from './ShippingAddressBlock';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ProductThumb } from '@/components/shared/ProductThumb';
 import { StarRating } from '@/components/shared/StarRating';
@@ -204,7 +205,7 @@ export default function OrderDetailPage(): ReactElement {
           <div className="text-xs font-semibold uppercase tracking-wide text-ink-muted mb-2 flex items-center gap-1.5">
             <MapPin size={13} /> Giao đến
           </div>
-          <div className="text-sm text-white leading-relaxed">{order.shippingAddress}</div>
+          <ShippingAddressBlock raw={order.shippingAddress} />
         </div>
         <div className="bg-canvas-surface border border-bdr rounded-xl p-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-ink-muted mb-2 flex items-center gap-1.5">
@@ -302,6 +303,11 @@ export default function OrderDetailPage(): ReactElement {
           {getPaymentUrl.error instanceof Error
             ? getPaymentUrl.error.message
             : 'Không thể lấy đường dẫn thanh toán. Vui lòng thử lại.'}
+        </p>
+      )}
+      {cancelOrder.isError && (
+        <p className="mt-3 mb-0 font-body text-sm text-accent-red">
+          Không thể hủy đơn hàng. Vui lòng thử lại.
         </p>
       )}
     </div>
