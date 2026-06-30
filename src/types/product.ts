@@ -34,6 +34,9 @@ export interface Product {
   sharesCount: number;
   viewCount: number;
   sellerNotes?: string;
+  /** Shipping weight in grams. Backend column is nullable (`int`), so an
+   *  unweighed product reads back as `null`; used for GHN shipping-fee calc. */
+  weight?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }

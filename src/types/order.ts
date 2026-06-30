@@ -13,7 +13,7 @@ export interface OrderItem {
   skuId?: number | null;
   /** Human-readable SKU label e.g. "Màu sắc: Đỏ, Size: M", or null. Server-enriched. */
   skuLabel?: string | null;
-  /** First product image (realtime), or null when the product has none / was deleted. Server-enriched. */
+  /** First product image, purchase-time snapshot (P2-02) — stable even if the product is later edited/deleted; null when the product had none. Server-enriched. */
   image?: string | null;
 }
 
@@ -57,7 +57,7 @@ export interface OrderWithBuyer extends Order {
 export interface SellerOrderItemDetail extends OrderItem {
   sellerId?: number;
   skuTierIdx?: string | null;
-  /** First product image, or null when the product has none. */
+  /** First product image, purchase-time snapshot (P2-02) — stable even if the product is later edited/deleted; null when the product had none. */
   image: string | null;
   /** Human-readable SKU label e.g. "Màu sắc: Đỏ, Size: M", or null. */
   skuLabel: string | null;

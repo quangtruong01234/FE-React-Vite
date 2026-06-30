@@ -121,6 +121,11 @@ export const api = {
 
     getAll: (): Promise<User[]> =>
       request<User[]>('/user/all'),
+
+    getPaginated: (page = 1, limit = 20): Promise<PaginatedResponse<User>> => {
+      const qs = toQuery({ page, limit });
+      return request<PaginatedResponse<User>>(`/user${qs}`);
+    },
   },
 
   products: {
@@ -145,8 +150,8 @@ export const api = {
     getWithInventory: (id: number): Promise<ProductWithInventory> =>
       request<ProductWithInventory>(`/products/${id}/with-inventory`),
 
-    // P2-06: the batch endpoint 404s the whole request if ANY id was deleted, so
-    // fall back to per-id fetches on 404 — one missing product can't blank a cart.
+    // P2-06 (resolved): backend now skips missing ids and returns partial array;
+    // fetchBatchTolerant kept as safety net — fan-out only triggers on 404 which no longer happens.
     getMultipleWithInventory: (productIds: number[]): Promise<ProductWithInventory[]> =>
       fetchBatchTolerant(
         productIds,
@@ -156,6 +161,9 @@ export const api = {
         }),
         (id) => request<ProductWithInventory>(`/products/${id}/with-inventory`),
       ),
+
+    getShopStats: (): Promise<{ productCount: number; totalStock: number; lowStockCount: number }> =>
+      request('/products/shop/stats'),
 
     create: (data: CreateProductDto): Promise<Product> =>
       request<Product>('/products', { method: 'POST', body: JSON.stringify(data) }),
@@ -382,6 +390,9 @@ export const api = {
 
     markRead: (id: number): Promise<{ success: boolean }> =>
       request<{ success: boolean }>(`/notifications/${id}/read`, { method: 'PATCH' }),
+
+    getUnreadCount: (): Promise<{ unreadCount: number }> =>
+      request('/notifications/unread-count'),
   },
 
   chat: {
@@ -395,6 +406,9 @@ export const api = {
       const qs = toQuery({ page, limit });
       return request<PaginatedResponse<Message>>(`/chat/conversations/${conversationId}/messages${qs}`);
     },
+
+    markConversationRead: (conversationId: number): Promise<void> =>
+      request(`/chat/conversations/${conversationId}/read`, { method: 'POST' }),
   },
 
   inventory: {

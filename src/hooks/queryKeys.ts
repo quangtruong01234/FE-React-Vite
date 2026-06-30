@@ -10,6 +10,7 @@ export const queryKeys = {
     bySku: (sku: string) => ['products', 'sku', sku] as const,
     byCategory: (categoryId: number) => ['products', 'category', categoryId] as const,
     byBrand: (brandId: number) => ['products', 'brand', brandId] as const,
+    shopStats: ['products', 'shop-stats'] as const,
   },
   brands: {
     all: ['brands'] as const,
