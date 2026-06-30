@@ -1,4 +1,4 @@
-import { type ReactElement } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Users, ShoppingBag } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -34,16 +34,24 @@ function formatDate(iso: string): string {
   });
 }
 
+const USERS_PER_PAGE = 20;
+
 export default function AdminPage(): ReactElement {
+  const [usersPage, setUsersPage] = useState(1);
+
   const { data: ordersData, isLoading: ordersLoading } = useQuery({
     queryKey: queryKeys.orders.admin,
     queryFn: () => api.orders.getAdminOrders(1, 10),
   });
 
-  const { data: users, isLoading: usersLoading } = useQuery({
-    queryKey: queryKeys.users.all,
-    queryFn: () => api.users.getAll(),
+  const { data: usersData, isLoading: usersLoading } = useQuery({
+    queryKey: [...queryKeys.users.all, usersPage, USERS_PER_PAGE],
+    queryFn: () => api.users.getPaginated(usersPage, USERS_PER_PAGE),
   });
+
+  const users = usersData?.data ?? [];
+  const userTotal = usersData?.total ?? 0;
+  const userTotalPages = usersData?.totalPages ?? 1;
 
   return (
     <div className="max-w-5xl mx-auto py-8 px-4 space-y-8">
@@ -70,7 +78,7 @@ export default function AdminPage(): ReactElement {
           <div>
             <div className="text-ink-muted font-body text-xs mb-0.5">Tổng người dùng</div>
             <div className="font-display font-bold text-2xl text-ink-pri">
-              {usersLoading ? '—' : (users?.length ?? 0)}
+              {usersLoading ? '—' : userTotal}
             </div>
           </div>
         </div>
@@ -140,7 +148,12 @@ export default function AdminPage(): ReactElement {
 
       {/* Users table */}
       <section className="space-y-3">
-        <h2 className="font-display font-semibold text-base text-ink-pri">Tất cả người dùng</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-display font-semibold text-base text-ink-pri">
+            Tất cả người dùng
+            {!usersLoading && <span className="ml-2 font-normal text-ink-muted text-sm">({userTotal})</span>}
+          </h2>
+        </div>
         <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -160,14 +173,14 @@ export default function AdminPage(): ReactElement {
                   </td>
                 </tr>
               )}
-              {!usersLoading && !users?.length && (
+              {!usersLoading && !users.length && (
                 <tr>
                   <td colSpan={5} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
                     Không có người dùng nào.
                   </td>
                 </tr>
               )}
-              {users?.map((user, idx) => (
+              {users.map((user, idx) => (
                 <tr
                   key={user.id}
                   className={cn(
@@ -195,6 +208,29 @@ export default function AdminPage(): ReactElement {
               ))}
             </tbody>
           </table>
+          {!usersLoading && userTotalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-bdr">
+              <span className="font-body text-xs text-ink-muted">
+                Trang {usersPage} / {userTotalPages}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setUsersPage(p => Math.max(1, p - 1))}
+                  disabled={usersPage === 1}
+                  className="px-3 py-1 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec font-body text-xs hover:border-accent-amber/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Trước
+                </button>
+                <button
+                  onClick={() => setUsersPage(p => Math.min(userTotalPages, p + 1))}
+                  disabled={usersPage === userTotalPages}
+                  className="px-3 py-1 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec font-body text-xs hover:border-accent-amber/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Tiếp
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
     </div>
