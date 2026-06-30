@@ -131,7 +131,28 @@
 - **Dọn dead code:** xóa `src/features/product/ChatRoom.tsx` — mock chat cũ (dữ liệu giả, hardcoded hex, vi phạm styling).
 - **Test:** `chatConnection.test.ts` (5 cases). `npm run build` pass. `ChatDialog.tsx` (popup inline) đã có nhưng chưa wire — để dành.
 
-> Còn chờ backend (xem `snapshot.md`): unread count + last-message preview (`lastMessage`/`unreadCount` trên `Conversation`); E2E 2 tài khoản qua runtime.
+#### P1-06 follow-up — Chat metadata (lastMessage + unreadCount) tích hợp — DONE (2026-06-26)
+
+Backend giao (handoff P1-06, 2026-06-26): `GET /chat/conversations` giờ trả mỗi conversation kèm `lastMessage` + `unreadCount` + `user1/2LastReadAt`, đã sort active-first; thêm `POST /chat/conversations/:id/read` reset unread của viewer.
+
+- **Types** (`types/chat.ts`): `Conversation` thêm `user1LastReadAt`/`user2LastReadAt`/`lastMessage: ConversationLastMessage | null`/`unreadCount`. Type mới `ConversationLastMessage`.
+- **API**: `api.chat.markConversationRead(id)` → `POST /chat/conversations/:id/read`.
+- **Bỏ hack localStorage**: `useConversations` xóa hẳn activity-map (`tb:chat:activity`, `STALE_KEY`/`STALE_MS`, `readActivityMap`/`markActivity`) + sort/staleness client-side — server đã sort active-first + trả metadata thật. Giờ chỉ `return data ?? []`.
+- **Helper thuần + test** (`chatConversations.ts` + `.test.ts`, 11 case): `conversationActivityTime`/`sortByActivity` (active-first), `applyIncomingMessage` (cập nhật `lastMessage`, bump `unreadCount` cho inbound ở thread không active, giữ 0 cho thread đang mở, không bump outbound, re-sort), `markConversationReadInList` (zero badge optimistic).
+- **Socket** (`useChat`): `new_message` dùng `applyIncomingMessage` thay vì set field `updatedAt` không tồn tại; bỏ `markActivity`.
+- **`useMarkConversationRead`** (mutation, optimistic zero badge qua `markConversationReadInList`).
+- **`MessagesPage`**: preview render `lastMessage.content` (prefix "Bạn: " khi tự gửi, fallback "Bắt đầu cuộc trò chuyện") thay vì `@username`; badge `unreadCount` (pattern `bg-tb-gradient` như `NotificationBell`); tên + preview in đậm khi có unread; thời gian theo `lastMessage.createdAt ?? createdAt`; click thread → `markConversationRead(id)`.
+- **Test:** full suite **126 unit tests pass** (22 files); `build` + `lint` (0 errors) xanh.
+- Còn nợ runtime: E2E 2 tài khoản (open → send → receive → unread badge → mark read → reconnect).
+
+#### ready-to-ship now gates on a real GHN waybill — failure surfaced to seller — DONE (2026-06-29)
+
+Backend giao (handoff NEW, 2026-06-28): `PATCH /api/order/:id/ready-to-ship` giờ resolve free-text shipping address → GHN IDs và **tạo waybill trước** khi advance. Thành công → `200`, order `processing` với `ghnOrderCode` non-null thật. Address không resolve được → `400`, order **giữ `confirmed`**. GHN unreachable → `500`, giữ `confirmed`.
+
+- **FE action #1 (render `ghnOrderCode`)**: đã sẵn — `SellerOrdersPage` render mã GHN ở cả card row + detail block (`order.ghnOrderCode`), không cần đổi code, chỉ bỏ giả định field luôn null.
+- **FE action #2 (surface failure)**: ready-to-ship/confirm không còn nuốt lỗi vào `console.error`. Helper thuần `sellerOrderActionError.ts` (`sellerOrderActionErrorMessage(error, kind)`) map status → message tiếng Việt: ready-to-ship `400` → "địa chỉ giao hàng không hợp lệ…", `500` → "không kết nối được GHN, đơn vẫn ở trạng thái đã xác nhận…"; fallback dùng server message rồi generic theo `kind`. `SellerOrdersPage` derive `actionError` từ mutation nào đang `isError` (kèm `variables` = order id) và render banner `#id · message` dưới banner lỗi list.
+- **Test:** `sellerOrderActionError.test.ts` (7 case, ready-to-ship 400/500/fallback/server-message + confirm không áp mapping 400). `build` (tsc + vite) xanh.
+- Còn nợ runtime: full-stack E2E (seller bấm "Sẵn sàng giao" với address xấu → 400 + banner; address tốt → `ghnOrderCode` hiện).
 
 ## P2
 
@@ -156,7 +177,12 @@
 - **Fix — shared component:** thêm `src/components/shared/ProductThumb.tsx` (+ test, 4 cases): không bao giờ `<img src="">`; có `src` → `<img object-cover>`, không có → icon `Package` trong `grid place-items-center`. Optional prop `to` → render `<Link>`.
 - **Migrate 7 call site:** `CartPage`, `CartDrawer`, `CheckoutPage`, `ProductChip`, `ShopPage`, `OrderHistoryPage`, `OrderDetailPage`. `ProductCard` giữ inline (badge overlay tuyệt đối). `npm run build` pass.
 
-> Còn chờ backend (xem `snapshot.md`): order snapshot lưu name/image/SKU tại thời điểm mua.
+#### P2-02 follow-up — backend order snapshot tích hợp — DONE (2026-06-26)
+
+Backend persist snapshot purchase-time của product image + SKU label cho order item (handoff P2-02, 2026-06-26); response shape không đổi — `item.image`/`item.skuLabel` giờ backed bởi snapshot thay vì live lookup, order cũ render đúng dù product bị sửa/xóa.
+
+- **FE không cần đổi hành vi:** order pages đã đọc decorated `item.image`/`item.skuLabel`/`item.productName` từ P1-02; `useProductsByIds` đã gỡ khỏi mọi order page (chỉ social attachment còn dùng).
+- Chỉ refresh 2 comment type trong `src/types/order.ts` (`OrderItem.image`, `SellerOrderItemDetail.image`) từ "realtime" → "purchase-time snapshot" cho đúng semantics. Đóng note "còn nợ backend" của P2-02 dưới P1-02.
 
 ### P2-03 — Auth completeness — DONE (2026-06-25)
 
@@ -184,7 +210,18 @@
 - **`NotificationsPage`** (`/notifications`): `useNotifications(page)` parameterize, limit 50 → 10; `markRead` optimistic target đúng cache trang hiện tại; `<Pagination>`.
 - **`MarketplacePage`**: migrate sang `<Pagination>` dùng chung, GIỮ `limit: 12` (ngoại lệ).
 
-> Còn chờ backend (xem `snapshot.md`): Admin Users pagination, Shop stats+search server-side, Notifications unread-count endpoint.
+#### P2-05 follow-up — backend pagination/stat endpoints tích hợp — DONE (2026-06-26)
+
+Backend giao 3 endpoint additive (handoff P2-05, 2026-06-26). FE đã chuyển khỏi các fallback `limit` cao / tính client-side:
+
+- **Admin Users → `GET /user?page=&limit=`** (`api.users.getPaginated`, `PaginatedResponse<User>`). `AdminPage` đổi từ `users.getAll()` (`/user/all`) sang paginated (20/trang): query key `[...users.all, page, limit]`, state `usersPage`, card "Tổng người dùng" đọc `total` server (không còn `users.length` của 1 trang), thêm prev/next + "Trang x / y". `getAll()` giữ lại cho consumer khác.
+- **Shop stats → `GET /products/shop/stats`** (`api.products.getShopStats` → `{ productCount, totalStock, lowStockCount }`, query key `products.shopStats`). `ShopPage` 3 stat card đọc số toàn shop từ endpoint, fallback về aggregation client-side (`products.length`/reduce/filter) khi đang load → số đúng cả khi danh sách phân trang, không chỉ trang hiện tại.
+- **Notifications badge → `GET /notifications/unread-count`** (`api.notifications.getUnreadCount` → `{ unreadCount }`, query key `notifications.unreadCount`). `useNotifications` badge đọc count toàn cục thay vì đếm `!isRead` trên trang đã load. `markRead` optimistic decrement count cache (chỉ khi item đang unread) + rollback on error; socket realtime increment count khi insert thật (dedup qua `didInsert`).
+- **Test:** `didInsert` helper (pure, `notificationCache.ts`) + 3 case trong `notificationCache.test.ts`. Full suite **118 unit tests pass**; `build` + `lint` (0 errors) xanh.
+
+#### P2-06 follow-up — backend tolerant batch endpoint — DONE (2026-06-26)
+
+Backend fix `POST /products/with-inventory/multiple`: skip id thiếu trả mảng partial (+ `inventory: null` khi inventory service down) thay vì 404 toàn batch. FE giữ `fetchBatchTolerant` làm safety net (fan-out giờ no-op trên happy path); cập nhật comment ở `api.products.getMultipleWithInventory`.
 
 ### P3-01 — Quality gates (phần đã làm) (2026-06-25)
 

@@ -12,7 +12,7 @@
 
 | Purpose | URL | Namespace | Events from server | Events from client |
 |---|---|---|---|---|
-| Notifications | `ws://localhost:3010` | `/` (default) | `notification` | none — server-push only |
+| Notifications | `ws://localhost:3000/notifications` | `/notifications` | `notification` | none — server-push only |
 | Chat | `ws://localhost:3000/chat` | `/chat` | `new_message`, `error` | `join`, `send_message` |
 
 Auth: both gateways read the `access_token` HttpOnly cookie automatically when `withCredentials: true`. No token passing in handshake options.

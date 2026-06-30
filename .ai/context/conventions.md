@@ -1,5 +1,21 @@
 # Conventions — Forms, Components, Lodash, TS, Env
 
+## Naming
+
+- Use meaningful names that describe the value's purpose.
+- Avoid vague names (`a`, `b`, `data`, `result`, `temp`, `value`, `obj`, `arr`, `list`) unless the scope is very small and the meaning is obvious.
+  - **Exception — TanStack Query destructure:** `const { data, isLoading } = useQuery(...)` is the idiomatic v5 shape; the bare `data` is allowed at the call site. Alias it (`data: products`) when passed further down or when multiple queries coexist.
+- `camelCase` for variables and functions; `PascalCase` for React components and TS types/interfaces; `UPPER_SNAKE_CASE` only for module-level constants.
+  - **Exception — backend/external mirror:** keep `snake_case` for type fields that mirror a backend or external-API response verbatim (`created_at`, `public_id`, `rol_name`) — see `core.md`. Do NOT rename these.
+- Boolean variables must start with `is`, `has`, `can`, `should`, `will`, or `needs`.
+- Arrays use plural names (`orders`, `shipments`, `selectedItems`).
+- Map/record objects include the key relationship (`orderById`, `statusLabelMap`, `permissionsByRole`).
+- Event handlers inside React components use `handleX` (`handleSubmit`, `handleStatusChange`); callback props use `onX` (`onSubmit`, `onStatusChange`).
+- **Plain functions/utils** start with a verb (`fetchOrders`, `createShipment`, `calculateShippingFee`, `formatCurrency`). This does NOT apply to React components (PascalCase noun, e.g. `ProductCard`) or hooks (fixed `use` prefix, e.g. `useAuth`).
+- Name API payloads/responses clearly (`loginPayload`, `loginResponse`, `createOrderPayload`).
+- Include units when relevant (`timeoutMs`, `priceVnd`, `weightGram`, `retryCount`).
+- Use this project's domain terms consistently: `order`, `OrderStatus`, `orderItem`, `ghnOrderCode` (mã vận đơn GHN), `shippingAddress`, `shippingFee`, `paymentMethod`, `sku`, `product`. There is no separate `shipment` entity, and GHN is the sole carrier — do not invent `trackingCode`, `ghnStatus`, or `logisticsOperator`.
+
 ## Component Rules
 
 - Functional components only — no class components

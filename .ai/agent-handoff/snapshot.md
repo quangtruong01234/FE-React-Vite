@@ -1,6 +1,6 @@
 # Snapshot — TryBuy Frontend Current State
 
-> Cập nhật: 2026-06-25 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
+> Cập nhật: 2026-06-30 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
 > Keep this LEAN: only the live picture (overview, open/blocked work, known issues).
 > Push finished work to `CHANGELOG.md` (same folder, not auto-loaded).
 > Conventions/rules live in `.ai/context/` — do not duplicate them here.
@@ -34,27 +34,25 @@ xanh (`lint`/`build`/`test:run`). Hiện chặn bởi: backend items bên dướ
   /order/user/:id/status-counts`. Đã verify live qua Chrome DevTools MCP (user 17):
   badges 42/11/6/25 khớp, tên thật render, 404 `products/with-inventory/multiple`
   đã biến mất (chi tiết + bug-fix → `CHANGELOG.md`).
-  - Còn nợ phía backend: order snapshot name/image/SKU tại thời điểm mua (xem
-    P2-02 — fields hiện realtime, sẽ sai nếu product bị xóa/đổi ảnh).
-- **P1-06 · Chat metadata.** Trả `lastMessage` + `unreadCount` trên `Conversation`
-  cho unread count / last-message preview.
-- **P2-02 · Order snapshot.** Lưu product name/image/SKU tại thời điểm mua để order
-  cũ render đúng dù product đổi/xóa (FE chỉ enrich realtime qua `useProductsByIds`).
-- **P2-06 · Batch product endpoint resilience — FE mitigation DONE (2026-06-25).**
-  `POST /products/with-inventory/multiple` trả `404 "Product not found"` nếu BẤT KỲ
-  id nào trong batch đã bị xóa → giết cả response. **FE đã vá tại API layer:**
-  `api.products.getMultipleWithInventory` bọc qua `lib/fetchBatchTolerant` — happy
-  path vẫn 1 batch request, chỉ fan-out per-id khi gặp 404 rồi drop id thiếu (cover
-  hết 5 consumer kể cả cart pages). Test `fetchBatchTolerant.test.ts` (4 case).
-  **Còn nợ backend:** nên skip id thiếu trả mảng partial thay vì 404 (khi đó FE
-  fan-out thành no-op).
-- **P2-05 · Pagination/stat endpoints** (FE giữ `limit` cao tới khi có, tránh giấu data):
-  - Admin Users: `GET /user?page=&limit=` trả `PaginatedResponse<User>` (hiện
-    `GET /user/all` → `User[]` không phân trang).
-  - Shop stats + search: endpoint tổng-stock/low-stock độc lập pagination + search
-    server-side theo name/SKU, rồi `/sell` mới drop 10/trang.
-  - Notifications unread badge: `GET /notifications/unread-count` (hoặc field
-    `unreadCount` trên list response) cho badge chính xác toàn cục.
+  - Order snapshot (P2-02) đã DONE — `item.image`/`skuLabel` giờ là snapshot tại
+    thời điểm mua, đúng cả khi product bị xóa/đổi ảnh.
+- **P1-06 · Chat metadata — DONE (backend + FE, 2026-06-26).** `GET /chat/conversations`
+  trả `lastMessage`/`unreadCount`/`user1-2LastReadAt`, sort active-first; `POST
+  /chat/conversations/:id/read` reset unread. FE bỏ hack localStorage activity-map,
+  render preview + badge, mark-read khi mở thread. Chi tiết → `CHANGELOG.md` (P1-06
+  follow-up). Còn nợ runtime: E2E 2 tài khoản.
+- **P2-02 · Order snapshot — DONE (backend + FE, 2026-06-26).** `item.image`/`skuLabel`
+  giờ backed bởi snapshot purchase-time; order pages đã đọc field này từ P1-02 nên
+  không cần đổi code (chỉ refresh comment type). Chi tiết → `CHANGELOG.md`.
+- **P2-06 · Batch product endpoint resilience — DONE (backend + FE, 2026-06-26).**
+  Backend skip id thiếu trả mảng partial (+ `inventory: null` khi inventory down)
+  thay vì 404 toàn batch. FE giữ `lib/fetchBatchTolerant` làm safety net (fan-out
+  no-op trên happy path). Chi tiết → `CHANGELOG.md` (P2-06 follow-up).
+- **P2-05 · Pagination/stat endpoints — DONE (backend + FE, 2026-06-26).**
+  Admin Users `GET /user?page=&limit=` (paginated UI 20/trang); Shop stats
+  `GET /products/shop/stats` (3 stat card, fallback client-side khi load);
+  Notifications badge `GET /notifications/unread-count` (count toàn cục + optimistic
+  decrement + socket increment). Chi tiết → `CHANGELOG.md` (P2-05 follow-up).
 
 ### Còn lại phía FE
 
@@ -79,6 +77,62 @@ xanh (`lint`/`build`/`test:run`). Hiện chặn bởi: backend items bên dướ
 - Register + 401 redirect + role boundary (P2-03): ĐÃ phủ bằng RTL/integration test
   (`LoginPage.test.tsx`, `api/index.test.ts`, `roleAccess.test.ts`). Còn lại chỉ là
   full-stack E2E thật (live backend) nếu muốn smoke cuối.
+
+### Known issues from whole-web audit (2026-06-30)
+
+Verified:
+
+- `npm.cmd run build` pass.
+- `npm.cmd run test:run` pass: 26 files / 148 tests.
+- `npm.cmd run lint` exits 0 with 23 warnings.
+- Runtime smoke on desktop (`techstore_demo`, FE on `127.0.0.1:5174`): login, feed,
+  marketplace render without horizontal overflow. Mobile runtime still needs a stable dev
+  server session; the background Vite process died during viewport emulation/reload.
+
+Open bugs / gaps:
+
+- **Price formatting / API contract mismatch (FE + backend contract).** Runtime marketplace
+  and right rail show prices like `2000.00 đ`, `39.00 đ`, `299000.00 đ`. FE types declare
+  `Product.price` / `ProductSku.price` as `number`, but backend/runtime values arrive as
+  decimal strings. `formatPrice()` accepts `number`, so a string value keeps its raw
+  decimal text. Fix options: normalize numeric money fields in the API adapter before
+  data reaches components, or update the shared contract to model backend decimal strings
+  and coerce inside price helpers. Add regression tests for string decimal input.
+- **Auth loading blank state (FE).** `ProtectedRoute` returns `null` while `/user/me` is
+  loading, producing a blank protected route instead of `PageSkeleton`.
+- **Internal error navigation does a full reload (FE).** `ApiErrorState` uses
+  `window.location.href` for internal app routes; should use router navigation.
+- **Header search submit button lacks accessible name (FE).** The icon-only search button
+  has no visible text or `aria-label`; runtime a11y snapshot reports it as an unnamed
+  button.
+- **Socket dev configuration gap (FE config + backend CORS/environment).** On FE origin
+  `127.0.0.1:5174`, chat socket requests to `http://localhost:3000/socket.io` spam CORS
+  errors. This may be expected if backend allow-list only permits `localhost:5173`, but
+  repo also lacks `.env.example` and code uses `VITE_WS_NOTIFICATION_URL` while guidance
+  mentions `VITE_NOTIFICATION_URL`. Align env docs/names and verify socket CORS on the
+  canonical dev origin.
+- **React Compiler / lint warnings (FE-fixable).** `npm run lint` has 23 warnings.
+  These are not caused by API responses. Track as FE cleanup, with priority on the
+  warnings that can cause extra renders/stale state:
+  - `ProfilePage`: replaces `useState(() => setPostsLoaded(true))` effect-like trigger;
+    reset pagination without synchronous effect churn.
+  - `MarketplacePage`: move `page/setPage` state before the URL-sync effect; avoid
+    `setState` directly in effect if the search param can be derived.
+  - `CartPage`, `ProductDetail`, `ChatDialog`, `BasicInfoSection`, `ApiErrorState`:
+    remove/reshape synchronous `setState` in effects where possible.
+  - `useChat`, `CreateProductPage`: stop writing refs during render; update refs in
+    effects or restructure handlers.
+  - `ShopPage`: stabilize `products` fallback so `useMemo` deps do not change every
+    render.
+  - `CheckoutPage`: React Hook Form `watch()` warning is an advisory; keep unless it
+    produces stale UI, or isolate the subscription in a smaller hook.
+  - Fast-refresh export warnings (`ui/button`, `ui/badge`, contexts, router) are dev
+    ergonomics only; lower priority than runtime-facing warnings.
+- **Styling debt (FE).** Static scan still finds inline `style={{}}` outside `Avatar`,
+  hardcoded hex, raw Tailwind palette classes, and arbitrary sizing/radius in multiple
+  UI files (`TextField`, `LoginPage`, `CheckoutPage`, `PaymentResultPage`, order/social
+  pages). This is not a runtime blocker but violates project styling rules and should be
+  cleaned in small scoped passes.
 
 ## Definition of production-ready
 
