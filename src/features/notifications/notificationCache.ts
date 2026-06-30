@@ -16,3 +16,16 @@ export function prependNotification(
   if (cache.data.some((n) => n.id === incoming.id)) return cache;
   return { ...cache, data: [incoming, ...cache.data], total: cache.total + 1 };
 }
+
+/**
+ * True when `prependNotification` actually inserted a row (i.e. not a deduped
+ * duplicate). Used to bump the global unread badge only on genuinely new events.
+ * An empty/absent prior cache counts as an insert — the socket delivered a new one.
+ */
+export function didInsert(
+  before: NotifCache | undefined,
+  after: NotifCache | undefined,
+): boolean {
+  if (!before) return true;
+  return after?.total !== before.total;
+}

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Notification } from '@/types';
-import { prependNotification, type NotifCache } from './notificationCache';
+import { prependNotification, didInsert, type NotifCache } from './notificationCache';
 
 function notif(id: number, partial: Partial<Notification> = {}): Notification {
   return {
@@ -42,5 +42,23 @@ describe('prependNotification', () => {
 
   it('returns the cache unchanged when there is no cache yet', () => {
     expect(prependNotification(undefined, notif(1))).toBeUndefined();
+  });
+});
+
+describe('didInsert', () => {
+  it('is true when a new notification was prepended (total grew)', () => {
+    const before = cache(notif(1));
+    const after = prependNotification(before, notif(2));
+    expect(didInsert(before, after)).toBe(true);
+  });
+
+  it('is false when the event was a deduped duplicate (total unchanged)', () => {
+    const before = cache(notif(1), notif(2));
+    const after = prependNotification(before, notif(1));
+    expect(didInsert(before, after)).toBe(false);
+  });
+
+  it('is true when there was no prior cache (a genuinely new event arrived)', () => {
+    expect(didInsert(undefined, undefined)).toBe(true);
   });
 });

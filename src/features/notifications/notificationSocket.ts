@@ -2,9 +2,9 @@ import { io, type Socket } from 'socket.io-client';
 import { queryClient } from '@/lib/queryClient';
 import { queryKeys } from '@/hooks/queryKeys';
 import type { Notification } from '@/types';
-import { prependNotification, type NotifCache } from './notificationCache';
+import { prependNotification, didInsert, type NotifCache } from './notificationCache';
 
-const NOTIF_URL = (import.meta.env.VITE_WS_NOTIFICATION_URL as string | undefined) ?? 'http://localhost:3010';
+const NOTIF_URL = (import.meta.env.VITE_WS_NOTIFICATION_URL as string | undefined) ?? 'http://localhost:3000';
 
 type NotifSocket = Socket<{ notification: (n: Notification) => void }, Record<never, never>>;
 
@@ -23,12 +23,22 @@ export function acquireNotificationSocket(): () => void {
   refCount += 1;
 
   if (!socket) {
-    socket = io(NOTIF_URL, { withCredentials: true });
+    // Backend serves notifications on the `/notifications` namespace of the
+    // gateway origin (mirrors chat's `/chat`) — NOT the default namespace.
+    socket = io(`${NOTIF_URL}/notifications`, { withCredentials: true });
     socket.on('notification', (incoming: Notification) => {
-      queryClient.setQueryData<NotifCache>(
-        queryKeys.notifications.list(1),
-        (old) => prependNotification(old, incoming),
-      );
+      const listKey = queryKeys.notifications.list(1);
+      const before = queryClient.getQueryData<NotifCache>(listKey);
+      const after = prependNotification(before, incoming);
+      queryClient.setQueryData<NotifCache>(listKey, after);
+      // Only bump the global unread badge when the notification was actually
+      // inserted (prependNotification dedupes duplicate socket events).
+      if (didInsert(before, after) && !incoming.isRead) {
+        queryClient.setQueryData<{ unreadCount: number }>(
+          queryKeys.notifications.unreadCount,
+          (old) => ({ unreadCount: (old?.unreadCount ?? 0) + 1 }),
+        );
+      }
     });
   }
 
