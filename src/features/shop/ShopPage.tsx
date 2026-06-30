@@ -11,7 +11,7 @@ import {
   Search,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ToggleSwitch } from "@/components/shared/ToggleSwitch";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -256,6 +256,13 @@ export default function ShopPage() {
   const { data, isLoading, isFetching } = useProducts(shopParams);
   const showSkeleton = isLoading || isFetching;
   const products = data?.data ?? [];
+
+  // Shop-wide stats from a dedicated endpoint (counts the whole shop, not just
+  // the current page) — falls back to client-side aggregation while loading.
+  const { data: shopStats } = useQuery({
+    queryKey: queryKeys.products.shopStats,
+    queryFn: () => api.products.getShopStats(),
+  });
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
@@ -325,11 +332,13 @@ export default function ShopPage() {
     );
   }, [products, search]);
 
-  const totalStock = products.reduce(
-    (s, p) => s + (p.inventory?.availableStock ?? 0),
-    0,
-  );
-  const lowStockCount = products.filter((p) => p.inventory?.isLowStock).length;
+  const productCount = shopStats?.productCount ?? products.length;
+  const totalStock =
+    shopStats?.totalStock ??
+    products.reduce((s, p) => s + (p.inventory?.availableStock ?? 0), 0);
+  const lowStockCount =
+    shopStats?.lowStockCount ??
+    products.filter((p) => p.inventory?.isLowStock).length;
 
   return (
     <div className="min-h-screen bg-canvas-base">
@@ -376,7 +385,7 @@ export default function ShopPage() {
         <div className="grid grid-cols-3 gap-4 mb-7">
           <StatCard
             label="Tổng sản phẩm"
-            value={showSkeleton ? 0 : products.length}
+            value={showSkeleton ? 0 : productCount}
             icon={Package2}
           />
           <StatCard
