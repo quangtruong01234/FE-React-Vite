@@ -2,9 +2,9 @@ import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, ShoppingCart } from 'lucide-react';
 import { Star } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { formatPrice } from '@/lib/utils';
-import { useAddToCart } from '@/hooks/useCart';
+import { cn } from '@/lib/format/utils';
+import { formatPrice } from '@/lib/format/utils';
+import { useAddToCart } from '@/hooks/data/useCart';
 import { IconButton } from '@/components/shared/IconButton';
 import type { ProductWithInventory } from '@/types';
 

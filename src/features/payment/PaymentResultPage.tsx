@@ -4,10 +4,11 @@ import { useSearchParams } from 'react-router-dom';
 import { CheckCircle, XCircle, CreditCard } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
-import { useRemoveCartItem, useClearCart } from '@/hooks/useCart';
+import { useRemoveCartItem, useClearCart } from '@/hooks/data/useCart';
 import { getPendingCheckout, clearPendingCheckout } from '@/features/cart/pendingCheckout';
 import { GradientButton } from '@/components/shared/GradientButton';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
+import { queryKeys } from '@/hooks/query/queryKeys';
 
 export default function PaymentResultPage(): ReactElement {
   const [searchParams] = useSearchParams();
@@ -21,7 +22,7 @@ export default function PaymentResultPage(): ReactElement {
   const gwLabel = method === 'vnpay' ? 'VNPay' : 'ZaloPay';
 
   const { data, isLoading } = useQuery({
-    queryKey: ['payment-result', params],
+    queryKey: queryKeys.payment.result(params),
     queryFn: () => api.payment.getResult(params),
     enabled: Object.keys(params).length > 0,
     retry: false,

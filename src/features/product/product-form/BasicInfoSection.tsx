@@ -4,11 +4,11 @@ import { Input } from '@/components/ui/input';
 import { IconButton } from '@/components/shared/IconButton';
 import { Label } from '@/components/ui/label';
 import { RichTextEditor } from '@/components/shared/RichTextEditor';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
 import { api } from '@/api';
 import type { Brand, Category, ProductCondition } from '@/types';
 import type { ImageItem, FormErrors } from './useProductForm';
-import { uploadProductImage } from '@/lib/cloudinary';
+import { uploadProductImage } from '@/lib/http/cloudinary';
 
 const MAX_IMAGES = 6;
 

@@ -15,14 +15,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ToggleSwitch } from "@/components/shared/ToggleSwitch";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
-import { formatPrice } from "@/lib/utils";
+import { cn } from "@/lib/format/utils";
+import { formatPrice } from "@/lib/format/utils";
 import { useProducts } from "../product/useProducts";
 import { productCategoryNames } from "../product/productCategories";
 import { IconButton } from "@/components/shared/IconButton";
 import { ProductThumb } from "@/components/shared/ProductThumb";
 import { api } from "@/api";
-import { queryKeys } from "@/hooks/queryKeys";
+import { queryKeys } from "@/hooks/query/queryKeys";
 import { useAuthContext } from "@/context/AuthContext";
 import type { ProductWithInventory } from "@/types";
 

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
-import { formatPrice } from '@/lib/utils';
-import { queryKeys } from '@/hooks/queryKeys';
+import { formatPrice } from '@/lib/format/utils';
+import { queryKeys } from '@/hooks/query/queryKeys';
 import type { ProductParams, ProductWithInventory, PaginatedResponse } from '@/types';
 
 const getRelativeTime = (dateString?: string): string => {

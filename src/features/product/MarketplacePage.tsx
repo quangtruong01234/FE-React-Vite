@@ -2,11 +2,11 @@ import { useState, useEffect, useMemo, type ReactElement } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { SlidersHorizontal, PackageX, ChevronDown, ChevronUp, Check, Search, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatVnd } from '@/lib/format/utils';
 import { api } from '@/api';
-import { queryKeys } from '@/hooks/queryKeys';
+import { queryKeys } from '@/hooks/query/queryKeys';
 import { useProducts } from './useProducts';
-import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useDebouncedValue } from '@/hooks/ui/useDebouncedValue';
 import { Pagination } from '@/components/shared/Pagination';
 import { buildProductParams, DEFAULT_MAX_PRICE } from './productParams';
 import ProductCard from './ProductCard';
@@ -379,8 +379,8 @@ export default function MarketplacePage(): ReactElement {
                       className="w-full accent-amber-500"
                     />
                     <div className="flex justify-between text-[10px] text-ink-muted font-mono mt-1">
-                      <span>{minPrice > 0 ? `${minPrice.toLocaleString('vi-VN')}₫` : '0₫'}</span>
-                      <span>{maxPrice < DEFAULT_MAX_PRICE ? `${maxPrice.toLocaleString('vi-VN')}₫` : 'Không giới hạn'}</span>
+                      <span>{formatVnd(minPrice)}</span>
+                      <span>{maxPrice < DEFAULT_MAX_PRICE ? formatVnd(maxPrice) : 'Không giới hạn'}</span>
                     </div>
                   </div>
 

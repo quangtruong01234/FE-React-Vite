@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import type { CreateProductDto, ProductCondition } from '@/types';
-import { uploadProductImage, deleteMedia } from '@/lib/cloudinary';
+import { uploadProductImage, deleteMedia } from '@/lib/http/cloudinary';
 
 export interface VarGroup {
   name: string;

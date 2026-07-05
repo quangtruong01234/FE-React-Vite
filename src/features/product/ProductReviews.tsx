@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuthContext } from '@/context/AuthContext';
-import { useProductReviews, useDeleteReview } from './useProductReviews';
+import { useProductReviews, useDeleteReview } from '@/hooks/data/useProductReviews';
 import { StarRating } from '@/components/shared/StarRating';
 
 interface ProductReviewsProps {

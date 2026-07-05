@@ -1,7 +1,7 @@
 import { useState, type ReactElement } from 'react';
 import { CopyCheck } from 'lucide-react';
 import { IconButton } from '@/components/shared/IconButton';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
 import type { ComboItem, VarGroup, FormErrors, SkuRowState } from './useProductForm';
 
 const cellInput = cn(
