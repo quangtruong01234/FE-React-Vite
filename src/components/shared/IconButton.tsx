@@ -1,5 +1,5 @@
 import { type ReactElement, type ButtonHTMLAttributes } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
 
 export function IconButton({
   className,

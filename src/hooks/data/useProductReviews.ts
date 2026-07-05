@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
-import { queryKeys } from '@/hooks/queryKeys';
+import { queryKeys } from '@/hooks/query/queryKeys';
 import type { ProductReviewDto } from '@/types';
 
 export function useProductReviews(productId: number, page: number) {

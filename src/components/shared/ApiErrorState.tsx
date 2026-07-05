@@ -15,7 +15,7 @@ import {
   ArrowLeft,
   Home,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
 import { GradientButton } from '@/components/shared/GradientButton';
 import type { ApiError } from '@/types';
 

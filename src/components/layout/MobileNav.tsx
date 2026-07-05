@@ -1,7 +1,7 @@
 import { type ReactElement } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { cn } from '@/lib/utils';
-import { useRole } from '@/hooks/useRole';
+import { cn } from '@/lib/format/utils';
+import { useRole } from '@/hooks/auth/useRole';
 import { getPrimaryNavItems } from './navItems';
 
 /**

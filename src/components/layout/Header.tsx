@@ -1,10 +1,10 @@
 import { useState, type ReactElement } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Plus, MessageSquare, ShoppingCart } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
 import { GradientButton } from '@/components/shared/GradientButton';
-import { useCart } from '@/hooks/useCart';
-import { useRole } from '@/hooks/useRole';
+import { useCart } from '@/hooks/data/useCart';
+import { useRole } from '@/hooks/auth/useRole';
 import { useChatPresence } from '@/features/chat/useChat';
 import { NotificationBell } from './NotificationBell';
 import { ProfileMenu } from './ProfileMenu';

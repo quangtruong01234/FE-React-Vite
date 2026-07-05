@@ -1,4 +1,11 @@
-import { createContext, useContext, useState, type ReactNode, type ReactElement } from 'react';
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+  type ReactElement,
+} from 'react';
 import type { ApiError } from '@/types';
 
 interface ApiErrorContextValue {
@@ -10,11 +17,10 @@ const ApiErrorContext = createContext<ApiErrorContextValue | null>(null);
 
 export function ApiErrorProvider({ children }: { children: ReactNode }): ReactElement {
   const [globalError, setGlobalError] = useState<ApiError | null>(null);
-  return (
-    <ApiErrorContext.Provider value={{ globalError, setGlobalError }}>
-      {children}
-    </ApiErrorContext.Provider>
-  );
+  // Memoize so consumers don't re-render on unrelated provider renders
+  // (setGlobalError from useState is already identity-stable).
+  const value = useMemo(() => ({ globalError, setGlobalError }), [globalError]);
+  return <ApiErrorContext.Provider value={value}>{children}</ApiErrorContext.Provider>;
 }
 
 export function useApiError(): ApiErrorContextValue {

@@ -55,6 +55,44 @@ export interface ReportPostDto {
   reason: string;
 }
 
+// --- Social: admin moderation (F5) ---
+
+export type PostReportStatus = 'pending' | 'resolved' | 'dismissed';
+
+export interface PostReport {
+  id: number;
+  reporterId: number;
+  reason: string;
+  status: PostReportStatus;
+  createdAt: string;
+}
+
+/** Post as returned in the admin reports queue — carries moderation flags. */
+export interface ReportedPost extends Post {
+  isHidden: boolean;
+  hiddenAt: string | null;
+}
+
+/** One row of `GET /social/admin/reports` — reports grouped per post. */
+export interface ReportedPostGroup {
+  post: ReportedPost;
+  reportCount: number;
+  pendingCount: number;
+  latestReportedAt: string;
+  reports: PostReport[];
+}
+
+export interface ModeratePostResult {
+  postId: number;
+  isHidden: boolean;
+}
+
+export interface DismissReportsResult {
+  postId: number;
+  /** Number of pending reports flipped to dismissed. */
+  dismissed: number;
+}
+
 export interface CreateCommentDto {
   content: string;
 }

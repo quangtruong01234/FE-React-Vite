@@ -22,9 +22,12 @@ const ShopPage           = lazy(() => import('@/features/shop/ShopPage'));
 const AdminPage               = lazy(() => import('@/features/admin/AdminPage'));
 const PendingBrandsPage       = lazy(() => import('@/features/admin/PendingBrandsPage'));
 const PendingCategoriesPage   = lazy(() => import('@/features/admin/PendingCategoriesPage'));
+const ReportedPostsPage       = lazy(() => import('@/features/admin/ReportedPostsPage'));
 const CreateProductPage       = lazy(() => import('@/features/product/CreateProductPage'));
 const CartPage           = lazy(() => import('@/features/cart/CartPage'));
 const SellerOrdersPage   = lazy(() => import('@/features/order/SellerOrdersPage'));
+const ReturnRequestsPage       = lazy(() => import('@/features/order/ReturnRequestsPage'));
+const SellerReturnRequestsPage = lazy(() => import('@/features/order/SellerReturnRequestsPage'));
 
 function AppLayout(): ReactElement {
   return (
@@ -96,6 +99,7 @@ export const router = createBrowserRouter([
       { path: 'cart',               element: <CartPage /> },
       { path: 'checkout',          element: <CheckoutPage /> },
       { path: 'orders',            element: <OrderHistoryPage /> },
+      { path: 'returns',           element: <ReturnRequestsPage /> },
       { path: 'order/:id',         element: <OrderDetailPage /> },
       { path: 'payment-result',    element: <PaymentResultPage /> },
       { path: 'profile/:id',       element: <ProfilePage /> },
@@ -121,6 +125,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute requiredRole="shop">
             <SellerOrdersPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'sell/returns',
+        element: (
+          <ProtectedRoute requiredRole="shop">
+            <SellerReturnRequestsPage />
           </ProtectedRoute>
         ),
       },
@@ -154,6 +166,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute requiredRole="admin">
             <PendingCategoriesPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin/reports',
+        element: (
+          <ProtectedRoute requiredRole="admin">
+            <ReportedPostsPage />
           </ProtectedRoute>
         ),
       },

@@ -2,8 +2,8 @@ import { type ReactElement, type ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
-import { queryKeys } from '@/hooks/queryKeys';
-import { roleSatisfies, type RequiredRole } from '@/lib/roleAccess';
+import { queryKeys } from '@/hooks/query/queryKeys';
+import { roleSatisfies, type RequiredRole } from '@/lib/auth/roleAccess';
 
 interface ProtectedRouteProps {
   children: ReactNode;

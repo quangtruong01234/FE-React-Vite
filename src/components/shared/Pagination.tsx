@@ -1,7 +1,7 @@
 import { type ReactElement } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { getPageItems } from '@/lib/pagination';
+import { cn } from '@/lib/format/utils';
+import { getPageItems } from '@/lib/format/pagination';
 
 interface PaginationProps {
   page: number;

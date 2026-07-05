@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
-import { queryKeys } from './queryKeys';
-import type { AddToCartDto, ServerCart, ServerCartItem, UpdateCartItemDto } from '@/types';
+import { queryKeys } from '@/hooks/query/queryKeys';
+import { addItemToCartCache } from '@/hooks/query/cartCache';
+import type { AddToCartDto, ServerCart, UpdateCartItemDto } from '@/types';
 
 export function useCart() {
   return useQuery<ServerCart | null>({
@@ -17,31 +18,9 @@ export function useAddToCart() {
     onMutate: async (data: AddToCartDto) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.cart.all });
       const previous = queryClient.getQueryData<ServerCart | null>(queryKeys.cart.all);
-      queryClient.setQueryData<ServerCart | null>(queryKeys.cart.all, old => {
-        if (!old) return old;
-        const existing = old.items.find(
-          i => i.productId === data.productId && i.skuId === (data.skuId ?? null),
-        );
-        if (existing) {
-          return {
-            ...old,
-            items: old.items.map(i =>
-              i === existing ? { ...i, quantity: i.quantity + data.quantity } : i,
-            ),
-          };
-        }
-        const optimisticItem: ServerCartItem = {
-          id: -Date.now(),
-          cartId: old.id,
-          productId: data.productId,
-          skuId: data.skuId ?? null,
-          skuTierIdx: null,
-          quantity: data.quantity,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        return { ...old, items: [...old.items, optimisticItem] };
-      });
+      queryClient.setQueryData<ServerCart | null>(queryKeys.cart.all, old =>
+        addItemToCartCache(old, data),
+      );
       return { previous };
     },
     onError: (_err, _data, ctx) => {

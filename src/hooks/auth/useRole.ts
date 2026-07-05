@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
-import { queryKeys } from '@/hooks/queryKeys';
-import { canSell, canAdminister } from '@/lib/roleAccess';
+import { queryKeys } from '@/hooks/query/queryKeys';
+import { canSell, canAdminister } from '@/lib/auth/roleAccess';
 import type { User } from '@/types';
 
 interface RoleState {

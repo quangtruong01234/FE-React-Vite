@@ -1,23 +1,18 @@
 import { useRef, useState, useEffect, type ReactElement } from 'react';
 import { User, Package, Store, LayoutDashboard, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
 import { Avatar } from '@/components/shared/Avatar';
-import { useRole } from '@/hooks/useRole';
-import { api } from '@/api';
+import { useRole } from '@/hooks/auth/useRole';
+import { useAuthContext } from '@/context/AuthContext';
 
 export function ProfileMenu(): ReactElement {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const roleState = useRole();
-
-  const { mutate: logout } = useMutation({
-    mutationFn: () => api.auth.logout(),
-    onSuccess: () => {
-      void navigate('/login');
-    },
-  });
+  // Central logout (useAuth) clears the cache and broadcasts to other tabs —
+  // don't replace with a local mutation, or other tabs keep the dead session.
+  const { logout } = useAuthContext();
 
   useEffect(() => {
     function handleClick(e: MouseEvent): void {
@@ -84,7 +79,7 @@ export function ProfileMenu(): ReactElement {
 
           <div className="h-px bg-bdr my-1.5" />
           <button
-            onClick={() => logout()}
+            onClick={() => logout({ onSuccess: () => void navigate('/login') })}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-[10px] bg-transparent border-0 cursor-pointer hover:bg-canvas-elevated transition-colors text-left text-sm text-ink-sec"
           >
             <LogOut size={15} /> Đăng xuất

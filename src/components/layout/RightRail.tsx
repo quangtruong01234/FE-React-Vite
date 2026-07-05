@@ -2,24 +2,23 @@ import { type ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { Store, TrendingUp, BadgeCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
 import { Avatar } from '@/components/shared/Avatar';
 import { PriceText } from '@/components/shared/PriceText';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/api';
-import { queryKeys } from '@/hooks/queryKeys';
-import type { User, ProductWithInventory, PaginatedResponse } from '@/types';
+import { queryKeys } from '@/hooks/query/queryKeys';
+import type { ProductWithInventory, PaginatedResponse } from '@/types';
+
+const FEATURED_SELLER_LIMIT = 5;
 
 export function RightRail(): ReactElement {
-  const { data: usersData, isLoading: loadingUsers } = useQuery({
-    queryKey: queryKeys.users.all,
-    queryFn: () => api.users.getAll(),
+  const { data: sellersData, isLoading: loadingUsers } = useQuery({
+    queryKey: queryKeys.users.featuredSellers(FEATURED_SELLER_LIMIT),
+    queryFn: () => api.users.getFeaturedSellers(FEATURED_SELLER_LIMIT),
   });
 
-  // TODO: filter by role when API supports it
-  const sellers: User[] = (usersData ?? [])
-    .filter(u => u.role.rol_name === 'shop' || u.role.rol_name === 'admin')
-    .slice(0, 5);
+  const sellers = sellersData ?? [];
 
   const { data: productsData, isLoading: loadingProducts } = useQuery<PaginatedResponse<ProductWithInventory>>({
     queryKey: queryKeys.products.list({ sortBy: 'viewCount', sortOrder: 'DESC', limit: 5 }),
@@ -66,7 +65,7 @@ export function RightRail(): ReactElement {
                   {s.name ?? s.username}
                   <BadgeCheck size={13} className="text-accent-amber flex-none" />
                 </div>
-                <div className="text-[11px] text-ink-muted">{s.role.rol_name}</div>
+                <div className="text-[11px] text-ink-muted truncate">@{s.username}</div>
               </div>
             </Link>
           ))}

@@ -31,13 +31,18 @@ export const queryKeys = {
     seller: ['orders', 'seller'] as const,
     sellerList: (page: number, limit: number, status?: string) => ['orders', 'seller', page, limit, status] as const,
     sellerDetail: (id: number) => ['orders', 'seller', 'detail', id] as const,
+    returnRequests: ['orders', 'return-requests'] as const,
+    returnMine: (page: number, limit: number) => ['orders', 'return-requests', 'mine', page, limit] as const,
+    returnQueue: (page: number, limit: number, status?: string) => ['orders', 'return-requests', 'queue', page, limit, status] as const,
   },
   auth: {
     me: ['auth', 'me'] as const,
   },
   users: {
     all: ['users'] as const,
+    list: (page: number, limit: number) => ['users', 'list', page, limit] as const,
     detail: (id: number) => ['users', id] as const,
+    featuredSellers: (limit: number) => ['users', 'featured-sellers', limit] as const,
   },
   social: {
     feed: (page: number) => ['social', 'feed', page] as const,
@@ -49,6 +54,8 @@ export const queryKeys = {
     followers: (userId: number) => ['social', 'user', userId, 'followers'] as const,
     following: (userId: number) => ['social', 'user', userId, 'following'] as const,
     isFollowing: (viewerId: number, targetId: number) => ['social', 'is-following', viewerId, targetId] as const,
+    adminReports: ['social', 'admin-reports'] as const,
+    adminReportsList: (status: string, page: number) => ['social', 'admin-reports', status, page] as const,
   },
   notifications: {
     list: (page: number) => ['notifications', 'list', page] as const,
@@ -62,6 +69,7 @@ export const queryKeys = {
   },
   payment: {
     options: ['payment', 'options'] as const,
+    result: (params: Record<string, string>) => ['payment', 'result', params] as const,
   },
   inventory: {
     all: ['inventory'] as const,

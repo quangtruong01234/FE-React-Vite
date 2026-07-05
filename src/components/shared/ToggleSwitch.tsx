@@ -1,5 +1,5 @@
 import { type ReactElement } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/format/utils";
 
 interface ToggleSwitchProps {
   checked: boolean;

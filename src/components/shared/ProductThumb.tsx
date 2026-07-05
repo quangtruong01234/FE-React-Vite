@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { Package } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
 
 interface ProductThumbProps {
   /** Image URL. When empty/null a placeholder icon renders instead of `<img src="">`. */

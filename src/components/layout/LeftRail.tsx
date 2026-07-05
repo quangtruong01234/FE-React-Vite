@@ -1,11 +1,11 @@
 import { type ReactElement } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  Store, LayoutDashboard, PlusCircle, Tag, Layers, ClipboardList,
+  Store, LayoutDashboard, PlusCircle, Tag, Layers, ClipboardList, Flag,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
 import { Avatar } from '@/components/shared/Avatar';
-import { useRole } from '@/hooks/useRole';
+import { useRole } from '@/hooks/auth/useRole';
 import { getPrimaryNavItems } from './navItems';
 
 export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactElement {
@@ -149,6 +149,18 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
               <Layers size={16} className="shrink-0" />
             </span>
             <span className="flex-1 font-body font-semibold text-sm text-ink-pri">Duyệt danh mục</span>
+          </Link>
+          <Link
+            to="/admin/reports"
+            className={cn(
+              'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors',
+              isActive('/admin/reports') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
+            )}
+          >
+            <span className="size-8 rounded-full bg-accent-amber/10 text-accent-amber flex-none grid place-items-center">
+              <Flag size={16} className="shrink-0" />
+            </span>
+            <span className="flex-1 font-body font-semibold text-sm text-ink-pri">Kiểm duyệt bài viết</span>
           </Link>
         </>
       )}

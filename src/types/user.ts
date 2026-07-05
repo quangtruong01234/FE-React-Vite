@@ -36,3 +36,11 @@ export interface UpdateUserDto {
   email?: string;
   avatar?: string;
 }
+
+/** Public seller card for the feed right-rail — no email/role/grants. */
+export interface FeaturedSeller {
+  id: number;
+  username: string;
+  name: string | null;
+  avatar: string | null;
+}

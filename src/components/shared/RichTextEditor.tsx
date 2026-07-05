@@ -5,7 +5,7 @@ import CharacterCount from '@tiptap/extension-character-count';
 import { Bold, Italic, List, ListOrdered, ImagePlus, Heading2, Minus } from 'lucide-react';
 import { useRef, type ReactElement, type ChangeEvent } from 'react';
 import { IconButton } from '@/components/shared/IconButton';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
 
 const MAX_CHARS = 5000;
 

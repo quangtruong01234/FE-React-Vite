@@ -1,6 +1,6 @@
 import { type ReactElement } from 'react';
-import { formatPrice } from '@/lib/utils';
-import { cn } from '@/lib/utils';
+import { formatPrice } from '@/lib/format/utils';
+import { cn } from '@/lib/format/utils';
 
 type PriceSize = 'sm' | 'md' | 'lg';
 
