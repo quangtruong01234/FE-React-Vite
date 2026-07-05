@@ -1,13 +1,12 @@
 import { createContext, useContext, type ReactElement, type ReactNode } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/hooks/auth/useAuth';
 import type { User } from '@/types';
 
 interface AuthContextValue {
   currentUser: User | null;
   isLoading: boolean;
   loginSuccess: (user: User) => void;
-  handleUnauthorized: () => void;
-  logout: () => void;
+  logout: (options?: { onSuccess?: () => void }) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);

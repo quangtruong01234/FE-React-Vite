@@ -9,7 +9,7 @@ import { registerSchema, type RegisterFormData } from './auth.schema';
 import { api } from '@/api';
 import { useAuthContext } from '@/context/AuthContext';
 import type { User } from '@/types';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { TextField } from '@/components/shared/TextField';
 // ─── Ghost button (social login) ──────────────────────────────────────────────
