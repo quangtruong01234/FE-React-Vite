@@ -31,7 +31,16 @@ describe('orderFilterCounts', () => {
       all: 0,
       pending: 0,
       completed: 0,
+      return: 0,
       canceled: 0,
     });
+  });
+
+  it('groups both return statuses into the return tab', () => {
+    expect(orderFilterCounts({ ...counts, return_requested: 2, refunded: 3 }).return).toBe(5);
+  });
+
+  it('treats missing return-status counts as zero (endpoint not yet updated)', () => {
+    expect(orderFilterCounts(counts).return).toBe(0);
   });
 });

@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
 import { parseShippingAddress, formatAddressLines } from './shippingAddress';
 
 /** Renders a pipe-delimited GHN shipping address as a readable block

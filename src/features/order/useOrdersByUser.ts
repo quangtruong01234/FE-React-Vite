@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { api } from '@/api';
-import { queryKeys } from '@/hooks/queryKeys';
+import { queryKeys } from '@/hooks/query/queryKeys';
 
 const PAGE_SIZE = 10;
 

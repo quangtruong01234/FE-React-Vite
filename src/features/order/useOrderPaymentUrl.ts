@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/api';
-import { resolvePaymentUrl } from '@/lib/paymentUrl';
+import { resolvePaymentUrl } from '@/lib/domain/paymentUrl';
 
 export function useOrderPaymentUrl(): ReturnType<typeof useMutation<{ orderUrl: string; status: string | null }, Error, number>> {
   return useMutation({

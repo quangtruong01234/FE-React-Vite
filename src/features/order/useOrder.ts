@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
-import { queryKeys } from '@/hooks/queryKeys';
+import { queryKeys } from '@/hooks/query/queryKeys';
 import type { Order } from '@/types';
 
 export function useOrder(orderId: number): ReturnType<typeof useQuery<Order>> {

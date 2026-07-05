@@ -8,26 +8,19 @@ import { orderItemsSummary, orderCoverImage } from './orderSummary';
 import { orderFilterCounts, type OrderFilterKey } from './orderFilterCounts';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ProductThumb } from '@/components/shared/ProductThumb';
-import type { Order, OrderStatus } from '@/types';
+import type { Order } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn, formatVnd } from '@/lib/utils';
+import { cn, formatVnd } from '@/lib/format/utils';
+import { isActiveStatus, isReturnStatus } from '@/lib/domain/orderStatus';
+import { formatDateTime } from '@/lib/format/time';
 
 const FILTER_OPTS: { id: OrderFilterKey; label: string }[] = [
   { id: 'all',       label: 'Tất cả' },
   { id: 'pending',   label: 'Đang xử lý' },
   { id: 'completed', label: 'Hoàn thành' },
+  { id: 'return',    label: 'Trả hàng/Hoàn tiền' },
   { id: 'canceled',  label: 'Đã hủy' },
 ];
-
-// "Đang xử lý" covers every in-flight status, not just the first one.
-const ACTIVE_STATUSES: OrderStatus[] = ['pending', 'confirmed', 'processing', 'shipped', 'delivering'];
-
-const formatDate = (dateStr: string): string => {
-  if (!dateStr) return '';
-  return new Date(dateStr).toLocaleDateString('vi-VN', {
-    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
-};
 
 export default function OrderHistoryPage(): ReactElement {
   const navigate = useNavigate();
@@ -67,8 +60,10 @@ export default function OrderHistoryPage(): ReactElement {
       filterTab === 'all'
         ? orders
         : filterTab === 'pending'
-          ? orders.filter(o => ACTIVE_STATUSES.includes(o.status))
-          : orders.filter(o => o.status === filterTab);
+          ? orders.filter(o => isActiveStatus(o.status))
+          : filterTab === 'return'
+            ? orders.filter(o => isReturnStatus(o.status))
+            : orders.filter(o => o.status === filterTab);
     if (!search.trim()) return byTab;
     return byTab.filter(o => String(o.id).includes(search.trim()));
   })();
@@ -93,7 +88,10 @@ export default function OrderHistoryPage(): ReactElement {
           Đơn hàng của tôi
         </h1>
         <p className="font-body text-sm text-ink-sec mt-0 mb-7">
-          Theo dõi trạng thái và lịch sử đơn hàng của bạn
+          Theo dõi trạng thái và lịch sử đơn hàng của bạn ·{' '}
+          <Link to="/returns" className="text-accent-amber hover:underline">
+            Yêu cầu trả hàng
+          </Link>
         </p>
 
         {errorMsg && (
@@ -193,7 +191,7 @@ export default function OrderHistoryPage(): ReactElement {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2.5 mb-1">
                       <span className="font-mono font-bold text-[13px] text-white">#{order.id}</span>
-                      <span className="font-body text-xs text-ink-sec">{formatDate(order.createdAt)}</span>
+                      <span className="font-body text-xs text-ink-sec">{formatDateTime(order.createdAt)}</span>
                     </div>
                     <div className="font-body text-sm text-ink-sec truncate">
                       {summary}

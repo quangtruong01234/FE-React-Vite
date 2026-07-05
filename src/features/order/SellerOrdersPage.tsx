@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, MapPin, Package, Truck, User, Wallet } from 'lucide-react';
 import { useSellerOrders } from './useSellerOrders';
 import { useConfirmOrder } from './useConfirmOrder';
@@ -15,7 +15,9 @@ import { ProductThumb } from '@/components/shared/ProductThumb';
 import { Pagination } from '@/components/shared/Pagination';
 import type { OrderStatus, OrderWithBuyer, SellerOrderItemDetail } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn, formatPrice } from '@/lib/utils';
+import { cn, formatPrice } from '@/lib/format/utils';
+import { ORDER_STATUS_META } from '@/lib/domain/orderStatus';
+import { formatDateTime } from '@/lib/format/time';
 
 type FilterKey = 'all' | OrderStatus;
 
@@ -25,25 +27,17 @@ interface FilterOpt {
   status?: string;
 }
 
+const FILTER_STATUSES: OrderStatus[] = [
+  'pending', 'confirmed', 'processing', 'shipped', 'delivering',
+  'completed', 'return_requested', 'refunded', 'canceled',
+];
+
 const FILTER_OPTS: FilterOpt[] = [
-  { id: 'all',        label: 'Tất cả' },
-  { id: 'pending',    label: 'Chờ xác nhận',    status: 'pending' },
-  { id: 'confirmed',  label: 'Đã xác nhận',     status: 'confirmed' },
-  { id: 'processing', label: 'Đang xử lý',      status: 'processing' },
-  { id: 'shipped',    label: 'Đang vận chuyển',  status: 'shipped' },
-  { id: 'delivering', label: 'Đang giao',        status: 'delivering' },
-  { id: 'completed',  label: 'Hoàn thành',       status: 'completed' },
-  { id: 'canceled',   label: 'Đã hủy',           status: 'canceled' },
+  { id: 'all', label: 'Tất cả' },
+  ...FILTER_STATUSES.map((s) => ({ id: s, label: ORDER_STATUS_META[s].label, status: s })),
 ];
 
 const LIMIT = 10;
-
-const formatDate = (dateStr: string): string => {
-  if (!dateStr) return '';
-  return new Date(dateStr).toLocaleDateString('vi-VN', {
-    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
-};
 
 function OrderCard({
   order,
@@ -79,7 +73,7 @@ function OrderCard({
         <div className="min-w-0">
           <div className="flex items-center gap-2.5 mb-1 flex-wrap">
             <span className="font-mono font-bold text-[13px] text-white">#{order.id}</span>
-            <span className="font-body text-xs text-ink-sec">{formatDate(order.createdAt)}</span>
+            <span className="font-body text-xs text-ink-sec">{formatDateTime(order.createdAt)}</span>
             {order.buyer?.username && (
               <span className="font-body text-xs text-ink-muted">@{order.buyer.username}</span>
             )}
@@ -284,7 +278,10 @@ export default function SellerOrdersPage(): ReactElement {
           Đơn hàng cần xử lý
         </h1>
         <p className="font-body text-sm text-ink-sec mt-1 mb-7">
-          Quản lý và xử lý đơn hàng từ người mua
+          Quản lý và xử lý đơn hàng từ người mua ·{' '}
+          <Link to="/sell/returns" className="text-accent-amber hover:underline">
+            Yêu cầu trả hàng
+          </Link>
         </p>
 
         {errorMsg && (
