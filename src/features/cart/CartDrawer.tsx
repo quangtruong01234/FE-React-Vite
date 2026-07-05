@@ -8,15 +8,15 @@ import {
   useUpdateCartItem,
   useRemoveCartItem,
   useClearCart,
-} from "@/hooks/useCart";
+} from "@/hooks/data/useCart";
 import { GradientButton } from "@/components/shared/GradientButton";
 import { ModalCloseButton } from "@/components/shared/ModalCloseButton";
 import { ProductThumb } from "@/components/shared/ProductThumb";
 import { effectiveUnitPrice } from "./shippingFee";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatPrice, buildVariantLabel } from "@/lib/utils";
+import { formatPrice, buildVariantLabel } from "@/lib/format/utils";
 import { api } from "@/api";
-import { queryKeys } from "@/hooks/queryKeys";
+import { queryKeys } from "@/hooks/query/queryKeys";
 import type { ProductWithInventory } from "@/types";
 
 interface CartDrawerProps {

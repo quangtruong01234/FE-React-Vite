@@ -8,10 +8,11 @@ import {
   ChevronRight,
   CheckCircle,
   ShoppingCart,
+  X,
 } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   checkoutSchema,
   buildShippingAddress,
@@ -22,20 +23,34 @@ import { usePaymentOptions } from "./usePaymentOptions";
 import { setPendingCheckout } from "./pendingCheckout";
 import { buildCheckoutSignature, resolveIdempotencyKey } from "./idempotency";
 import { effectiveUnitPrice, buildShippingFeeItems } from "./shippingFee";
-import { resolvePaymentUrl } from "@/lib/paymentUrl";
+import { buildOrderItems, findStockShortages } from "./checkoutItems";
+import {
+  normalizeVoucherCode,
+  distinctSellerCount,
+  discountedGrandTotal,
+  voucherErrorMessage,
+} from "./voucher";
+import { resolvePaymentUrl } from "@/lib/domain/paymentUrl";
 import { api } from "@/api";
 import {
   useCart,
   useUpdateCartItem,
   useRemoveCartItem,
   useClearCart,
-} from "@/hooks/useCart";
-import type { CreateOrderDto, PaymentMethod, ProductWithInventory } from "@/types";
-import { formatVnd, cn, buildVariantLabel } from "@/lib/utils";
+} from "@/hooks/data/useCart";
+import type {
+  CreateOrderDto,
+  PaymentMethod,
+  ProductWithInventory,
+  VoucherValidateDto,
+} from "@/types";
+import { formatVnd, cn, buildVariantLabel } from "@/lib/format/utils";
 import { GradientButton } from "@/components/shared/GradientButton";
+import { IconButton } from "@/components/shared/IconButton";
 import { ProductThumb } from "@/components/shared/ProductThumb";
 import { Skeleton } from "@/components/ui/skeleton";
-import { queryKeys } from "@/hooks/queryKeys";
+import { queryKeys } from "@/hooks/query/queryKeys";
+import { invalidateOrderViews } from "@/lib/query/orderInvalidation";
 
 const PAYMENT_ICON: Record<string, typeof Banknote> = {
   cod: Banknote,
@@ -60,7 +75,6 @@ export default function CheckoutPage(): ReactElement {
   const clearCart = useClearCart();
   const [stockError, setStockError] = useState<Record<number, string>>({});
   const [successOrderIds, setSuccessOrderIds] = useState<number[] | null>(null);
-  const queryClient = useQueryClient();
 
   const allItems = serverCart?.items ?? [];
   const items = selectedIds.size > 0 ? allItems.filter(i => selectedIds.has(i.id)) : allItems;
@@ -139,7 +153,48 @@ export default function CheckoutPage(): ReactElement {
   });
 
   const shippingFee = shippingResult?.shippingFee ?? 0;
-  const grandTotal = totalPrice + shippingFee;
+
+  // F3: voucher preview. Codes only apply to single-seller baskets, so the
+  // input is hidden (and no code is sent) when items span multiple sellers.
+  const [voucherInput, setVoucherInput] = useState("");
+  const {
+    mutate: validateVoucher,
+    data: voucher,
+    isPending: voucherPending,
+    isError: voucherFailed,
+    error: voucherError,
+    reset: resetVoucher,
+  } = useMutation({
+    mutationFn: (dto: VoucherValidateDto) => api.orders.validateVoucher(dto),
+  });
+
+  const sellerCount = distinctSellerCount(
+    items.map((i) => productMap.get(i.productId)?.userId),
+  );
+  const multiSeller = sellerCount > 1;
+
+  // A validated discount is priced against the exact basket contents — drop it
+  // whenever the items/quantities change so a stale amount is never displayed
+  // or redeemed.
+  const basketSignature = buildCheckoutSignature(
+    items.map((i) => ({
+      productId: i.productId,
+      quantity: i.quantity,
+      ...(i.skuId != null ? { skuId: i.skuId } : {}),
+    })),
+  );
+  useEffect(() => {
+    resetVoucher();
+  }, [basketSignature, resetVoucher]);
+
+  function handleApplyVoucher(): void {
+    const code = normalizeVoucherCode(voucherInput);
+    if (!code) return;
+    validateVoucher({ code, items: buildOrderItems(items, productMap) });
+  }
+
+  const discountAmount = !multiSeller && voucher ? voucher.discountAmount : 0;
+  const grandTotal = discountedGrandTotal(totalPrice, discountAmount, shippingFee);
 
   // Recalculation needed whenever any address field changes.
   useEffect(() => {
@@ -182,23 +237,7 @@ export default function CheckoutPage(): ReactElement {
     try {
       const productIds = items.map((item) => item.productId);
       const stockData = await api.products.getMultipleWithInventory(productIds);
-      const productStockMap = new Map<number, ProductWithInventory>();
-      for (const p of stockData) productStockMap.set(Number(p.id), p);
-
-      const newStockError: Record<number, string> = {};
-      for (const item of items) {
-        const p = productStockMap.get(item.productId);
-        let avail = 0;
-        if (item.skuId != null && p?.skus?.length) {
-          const sku = p.skus.find((s) => Number(s.id) === item.skuId);
-          avail = sku?.stockQuantity ?? 0;
-        } else {
-          avail = p?.inventory?.availableStock ?? 0;
-        }
-        if (item.quantity > avail) {
-          newStockError[item.productId] = `Chỉ còn ${avail} sản phẩm`;
-        }
-      }
+      const newStockError = findStockShortages(items, stockData);
       if (Object.keys(newStockError).length > 0) {
         setStockError(newStockError);
         return;
@@ -208,15 +247,7 @@ export default function CheckoutPage(): ReactElement {
     }
 
     try {
-      const orderItems = items.map((item) => {
-        const p = productMap.get(item.productId);
-        return {
-          productId: item.productId,
-          productName: p?.name ?? '',
-          quantity: item.quantity,
-          ...(item.skuId != null ? { skuId: item.skuId } : {}),
-        };
-      });
+      const orderItems = buildOrderItems(items, productMap);
       idemKeyRef.current = resolveIdempotencyKey(
         idemKeyRef.current,
         buildCheckoutSignature(orderItems),
@@ -227,10 +258,12 @@ export default function CheckoutPage(): ReactElement {
           paymentMethod: data.paymentMethod,
           shippingAddress: buildShippingAddress(data),
           items: orderItems,
+          // F3: redeem the previewed code (single-seller baskets only).
+          ...(voucher && !multiSeller ? { voucherCode: voucher.code } : {}),
         },
         idempotencyKey: idemKeyRef.current.key,
       });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
+      invalidateOrderViews({ all: true });
       // Multi-seller checkout returns { orders, paymentUrl } with one payment covering all orders
       const isMultiSeller = "orders" in result;
       const orders = isMultiSeller ? result.orders : [result];
@@ -630,10 +663,67 @@ export default function CheckoutPage(): ReactElement {
                   </button>
                 )}
               </div>
-              <div className="flex justify-between items-center mb-3 text-sm text-ink-sec">
-                <span>Giảm giá</span>
-                <span className="font-mono">−0 đ</span>
-              </div>
+              {/* Voucher (F3) — previewed via /voucher/validate, redeemed on create */}
+              {multiSeller ? (
+                <div className="flex justify-between items-center gap-2 mb-3 text-sm text-ink-sec">
+                  <span>Giảm giá</span>
+                  <span className="text-xs text-ink-muted text-right">
+                    Không áp dụng cho đơn nhiều người bán
+                  </span>
+                </div>
+              ) : voucher ? (
+                <div className="flex justify-between items-center gap-2 mb-3 text-sm text-ink-sec">
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    Giảm giá
+                    <span className="font-mono text-xs text-accent-amber truncate">
+                      {voucher.code}
+                    </span>
+                    <IconButton
+                      aria-label="Bỏ mã giảm giá"
+                      onClick={() => {
+                        resetVoucher();
+                        setVoucherInput("");
+                      }}
+                      className="size-5 rounded-full text-ink-muted hover:text-ink-pri hover:bg-canvas-elevated transition-colors shrink-0"
+                    >
+                      <X size={12} className="shrink-0" />
+                    </IconButton>
+                  </span>
+                  <span className="font-mono text-accent-green">
+                    −{formatVnd(voucher.discountAmount)}
+                  </span>
+                </div>
+              ) : (
+                <div className="mb-3 flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={voucherInput}
+                      onChange={(e) => setVoucherInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleApplyVoucher();
+                        }
+                      }}
+                      placeholder="Mã giảm giá"
+                      className="h-9 flex-1 min-w-0 bg-canvas-base border border-bdr rounded-[10px] px-3 text-ink-pri font-mono text-[13px] uppercase placeholder:normal-case placeholder:font-body placeholder:text-ink-muted outline-none focus:border-amber-400/50 transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyVoucher}
+                      disabled={voucherPending || !voucherInput.trim()}
+                      className="h-9 px-3 rounded-[10px] border border-bdr bg-canvas-elevated text-ink-pri font-body font-semibold text-[13px] whitespace-nowrap transition-colors enabled:cursor-pointer enabled:hover:border-accent-amber disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {voucherPending ? "Đang kiểm tra…" : "Áp dụng"}
+                    </button>
+                  </div>
+                  {voucherFailed && (
+                    <span className="text-xs text-accent-red">
+                      {voucherErrorMessage(voucherError)}
+                    </span>
+                  )}
+                </div>
+              )}
               <div className="flex justify-between items-center pt-3 border-t border-bdr">
                 <span className="font-semibold text-ink-pri">
                   Tổng thanh toán
