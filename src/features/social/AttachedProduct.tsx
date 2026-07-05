@@ -1,4 +1,4 @@
-import { useProductsByIds } from '@/hooks/useProductsByIds';
+import { useProductsByIds } from '@/hooks/data/useProductsByIds';
 import ProductChip from './ProductChip';
 
 interface AttachedProductProps {

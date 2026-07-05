@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { copyPostLink, sharePost } from '@/lib/sharePost';
+import { copyPostLink, sharePost } from '@/lib/domain/sharePost';
 
 interface UseSharePost {
   toast: string | null;

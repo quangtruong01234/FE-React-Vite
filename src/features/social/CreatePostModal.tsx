@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { ImagePlus, Loader2, Video, X } from 'lucide-react';
 import { IconButton } from '@/components/shared/IconButton';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/hooks/auth/useAuth';
 import {
   Dialog,
   DialogContent,
@@ -12,11 +12,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { GradientButton } from '@/components/shared/GradientButton';
-import { queryKeys } from '@/hooks/queryKeys';
+import { queryKeys } from '@/hooks/query/queryKeys';
 import { api } from '@/api';
-import { useProductsByIds } from '@/hooks/useProductsByIds';
-import { uploadImage, uploadVideo, deleteMedia } from '@/lib/cloudinary';
-import { cn } from '@/lib/utils';
+import { useProductsByIds } from '@/hooks/data/useProductsByIds';
+import { uploadImage, uploadVideo, deleteMedia } from '@/lib/http/cloudinary';
+import { cn } from '@/lib/format/utils';
 import { ProductPicker } from './ProductPicker';
 import { useUpdatePost } from './useFeed';
 import { createPostSchema, type CreatePostFormData } from './social.schema';

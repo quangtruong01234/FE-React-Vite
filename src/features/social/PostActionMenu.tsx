@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { MoreHorizontal, Link2, Loader2, Trash2, Pencil, Flag } from 'lucide-react';
 import { IconButton } from '@/components/shared/IconButton';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
 import { useDeletePost } from './useFeed';
 import { ReportPostDialog } from './ReportPostDialog';
 

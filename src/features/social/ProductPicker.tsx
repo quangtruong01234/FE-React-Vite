@@ -3,7 +3,7 @@ import { Search, Tag, X, Loader2 } from 'lucide-react';
 import { IconButton } from '@/components/shared/IconButton';
 import { ProductThumb } from '@/components/shared/ProductThumb';
 import { PriceText } from '@/components/shared/PriceText';
-import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useDebouncedValue } from '@/hooks/ui/useDebouncedValue';
 import { useProducts } from '../product/useProducts';
 import type { ProductWithInventory } from '@/types';
 

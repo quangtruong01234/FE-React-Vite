@@ -3,7 +3,7 @@ import { IconButton } from '@/components/shared/IconButton';
 import { useNavigate, Link } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
 import { Avatar } from '@/components/shared/Avatar';
 import { ModalCloseButton } from '@/components/shared/ModalCloseButton';
 import { useAuthContext } from '@/context/AuthContext';
@@ -14,20 +14,11 @@ import { ShareToast } from './ShareToast';
 import { PostActionMenu } from './PostActionMenu';
 import { AttachedProduct } from './AttachedProduct';
 import { openEditPost } from './composerEvents';
+import { relativeTimeShort } from '@/lib/format/time';
 import type { Post } from '@/types';
 
 interface PostCardProps {
   post: Post;
-}
-
-function relativeTime(iso: string): string {
-  const ms = new Date(iso).getTime();
-  if (isNaN(ms)) return '';
-  const diff = Math.floor((Date.now() - ms) / 1000);
-  if (diff < 60) return `${diff}s`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-  return `${Math.floor(diff / 86400)}d`;
 }
 
 export default function PostCard({ post }: PostCardProps) {
@@ -96,7 +87,7 @@ export default function PostCard({ post }: PostCardProps) {
     }
   }
 
-  const time = relativeTime(post.createdAt);
+  const time = relativeTimeShort(post.createdAt);
   const authorName = post.author.name ?? post.author.username;
 
   return (

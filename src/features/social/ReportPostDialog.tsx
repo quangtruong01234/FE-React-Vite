@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { api } from '@/api';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
 import { reportPostErrorMessage } from './reportPostError';
 
 const MAX_REASON = 500;

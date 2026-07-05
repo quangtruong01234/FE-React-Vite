@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { ProductThumb } from '@/components/shared/ProductThumb';
 import { PriceText } from '@/components/shared/PriceText';
-import { useAddToCart } from '@/hooks/useCart';
+import { useAddToCart } from '@/hooks/data/useCart';
 import type { ProductWithInventory } from '@/types';
 
 interface ProductChipProps {

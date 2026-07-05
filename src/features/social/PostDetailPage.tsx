@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { api } from '@/api';
-import { queryKeys } from '@/hooks/queryKeys';
+import { queryKeys } from '@/hooks/query/queryKeys';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthContext } from '@/context/AuthContext';
@@ -18,20 +18,11 @@ import { ShareToast } from './ShareToast';
 import { PostActionMenu } from './PostActionMenu';
 import { AttachedProduct } from './AttachedProduct';
 import { openEditPost } from './composerEvents';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
+import { relativeTimeShort } from '@/lib/format/time';
 
 const commentSchema = z.object({ content: z.string().min(1) });
 type CommentFormData = z.infer<typeof commentSchema>;
-
-function relativeTime(iso: string): string {
-  const ms = new Date(iso).getTime();
-  if (isNaN(ms)) return '';
-  const diff = Math.floor((Date.now() - ms) / 1000);
-  if (diff < 60) return `${diff}s`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-  return `${Math.floor(diff / 86400)}d`;
-}
 
 export default function PostDetailPage(): ReactElement {
   const { id } = useParams<{ id: string }>();
@@ -141,7 +132,7 @@ export default function PostDetailPage(): ReactElement {
               {post.author.name ?? post.author.username}
             </Link>
             <div className="flex items-center gap-1.5 text-xs text-ink-muted">
-              <span>{relativeTime(post.createdAt)}</span>
+              <span>{relativeTimeShort(post.createdAt)}</span>
               <span>·</span>
               <Globe size={11} />
             </div>

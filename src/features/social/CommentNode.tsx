@@ -6,25 +6,16 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useRole } from '@/hooks/useRole';
+import { useRole } from '@/hooks/auth/useRole';
 import { useReplies, useCreateReply, useDeleteComment } from './useComments';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
+import { relativeTimeShort } from '@/lib/format/time';
 import type { Comment, CommentTree } from '@/types';
 
 const MAX_DEPTH = 3;
 
 const replySchema = z.object({ content: z.string().min(1) });
 type ReplyFormData = z.infer<typeof replySchema>;
-
-function relativeTime(iso: string): string {
-  const ms = new Date(iso).getTime();
-  if (isNaN(ms)) return '';
-  const diff = Math.floor((Date.now() - ms) / 1000);
-  if (diff < 60) return `${diff}s`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-  return `${Math.floor(diff / 86400)}d`;
-}
 
 interface CommentNodeProps {
   comment: Comment | CommentTree;
@@ -96,7 +87,7 @@ export function CommentNode({
 
           {/* Action row */}
           <div className="flex items-center gap-4 mt-1 ml-1 text-xs font-semibold text-ink-muted">
-            <span>{relativeTime(comment.createdAt)}</span>
+            <span>{relativeTimeShort(comment.createdAt)}</span>
             {depth < MAX_DEPTH && (
               <button
                 type="button"
