@@ -12,10 +12,10 @@ import ProductCard from '@/features/product/ProductCard';
 import { useProducts } from '@/features/product/useProducts';
 import { useFollowers, useFollowing, useFollowUser, useUnfollowUser, useIsFollowing } from '@/features/social/useFollow';
 import { useAuthContext } from '@/context/AuthContext';
-import { queryKeys } from '@/hooks/queryKeys';
+import { queryKeys } from '@/hooks/query/queryKeys';
 import { Pagination } from '@/components/shared/Pagination';
 import { api } from '@/api';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
 
 const PAGE_SIZE = 10;
 

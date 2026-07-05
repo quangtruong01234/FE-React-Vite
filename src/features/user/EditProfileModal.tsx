@@ -12,10 +12,11 @@ import {
 } from '@/components/ui/dialog';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { Avatar } from '@/components/shared/Avatar';
-import { queryClient } from '@/lib/queryClient';
-import { queryKeys } from '@/hooks/queryKeys';
+import { queryClient } from '@/lib/query/queryClient';
+import { queryKeys } from '@/hooks/query/queryKeys';
 import { api } from '@/api';
-import { cn } from '@/lib/utils';
+import { uploadAvatar } from '@/lib/http/cloudinary';
+import { cn } from '@/lib/format/utils';
 import type { User } from '@/types';
 
 const schema = z.object({
@@ -71,21 +72,9 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
     setUploading(true);
     setUploadError(null);
     try {
-      const sig = await api.upload.getSignature('avatars');
-      const form = new FormData();
-      form.append('file', file);
-      form.append('signature', sig.signature);
-      form.append('timestamp', String(sig.timestamp));
-      form.append('api_key', sig.api_key);
-      form.append('folder', sig.folder);
-      const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${sig.cloud_name}/image/upload`,
-        { method: 'POST', body: form },
-      );
-      if (!res.ok) throw new Error('Upload thất bại');
-      const json = (await res.json()) as { secure_url: string };
-      setAvatarPreview(json.secure_url);
-      setValue('avatar', json.secure_url);
+      const { url } = await uploadAvatar(file, user.id);
+      setAvatarPreview(url);
+      setValue('avatar', url);
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : 'Upload thất bại');
     } finally {
