@@ -4,6 +4,35 @@
 > Read on demand only when you need the history/rationale of a past change.
 > Current state (readiness, open/blocked tasks, known issues) lives in `snapshot.md`.
 
+## Cleanup / hardening
+
+### Memoize Context value objects (AuthContext + ApiErrorContext) — DONE (2026-07-06, /sweep)
+
+Closes the #1 perf-scan flag "Context value không memoize (2 chỗ)". `useAuth` returned a
+fresh object plus new `loginSuccess`/`logout` function identities every render, so the
+app-wide `AuthProvider` handed every consumer a new value object on each render (violating
+performance.md "memoize Context value objects"). Fixed: wrapped `loginSuccess`/`logout` in
+`useCallback` (deps `queryClient` / `logoutMutate`) and the returned object in `useMemo`
+(`src/hooks/useAuth.ts`). Same fix on `ApiErrorProvider` — `useMemo` the `{ globalError,
+setGlobalError }` value keyed on `globalError` (`setGlobalError` from `useState` is already
+identity-stable) (`src/context/ApiErrorContext.tsx`). Added a stable-identity regression
+test to `src/hooks/useAuth.test.tsx` (a no-op re-render returns the same object + same
+`loginSuccess`/`logout` references). Behavior unchanged — pure render-stability fix, no
+runtime UI verification needed. `build` / `lint` (0 err) / `test:run` (42 files, 281 tests)
+green.
+
+### Money helpers coerce decimal strings — DONE (2026-07-05, /sweep)
+
+Closes the "Price formatting / API contract mismatch" known issue and the "product money
+numbers cleanup" backlog item. Backend now serializes money fields as JSON numbers, but
+`formatPrice`/`formatVnd` (`src/lib/utils.ts`) still took a bare `number`, so any residual
+decimal-string value (`"2000.00"`) would render raw as `2000.00 đ`. Widened both to
+`number | string` and route through a shared `toMoneyNumber` helper (coerces strings via
+`Number`, guards non-finite → `—`). Backward-compatible: existing `Number(...)` wraps at
+call sites are now redundant but harmless (left in place for minimal diff). Regression
+tests added in `src/lib/utils.test.ts` (decimal-string input for both helpers, incl.
+millions abbreviation and non-numeric → `—`). `build` / `lint` (0 err) / `test:run` green.
+
 ## P0 — release blockers
 
 ### P0-01 — Hợp nhất cart thành server cart — DONE (2026-06-24)
@@ -153,6 +182,65 @@ Backend giao (handoff NEW, 2026-06-28): `PATCH /api/order/:id/ready-to-ship` gi�
 - **FE action #2 (surface failure)**: ready-to-ship/confirm không còn nuốt lỗi vào `console.error`. Helper thuần `sellerOrderActionError.ts` (`sellerOrderActionErrorMessage(error, kind)`) map status → message tiếng Việt: ready-to-ship `400` → "địa chỉ giao hàng không hợp lệ…", `500` → "không kết nối được GHN, đơn vẫn ở trạng thái đã xác nhận…"; fallback dùng server message rồi generic theo `kind`. `SellerOrdersPage` derive `actionError` từ mutation nào đang `isError` (kèm `variables` = order id) và render banner `#id · message` dưới banner lỗi list.
 - **Test:** `sellerOrderActionError.test.ts` (7 case, ready-to-ship 400/500/fallback/server-message + confirm không áp mapping 400). `build` (tsc + vite) xanh.
 - Còn nợ runtime: full-stack E2E (seller bấm "Sẵn sàng giao" với address xấu → 400 + banner; address tốt → `ghnOrderCode` hiện).
+
+#### F2 — Buyer-initiated return/refund tích hợp — DONE (2026-07-03)
+
+Backend giao (handoff NEW F2, 2026-06-30): buyer request return trên đơn `delivering`/`completed`; seller/admin approve (order → `refunded`, refund simulated) hoặc reject (order về `previousOrderStatus`). Order statuses mới `return_requested`/`refunded`.
+
+- **Types** (`types/order.ts`): `OrderStatus` thêm `return_requested`/`refunded`; `OrderStatusCounts` thêm 2 key optional; types mới `ReturnRequest`/`ReturnRequestStatus` (`pending_review|approved|rejected`)/`RefundStatus` (`refunded|manual_pending`). `userId`/`reviewedBy` model `number | string` (bigint có thể trả string).
+- **API** (`api/orders.ts`): `requestReturn(orderId, reason)`, `getMyReturnRequests(page, limit)`, `getReturnRequests(page, limit, status?)`, `approveReturnRequest(id)`, `rejectReturnRequest(id, reason)`. Query keys: `orders.returnRequests`/`returnMine`/`returnQueue` (`hooks/queryKeys.ts`).
+- **Helpers thuần** (`features/order/returnRequest.ts`): `canRequestReturn` (chỉ delivering/completed), `hasReturnActivity`, `findReturnRequestForOrder` (list newest-first, lấy match đầu — không có endpoint per-order nên OrderDetail tìm trong page 1 limit 50 của `/mine`), `returnStatusMeta` (label + tb-token class), `refundStatusLabel` ('Đã hoàn tiền · <method>' / 'Chờ hoàn tiền thủ công · <method>'), `returnRequestErrorMessage` (400 → message "không đủ điều kiện" thân thiện).
+- **Hooks** (`useReturnRequests.ts`): `useMyReturnRequests` (có `enabled` gate), `useReturnRequestQueue`, `useRequestReturn` (invalidate order detail + byUser + returnRequests), `useReviewReturnRequest` (approve/reject union variables; invalidate cả prefix `orders.all` vì order status đổi).
+- **Buyer UI:** `OrderDetailPage` — nút "Yêu cầu trả hàng" (chỉ khi eligible và không có request `pending_review`) mở form reason inline (maxLength 1000); panel trả hàng/hoàn tiền render request status pill + reason + rejectReason + dòng refund (`formatVnd`); timeline ẩn khi order ở return state. `OrderHistoryPage` — tab "Trả hàng/Hoàn tiền" (`orderFilterCounts` gộp 2 status, count optional `?? 0`) + link `/returns`. Trang mới `/returns` (`ReturnRequestsPage`) list request của mình, phân trang 10/trang.
+- **Seller UI:** trang mới `/sell/returns` (`SellerReturnRequestsPage`, ProtectedRoute shop) — queue với filter tab all/pending_review(mặc định)/approved/rejected, hành động "Duyệt & hoàn tiền" / "Từ chối" (reject cần reason inline), error banner `#id · message`. `SellerOrdersPage` thêm link `/sell/returns` + 2 filter status mới. `StatusBadge` thêm `return_requested` (amber) / `refunded` (violet).
+- **Test:** `returnRequest.test.ts` (eligibility matrix, find newest match, refund labels, error mapping) + `orderFilterCounts.test.ts` cập nhật (gộp return statuses, missing keys = 0). Full suite **187 tests / 30 files pass**; `npm run build` xanh.
+- **Open question BE:** `GET /order/user/:id/status-counts` có trả key `return_requested`/`refunded` không? FE coi là optional nên tab count degrade về 0 nếu thiếu — ghi vào `backend-handoff.md`.
+- Còn nợ runtime: E2E 2 tài khoản (buyer request → seller approve/reject → order status + notification).
+
+#### F3 — Voucher/discount codes tại checkout — DONE (2026-07-03)
+
+Backend giao (handoff NEW F3, 2026-06-30): `POST /order/voucher/validate` preview mã theo basket (không redeem); `POST /order` nhận `voucherCode` optional (chỉ đơn single-seller, multi-seller + code → 400; code case-insensitive; per-user redemption trùng → 400). Order trả kèm `voucherCode` + `discountAmount`, `total`/`codAmount` đã net discount.
+
+- **Types** (`types/order.ts`): `VoucherValidateDto`/`VoucherValidation`/`VoucherDiscountType`; `CreateOrderDto.voucherCode?`; `Order.voucherCode?` + `discountAmount?` (model `number | string | null` — decimal column có thể trả string ở response cũ).
+- **API** (`api/orders.ts`): `validateVoucher(dto)` → `POST /order/voucher/validate` (mutation, không cần query key).
+- **Helpers thuần** (`features/cart/voucher.ts`): `normalizeVoucherCode` (trim+uppercase), `distinctSellerCount` (bỏ qua product chưa load — không flip guard giữa chừng), `discountedGrandTotal` (clamp goods total ≥ 0 rồi + ship), `voucherErrorMessage` (404 → mã không tồn tại/vô hiệu; 400 map keyword expired/not-started/min/per-user/usage-limit/multi-seller → tiếng Việt, fallback server message).
+- **CheckoutPage:** input mã + nút "Áp dụng" trong summary card (Enter trong input → apply, không submit form); khi applied hiện dòng giảm giá (code chip amber + số tiền xanh + `IconButton` × để bỏ); grand total = `discountedGrandTotal(totalPrice, discount, shippingFee)`. **Stale guard:** effect reset voucher preview khi `buildCheckoutSignature(items)` đổi (đổi số lượng/SKU → phải validate lại, không redeem giá cũ). **Single-seller guard:** basket >1 seller (`product.userId` qua `productMap`) → thay input bằng note "Không áp dụng cho đơn nhiều người bán", không gửi code. `onSubmit` refactor dùng chung `buildOrderItems()` và thêm `voucherCode` vào dto khi có preview hợp lệ.
+- **OrderDetailPage:** dòng "Giảm giá (CODE) −xxx đ" trên dòng Tổng cộng khi `discountAmount > 0` (coerce `Number()`).
+- **Test:** `voucher.test.ts` (normalize, seller count, grand total clamp, error mapping matrix). Full suite **195 tests / 31 files pass**; `npm run build` xanh.
+- **Không làm (optional theo entry):** admin voucher CRUD UI (`/order/admin/vouchers` create/list/deactivate) — endpoints đã ghi trong handoff Done nếu cần sau.
+- Còn nợ runtime: E2E với voucher thật (BE self-test 10/10 nhưng FE chưa chạy live); cần admin tạo voucher trước.
+
+#### F5 — Admin post moderation queue tích hợp — DONE + runtime-verified (2026-07-03)
+
+Backend giao (handoff NEW F5, 2026-07-02): `GET /social/admin/reports?status=&page=&limit=` (PaginatedResponse group theo post, order most-recently-reported first) + 4 action `POST .../posts/:id/hide|unhide|dismiss` và `DELETE .../posts/:id` (admin role; hide flips pending→resolved, unhide KHÔNG re-open, dismiss giữ post visible, delete xóa vĩnh viễn post + reports). Hidden post bị loại khỏi 3 feed reads và `GET /social/posts/:id` → 404.
+
+- **Types** (`types/social.ts`): `PostReportStatus` (`pending|resolved|dismissed`), `PostReport`, `ReportedPost` (`Post` + `isHidden`/`hiddenAt`), `ReportedPostGroup` (post + reportCount/pendingCount/latestReportedAt/reports), `ModeratePostResult`, `DismissReportsResult`.
+- **API** (`api/social.ts`): `getReportedPosts(status='pending', page=1, limit=20)` + `hidePost`/`unhidePost`/`dismissReports`/`adminDeletePost`. Query keys: `social.adminReports` / `adminReportsList(status, page)`.
+- **Helpers thuần** (`features/admin/postModeration.ts`): `moderationActionsFor` (hide↔unhide theo `post.isHidden`; dismiss chỉ khi `pendingCount > 0`; delete luôn có), `reportStatusMeta` (label VN + tb-token class: pending amber / resolved green / dismissed muted), `moderationSuccessMessage`, `moderationErrorMessage` (404 → "Bài viết không còn tồn tại…", 403 → không có quyền, fallback server message rồi generic theo action).
+- **UI:** trang mới `/admin/reports` (`ReportedPostsPage`, lazy + `ProtectedRoute requiredRole="admin"`), link LeftRail "Kiểm duyệt bài viết" (icon `Flag`, đúng pattern admin links). 3 filter tab pending/resolved/dismissed (đổi tab reset page 1); card mỗi post: Avatar + link profile author, content preview (link `/post/:id` CHỈ khi post không hidden — hidden 404), badge đỏ "Đang ẩn khỏi feed", pill amber "n chờ xử lý", danh sách lý do report kèm status badge từng report; action row từ `moderationActionsFor`; **delete = confirm 2 bước inline** ("Hành động này không thể hoàn tác" + Xác nhận xoá/Huỷ); mỗi action `onSuccess` invalidate `social.adminReports` (refetch queue) + toast 3s; per-row pending qua `moderate.variables?.id`; Skeleton loading, empty state ShieldCheck, `<Pagination>` dùng `hasNext`.
+- **Test:** `postModeration.test.ts` (11 case: action matrix 4 tổ hợp isHidden×pendingCount, status meta + fallback, success/error messages 404/403/passthrough/generic). Full suite **206 tests / 32 files pass**; `npm run build` + `lint` xanh (0 errors).
+- **Runtime-verified (Chrome DevTools MCP, 2026-07-03, admin `testadmin`):** seed 2 pending reports lên post #8 (2 user khác nhau qua API); queue render đúng group (2 báo cáo · 2 chờ xử lý); Hide → `POST /hide` 201, refetch, post sang tab "Đã xử lý" với badge ẩn + actions thành Hiện lại/Xoá; Unhide → badge hết, reports GIỮ resolved (đúng contract không re-open); Dismiss đúng là biến mất khi pendingCount=0; delete confirm/cancel flow hoạt động (không xóa thật để giữ data test). End state: post #8 visible, 2 reports `resolved`. Lưu ý MCP tooling: `click` tool không trigger React handler trên page này — phải dispatch `button.click()` qua `evaluate_script` (quirk của tool, không phải bug app).
+- Không có backend gap — toàn bộ contract khớp runtime, không ghi `backend-handoff.md`.
+
+#### Featured sellers endpoint cho feed right-rail — DONE + runtime-verified (2026-07-04)
+
+Backend giao (handoff NEW, 2026-07-03): endpoint `GET /api/user/featured-sellers?limit=<1..20>` (JwtAuthGuard, mọi role đăng nhập, default 5) trả `data: [{ id, username, name, avatar }]` — shop account active, newest-first, chỉ field profile công khai. Thay cho `GET /user/all` admin-only (403 ×2 mỗi lần load feed → console error + card empty cho user thường).
+
+- **Types** (`types/user.ts`): type mới `FeaturedSeller` (`id`/`username`/`name: string|null`/`avatar: string|null`) — không có `role`/`email`/`grants`.
+- **API** (`api/users.ts`): `getFeaturedSellers(limit = 5)` → `GET /user/featured-sellers?limit=`. Query key `users.featuredSellers(limit)`.
+- **RightRail** (`components/layout/RightRail.tsx`): bỏ `getAll()` + filter role client-side (`u.role.rol_name === 'shop'|'admin'`) + `.slice(0,5)` — endpoint đã trả đúng shop newest-first. Sub-label đổi từ `role.rol_name` sang `@username`. `User` import bỏ (không còn dùng).
+- **Test:** `api/users.test.ts` (MSW, 2 case: default limit=5 gọi đúng `/user/featured-sellers` không đụng `/user/all`; custom limit forward). Full suite **214 tests / 34 files pass**; `build` + `lint` (0 errors) xanh.
+- **Runtime-verified (Chrome DevTools MCP, 2026-07-04, user 17, feed `/`):** card "Seller nổi bật" render techstore_demo (@techstore_demo, profile/23) + test1 (@test1, profile/20); network `GET /api/user/featured-sellers?limit=5 [200]`, KHÔNG còn `/api/user/all` 403 nào trên happy path → hết console error mỗi lần load feed.
+- Không có backend gap mới — BE đã giao endpoint; đây là integration thuần. Handoff entry move sang Done.
+
+#### Marketplace category/brand filter params — DONE + runtime-verified (2026-07-04)
+
+Backend phát hiện (handoff NEW, 2026-07-03): FE gửi `categoryId`/`brandId` (số ít) nhưng gateway DTO chỉ nhận `categoryIds`/`brandIds`; `ValidationPipe({ whitelist:true })` strip key lạ **im lặng** → filter danh mục/thương hiệu ở marketplace là NO-OP từ đầu (200 với kết quả không lọc).
+
+- **Fix** (`api/products.ts`): tách phần dựng query của `getList` thành helper thuần export `buildProductListQuery(params)` — append key số nhiều `categoryIds`/`brandIds`, lặp key theo từng value (`?categoryIds=16&categoryIds=18`, syntax gateway hỗ trợ; KHÔNG bao giờ dùng bracket `[]` — cũng bị whitelist strip). Scalar params + skip empty giữ nguyên hành vi.
+- **Test:** `api/products.test.ts` mới (6 case: repeated plural keys, không phát key số ít, không bracket syntax, scalar giữ kèm filter, empty string bị skip, params rỗng → chuỗi rỗng). Full suite **212 tests / 33 files pass**; `build` + `lint` (0 errors) xanh.
+- **Runtime-verified (Chrome DevTools MCP, 2026-07-04, user 17, gateway live):** marketplace 28 SP không lọc → chọn danh mục Audio → request `...&categoryIds=17` → **6 SP** đều audio → thêm brand Sony → `...&categoryIds=17&brandIds=23` → **đúng 2 SP** (Sony WF-1000XM5, WH-1000XM5). Filter lần đầu tiên thật sự narrow kết quả.
+- Không có backend gap — backend đã fix phía họ (PERF-10 + scalar→array transform); đây là bug FE-side thuần. Handoff entry đã move sang Done.
 
 ## P2
 

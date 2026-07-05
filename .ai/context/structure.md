@@ -14,9 +14,13 @@ frontend/src/
 ├── main.tsx
 ├── App.tsx                     # QueryClientProvider + AuthProvider + CartProvider
 ├── router.tsx                  # createBrowserRouter, RequireAuth guard
-├── lib/
-│   ├── queryClient.ts          # TanStack QueryClient config
-│   └── utils.ts                # cn(), formatPrice()
+├── lib/                        # Layered by concern — put new utils in the matching layer
+│   ├── format/                 # utils.ts (cn, formatPrice), time.ts, pagination.ts
+│   ├── query/                  # queryClient.ts, orderInvalidation.ts
+│   ├── realtime/               # socket.ts, chatSound.ts
+│   ├── auth/                   # authChannel.ts, roleAccess.ts
+│   ├── domain/                 # orderStatus.ts, paymentUrl.ts, sku.ts, sharePost.ts, likedPosts.ts
+│   └── http/                   # cloudinary.ts, fetchBatchTolerant.ts
 ├── api/
 │   └── index.ts                # request() wrapper + api object
 ├── types/                      # Split by feature/domain; index.ts re-exports (barrel)
@@ -25,9 +29,11 @@ frontend/src/
 │   ├── auth.ts · user.ts · catalog.ts · inventory.ts
 │   ├── product.ts · cart.ts · payment.ts · order.ts
 │   └── social.ts · notification.ts · chat.ts · upload.ts
-├── hooks/
-│   ├── queryKeys.ts            # Centralized query key factory
-│   └── useAuth.ts              # Auth state + logout mutation
+├── hooks/                      # Layered by concern
+│   ├── query/                  # queryKeys.ts (key factory), cartCache.ts
+│   ├── auth/                   # useAuth.ts, useRole.ts
+│   ├── data/                   # useCart.ts, useProductReviews.ts, useProductsByIds.ts
+│   └── ui/                     # useDebouncedValue.ts
 ├── context/
 │   ├── AuthContext.tsx         # AuthProvider + useAuthContext()
 │   └── CartContext.tsx         # CartProvider — cart state + localStorage persistence
@@ -38,8 +44,11 @@ frontend/src/
 ├── features/
 │   ├── auth/                   # LoginPage.tsx, useLogin.ts
 │   ├── cart/                   # CartSidebar.tsx, CheckoutPage.tsx
+│   ├── chat/                   # ChatDialog.tsx, ChatThread.tsx, MessagesPage.tsx,
+│   │                           # useChat.ts, chatPresenceSocket.ts, chat*.ts helpers
+│   ├── notifications/          # notificationSocket.ts, notificationCache.ts
 │   ├── order/                  # OrderHistoryPage.tsx
-│   └── product/                # ProductListPage.tsx, ProductDetail.tsx, ChatRoom.tsx,
+│   └── product/                # ProductListPage.tsx, ProductDetail.tsx,
 │                               # CreateProductModal.tsx, useProduct.ts
 └── assets/
 ```
@@ -49,9 +58,10 @@ frontend/src/
 - New route-level page → `features/<feature>/<Name>Page.tsx`
 - New hook for a feature → same feature folder, co-located
 - New shared/reusable component → `components/shared/`
-- New cross-cutting hook (used by 2+ features) → `hooks/`
+- New cross-cutting hook (used by 2+ features) → `hooks/<layer>/` (`query`/`auth`/`data`/`ui`)
+- New cross-cutting util → `lib/<layer>/` (`format`/`query`/`realtime`/`auth`/`domain`/`http`)
 - New type → `types/index.ts`
-- New API call → `api/index.ts` (+ query key in `hooks/queryKeys.ts`)
+- New API call → `api/<domain>.ts` (+ query key in `hooks/query/queryKeys.ts`)
 
 > Before creating anything: run `/audit-duplicates <name>` first.
 
@@ -92,16 +102,3 @@ Rules:
 - Route params: `Number(useParams().id)` + `enabled` guard — never `parseInt(id!)`
 - Never import `@tanstack/react-router`
 
----
-
-## FOLLOW-UP: Move ChatRoom.tsx to features/chat/
-
-**Current location:** `src/features/product/ChatRoom.tsx`
-**Should be:** `src/features/chat/ChatRoom.tsx` (new folder)
-
-`ChatRoom.tsx` implements chat UI — it has no product-specific logic and belongs with the Chat WS gateway (port 3000), not with product browsing. It is currently a mock placeholder so the move is low-risk, but it should be done as a dedicated PR to avoid noise in the WS implementation PR.
-
-When moving:
-- Create `src/features/chat/` folder
-- Update the import in `src/features/product/ProductDetail.tsx` (or wherever `ChatRoom` is consumed)
-- Update `.ai/context/structure.md` folder map to list `features/chat/`

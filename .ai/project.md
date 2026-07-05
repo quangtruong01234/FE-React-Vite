@@ -53,6 +53,7 @@ Read `.ai/context/core.md` before repository work.
 | `/research`         | Read-only investigation                                                  |
 | `/add-test`         | Generate Vitest + RTL test                                               |
 | `/check-perf`       | Scan static performance anti-patterns (report-only)                      |
+| `/sweep`            | Weekly backlog sweep — fix top item(s) from snapshot + handoff inbox (`/sweep`, `/sweep 3`), audit-only (`/sweep audit`), or propose features (`/sweep propose`) |
 | `/verify-ui`        | Verify UI render via Chrome DevTools MCP (alignment/layout, report-only) |
 
 ## Agents
