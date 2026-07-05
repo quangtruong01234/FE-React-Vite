@@ -1,16 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { useInfiniteQuery, useQuery, useMutation } from '@tanstack/react-query';
 import { io, type Socket } from 'socket.io-client';
-import { queryClient } from '@/lib/queryClient';
-import { queryKeys } from '@/hooks/queryKeys';
+import { queryClient } from '@/lib/query/queryClient';
+import { queryKeys } from '@/hooks/query/queryKeys';
 import { api } from '@/api';
-import { playMessageReceived } from '@/lib/chatSound';
+import { playMessageReceived } from '@/lib/realtime/chatSound';
 import { applyIncomingMessage, markConversationReadInList } from './chatConversations';
+import {
+  appendMessageToCache, mergeMessages, resolvePendingMessage, markPendingAsError,
+  type ChatMessage, type MessagesInfiniteData,
+} from './chatMessages';
 import { acquireChatPresenceSocket, setActiveConversation } from './chatPresenceSocket';
 import type { ChatConnectionStatus } from './chatConnection';
 import type { Conversation, Message, PaginatedResponse } from '@/types';
 
-export type ChatMessage = Message & { status?: 'sending' | 'error' };
+export type { ChatMessage };
 
 const CHAT_URL = (import.meta.env.VITE_CHAT_URL as string | undefined) ?? 'http://localhost:3000';
 
@@ -127,11 +131,14 @@ export function useChat(conversationId: number, currentUserId?: number): {
           playMessageReceived();
         }
         setSocketMessages((prev) => [...prev, msg]);
-        setPendingMessages((prev) => {
-          const idx = prev.findIndex((p) => p.content === msg.content && p.status === 'sending');
-          if (idx === -1) return prev;
-          return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
-        });
+        // Persist into the paginated cache so the message survives this thread
+        // unmounting (switching conversations) and shows instantly on return —
+        // instead of waiting for a stale-cache refetch.
+        queryClient.setQueryData<MessagesInfiniteData>(
+          queryKeys.messages.byConversation(conversationId),
+          (old) => appendMessageToCache(old, msg),
+        );
+        setPendingMessages((prev) => resolvePendingMessage(prev, msg));
         // Refresh the list preview/order; this thread is open so it stays read.
         queryClient.setQueryData<Conversation[]>(queryKeys.conversations.all, (old) =>
           old ? applyIncomingMessage(old, msg, viewerId, conversationId) : old,
@@ -141,9 +148,7 @@ export function useChat(conversationId: number, currentUserId?: number): {
 
     socket.on('error', (err: string) => {
       console.error('[ChatSocket]', err);
-      setPendingMessages((prev) =>
-        prev.map((p) => (p.status === 'sending' ? { ...p, status: 'error' as const } : p)),
-      );
+      setPendingMessages(markPendingAsError);
     });
 
     return () => {
@@ -173,13 +178,6 @@ export function useChat(conversationId: number, currentUserId?: number): {
   }
 
   return { messages, isLoading, sendMessage, hasNextPage, fetchNextPage, isFetchingNextPage, connectionStatus };
-}
-
-function mergeMessages(http: Message[], socket: Message[]): Message[] {
-  if (socket.length === 0) return http;
-  const seen = new Set(http.map((m) => m.id));
-  const fresh = socket.filter((m) => !seen.has(m.id));
-  return [...http, ...fresh];
 }
 
 export type { PaginatedResponse };

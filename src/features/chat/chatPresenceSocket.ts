@@ -1,9 +1,11 @@
-import { io, type Socket } from 'socket.io-client';
-import { queryClient } from '@/lib/queryClient';
-import { queryKeys } from '@/hooks/queryKeys';
+import type { Socket } from 'socket.io-client';
+import { queryClient } from '@/lib/query/queryClient';
+import { queryKeys } from '@/hooks/query/queryKeys';
 import { api } from '@/api';
-import { playMessageReceived } from '@/lib/chatSound';
+import { createRefCountedSocket } from '@/lib/realtime/socket';
+import { playMessageReceived } from '@/lib/realtime/chatSound';
 import { applyIncomingMessage } from './chatConversations';
+import { appendMessageToCache, type MessagesInfiniteData } from './chatMessages';
 import { shouldPlayPresenceSound, unjoinedConversationIds } from './chatPresence';
 import type { Conversation, Message } from '@/types';
 
@@ -14,8 +16,6 @@ type PresenceSocket = Socket<
   { join: (payload: { conversationId: number }) => void }
 >;
 
-let socket: PresenceSocket | null = null;
-let refCount = 0;
 let viewerId: number | undefined;
 let activeConversationId: number | null = null;
 const joined = new Set<number>();
@@ -31,6 +31,7 @@ export function setActiveConversation(id: number | null): void {
 }
 
 function joinConversation(id: number): void {
+  const socket = presenceSocket.current();
   if (!socket || joined.has(id)) return;
   socket.emit('join', { conversationId: id });
   joined.add(id);
@@ -43,24 +44,17 @@ function joinAll(convs: Conversation[]): void {
 /**
  * Single app-scoped chat socket so an online viewer hears a sound for any
  * incoming message — even on a thread they are not looking at, or while on
- * another page entirely. Ref-counted like the notification socket: one
- * connection for the whole app, opened by the first consumer and closed by the
- * last.
+ * another page entirely. Ref-counted via `lib/socket` (same lifecycle as the
+ * notification socket): one connection for the whole app, opened by the first
+ * consumer and closed by the last.
  *
  * The documented chat contract is room-based (the server delivers `new_message`
  * only for conversations the socket has `join`ed), so on connect we join every
  * conversation the viewer has, and re-join whenever the conversation list cache
  * grows (e.g. a new thread is started while online).
- *
- * @returns a release function for the caller's effect cleanup.
  */
-export function acquireChatPresenceSocket(meId: number | undefined): () => void {
-  refCount += 1;
-  viewerId = meId;
-
-  if (!socket) {
-    socket = io(`${CHAT_URL}/chat`, { withCredentials: true });
-
+const presenceSocket = createRefCountedSocket<PresenceSocket>(`${CHAT_URL}/chat`, {
+  onCreate: (socket) => {
     socket.on('connect', () => {
       const cached = queryClient.getQueryData<Conversation[]>(queryKeys.conversations.all);
       if (cached) joinAll(cached);
@@ -74,6 +68,12 @@ export function acquireChatPresenceSocket(meId: number | undefined): () => void 
       if (shouldPlayPresenceSound(msg, viewerId, activeConversationId)) {
         playMessageReceived();
       }
+      // Keep any already-cached thread current so it shows instantly when the
+      // viewer opens it (dedupe-safe if useChat's own socket also wrote it).
+      queryClient.setQueryData<MessagesInfiniteData>(
+        queryKeys.messages.byConversation(msg.conversationId),
+        (old) => appendMessageToCache(old, msg),
+      );
       // Keep the list preview/badge live when it is mounted. The open thread is
       // owned by useChat (which marks it read), so skip the active conversation.
       if (msg.conversationId !== activeConversationId) {
@@ -86,23 +86,22 @@ export function acquireChatPresenceSocket(meId: number | undefined): () => void 
     // Join threads created after connect (e.g. the viewer starts a new chat).
     const convKey = queryKeys.conversations.all[0];
     unsubscribeCache = queryClient.getQueryCache().subscribe((event) => {
-      if (event.query.queryKey[0] !== convKey || !socket?.connected) return;
+      if (event.query.queryKey[0] !== convKey || !presenceSocket.current()?.connected) return;
       const convs = queryClient.getQueryData<Conversation[]>(queryKeys.conversations.all);
       if (convs) joinAll(convs);
     });
-  }
+  },
+  onDestroy: () => {
+    unsubscribeCache?.();
+    unsubscribeCache = null;
+    joined.clear();
+    viewerId = undefined;
+    activeConversationId = null;
+  },
+});
 
-  return () => {
-    refCount -= 1;
-    if (refCount <= 0) {
-      unsubscribeCache?.();
-      unsubscribeCache = null;
-      socket?.disconnect();
-      socket = null;
-      refCount = 0;
-      joined.clear();
-      viewerId = undefined;
-      activeConversationId = null;
-    }
-  };
+/** @returns a release function for the caller's effect cleanup. */
+export function acquireChatPresenceSocket(meId: number | undefined): () => void {
+  viewerId = meId;
+  return presenceSocket.acquire();
 }

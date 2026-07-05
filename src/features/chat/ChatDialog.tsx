@@ -3,9 +3,9 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/api';
-import { queryClient } from '@/lib/queryClient';
-import { queryKeys } from '@/hooks/queryKeys';
-import { cn } from '@/lib/utils';
+import { queryClient } from '@/lib/query/queryClient';
+import { queryKeys } from '@/hooks/query/queryKeys';
+import { cn } from '@/lib/format/utils';
 import { ChatThread } from './ChatThread';
 import type { Conversation, User } from '@/types';
 

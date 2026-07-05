@@ -4,25 +4,15 @@ import { useQueries, useMutation } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useRole } from '@/hooks/useRole';
-import { queryKeys } from '@/hooks/queryKeys';
+import { useRole } from '@/hooks/auth/useRole';
+import { queryKeys } from '@/hooks/query/queryKeys';
 import { api } from '@/api';
-import { queryClient } from '@/lib/queryClient';
+import { queryClient } from '@/lib/query/queryClient';
 import { useConversations, useMarkConversationRead } from './useChat';
 import { ChatThread } from './ChatThread';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
+import { relativeTimeShort } from '@/lib/format/time';
 import type { Conversation, User } from '@/types';
-
-function timeAgo(iso: string): string {
-  const ms = new Date(iso).getTime();
-  if (isNaN(ms)) return '';
-  const diff = Math.floor((Date.now() - ms) / 60000);
-  if (diff < 1) return 'Vừa xong';
-  if (diff < 60) return `${diff}p`;
-  const h = Math.floor(diff / 60);
-  if (h < 24) return `${h}g`;
-  return `${Math.floor(h / 24)}n`;
-}
 
 export default function MessagesPage(): ReactElement {
   const role = useRole();
@@ -170,7 +160,7 @@ export default function MessagesPage(): ReactElement {
                       {displayName}
                     </span>
                     <span className="text-[10px] text-ink-muted flex-none">
-                      {timeAgo(c.lastMessage?.createdAt ?? c.createdAt)}
+                      {relativeTimeShort(c.lastMessage?.createdAt ?? c.createdAt)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-2">

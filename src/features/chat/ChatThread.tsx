@@ -2,10 +2,10 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from 
 import { ArrowLeft, Loader2, Send } from 'lucide-react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useRole } from '@/hooks/useRole';
+import { useRole } from '@/hooks/auth/useRole';
 import { useChat } from './useChat';
 import { chatConnectionBanner } from './chatConnection';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
 import type { Conversation, User } from '@/types';
 
 function formatMessageTime(iso: string): string {
