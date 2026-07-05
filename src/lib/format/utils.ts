@@ -6,19 +6,32 @@ export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs))
 }
 
-export function formatPrice(n: number): string {
-  if (n == null || isNaN(n)) return '—';
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace('.0', '')} triệu đ`;
-  return n.toLocaleString('vi-VN') + ' đ';
+/**
+ * Coerce a money value to a finite number. Backend money fields now serialize
+ * as JSON numbers, but historical/edge responses can still arrive as decimal
+ * strings (e.g. "2000.00"); accept both so callers never render raw decimals.
+ */
+function toMoneyNumber(n: number | string | null | undefined): number | null {
+  if (n == null) return null;
+  const value = typeof n === 'string' ? Number(n) : n;
+  return Number.isFinite(value) ? value : null;
+}
+
+export function formatPrice(n: number | string): string {
+  const value = toMoneyNumber(n);
+  if (value == null) return '—';
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1).replace('.0', '')} triệu đ`;
+  return value.toLocaleString('vi-VN') + ' đ';
 }
 
 /**
  * Exact VND — full grouped digits, never abbreviated. Use for payment totals,
  * order totals and line items where the precise amount matters.
  */
-export function formatVnd(n: number): string {
-  if (n == null || isNaN(n)) return '—';
-  return n.toLocaleString('vi-VN') + ' đ';
+export function formatVnd(n: number | string): string {
+  const value = toMoneyNumber(n);
+  if (value == null) return '—';
+  return value.toLocaleString('vi-VN') + ' đ';
 }
 
 /**

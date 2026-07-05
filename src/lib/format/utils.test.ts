@@ -22,11 +22,25 @@ describe('formatPrice', () => {
   it('returns a dash for invalid input', () => {
     expect(formatPrice(NaN)).toBe('—');
   });
+
+  it('coerces decimal-string money values (legacy backend responses)', () => {
+    expect(formatPrice('2000.00')).toBe('2.000 đ');
+    expect(formatPrice('299000.00')).toBe('299.000 đ');
+    expect(formatPrice('1500000.00')).toBe('1.5 triệu đ');
+  });
+
+  it('returns a dash for non-numeric strings', () => {
+    expect(formatPrice('abc')).toBe('—');
+  });
 });
 
 describe('formatVnd', () => {
   it('always shows full grouped digits, never abbreviated', () => {
     expect(formatVnd(1_500_000)).toBe('1.500.000 đ');
+  });
+
+  it('coerces decimal-string money values', () => {
+    expect(formatVnd('1500000.00')).toBe('1.500.000 đ');
   });
 });
 

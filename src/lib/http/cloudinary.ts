@@ -67,6 +67,7 @@ async function uploadChunked(
 
 const POSTS_FOLDER = 'trybuy/posts';
 const PRODUCTS_FOLDER = 'trybuy/products';
+const AVATARS_FOLDER = 'avatars';
 
 function makePublicId(userId: number): string {
   return `${userId}_${Math.random().toString(36).slice(2, 9)}`;
@@ -99,6 +100,16 @@ export async function uploadProductImage(
 ): Promise<UploadResult> {
   const publicId = makePublicId(userId);
   const sig = await api.upload.getSignature(PRODUCTS_FOLDER, userId, publicId);
+  return uploadChunked(file, sig, 'image', onProgress);
+}
+
+export async function uploadAvatar(
+  file: File,
+  userId: number,
+  onProgress?: UploadProgressCallback,
+): Promise<UploadResult> {
+  const publicId = makePublicId(userId);
+  const sig = await api.upload.getSignature(AVATARS_FOLDER, userId, publicId);
   return uploadChunked(file, sig, 'image', onProgress);
 }
 
