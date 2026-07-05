@@ -1,16 +1,11 @@
 import { type ReactElement, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle, XCircle, Tag } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
+import { formatDate } from '@/lib/format/time';
 import { api } from '@/api';
-import { queryKeys } from '@/hooks/queryKeys';
+import { queryKeys } from '@/hooks/query/queryKeys';
 import type { ReviewDto } from '@/types';
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('vi-VN', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-  });
-}
 
 export default function PendingBrandsPage(): ReactElement {
   const queryClient = useQueryClient();

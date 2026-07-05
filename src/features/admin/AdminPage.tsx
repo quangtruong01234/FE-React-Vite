@@ -1,38 +1,11 @@
 import { type ReactElement, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Users, ShoppingBag } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatVnd } from '@/lib/format/utils';
+import { formatDate } from '@/lib/format/time';
 import { api } from '@/api';
-import { queryKeys } from '@/hooks/queryKeys';
-import type { OrderStatus } from '@/types';
-
-const STATUS_STYLES: Record<OrderStatus, string> = {
-  pending:    'bg-accent-amber/15 text-accent-amber',
-  processing: 'bg-accent-cyan/15 text-accent-cyan',
-  shipped:    'bg-purple-500/15 text-purple-400',
-  delivering: 'bg-purple-500/15 text-purple-400',
-  completed:  'bg-accent-green/15 text-accent-green',
-  canceled:   'bg-accent-red/15 text-accent-red',
-};
-
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  pending:    'Chờ xác nhận',
-  processing: 'Đang xử lý',
-  shipped:    'Đã giao GHN',
-  delivering: 'Đang giao',
-  completed:  'Hoàn thành',
-  canceled:   'Đã huỷ',
-};
-
-function formatVND(amount: string | number): string {
-  return Number(amount).toLocaleString('vi-VN') + '₫';
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('vi-VN', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-  });
-}
+import { queryKeys } from '@/hooks/query/queryKeys';
+import { StatusBadge } from '@/components/shared/StatusBadge';
 
 const USERS_PER_PAGE = 20;
 
@@ -45,7 +18,7 @@ export default function AdminPage(): ReactElement {
   });
 
   const { data: usersData, isLoading: usersLoading } = useQuery({
-    queryKey: [...queryKeys.users.all, usersPage, USERS_PER_PAGE],
+    queryKey: queryKeys.users.list(usersPage, USERS_PER_PAGE),
     queryFn: () => api.users.getPaginated(usersPage, USERS_PER_PAGE),
   });
 
@@ -126,15 +99,10 @@ export default function AdminPage(): ReactElement {
                     {order.buyer.name ?? order.buyer.username}
                   </td>
                   <td className="px-4 py-3 font-body font-semibold text-accent-amber text-sm">
-                    {formatVND(order.total)}
+                    {formatVnd(Number(order.total))}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={cn(
-                      'inline-flex items-center px-2 py-0.5 rounded-tb-pill font-body font-medium text-xs',
-                      STATUS_STYLES[order.status],
-                    )}>
-                      {STATUS_LABELS[order.status]}
-                    </span>
+                    <StatusBadge status={order.status} />
                   </td>
                   <td className="px-4 py-3 font-body text-ink-sec text-sm">
                     {formatDate(order.createdAt)}
