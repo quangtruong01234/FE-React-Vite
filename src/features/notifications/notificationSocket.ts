@@ -1,6 +1,7 @@
-import { io, type Socket } from 'socket.io-client';
-import { queryClient } from '@/lib/queryClient';
-import { queryKeys } from '@/hooks/queryKeys';
+import type { Socket } from 'socket.io-client';
+import { queryClient } from '@/lib/query/queryClient';
+import { queryKeys } from '@/hooks/query/queryKeys';
+import { createRefCountedSocket } from '@/lib/realtime/socket';
 import type { Notification } from '@/types';
 import { prependNotification, didInsert, type NotifCache } from './notificationCache';
 
@@ -8,24 +9,12 @@ const NOTIF_URL = (import.meta.env.VITE_WS_NOTIFICATION_URL as string | undefine
 
 type NotifSocket = Socket<{ notification: (n: Notification) => void }, Record<never, never>>;
 
-let socket: NotifSocket | null = null;
-let refCount = 0;
-
-/**
- * Single app-scoped notification socket shared by every consumer
- * (Header bell + notifications page). Ref-counted: the connection opens on the
- * first consumer and closes when the last one unmounts, so there is never more
- * than one socket — preventing duplicate `notification` events from two sockets.
- *
- * @returns a release function for the caller's effect cleanup.
- */
-export function acquireNotificationSocket(): () => void {
-  refCount += 1;
-
-  if (!socket) {
-    // Backend serves notifications on the `/notifications` namespace of the
-    // gateway origin (mirrors chat's `/chat`) — NOT the default namespace.
-    socket = io(`${NOTIF_URL}/notifications`, { withCredentials: true });
+// Backend serves notifications on the `/notifications` namespace of the
+// gateway origin (mirrors chat's `/chat`) — NOT the default namespace.
+// Shared by every consumer (Header bell + notifications page) via the
+// ref-counted lifecycle in `lib/socket`.
+const notificationSocket = createRefCountedSocket<NotifSocket>(`${NOTIF_URL}/notifications`, {
+  onCreate: (socket) => {
     socket.on('notification', (incoming: Notification) => {
       const listKey = queryKeys.notifications.list(1);
       const before = queryClient.getQueryData<NotifCache>(listKey);
@@ -40,14 +29,10 @@ export function acquireNotificationSocket(): () => void {
         );
       }
     });
-  }
+  },
+});
 
-  return () => {
-    refCount -= 1;
-    if (refCount <= 0) {
-      socket?.disconnect();
-      socket = null;
-      refCount = 0;
-    }
-  };
+/** @returns a release function for the caller's effect cleanup. */
+export function acquireNotificationSocket(): () => void {
+  return notificationSocket.acquire();
 }

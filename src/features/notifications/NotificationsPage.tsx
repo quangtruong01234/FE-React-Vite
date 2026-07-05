@@ -1,32 +1,17 @@
 import { useState, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Bell, BellOff, CheckCircle, Truck, XCircle,
-  MessageCircle, Heart, ShoppingBag,
-} from 'lucide-react';
+import { BellOff } from 'lucide-react';
 import { useNotifications } from './useNotifications';
+import {
+  getNotificationMeta,
+  getNotificationContent,
+  getNotificationHref,
+  relativeTime,
+} from './notificationDisplay';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Pagination } from '@/components/shared/Pagination';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
 import type { Notification } from '@/types';
-
-const NOTI_ICON: Record<string, { icon: ReactElement; color: string }> = {
-  payment_completed: { icon: <CheckCircle size={18} />, color: 'text-accent-green bg-accent-green/10' },
-  order_shipped:     { icon: <Truck size={18} />,        color: 'text-accent-violet bg-accent-violet/10' },
-  order_canceled:    { icon: <XCircle size={18} />,      color: 'text-accent-red bg-accent-red/10' },
-  order_placed:      { icon: <ShoppingBag size={18} />,  color: 'text-accent-amber bg-accent-amber/10' },
-  comment:           { icon: <MessageCircle size={18} />, color: 'text-accent-amber bg-accent-amber/10' },
-  reply:             { icon: <Heart size={18} />,         color: 'text-accent-red bg-accent-red/10' },
-};
-
-function relativeTime(dateStr: string): string {
-  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
-  if (diff < 1) return 'Vừa xong';
-  if (diff < 60) return `${diff} phút trước`;
-  const h = Math.floor(diff / 60);
-  if (h < 24) return `${h} giờ trước`;
-  return `${Math.floor(h / 24)} ngày trước`;
-}
 
 function groupByDate(notifications: Notification[]): { label: string; items: Notification[] }[] {
   const now = Date.now();
@@ -65,8 +50,9 @@ export default function NotificationsPage(): ReactElement {
 
   function handleClick(n: Notification): void {
     markRead(n.id);
-    if (n.orderId) {
-      navigate(`/order/${n.orderId}`);
+    const href = getNotificationHref(n);
+    if (href) {
+      navigate(href);
     }
   }
 
@@ -146,10 +132,8 @@ export default function NotificationsPage(): ReactElement {
               </div>
               <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
                 {items.map((n) => {
-                  const meta = NOTI_ICON[n.type] ?? {
-                    icon: <Bell size={18} />,
-                    color: 'text-ink-sec bg-canvas-elevated',
-                  };
+                  const { Icon, color } = getNotificationMeta(n.type);
+                  const { title, body } = getNotificationContent(n);
                   return (
                     <button
                       key={n.id}
@@ -161,16 +145,17 @@ export default function NotificationsPage(): ReactElement {
                         !n.isRead && 'bg-accent-amber/[0.04]',
                       )}
                     >
-                      <span className={cn('w-10 h-10 rounded-full flex-none flex items-center justify-center', meta.color)}>
-                        {meta.icon}
+                      <span className={cn('size-10 rounded-full flex-none grid place-items-center', color)}>
+                        <Icon size={18} className="shrink-0" />
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className={cn(
-                          'm-0 text-sm leading-snug',
-                          n.isRead ? 'text-ink-sec' : 'text-ink-pri font-medium',
+                          'm-0 text-sm leading-snug font-semibold',
+                          n.isRead ? 'text-ink-sec' : 'text-ink-pri',
                         )}>
-                          {n.message}
+                          {title}
                         </p>
+                        <p className="m-0 text-sm leading-snug text-ink-sec">{body}</p>
                         <span className="text-xs text-ink-muted">{relativeTime(n.createdAt)}</span>
                       </div>
                       {!n.isRead && (
