@@ -4,7 +4,7 @@
 
 - Components: PascalCase — `ProductListPage.tsx`, `CartSidebar.tsx`
 - Hooks: camelCase + `use` prefix — `useAuth.ts`, `useLogin.ts`, `useProduct.ts`
-- No `services/` folder — all HTTP calls live in `api/index.ts`
+- No `services/` folder — HTTP calls live in `src/api/<domain>.ts` (auth, products, orders, cart, chat, social, …), aggregated into the `api` object by `api/index.ts`
 - Types: split by feature/domain under `types/` (e.g. `product.ts`, `order.ts`, `cart.ts`); `types/index.ts` is the barrel — always import from `@/types`
 
 ## Folder Structure
@@ -22,7 +22,11 @@ frontend/src/
 │   ├── domain/                 # orderStatus.ts, paymentUrl.ts, sku.ts, sharePost.ts, likedPosts.ts
 │   └── http/                   # cloudinary.ts, fetchBatchTolerant.ts
 ├── api/
-│   └── index.ts                # request() wrapper + api object
+│   ├── client.ts               # request() wrapper
+│   ├── index.ts                # aggregates domain modules into the `api` object
+│   └── auth.ts · products.ts · orders.ts · cart.ts · payment.ts · inventory.ts
+│       · chat.ts · social.ts · notifications.ts · reviews.ts · users.ts
+│       · upload.ts · unauthorized.ts · misc.ts
 ├── types/                      # Split by feature/domain; index.ts re-exports (barrel)
 │   ├── index.ts                # Barrel — import from '@/types'
 │   ├── common.ts               # PaginatedResponse, ApiError, HealthStatus
@@ -39,17 +43,23 @@ frontend/src/
 │   └── CartContext.tsx         # CartProvider — cart state + localStorage persistence
 ├── components/
 │   ├── ui/                     # shadcn/ui (DO NOT EDIT — write-blocked; install only via `npx shadcn add`)
-│   └── shared/                 # Custom shared components: Avatar, GradientButton, LiveBadge, OnlinePill,
-│                               # PriceText, StatusBadge, TextField. All non-shadcn reusable components go here.
+│   └── shared/                 # Custom shared components: ApiErrorState, Avatar, GradientButton,
+│                               # IconButton, LiveBadge, ModalCloseButton, OnlinePill, PageSkeleton,
+│                               # Pagination, PriceText, ProductThumb, RichTextEditor, StarRating,
+│                               # StatusBadge, TextField, ToggleSwitch. All non-shadcn reusables go here.
 ├── features/
+│   ├── admin/                  # AdminPage, AdminAnalyticsPage, Pending{Brands,Categories}Page, ReportedPostsPage
 │   ├── auth/                   # LoginPage.tsx, useLogin.ts
-│   ├── cart/                   # CartSidebar.tsx, CheckoutPage.tsx
-│   ├── chat/                   # ChatDialog.tsx, ChatThread.tsx, MessagesPage.tsx,
-│   │                           # useChat.ts, chatPresenceSocket.ts, chat*.ts helpers
-│   ├── notifications/          # notificationSocket.ts, notificationCache.ts
-│   ├── order/                  # OrderHistoryPage.tsx
-│   └── product/                # ProductListPage.tsx, ProductDetail.tsx,
-│                               # CreateProductModal.tsx, useProduct.ts
+│   ├── cart/                   # CartPage, CartSidebar, CheckoutPage + cart helpers
+│   ├── chat/                   # ChatDialog, ChatThread, MessagesPage, useChat, chat*.ts helpers
+│   ├── notifications/          # NotificationsPage, notificationSocket, notificationCache, notificationDisplay
+│   ├── order/                  # OrderHistory/OrderDetail/SellerOrders/ReturnRequests/ShopAnalytics pages
+│   │                           # + analytics/ + order helper modules + use*.ts hooks
+│   ├── payment/                # PaymentResultPage
+│   ├── product/                # MarketplacePage, ProductDetail, CreateProductPage, useProduct
+│   ├── shop/                   # ShopPage
+│   ├── social/                 # FeedPage, PostCard, PostDetailPage, CreatePostModal, useFeed/useComments/useFollow
+│   └── user/                   # ProfilePage, EditProfileModal, FollowListModal, profileAbout
 └── assets/
 ```
 
@@ -60,41 +70,35 @@ frontend/src/
 - New shared/reusable component → `components/shared/`
 - New cross-cutting hook (used by 2+ features) → `hooks/<layer>/` (`query`/`auth`/`data`/`ui`)
 - New cross-cutting util → `lib/<layer>/` (`format`/`query`/`realtime`/`auth`/`domain`/`http`)
-- New type → `types/index.ts`
+- New type → `types/<domain>.ts` (re-export via `types/index.ts` barrel)
 - New API call → `api/<domain>.ts` (+ query key in `hooks/query/queryKeys.ts`)
 
 > Before creating anything: run `/audit-duplicates <name>` first.
 
 ## Routing — React Router DOM v7
 
+Source of truth: `src/router.tsx` (route-level pages lazy-load via `React.lazy` + `<Suspense fallback={<PageSkeleton />}>`). Guards: `ProtectedRoute` (optionally with `requiredRole="shop" | "admin"`).
+
 | Path | Component | Guard |
 |---|---|---|
 | `/login` | `LoginPage` | public |
-| `/` | `ProductListPage` | `RequireAuth` |
-| `/product/:id` | `ProductDetail` | `RequireAuth` |
-| `/checkout` | `CheckoutPage` | `RequireAuth` |
-| `/orders` | `OrderHistoryPage` | `RequireAuth` |
-| `*` | `<Navigate to="/" />` | — |
+| `/` | `FeedLayout` (social feed) | auth |
+| `/messages` | `MessagesLayout` | auth |
+| `/post/:id` | `PostDetailPage` | auth |
+| `/marketplace` | `MarketplacePage` | auth |
+| `/product/:id` | `ProductDetail` | auth |
+| `/cart` · `/checkout` | `CartPage` · `CheckoutPage` | auth |
+| `/orders` · `/order/:id` · `/returns` | order pages | auth |
+| `/payment-result` | `PaymentResultPage` | auth |
+| `/profile/:id` | `ProfilePage` | auth |
+| `/notifications` | `NotificationsPage` | auth |
+| `/shop` · `/shop/analytics` | `ShopPage` · `ShopAnalyticsPage` | role: shop |
+| `/sell` · `/sell/:id` · `/sell/orders` · `/sell/returns` | seller pages | role: shop |
+| `/admin` · `/admin/analytics` · `/admin/reports` · `/admin/{brands,categories}/pending` | admin pages | role: admin |
+| `*` (inside layout) | 404 `ApiErrorState` | — |
+| `*` (top-level) | `<Navigate to="/" />` | — |
 
-`RequireAuth` reads `currentUser` from `useAuthContext()` → redirects to `/login` if null.
-`RootLayout` renders `<Outlet />` + `<CartSidebar />` (always mounted for slide-in UX).
-
-```tsx
-export const router = createBrowserRouter([
-  { path: '/login', element: <LoginPage /> },
-  {
-    path: '/',
-    element: <RequireAuth><RootLayout /></RequireAuth>,
-    children: [
-      { index: true, element: <ProductListPage /> },
-      { path: 'product/:id', element: <ProductDetail /> },
-      { path: 'checkout', element: <CheckoutPage /> },
-      { path: 'orders', element: <OrderHistoryPage /> },
-    ],
-  },
-  { path: '*', element: <Navigate to="/" replace /> },
-]);
-```
+> Don't duplicate the router code here — when adding a route, edit `src/router.tsx` and add a row to this table.
 
 Rules:
 - Navigate via `<Link>` / `useNavigate` — never `window.location.href`

@@ -11,7 +11,7 @@ These are the non-negotiable rules. Violating any of these breaks the build or t
 - **Search before creating** — no duplicate hooks/components/utils. Use `/audit-duplicates`.
 - **After every change:** run `npm run build` (includes `tsc --noEmit`). Never mark done with TS errors.
 - **On task done — record backend gaps:** when finishing a task, evaluate whether you hit an API contract problem that only the backend can fix — **missing data** (a field/endpoint FE needs but BE doesn't return), a **wrong response** (shape/type/status/value vs. expected), or a **wrong/rejected request contract**. If so, append an entry to `../.agent-local/backend-handoff.md` (FE→BE inbox; use the template there). If FE shipped a client-side mitigation, note what would let FE drop it. Skip when it's purely a FE-side fix.
-- **Every fix/logic change ships with a test.** A bug fix or new logic is not "done" until it has a colocated test (`*.test.ts`/`*.test.tsx`). Extract testable logic into a pure helper (`lib/` or feature folder) and unit-test it rather than leaving it inline in a component — see `sku.ts`/`orderSummary.ts`/`sellerOrderActions.ts`. Run `npm run test:run` and keep it green. (Test deps not yet installed → tracked in snapshot P3-01; still write the test so it runs the moment infra lands.) Details → `.ai/testing.md`.
+- **Every fix/logic change ships with a test.** A bug fix or new logic is not "done" until it has a colocated test (`*.test.ts`/`*.test.tsx`). Extract testable logic into a pure helper (`lib/` or feature folder) and unit-test it rather than leaving it inline in a component — see `sku.ts`/`orderSummary.ts`/`sellerOrderActions.ts`. Run `npm run test:run` and keep it green. Details → `.ai/testing.md`.
 - **No new dependencies** without asking. `npm install` is blocked in `settings.json`.
 - **UI lookup order (MANDATORY):** Before writing any new UI, check in this order: `src/components/ui/` → `src/components/shared/` → feature folder → only then create new. Never create a component that duplicates one already in `ui/` or `shared/`.
 - **DRY — UI:** If the same UI pattern appears in 2+ places, stop and propose extracting it to `src/components/shared/` before continuing.
@@ -29,7 +29,7 @@ React 19 · Vite · TypeScript strict · React Router DOM **v7** · TanStack Que
 - ❌ NO `fetch()` directly in components — use `api` from `src/api/index.ts`
 - ❌ NO manual `loading`/`error` state for server data
 - Mutations use `isPending`, not `isLoading` (v5)
-- Query keys from `hooks/queryKeys.ts` factory — never inline `['products']`
+- Query keys from `hooks/query/queryKeys.ts` factory — never inline `['products']`
 - IDs are `number` everywhere — never `string`
 - Details + examples → `.ai/context/data-fetching.md`
 
@@ -39,6 +39,7 @@ React 19 · Vite · TypeScript strict · React Router DOM **v7** · TanStack Que
 - No separate `.css`/`.module.css` (only `index.css`).
 - No hardcoded hex (`[#...]`) and no raw palette (`text-gray-500`) — use `tb-*` tokens.
 - Conditional classes via `cn()` from `lib/utils.ts` — not template literals.
+- **Icon buttons:** a sized icon-only `<button>` (`size-*`) MUST be `<IconButton>` (`components/shared/IconButton.tsx`), never a raw `<button>`. Raw `<button>` keeps UA default padding that nudges the box past `size-*` and knocks the icon off-center (the "icon lệch" bug). Every Lucide icon needs `shrink-0` + `size={n}` (number). Details → `.ai/context/styling.md`.
 - Tokens reference → `.ai/tokens.md` · styling guide → `.ai/context/styling.md`
 
 ## Auth — hard rules
@@ -58,7 +59,7 @@ React 19 · Vite · TypeScript strict · React Router DOM **v7** · TanStack Que
 ## Routing
 
 - React Router DOM v7 only. Navigate via `<Link>` / `useNavigate` — never `window.location`.
-- Routes: `/login`, `/`, `/product/:id`, `/checkout`, `/orders`. Details → `.ai/context/structure.md`.
+- Route table lives in `.ai/context/structure.md` (source of truth: `src/router.tsx`) — don't duplicate it here.
 
 ## Performance
 - Choose the better complexity/render approach up front (Map/Set lookups over nested find/filter; thin JSX; stable keys; memoize Context values) — but do NOT add memoization speculatively.

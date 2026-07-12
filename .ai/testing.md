@@ -1,8 +1,10 @@
 # Testing — Vitest + RTL + MSW
 
-> Status: **Infra files present, deps not installed.** Config (`vite.config.ts` `test`), setup (`src/test/setup.ts`), MSW (`src/test/msw/`) and `renderWithProviders` exist, and tests are colocated (`sku.test.ts`, `orderSummary.test.ts`, `sellerOrderActions.test.ts`, `ProductCard.test.tsx`). The dev deps below are **not yet in `package.json`**, so `npm run test:run` can't execute until they're installed (blocked: `npm install`). Tracked as snapshot **P3-01**.
+> Status: **Fully installed and running.** Vitest + RTL + MSW deps are in `package.json`; config (`vite.config.ts` `test`), setup (`src/test/setup.ts`), MSW (`src/test/msw/`) and `renderWithProviders` all exist. Tests are colocated next to their modules. Run `npm run test:run` — keep it green.
 >
-> **Rule:** every fix/logic change still ships with a colocated test (see core.md). Prefer extracting logic to a pure helper and unit-testing it; reserve component/hook tests (RTL + MSW) for behaviour that only exists in the component.
+> **Rule:** every fix/logic change ships with a colocated test (see core.md). Prefer extracting logic to a pure helper and unit-testing it; reserve component/hook tests (RTL + MSW) for behaviour that only exists in the component.
+>
+> **E2E:** Playwright is installed (`npm run test:e2e`, `test:e2e:ui`, `test:e2e:report`); specs live under `e2e/`. Use for critical cross-page flows only — unit/component tests remain the default.
 
 ## Recommended Stack
 
@@ -15,7 +17,7 @@
 | MSW (Mock Service Worker) | Mock API at the network layer — no `api/index.ts` mocking |
 | @testing-library/react-hooks (built into RTL v13+) | Test hooks via `renderHook` |
 
-## One-time Setup
+## One-time Setup (already applied — kept as reference)
 
 ```bash
 npm install -D vitest @vitest/ui @testing-library/react @testing-library/jest-dom \

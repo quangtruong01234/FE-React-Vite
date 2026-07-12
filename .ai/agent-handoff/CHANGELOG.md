@@ -6,6 +6,792 @@
 
 ## Cleanup / hardening
 
+### SEC-L3 — 409 duplicate brand/category proposals mapped to a friendly message (2026-07-12, /sweep)
+
+Backend handoff SEC-L3 (2026-07-12): `POST /api/products/brands` and
+`POST /api/products/categories` now return `409` when the proposed name case-insensitively
+matches an existing **active or pending** row (after trimming). Previously the FE showed the
+generic "Không thể tạo … Thử lại sau." for every failure, which is misleading for conflicts —
+retrying can never succeed.
+
+- **`src/features/product/product-form/proposalErrors.ts` (new pure helper, 4 tests):**
+  `proposalErrorMessage(kind, error)` narrows `unknown` → `ApiError` (checks `statusCode`
+  with `status` fallback) and maps `409` → "Thương hiệu/Danh mục này đã tồn tại hoặc đang
+  chờ duyệt."; every other error keeps the pre-existing generic retry message per kind.
+- **`src/features/product/product-form/BasicInfoSection.tsx`:** both proposal catch blocks
+  (brand combobox `handleCreateBrand`, category add `handleCreateCategory`) changed from a
+  bare `catch` + hardcoded string to `catch (error: unknown)` + the helper. The client-side
+  exact-match check stays as UX only — it hides the add button for *active* duplicates, so
+  the live 409 path chiefly covers duplicates of **pending** rows, which are invisible to
+  the FE brand/category lists.
+- **Gates:** `build` ✓ · `lint` 0 errors (22 pre-existing warnings) · `test:run`
+  65 files / 418 tests ✓.
+- **Runtime-verified (Chrome DevTools MCP, live gateway, shop user `test1`):** `/sell` →
+  brand combobox → propose fresh name "SweepDupL3 1783" → `POST /api/products/brands` `201`
+  (pending); reload `/sell` (pending rows absent from `GET /products/brands`, add button
+  reappears) → propose the same name → `POST` `409` → UI renders "Thương hiệu này đã tồn
+  tại hoặc đang chờ duyệt." in the combobox error slot. Category path shares the same
+  helper + identical catch shape (covered by unit tests).
+- Handoff entry moved to **Done** in `../.agent-local/frontend-handoff.md`. No backend gap —
+  contract behaved exactly as documented.
+
+### SEC-M8 — signed `allowed_formats` echoed to Cloudinary (2026-07-12, /sweep)
+
+Backend handoff SEC-M8 (2026-07-11): `POST /api/upload/signature` now returns
+`allowed_formats` and includes it in the SHA1 signature params. Because the field is
+signed, the FE MUST send it verbatim in the direct Cloudinary upload FormData — omitting
+it makes Cloudinary reject every upload with "Invalid Signature". This was therefore a
+breaking contract change blocking all uploads (post image/video, product image, avatar).
+
+- **`src/types/upload.ts`**: `UploadSignature` gains `allowed_formats?: string`. Kept
+  optional so the FE stays compatible with a backend that doesn't sign it (send-when-
+  present mirrors the signature exactly in both directions).
+- **`src/lib/http/signedUploadFields.ts` (new pure helper, 4 tests):**
+  `signedUploadFields(sig)` returns the signed FormData param set — `signature`,
+  `timestamp` (stringified), `api_key`, `folder`, `public_id`, plus `allowed_formats`
+  only when non-empty. Extracted so the "FormData must mirror the signed params exactly"
+  invariant is unit-testable without touching `fetch`.
+- **`src/lib/http/cloudinary.ts`**: `uploadChunked` builds its per-chunk FormData from
+  the helper (fields repeat on every chunk, so chunked >6MB uploads are covered too).
+  All 4 upload entry points (`uploadImage`/`uploadVideo`/`uploadProductImage`/
+  `uploadAvatar`) share this path — no per-consumer change needed.
+- **Gates:** `build` ✓ · `lint` 0 errors (22 pre-existing warnings) · `test:run`
+  64 files / 414 tests ✓.
+- **Runtime-verified (Chrome DevTools MCP, live gateway + real Cloudinary):** login
+  user 17 → create-post modal → upload `public/imag1.png` → signature `201` with
+  `allowed_formats:"jpg,png,webp,mp4"` → Cloudinary POST `200` with `secure_url`
+  (success proves the signed field round-tripped — a mismatch would 400) → close modal
+  → orphan cleanup `DELETE /upload/media` `200`. Console clean (only pre-existing
+  legacy-image 404 + shadcn Dialog description warning).
+- Handoff entry moved to **Done** in `../.agent-local/frontend-handoff.md`. No backend
+  gap — contract behaved exactly as documented.
+
+### STY debt pass 1 — hardcoded hex → tokens (2026-07-11, /sweep)
+
+Closed all hardcoded-hex styling violations outside the justified recharts SVG file
+(`AnalyticsDashboard.tsx`). Scope = 5 files, className/icon-prop only, no logic:
+
+- **`TextField.tsx` (shared) — full retoken.** `bg-[#1C1C1E]`→`bg-canvas-elevated`,
+  `border-[#27272A]`→`border-bdr`, `border-[#EF4444]`→`border-accent-red`,
+  `text-[#A1A1AA]`→`text-ink-sec`, `text-[#52525B]`/placeholder→`text-ink-muted`,
+  `text-white`→`text-ink-pri`; focus rgba shadow → `focus-within:ring-4 ring-tb-amber/10`
+  + `border-tb-amber/50` (error: `ring-tb-red/10`); exact-scale arbitrary values →
+  scale (`h-[44px]`→`h-11`, `rounded-[10px]`→`rounded-tb-input`, `gap-[6px]`→`gap-1.5`,
+  `pl-[12px]`→`pl-3`, `py-[12px] px-[14px]`→`py-3 px-3.5`, `pr-[10px]`→`pr-2.5`,
+  `text-[14px]`→`text-sm`, `font-[500]`→`font-medium`, `flex-shrink-0`→`shrink-0`).
+  Non-exact arbitrary values (`text-[11px]`, `leading-[1.4]`, `tracking-[0.04em]`,
+  `duration-[120ms]`) kept — no scale equivalent, changing them alters design.
+- **`LoginPage.tsx`**: `bg-[#0B0B0E]`→`bg-tb-base` (the long-recorded Known Violation).
+- **`ChatThread.tsx`**: send `<Send color="#FFFFFF">` → inherits button's `text-ink-pri`
+  (+`shrink-0`).
+- **`PostDetailPage.tsx`**: stats heart `color="#fff"`→`text-ink-pri shrink-0`; container
+  `w-4 h-4 inline-flex items-center justify-center`→`size-4 grid place-items-center`
+  (same fix as the PostCard STY-addendum).
+- **`CheckoutPage.tsx`**: payment-method icon `color={active ? "#F59E0B" : "#A1A1AA"}`
+  → `cn('shrink-0', active ? 'text-accent-amber' : 'text-ink-sec')`; radio
+  `bg-amber-400/[0.08] border-amber-400/50`→`bg-tb-amber/[0.08] border-tb-amber/50`;
+  `w-5 h-5`→`size-5` grid, `w-[10px] h-[10px]`→`size-2.5`, `text-white`→`text-ink-pri`.
+
+**Pitfall found + documented in `tokens.md`:** opacity modifiers (`/50`, `/[0.08]`) are
+silent no-ops on the var()-based semantic aliases (no `<alpha-value>` in
+`tailwind.config.js`) — first attempt used `ring-accent-amber/10` and the focus ring
+fell back to Tailwind's default blue at runtime. Rule: alpha modifier ⇒ literal-hex
+token (`tb-*`, `accent-violet`, `accent-blue`).
+
+Gates: `build` ✓ · `lint` 0 errors (22 warnings unchanged) · `test:run` 63 files / 410 ✓.
+No unit test added (className-only, no logic — same precedent as STY-addendum/CLS pass).
+Runtime-verified (Chrome DevTools MCP, live FE `:5173`): login page computed styles —
+field box `rgb(28,28,30)` / border `rgb(39,39,42)` / radius 10px / height 44px, label
+`rgb(161,161,170)`, aside `rgb(9,9,11)`; focus-within border `rgba(245,158,11,0.5)` +
+ring `rgba(245,158,11,0.1) 0 0 0 4px` (caught the alias-alpha no-op live before fix).
+Remaining STY debt (pass 2, recorded in snapshot): raw Tailwind palette in ~20 files +
+scattered non-exact arbitrary sizing.
+
+### Known-issue small batch: ApiErrorState router nav + Header search a11y + UP-07 silent image slice (2026-07-11, /sweep 3)
+
+Three small open items from the whole-web audit / upload audit closed in one batch:
+
+- **ApiErrorState full-reload navigation (known issue, TOP FIX).** `ApiErrorState`
+  (`src/components/shared/ApiErrorState.tsx`) defined a local `navigate = window.location.href`
+  shim — every "Trang chủ" / "Đăng nhập lại" / fallback-back click full-reloaded the SPA,
+  violating the "never window.location" hard rule. Now uses `useNavigate()` (component only
+  renders under the router — sole consumer is `router.tsx` catch-all 404 route); back button
+  uses `navigate(-1)` with the same history-length guard. Test `ApiErrorState.test.tsx` (3:
+  Trang chủ → `/` via MemoryRouter without reload, 401 primary → `/login`, unmapped status
+  renders nothing).
+- **Header search submit button a11y name (known issue).** Icon-only submit `<button>` in
+  `Header.tsx` gained `aria-label="Tìm kiếm"`. Test `Header.test.tsx` (2: accessible name
+  exists; submit navigates to `/marketplace?search=…` via router) — cart/role/chat-presence/
+  NotificationBell/ProfileMenu stubbed via `vi.mock` (socket-backed, irrelevant to the form).
+- **UP-07 · over-`MAX_IMAGES` batch sliced silently (CreatePostModal).** New shared pure helper
+  `capImageBatch(currentCount, files, max)` (`src/lib/http/uploadValidation.ts`) = existing
+  `capFilesToLimit` + user-facing notice (`null` when all fit / "Tối đa N ảnh" when nothing fits
+  / "Chỉ thêm được X/Y ảnh — tối đa N ảnh" on partial drop). Wired into
+  `CreatePostModal.uploadImageFiles` (previously: silent `slice` + silent return at cap) and
+  `useProductForm.addImages` (previously: partial-drop message only set in `finally`; now the
+  notice rides the error slot from upload start, `finally` simplified to preserve it — a real
+  upload error from `catch` still wins). Tests +4 (`uploadValidation.test.ts` `capImageBatch`
+  describe).
+
+Gates: `build` ✓ · `lint` 0 errors (22 warnings unchanged) · `test:run` 63 files / 410 ✓ (+9).
+Runtime verify (Chrome DevTools MCP, user 17): all 3 verified live. (1) ApiErrorState — on
+`/this/route/does-not-exist`, set `window.__spaMarker='alive'`, clicked "TRANG CHỦ" →
+`{path:'/', marker:'alive'}` (marker survived ⇒ SPA nav, no full reload). (2) Header — a11y
+tree reports `button "Tìm kiếm"`. (3) UP-07 — synthetic `DataTransfer` with 5 files on the
+image input → notice "Chỉ thêm được 4/5 ảnh — tối đa 4 ảnh", counter 4/4, add button
+disabled; closing unpublished → 4× `DELETE /upload/media` 200 (orphan cleanup intact).
+
+### Forgot password / reset password via emailed verification code (2026-07-11, /sweep)
+
+Backend handoff 2026-07-11: new public endpoints `POST /api/user/forgot-password` (`{ email }` →
+always neutral `201`, anti-enumeration; 60s server-side resend cooldown; rate limit 5/60s) and
+`POST /api/user/reset-password` (`{ email, code: 6 digits, newPassword ≥ 6 }` → `201 { success }`;
+ALL verification failures → same `400 "Invalid or expired verification code"`; code valid 10 min,
+single-use, max 5 wrong attempts; reset does NOT log in). FE ships the full flow:
+
+- **Types/API:** `ForgotPasswordDto`/`ResetPasswordDto` (`src/types/auth.ts`);
+  `authApi.forgotPassword`/`resetPassword` (`src/api/auth.ts`).
+- **Schemas:** `forgotEmailSchema` + `resetPasswordSchema` (code `^\d{6}$`, newPassword min 6,
+  confirmPassword refine) in `auth.schema.ts`.
+- **Pure helpers:** `src/features/auth/forgotPassword.ts` — `forgotPasswordErrorMessage` /
+  `resetPasswordErrorMessage` (429 → generic VN rate-limit since `request()` drops `retryAfter`;
+  reset 400 → single "Mã xác nhận không đúng hoặc đã hết hạn…" per contract) +
+  `resendCooldownRemaining` (`RESEND_COOLDOWN_SECONDS = 60`, ceil, clamped).
+- **UI:** `ForgotPasswordForm.tsx` — two-step in-page flow (email → code + new password), 1s
+  interval countdown on the resend button mirroring the server cooldown, neutral step-2 copy,
+  code input `inputMode="numeric" maxLength={6} autoComplete="one-time-code"`. **Both step
+  `<form>`s carry `key=`** — without a remount React reuses the input DOM node at the same tree
+  position and the typed email leaks into the code field (caught by RTL, confirmed live-fixed).
+- **DRY:** extracted `PasswordField.tsx` (labeled password input + Eye toggle, was inline
+  `RegisterPasswordField` in LoginPage) — shared by register + reset forms; gained
+  `autoComplete="new-password"` (Chrome DevTools verbose hint).
+- **LoginPage:** `showRegister` boolean → `view: 'login' | 'register' | 'forgot'`; "Quên mật
+  khẩu?" enabled (was disabled "sắp ra mắt"); on reset success → back to the login form with a
+  green `accent-green` banner "Đặt lại mật khẩu thành công…" (NOT logged in, per contract).
+- **Tests (+13):** `forgotPassword.test.ts` (9: error mapping ×6, cooldown ×3) +
+  `LoginPage.test.tsx` forgot-password describe (4: zod email gate; send → `{ email }` body +
+  step 2 + disabled resend `(\d+s)`; full reset → exact body + login view + success banner;
+  reset 400 → error message, stays on code step).
+- **Gates:** `build` ✓ · `lint` 0 errors (22 warnings unchanged) · `test:run` 61 files / 401 ✓.
+- **Runtime-verified (Chrome DevTools MCP, live gateway):** forgot-password → real 201 → step 2
+  with empty code field (key-fix confirmed live) + resend "Gửi lại mã (60s)" counting down to
+  re-enabled; wrong code `000000` → live 400 → correct VN message, stayed on code step;
+  back-link returns to login. Console/network clean (only the intentional 400 + session-probe
+  401). **Pending:** success-leg E2E with a REAL code — SMTP off in dev, the code is only
+  printed in the backend user-service console, unreachable from the FE session. No backend gap
+  (contract matched live).
+
+### Register form: password confirmation field + show/hide toggles (2026-07-11)
+
+FE-only UX: register form gains "Nhập lại mật khẩu". `registerSchema` (`auth.schema.ts`) adds
+`confirmPassword` + `.refine` equality check (error on the confirm field: "Mật khẩu nhập lại
+không khớp"). `RegisterForm` (`LoginPage.tsx`) renders the extra password input;
+`confirmPassword` is stripped in the mutationFn — the `POST /user/register` body stays
+`{ username, email, password }` (asserted by the existing exact-body test). Both register
+password inputs got an Eye/EyeOff show/hide toggle (independent per field) via local
+sub-component `RegisterPasswordField` (same suffix-button pattern as the login TextField
+toggle; `TextField` itself is controlled/no ref forwarding so it can't take RHF `register()`
+directly — local component keeps minimal diff). Tests: +1 mismatch case, +1 visibility-toggle
+case, `fillRegister` helper fills the confirm field (defaults to matching). Gates: build ✓ ·
+lint 0 errors · test:run 60 files / 388 ✓.
+
+### Login "Ghi nhớ đăng nhập" wired to backend `rememberMe` (2026-07-11)
+
+Backend handoff 2026-07-10: `POST /api/user/login` now accepts optional `rememberMe: boolean`
+(true → HttpOnly cookie + JWT last 7 days; omitted/false → unchanged 5h). The FE checkbox was a
+disabled "(sắp ra mắt)" placeholder (P2-03) — now live.
+
+- **Type:** `LoginDto` gains `rememberMe?: boolean` (`src/types/auth.ts`).
+- **Hook:** `useLogin` (`src/features/auth/useLogin.ts`) gains `rememberMe` state +
+  `toggleRememberMe`; submit spreads `rememberMe: true` only when checked, omits the field
+  entirely when unchecked (per contract — must be a real JSON boolean, string → 400).
+- **UI:** `LoginPage.tsx` checkbox enabled (disabled/title/"sắp ra mắt" removed), wired
+  `checked`/`onChange`; hardcoded `accent-[#F59E0B]` on the touched line replaced with
+  `accent-tb-amber` token. Forgot-password + social login stay disabled (still no endpoints).
+- **Tests (+2):** `LoginPage.test.tsx` login-flow describe — MSW captures the login body:
+  ticked → `{ username, password, rememberMe: true }`; unticked → field absent.
+- **Gates:** `build` ✓ · `lint` 0 errors · `test:run` 60 files / 386 ✓.
+- **Runtime:** cookie handling is automatic (`credentials: 'include'` global); browser E2E of
+  the 7-day Max-Age rides the next Chrome DevTools MCP session. No backend gap.
+
+### ProtectedRoute renders PageSkeleton while the session probe loads (2026-07-10, /sweep)
+
+Closed the snapshot known issue "Auth loading blank state": `ProtectedRoute`
+(`src/components/auth/ProtectedRoute.tsx`) returned `null` while the `/user/me` query was
+loading, so every protected route (AppLayout/Messages/Feed + shop/admin pages) flashed a
+fully blank page on first load and on cross-tab auth resets.
+
+- **Fix:** `isLoading` now renders the existing `<PageSkeleton />` (shared shell skeleton —
+  same fallback the router already uses for lazy `<Suspense>`), return type tightened
+  `ReactElement | null` → `ReactElement`. One-line behavior change, no new UI pattern.
+- **Tests (+4):** colocated `ProtectedRoute.test.tsx` — skeleton (not blank) while the probe
+  hangs (`delay('infinite')` MSW), children render once authenticated, 401 → redirect
+  `/login`, insufficient role (`user` vs `requiredRole="admin"`) → redirect `/`.
+- **Gates:** `build` ✓ · `lint` 0 errors (22 warnings) · `test:run` 60 files / 384 ✓.
+- **Runtime:** loading state is transient (ms on localhost) — covered by the RTL render test;
+  browser visual pass rides the next Chrome DevTools MCP session (MCP unavailable this
+  session).
+- Snapshot known issue marked RESOLVED. No backend gap.
+
+### Low-stock rows read denormalized `productName` — client-side join dropped (2026-07-10, /sweep)
+
+Backend handoff 2026-07-10: `GET /api/inventory/low-stock` rows now carry
+`productName: string | null` (null only when the product was deleted / lookup transiently
+failed). This closes the FE→BE request from the 2026-07-09 low-stock panel work — previously
+the panel joined names from the paginated shop product list, so any low-stock product outside
+the current page rendered its SKU instead of a name.
+
+- **Type:** `InventoryRecord` gains optional `productName?: string | null`
+  (`src/types/inventory.ts`, low-stock endpoint only).
+- **Helper:** `buildLowStockRows` (`src/features/shop/lowStock.ts`) drops the `products`
+  join param and reads `row.productName ?? row.sku` (SKU fallback kept for null/absent).
+  `ShopPage` call site simplified (`products` out of the memo deps).
+- **Tests:** `lowStock.test.ts` rewritten to the new contract — 6 cases (name from record,
+  null → SKU, absent → SKU for older shapes, bigint-string coercion, minimumStock default,
+  ordering preserved).
+- **Gates:** `build` ✓ · `lint` 0 errors (22 warnings) · `test:run` 60 files / 380 ✓.
+- **Runtime:** contract verified live via curl (shop `test1`): the row that previously
+  SKU-fell-back (`SSSS_3663`, product off page 1) now returns
+  `productName: "iPhone 15 Pro 256GB"`. Browser-level visual check pending (Chrome DevTools
+  MCP unavailable this session); panel render path unchanged since the 2026-07-09 live verify.
+- Handoff entry moved to **Done** in `frontend-handoff.md`. No new backend gap.
+
+### AN-01(b): `useAnalyticsFilters` extracted out of the component file (2026-07-10, /sweep)
+
+Closed AN-01 (b) — the F4 analytics dashboard exported a hook from a component file
+(`react-refresh/only-export-components` warning class: fast refresh degrades when a component
+file exports non-components).
+
+- **Moved** `useAnalyticsFilters` + the `AnalyticsFilters` interface from
+  `src/features/order/analytics/AnalyticsDashboard.tsx` into a new
+  `src/features/order/analytics/useAnalyticsFilters.ts`; the dashboard now imports the type,
+  and `ShopAnalyticsPage` / `AdminAnalyticsPage` import the hook from the new module. Pure
+  module move — zero behavior/render change.
+- **Tests (+2):** `useAnalyticsFilters.test.ts` (renderHook: default `{ interval: 'day' }`,
+  setter replaces state).
+- **Gates:** `build` ✓ (recharts chunk unchanged at 402 kB, Rollup just renames it after the
+  module split) · `lint` 0 errors, warnings 23 → **22** · `test:run` 59 files / 379 ✓.
+- **Runtime:** not applicable — no behavior change; covered by build + tests.
+- AN-01 (c) (shared `chartTheme.ts` for the recharts hex literals) stays conditional on a
+  second chart consumer. No backend gap.
+
+### Paginated lists keep previous page while fetching (keepPreviousData) (2026-07-10, /sweep)
+
+Closed the remaining perf-scan flag "`placeholderData: keepPreviousData` thiếu ở đa số paginated
+query" (reviews already done earlier the same day). Without it, every page flip drops the query to
+`data: undefined` → list flashes empty (and Marketplace shows the skeleton grid) until the next
+page resolves.
+
+- **Marketplace / ShopPage / ProfilePage / ProductPicker:** `useProducts`
+  (`src/features/product/useProducts.ts`) now sets `placeholderData: keepPreviousData` — one hook
+  covers all its paginated/filtered consumers; `isFetching` (already exposed) signals the swap.
+- **Admin Users (20/trang):** inline users query in `src/features/admin/AdminPage.tsx` gains the
+  same option.
+- **Wishlist page:** `useWishlistPage` (`src/hooks/data/useWishlist.ts`) gains the same option
+  (membership id-set + toggle untouched).
+- **Tests (+3, 2 new files):** `useProducts.test.tsx` + `useWishlist.test.tsx` — renderHook + MSW
+  page-parameterized handlers assert the regression directly: after a page flip the hook still
+  returns page-1 data (`isPlaceholderData`/`isFetching`) instead of `undefined`, then swaps to
+  page 2.
+- **Gates:** `build` ✓ · `lint` 0 errors (23 pre-existing warnings) · `test:run` 58 files / 377 ✓.
+- **Runtime:** pending — Chrome DevTools MCP did not connect this session (BE + FE dev server both
+  live and probed 200). Behavior is fully covered by the hook-level regression tests; visual
+  re-check (no empty flash flipping Marketplace pages) can ride the next MCP session.
+- No backend gap; nothing to move in `frontend-handoff.md` (snapshot-side perf item).
+
+### Batch product endpoint max-50-ids (SEC-H2): chunked cart hydration (2026-07-10, /sweep)
+
+Backend handoff 2026-07-09: `POST /products/with-inventory/multiple` now validates its body —
+`{ productIds: number[] }`, **max 50 items**, integers only, `400` over the limit (success stays
+`201`, unknown ids skipped, duplicates deduped server-side). The entry guessed "FE action likely
+none", but cart hydration (`CartPage`, `CartDrawer`, `CheckoutPage` display + submit-time stock
+check) sends **all distinct cart product ids in one batch** — a cart with >50 distinct products
+would 400 the entire hydration (blank cart/checkout, failed stock check).
+
+- **Fix (API layer, covers all call sites):** pure helper `batchProductIds` in `src/api/products.ts`
+  — dedupe via `Set` (same product in multiple SKU rows no longer wastes batch slots) +
+  `lodash/chunk` at `MAX_BATCH_PRODUCT_IDS = 50`. `getMultipleWithInventory` maps each batch
+  through the existing `fetchBatchTolerant` safety net and merges (`Promise.all` + `.flat()`).
+  6 call sites covered: cart ×4, social attached-product ×2 (those only ever send 1 id).
+- **Happy path unchanged:** <50 distinct ids still produce one identical request; query keys and
+  hook contracts untouched.
+- **Tests:** +5 in `api/products.test.ts` (`batchProductIds`: empty → no batches, small set single
+  batch, dedupe, exact-50 boundary stays one batch, 120 ids → 50/50/20 covering every id).
+- **Gates:** `build` ✓ · `lint` 0 errors (23 pre-existing warnings) · `test:run` 56 files / 374 ✓.
+- **Runtime:** >50 path not E2E-verifiable via normal UI (needs 51 distinct products in one cart);
+  covered by unit tests + backend's own runtime verification of the 400 (51 ids → 400, 5/5 checks).
+- Handoff entry moved to **Done**; no new backend gap.
+
+### F1 reviews close-out: pagination bug fix + shared error helper + env-config gap (2026-07-10, /sweep)
+
+Sweep pass closing the two oldest handoff Open threads.
+
+**F1 · Product reviews — verified complete + pagination bug fixed.** The handoff entry still said
+"build the product reviews UI" but the UI shipped long ago in commit `88975c4`: `ProductReviews.tsx`
+(public list, own-review delete, pagination) on ProductDetail, `OrderItemReviewForm` on
+OrderDetailPage (write-review per item, only when `order.status === 'completed'` — matches the
+verified-purchase gate), aggregate `rating`/`ratingCount` on ProductDetail. Real bug found while
+verifying: **reviews pagination never refetched** — `useProductReviews` fetched `page` but its query
+key was `reviews.byProduct(productId)` without the page, so clicking "Trước/Sau" changed state while
+TanStack served the same cached entry.
+
+- **Fix:** new factory key `queryKeys.reviews.byProductPage(productId, page)`; `useProductReviews`
+  keys on it + `placeholderData: keepPreviousData` (no empty flash between pages — first paginated
+  query to adopt the performance.md recommendation). `byProduct` stays the invalidation prefix used
+  by `useCreateReview`/`useDeleteReview` (prefix match still hits every page).
+- **Tests:** `queryKeys.test.ts` +2 (key varies with page; `byProduct` is a prefix of every
+  `byProductPage`, not across products).
+- **DRY:** inline `resolveReviewError` in OrderDetailPage extracted to pure helper
+  `reviewErrorMessage` + `REVIEW_COMMENT_MAX` (`src/features/product/productReview.ts`, behavior
+  identical: 404 → completed-order gate, 409 → already-reviewed, else server message → generic;
+  test +7 `productReview.test.ts`).
+- **Runtime:** backend live; `GET /products/:id/reviews` → 200 across probed ids but **every product
+  has 0 reviews** in dev data, so the >10-review pagination path can't be walked E2E (needs 11 users
+  with completed orders on one product) — covered by the key regression test instead.
+
+**Env-config gap (snapshot known issue + CORS handoff entry FE action).** Added `.env.example`
+documenting all 4 vars against the single gateway origin (`VITE_API_URL=/api`,
+`VITE_API_TARGET`/`VITE_CHAT_URL`/`VITE_WS_NOTIFICATION_URL` = `http://localhost:3000`, no separate
+socket port); verified not gitignored (`git check-ignore` exit 1). Docs already used the canonical
+names — the stale `VITE_NOTIFICATION_URL` mention existed only inside the snapshot note itself.
+Also annotated: notification-preview 20-char BE gap resolved (BE handoff 2026-07-07, ≤255 now),
+socket long-polling item updated (BE verified WS upgrade OK 2026-07-04 → remaining check is FE-side).
+Handoff moves: F1 + notification-preview → Done; CORS entry marked FE INTEGRATED.
+
+Gates: `build` ✓ · `lint` 0 errors (23 warn) · `test:run` 56 files / **369** tests ✓.
+
+
+---
+
+# Archive — early-July sweeps (2026-07-05 → 2026-07-09)
+
+## Cleanup / hardening (archived)
+
+### Best-effort Cloudinary delete — no unhandled rejection on 502/503/400/403 (2026-07-09, /sweep)
+
+Integrates the delete-error-code half of the backend handoff "Image/video URL fields must be our
+Cloudinary URLs + upload rate limits + delete error codes" (Open, 2026-07-07): backend now returns
+`502` (Cloudinary auth/quota/5xx), `503` (network), or `400/403` (foreign/persisted id) from
+`DELETE /upload/media`, distinct from a real `200 { result: "not found" }`.
+
+- **Bug found:** every `deleteMedia` caller is fire-and-forget `void deleteMedia(id)` (orphan cleanup in
+  `RichTextEditor`, `EditProfileModal`, `useProductForm`, `CreatePostModal`), but `request()` **throws**
+  an `ApiError` on any non-2xx. So each failed cleanup (`502/503/400/403`) became an **unhandled promise
+  rejection** — no `.catch()` was attached anywhere.
+- **Fix:** `deleteMedia` (`lib/http/cloudinary.ts`) now catches internally and returns a typed
+  `DeleteMediaOutcome` instead of rejecting — cleanup is best-effort, a failed delete just leaves an
+  orphan. Return type widened `Promise<void>` → `Promise<DeleteMediaOutcome>`; all callers keep working
+  (`void` ignores the value).
+- **Pure helper** `lib/http/deleteMediaOutcome.ts` (test +8): `outcomeFromResult` maps the `200` body
+  (`"not found"` → `not-found`, else `deleted`); `outcomeFromError` maps a thrown error by `statusCode`
+  (`502/503` → `failed{transient:true}`; `400/403`/unknown → `failed{transient:false}`).
+- Gates: `build` ✓ · `lint` 0 errors (23 warn) · `test:run` 55 files / **361** tests ✓.
+- **Remaining (same handoff entry, low value):** `429` backoff on rapid signature requests — batch uploads
+  cap at ≤10 files, well under the 60 req/60s signature limit, so not built. Runtime E2E of the delete-error
+  path needs a live backend + forced Cloudinary 5xx (unreachable via normal UI — same constraint as UP-01…04).
+
+### GHN structured address + per-user address book — FE DONE + runtime-verified (2026-07-09, /sweep)
+
+Integrates the backend structured-address contract (handoff Open, 2026-07-01), replacing the 6 free-text
+checkout address fields with GHN-code cascading dropdowns + a saved address book. Backend side was
+runtime self-tested 10/10; FE build/lint/test all green (353). Layers added:
+
+- **Types** (`types/address.ts`): `Province {id:number,name}`, `District`, `Ward {id:string (WardCode),name}`,
+  `Address` (full row incl. GHN codes + names + `isDefault`), `CreateAddressDto`, `UpdateAddressDto`.
+- **API**: `api/shipping.ts` (`getProvinces`/`getDistricts`/`getWards` — master-data proxy, no GHN token on
+  client) wired into `api` as `api.shipping`; `api/users.ts` +5 address-book methods (`getAddresses`,
+  `createAddress`, `updateAddress`, `setDefaultAddress`, `deleteAddress`) on `/user/me/addresses`.
+- **Query keys**: `users.addresses` + a `shipping` tree (`provinces`, `districts(id)`, `wards(id)`).
+- **Pure helpers** (`features/address/addressUtils.ts`, test +8): `pickDefaultAddress` (isDefault → first →
+  null), `buildGhnShippingAddress` (compose the 6-part pipe string from the saved names, strip literal `|`),
+  `formatAddressSummary`.
+- **Hooks**: `useShippingLocations.ts` (`useProvinces`/`useDistricts`/`useWards`, cascading `enabled` gates,
+  1h master-data staleTime); `useAddresses.ts` (list query + create/update/setDefault/delete mutations, all
+  invalidate `users.addresses` since default flips ripple across siblings).
+- **UI** (`features/address/`): `AddressSelect` (tb-styled native `<select>` — the app has no dropdown
+  primitive and `ui/select.tsx` is edit-denied); `AddressFormModal` (Dialog: RHF+zod text fields + 3 cascading
+  selects that reset children on parent change + isDefault, create/edit modes); `AddressBookPicker` (checkout
+  radio cards, auto-selects the default once loaded, "＋ add" opens the modal and selects the new address);
+  `AddressesPage` (`/addresses` manage page: list, default badge, set-default, edit, delete-with-confirm).
+- **Wiring**: `/addresses` route (lazy) in `router.tsx`; a "Sổ địa chỉ" LeftRail link for logged-in users
+  (kept out of the shared 5-item primary nav so the mobile bottom bar doesn't overflow).
+- **CheckoutPage rework**: address form section → `<AddressBookPicker>`; `checkout.schema.ts` trimmed to just
+  `paymentMethod`; shipping-fee preview now resets on selected-address change and composes the string via
+  `buildGhnShippingAddress`; order-create `shippingAddress` uses the same (still the pipe NAME string — BE
+  recomputes fee server-side). Voucher/stock/idempotency/pendingCheckout/payment logic untouched.
+  `order/shippingAddress.ts` parser still works (pipe format preserved).
+
+✅ Runtime-verified (2026-07-09, /sweep, Chrome DevTools MCP): logged in as user 17 → `/addresses` renders
+(LeftRail "Sổ địa chỉ" link + existing default address); "Thêm địa chỉ" modal opens; GHN cascade loads live
+(provinces → districts → wards) and resets children on parent change; created "Trần Thị B / 45 Lê Duẩn,
+Phường Bến Nghé, Quận 1, Hồ Chí Minh" → new row appears immediately (create mutation + `users.addresses`
+invalidation) → header "2 địa chỉ"; delete-with-confirm removes it → back to "1 địa chỉ". Test data cleaned up.
+
+**Follow-up (2026-07-09): icon-button misalignment fix + doc rule.** AddressesPage edit/delete were raw
+`<button className="size-8 ... grid place-items-center">` with no `p-0`, so UA button padding stretched the box
+to ~44px and pushed the icon off-center → swapped to `<IconButton>` (now measured 32×32, padding 0). Root cause
+was a misleading example in `styling.md` (its "good" icon-button sample omitted `p-0`/`IconButton`) — fixed that
+example and added an always-loaded icon hard-rule to `core.md` so logic/feature tasks (which don't load
+`styling.md`) still see it. This is the recurring "new icon button bị lệch" class of bug.
+
+### F6 · Wishlist / favorites UI — FE DONE (2026-07-09, /sweep)
+
+Integrates the backend wishlist endpoints (handoff Open, 2026-07-07): `GET /products/wishlist?page=&limit=`
+(paginated envelope of `Product & {wishlistedAt}`), `POST /products/wishlist/:productId` (201, idempotent),
+`DELETE /products/wishlist/:productId` (204, idempotent). Both mutations idempotent server-side → optimistic
+UI is safe. Layers added:
+
+- **Types** (`types/product.ts`): `WishlistItem extends Product { wishlistedAt }`, `WishlistToggleResult`.
+- **API** (`api/products.ts`): `getWishlist` (tolerant of bare-array vs. envelope, same pattern as `getList`),
+  `addWishlist`, `removeWishlist`.
+- **Query keys** (`hooks/query/queryKeys.ts`): `products.wishlist` (list-level prefix), `wishlistList(page,limit)`,
+  `wishlistIds`. The prefix invalidates both the page view and the membership id-set in one call.
+- **Pure helpers** (`features/wishlist/wishlistCache.ts`): `wishlistIdSet` (build `Set<number>`, coerce
+  bigint-string ids) + `toggleWishlistId` (immutable add/remove). Test `wishlistCache.test.ts` (+7).
+- **Hooks** (`hooks/data/useWishlist.ts`): `useWishlistPage` (paginated page query), `useWishlistIds` (membership
+  `Set<number>`, fetched once at `limit=200` — drives every heart's filled/empty state), `useToggleWishlist`
+  (optimistic flip of the id-set cache with rollback onError, invalidate whole wishlist tree onSettled — mirrors
+  the `useCart` optimistic pattern).
+- **Shared button** (`components/shared/WishlistButton.tsx`): `IconButton` + Heart, reads `useWishlistIds` for
+  state, fires `useToggleWishlist`. `preventDefault()`+`stopPropagation()` so it's safe nested inside a `<Link>`.
+  `aria-pressed` + Vietnamese `aria-label`, Heart gets `fill-current` when wishlisted.
+- **Page** (`features/wishlist/WishlistPage.tsx`, route `/wishlist` in `router.tsx`, lazy): paginated grid of a
+  dedicated wishlist card (image/name/price + remove heart — no stock/add-to-cart because `WishlistItem` has no
+  `inventory`, unlike `ProductWithInventory`), skeleton/empty (`HeartOff` + link to marketplace)/error states,
+  `<Pagination>`.
+- **Wiring**: `Header.tsx` gets a Heart `/wishlist` nav link (before Cart); `ProductCard.tsx` gets a heart overlay
+  top-right of the image (placed AFTER the out-of-stock overlay so it stays clickable, `z-10`); `ProductDetail.tsx`
+  replaces its dead placeholder Heart button with `<WishlistButton>` (removed now-unused `Heart` import).
+
+Membership caveat documented in `useWishlist.ts`: the id-set fetches one 200-item page; a wishlist larger than that
+would leave hearts on overflow items un-filled until the page view loads them. Acceptable for current scale.
+Gates: `build` ✓ · `lint` 0 errors (23 warnings, all pre-existing) · `test:run` 53 files / 345 tests ✓.
+**Runtime E2E còn nợ** — Chrome DevTools MCP không connect trong session này; backend + FE dev server đều live
+(`GET /api/products/wishlist` → 401 auth-gated đúng như contract), cần login 1 tài khoản walk add/remove flow.
+
+### Low-stock seller dashboard list — FE DONE + runtime-verified (2026-07-09, /sweep)
+
+Integrates the backend low-stock entry (handoff Open, 2026-07-06); the endpoint
+(`GET /inventory/low-stock`, role-scoped shop/admin, seller-auto-scoped, `availableStock`-ASC,
+max 100) was already live with `inventoryApi.getLowStock` + `queryKeys.inventory.lowStock`
+wired but nothing consumed it. Added a low-stock panel to `ShopPage.tsx`: a `useQuery` on
+`queryKeys.inventory.lowStock` feeds a red-bordered card ("Sản phẩm sắp hết hàng") that renders
+only when rows exist, each row linking to `/product/:id`, showing name, SKU, "Còn {availableStock}"
+/ "Tối thiểu {minimumStock}", and an edit `IconButton`. Because `InventoryRecord` carries only
+`sku` + `productId` (no product name) and its `id`/`productId` arrive as stringified bigints,
+extracted the pure helper `buildLowStockRows(records, products)` (`src/features/shop/lowStock.ts`):
+it `Number()`-coerces the ids, joins each record to the shop's product list by id for a display
+name, **falls back to the SKU when the product isn't on the current page**, and defaults
+`minimumStock` to 0. Tests: `lowStock.test.ts` (+5: name enrich, SKU fallback, bigint-string
+coercion, minimumStock default, ASC-order preservation). Also stabilized `ShopPage`'s `products`
+fallback with `useMemo(() => data?.data ?? [], [data])` — this both fed the new `lowStockRows`
+memo a stable input and closed the pre-existing `react-hooks/exhaustive-deps` warning tracked in
+snapshot ("ShopPage: stabilize `products` fallback"), dropping lint 24 → 23 warnings.
+Runtime-verified via Chrome DevTools MCP: as `techstore_demo` (0 low-stock) the panel correctly
+stays hidden and `GET /api/inventory/low-stock` returns `200 {data:[]}`; as `test1` (1 low-stock)
+the panel renders row `SSSS_3663` "Còn 0 / Tối thiểu 0" with the SKU-fallback name (product off
+current page) — confirming both states and the fallback path live, console clean. Gates: `build`
+✓ · `lint` 0 errors (23 warnings) · `test:run` 52 files / 338 tests ✓.
+
+### STY-addendum · Social icon props to convention — DONE + runtime-verified (2026-07-09, /sweep)
+
+Closes the 🟢 STY-addendum sweep-audit finding (2026-07-07). Several social components used
+string `size="18"` on Lucide icons (project rule requires numeric `size={n}`), were missing the
+mandatory `shrink-0`, hardcoded `color="#fff"`, or used an inline `style` transform. Fixed across:
+`PostCard.tsx` (Globe/Heart×2/MessageCircle/Share2 → numeric size + `shrink-0`; stats heart
+container `w-5 h-5 inline-flex items-center justify-center` → `size-5 grid place-items-center`;
+`color="#fff"` → `text-white`), `FeedPage.tsx` (end-of-feed PenLine container → `size-10 grid
+place-items-center` + numeric size), `CreatePostModal.tsx` (Loader2×2/ImagePlus/Video → numeric
+size + `shrink-0`), and `FollowListModal.tsx` (dropped inline `style={{transform:'translate(-50%,
+-50%)'}}` for `-translate-x-1/2 -translate-y-1/2`, matching the shadcn dialog convention).
+className/prop-only changes (no extractable logic → no unit test). Runtime-verified via Chrome
+DevTools MCP: feed renders with all post icons (privacy Globe, verified checks, Thích/Bình luận/
+Chia sẻ actions); the only console error is a pre-existing image 404 (broken Cloudinary data, not
+a regression). Gates: `build` ✓ · `lint` 0 errors · `test:run` 52 files / 338 tests ✓.
+
+### AN-01(a) · Analytics range-preset date logic extracted + tested — DONE + runtime-verified (2026-07-09, /sweep)
+
+Closes part (a) of the 🟢 AN-01 sweep-audit finding (2026-07-07): the F4 `AnalyticsDashboard`'s
+`applyRangePreset`/`toIsoDate` date math was inline and untested (violating the every-logic-ships-
+a-test rule). Extracted `toIsoDate(date)` and `rangePresetDates(days, now = new Date())` into a
+pure module `src/features/order/analytics/analyticsRange.ts` (`now` injectable for determinism);
+`rangePresetDates` returns an inclusive `{from, to}` where `to` is today and `from` is `N-1` days
+earlier, so a 7-day preset spans 7 calendar days. `AnalyticsDashboard.applyRangePreset` now calls
+`onFiltersChange({ ...filters, ...rangePresetDates(days) })`. Tests: `analyticsRange.test.ts` (+5:
+UTC slice, 7d/30d/90d spans, 1-day both-bounds-equal). Runtime-verified via Chrome DevTools MCP
+(`/shop/analytics` as `test1`): clicking the 90-day preset fires `GET /api/order/seller/analytics
+?interval=day&from=2026-04-10&to=2026-07-08` and the chart refetches — confirming the preset applies
+`from`/`to` and the query key picks them up. Parts (b) `useAnalyticsFilters` export-from-component
+and (c) recharts hex→`chartTheme.ts` remain open (lower priority). Gates: `build` ✓ · `lint` 0
+errors · `test:run` 52 files / 338 tests ✓.
+
+### Product image count capped at 10 in the UI — DONE (2026-07-09, /sweep)
+
+Integrates the backend media entry "Media URLs … capped at 10 images" (handoff Open,
+2026-07-07). The backend now `400`s when `imageUrls[]` on a product exceeds 10 entries, but
+`useProductForm.addImages` had no client-side cap — a seller picking 11+ images would upload
+them all and then hit a server error on save. Added pure helper `capFilesToLimit(currentCount,
+files, max)` + constant `MAX_PRODUCT_IMAGES = 10` in `src/lib/http/uploadValidation.ts`, and
+wired it into `addImages` (using the freshest count from `imagesRef`): a batch that would exceed
+10 is truncated to what fits, the rest are dropped with a message (`"Tối đa 10 ảnh, đã bỏ qua N
+ảnh"`), and an add when already at 10 is rejected outright (`"Tối đa 10 ảnh"`). `CreatePostModal`
+already caps post images at `MAX_IMAGES = 4` (≤ 10), so no change there. Ownership `403` is a
+no-op on the normal flow (FE only ever submits its own freshly-uploaded `secure_url`s); the
+product-image cleanup caveat is already satisfied — persisted images carry `publicId === ''` and
+`removeImage`/`clearImages` never `deleteMedia` them, so editing a product never destroys a
+Cloudinary asset a past order's P2-02 snapshot may reference. Tests: `uploadValidation.test.ts`
+(+5 for `capFilesToLimit`: fits-under, partial-drop, at-limit, over-limit clamp, `MAX_PRODUCT_IMAGES`
+= 10). Runtime E2E (picking 11+ images) pending live backend. Gates: `build` ✓ · `lint` 0 errors ·
+`test:run` 50 files / 328 tests ✓.
+
+### Dead inventory/user API declarations removed — DONE (2026-07-09, /sweep)
+
+Integrates the backend "Unused-API sweep" (handoff Open, 2026-07-06) which deleted a set of
+unbounded/duplicate routes. Removed the now-dead FE client methods (none had a UI consumer,
+verified by grep): `inventoryApi.getAll` (`GET /inventory`), `getBySku`, `getById`, `delete`,
+`checkStock`, `reserveStock`, `releaseStock`, and `usersApi.getAll` (`GET /user/all`). Kept the
+three live inventory routes (`create`, `getByProduct`, `update`) plus the now-hardened role-scoped
+`getLowStock`; kept `usersApi.getPaginated` (admin list) and `getFeaturedSellers` (feed right-rail).
+Stock checks already route through `productsApi.checkStock` (`GET /products/:id/stock-check`).
+Dropped the now-unused `StockCheckResponse` import. No standalone `/products/:id/skus` mutation
+methods existed FE-side (the canonical `PATCH /products/:id` with `skuList` is what's used), so
+nothing to remove there. Pure deletion of dead code — no test needed. Gates: `build` ✓ · `lint`
+0 errors · `test:run` 50 files / 328 tests ✓.
+
+### CLS · post images reserve their slot before load — DONE + runtime-verified (2026-07-09, /sweep)
+
+Closes the perf-scan TOP FIX (🟡, 2026-07-02). The single-image post in `PostCard.tsx` used
+`max-h-[520px] object-contain` with no reserved height, so the feed shifted layout when the image
+finished loading (hot-path CLS). Gave the container a fixed `aspect-[4/3]` (still capped by
+`max-h-[520px]`; the feed column is narrow enough that aspect governs and the cap never triggers),
+image switched to `max-h-full`. Also fixed the `CreatePostModal` preview image (`max-h-60` → `w-full
+aspect-video object-contain`) to match the video sibling and reserve its slot. className-only
+changes (no extractable logic → no unit test). Runtime-verified via Chrome DevTools MCP (feed as
+`techstore_demo`): the single-image post renders a fixed-height reserved slot even when the image
+URL 404s (pre-existing broken Cloudinary data, not a regression) — proving the slot reserves before
+load. Composer preview confirmed (post images cap 4). Gates: `build` ✓ · `lint` 0 errors ·
+`test:run` 50 files / 328 tests ✓.
+
+### QK-01 · Social invalidation via factory (no inline query keys) — DONE (2026-07-09, /sweep)
+
+Closes the 🟡 sweep-audit finding (2026-07-07). `useFeed.ts` (`useUpdatePost` +
+`useDeletePost` `onSuccess`) invalidated other social surfaces with raw inline arrays
+`['social', 'following-feed']` and `['social', 'user']` instead of the `queryKeys.social.*`
+factory. Because TanStack Query's `invalidateQueries` matches by prefix, if a factory key
+shape ever changed without the inline array following, the invalidation would silently stop
+matching — a stale for-you edit/delete leaving the following-feed and profile-post lists
+un-refreshed, with no error.
+
+Fix: added two list-level prefix keys to `hooks/query/queryKeys.ts` —
+`social.followingFeedAll` (`['social','following-feed']`, prefix of every `followingFeed(userId)`)
+and `social.userScopeAll` (`['social','user']`, the shared prefix of `postsByUser`, `followers`,
+and `following`). `useFeed.ts` now invalidates through these. Named `userScopeAll` (not
+`userPostsAll`) because `['social','user']` also covers followers/following — the invalidation
+behavior is byte-identical to the previous inline array, just sourced from the factory.
+
+Tests: `queryKeys.test.ts` (3) — asserts each list-level key is a true prefix of the
+item-level keys it must match (the exact property prefix-based invalidation relies on), plus a
+negative case that `followingFeedAll` does not match the for-you `feed`. This is the drift
+guard: change a social key shape without updating its list-level prefix and the test fails.
+Behavior is a pure refactor (identical resolved keys), so no runtime/full-stack E2E needed.
+Gates: `build` ✓ · `lint` 0 errors (24 pre-existing warnings) · `test:run` 50 files / 323 tests ✓.
+
+### VariationBuilder · stable group id keys — DONE (2026-07-09, /sweep)
+
+Closes the 🟡 perf-scan correctness gap (2026-07-02). `VariationBuilder` keyed each variation
+`GroupRow` by array index. `GroupRow` holds local `draft` state (the "thêm option" input), so
+removing an earlier group made React reuse the key=N instance for a *different* group — its draft
+could leak onto the sibling row. (In practice the input's `onBlur={commit}` flushes the draft on
+most removals, but any local state was fragile to add/remove reordering.)
+
+Fix: `VarGroup` gains a stable `id`, minted by a new `makeVarGroup(partial?)` factory
+(`useProductForm.ts`, module-level incrementing counter). All three construction sites use it —
+`DEFAULT_FIELDS`, `addGroup`, and `CreateProductPage`'s edit-mode hydration — and
+`VariationBuilder` now keys by `group.id`. `buildPayload` already projects variations to
+`{ name, options }`, so the `id` never leaks into the create/update DTO.
+
+Tests: `VariationBuilder.test.tsx` (3) — `makeVarGroup` id uniqueness, an add-option happy path,
+and a regression that types an uncommitted draft into the first group and removes it via
+`fireEvent` (bypassing the onBlur-commit that would otherwise mask instance reuse); it fails with
+index keys (draft leaks to the surviving row) and passes with `group.id` keys. Gates: `build` ✓ ·
+`lint` 0 errors (24 pre-existing warnings) · `test:run` 49 files / 320 tests ✓.
+
+### UP-04 · Client-side upload file validation — DONE (2026-07-09, /sweep)
+
+Closes the 🟡 UP-04 upload-audit finding (2026-07-07). `accept="image/*"`/`accept="video/*"` on
+the file pickers is only a hint — a user could still choose a 500 MB file or a non-media file,
+which failed only *after* the whole upload had spent the bandwidth, and the backend rejects SVG
+outright (script-vector, per the 2026-07-07 Cloudinary-URL-validation handoff).
+
+Fix: new pure helper `src/lib/http/uploadValidation.ts` — `validateUploadFile(file, { kind, maxBytes })`
+returns a Vietnamese error message (or `null`) after checking, in order: SVG images (blocked by
+MIME `image/svg+xml` or `.svg` extension), type mismatch (MIME prefix `image/`|`video/`, falling
+back to a file-extension allow-list mirroring the backend when the browser leaves `type` empty on
+paste/drag), and oversize (`MAX_IMAGE_BYTES` 10 MB / `MAX_VIDEO_BYTES` 100 MB). `firstUploadError`
+runs it over a batch and returns the first failure. Wired into all four upload consumers before
+the upload fires: `CreatePostModal` (image batch → whole selection rejected at the first bad file,
++ single video), `useProductForm.addImages`, `EditProfileModal` avatar, `RichTextEditor`. Each
+surfaces the message through its existing upload-error state and resets the file input. This also
+closes the "do not upload SVG as an image" FE action from the Cloudinary-URL-validation handoff.
+
+Tests: `uploadValidation.test.ts` (14 — image/video accept, SVG by MIME + by extension, wrong
+MIME, cross-kind, oversize, empty-MIME extension fallback, unknown format, batch first-error).
+Gates: `build` ✓ · `lint` 0 errors (24 pre-existing warnings) · `test:run` 48 files / 317 tests ✓.
+Runtime E2E pending — an oversize/wrong-MIME file can't be forced through a normal `accept`-filtered
+picker (same constraint as UP-01/UP-02/UP-03); logic is fully unit-covered.
+
+### UP-03 · RichTextEditor upload error handling + orphan cleanup — DONE (2026-07-08, /sweep)
+
+Closes the 🟡 UP-03 upload-audit finding (2026-07-07). `RichTextEditor`
+(`src/components/shared/RichTextEditor.tsx`, the product-description editor) had two gaps:
+(1) `handleImageFile` `await`ed `onUploadImage` with no try/catch — a rejected upload became an
+unhandled promise rejection and the user saw nothing (the other 3 upload consumers all surface
+an inline error); (2) an image inserted into the editor and then deleted from the text orphaned
+its Cloudinary asset forever, because the component discarded the `publicId` and never tracked
+what it had inserted.
+
+Fix: (a) wrap the upload in try/catch with `uploading` + `uploadError` state — an inline
+`text-accent-red` message and a dimmed image button while in flight, matching the
+`CreatePostModal` / `useProductForm` pattern. (b) Track every session-uploaded image as
+`{ url, publicId }` in `trackedRef`; on each `onUpdate`, diff the tracked list against the
+editor HTML via a new pure helper `partitionEditorImages`
+(`src/components/shared/richTextImages.ts`) and `deleteMedia` any tracked image whose URL is no
+longer present. Only session uploads are tracked, so pre-existing images embedded in the `value`
+prop (editing a saved product) are never destroyed — same "only delete what this session owns"
+invariant as `useProductForm.removeImage`. The `onUploadImage` prop return type was widened from
+`{ url }` to `{ url, publicId }` (already satisfied by `uploadProductImage`'s `UploadResult`).
+
+Tests: `richTextImages.test.ts` (4 cases: all kept; one removed → flagged; empty editor → all
+removed; nothing tracked → no-op). `build` / `lint` (0 err, 24 advisory) / `test:run` (47 files,
+303 tests) green.
+
+**Still open:** (i) cancelling/unmounting the whole product form still orphans description images
+— they live inside the (possibly-saved) HTML, so a blanket unmount-cleanup would destroy the
+images of a successful save; this is the same server-side-cleanup gap already tracked in
+`backend-handoff.md` (Open, 2026-07-07 — orphan cleanup for replaced/removed persisted media).
+(ii) Runtime E2E pending — the upload-error and orphan-delete paths can't be triggered through
+the normal picker UI.
+
+### UP-02 · EditProfileModal avatar orphan cleanup (FE part) — DONE (2026-07-08, /sweep)
+
+Closes the FE-fixable part of the 🔴 UP-02 upload-audit finding (2026-07-07). The avatar is
+uploaded to Cloudinary the instant a file is chosen (`handleAvatarSelect`), but the component
+only kept the returned `url` and threw away the `publicId` — so it could never delete the
+asset. Consequences: (a) cancelling/closing the modal left the just-uploaded avatar orphaned;
+(b) choosing a different avatar before saving orphaned the previous upload. Fix: track a
+`pendingAvatar: { url, publicId } | null` and drive the orphan decisions through a new pure
+helper `src/features/user/avatarUpload.ts` — `replacePendingAvatar(prev, incoming)` returns
+the prior upload's publicId as the orphan on re-select, and `discardedAvatarOrphan(pending)`
+returns the publicId to delete on cancel/close. On a *successful* save the mutation's
+`onSuccess` clears the tracking WITHOUT deleting (the pending upload is now the persisted
+avatar) and closes without the cancel-cleanup path, so it never deletes the avatar it just
+saved. `displayAvatar` now derives from `pendingAvatar?.url ?? user.avatar` (dropped the
+redundant `avatarPreview` state). Tests: `avatarUpload.test.ts` (4 cases: first upload → no
+orphan; replace → prior orphaned; cancel → pending deleted; nothing uploaded → null).
+`build` / `lint` (0 err, 24 advisory) / `test:run` (46 files, 299 tests) green.
+
+**Part (c) still needs backend:** deleting the OLD *persisted* avatar when a new one is saved
+can't be done client-side — the FE never has the previous avatar's Cloudinary publicId (only
+its URL). Already tracked in `backend-handoff.md` (Open, 2026-07-07 — server-side orphan
+cleanup for replaced/removed persisted media, incl. avatar replace). Runtime E2E (cancel /
+re-select / save avatar against a live backend) recommended.
+
+### UP-01 · Batch image upload commits per-file (no stranded Cloudinary orphans) — DONE (2026-07-08, /sweep)
+
+Closes the 🔴 UP-01 upload-audit finding (2026-07-07). Both batch-image paths —
+`CreatePostModal.uploadImageFiles` (`src/features/social/CreatePostModal.tsx`) and
+`useProductForm.addImages` (`src/features/product/product-form/useProductForm.ts`) —
+accumulated upload results in a **local** `uploaded[]` array and only wrote them to
+component state after *every* file finished. A mid-batch failure (file N throws) discarded
+files 0…N-1: they never entered state, so `handleClose`/`removeMedia`/`removeImage`/
+`clearImages` could never `deleteMedia` them → the user lost the images **and** Cloudinary
+orphans piled up un-cleanably. Fix: new pure helper `uploadFilesSequential<T>`
+(`src/lib/http/uploadSequential.ts`) uploads one file at a time and commits each result via
+an `onItem` callback the moment it resolves (rethrowing on failure so the caller's `catch`
+still surfaces the error). Both call sites now delegate to it — the post modal appends each
+`MediaItem`, the product form appends each `ImageItem` and keeps `imagesRef` in sync — so a
+later failure leaves earlier successes visible in state and fully cleanable. This also
+resolves the DRY convention note (same batch-upload orchestration duplicated across two
+feature folders); a full `useMediaUpload` hook was intentionally *not* extracted because the
+two sites keep different state shapes (`MediaItem[]` with image/video type vs. `ImageItem[]`)
+— only the sequential-commit + aggregate-progress orchestration is shared. Tests:
+`uploadSequential.test.ts` (4 cases, incl. the key mid-batch-failure case asserting the two
+successful uploads stay committed while the batch rejects). `build` / `lint` (0 err, 24
+advisory warnings) / `test:run` (45 files, 295 tests) green. Runtime E2E pending — forcing a
+mid-batch Cloudinary failure isn't reproducible through the normal UI.
+
+### SEC-01 · Gitignore repo-root credential files + fix malformed `public` entry — DONE (2026-07-08, /sweep)
+
+Closes the 🔴 SEC-01 audit finding (2026-07-07): `login.json` (test-account login response
+with role/grants) and `user.cookies` (a real JWT `access_token`, curl cookie-jar format) sat
+untracked at `frontend/` and were **not** ignored — a single `git add .` would have committed
+live credentials. A prior in-progress edit had added the entries but fused the pre-existing
+`public` ignore entry into the comment header (`public# Local session/credential artifacts`);
+since `#` only opens a comment at line-start, `public` became a literal pattern `public# …`,
+so `public/` stopped being ignored and the four throwaway test images (`imag1.png`,
+`image2.png`, `image_screen_1.png`, `screen_2.png` — used for Chrome DevTools MCP product
+uploads) leaked into the untracked set. Fix: split the malformed line so `public` is its own
+entry again, followed by a proper `# Local session/credential artifacts` comment and
+`login.json` + `*.cookies`. `public` was confirmed an intentional committed entry (added in
+`05d940c` e2e-tooling commit). Config-only change (no code logic → verified via `git
+check-ignore` rather than a unit test): credentials + all four test images ignored,
+`public/vite.svg` still tracked, `git status` porcelain clean of anything sensitive.
+`build` / `lint` (0 err, 24 advisory warnings) / `test:run` (44 files, 291 tests) green.
+
+### Public profile email/role privacy (handoff integration) — DONE (2026-07-07, /sweep)
+
+Integrates the backend handoff "Public user/profile enrichment no longer includes email"
+(2026-07-07): `GET /user/:id` now returns `{ id, username, name, avatar, isActive }` only —
+no `email`, no `role`. This was a **live crash**: `ProfilePage` fetches via
+`api.users.getById` and the About tab read `user.role.rol_name` (→ `Cannot read properties of
+undefined` when `role` is absent) and `user.email` (→ blank). Fix: new `PublicUser` type
+(`src/types/user.ts`, `User extends PublicUser` adds `email`/`role`/`createdAt`); typed
+`usersApi.getById` → `PublicUser` (and the two consumers `MessagesPage` map + `ChatThread`
+`otherUser` prop, which only ever use id/name/username/avatar). ProfilePage now sources the
+private contact block (email + role) from `useAuthContext().currentUser` (backed by
+`/user/me`) via new pure helper `profileContactInfo(isMe, currentUser)` — shown only on your
+own profile, `null` for others (no leak, no crash); the public status row stays. Same reason,
+`EditProfileModal` now receives `currentUser` instead of the public `user` (it needs `email`
+to prefill). Tests: `profileAbout.test.ts` (3 cases: own → email+role; others → null; no auth
+→ null). `build` / `lint` (0 err) / `test:run` (44 files, 291 tests) green. Runtime E2E
+(view own vs. another user's profile About tab) recommended once backend is live.
+
+### Cart item owner-bound 404 → resync (handoff integration) — DONE (2026-07-07, /sweep)
+
+Integrates the backend handoff "Cart item PATCH/DELETE now owner-bound" (2026-07-07):
+`PATCH`/`DELETE /api/cart/items/:id` now return `404` (row unchanged) for a stale item id
+or one owned by another user, instead of mutating a globally-guessable row. FE previously
+had no `onError` on `useUpdateCartItem`/`useRemoveCartItem`, so such a 404 left the phantom
+item in the cart UI with no resync. Added pure predicate `isStaleCartItemError(error)`
+(`src/features/cart/cartItemErrors.ts`, narrows `ApiError.statusCode === 404`) + colocated
+`cartItemErrors.test.ts` (7 cases: 404 true; 400/409/500 false; null/undefined/string/Error/`{}`
+false). Wired `onError` on both mutations in `src/hooks/data/useCart.ts` to
+`invalidateQueries(cart.all)` when the error is a stale-item 404, dropping the phantom row
+and forcing a server refetch; TanStack mutations don't retry by default, so no same-id retry.
+`build` / `lint` (0 err) / `test:run` (43 files, 288 tests) green. Runtime E2E pending: the
+404 path needs a live backend + forged stale/foreign item id (unreachable via normal UI —
+handoff notes "no normal cart UI change expected").
+
+### Comment/reply notification deep-link + preview (handoff integration) — DONE + runtime-verified (2026-07-06, /sweep)
+
+Integrates the backend handoff "Comment/reply notifications now carry postId + actorId +
+preview" (2026-07-06). `Notification` type (`src/types/notification.ts`) gains
+`postId`/`actorId`/`preview` (`number|null`/`number|null`/`string|null`) and `orderId`
+widens to `number | string | null` (bigint column → backend serializes as string, e.g.
+`"107"`). `notificationDisplay.ts`: comment/reply body now appends the comment text when
+`preview` is present (`Có người vừa bình luận về bài viết của bạn: “…”`), falling back to
+the old generic Vietnamese line for legacy rows; `getNotificationHref` deep-links
+`comment`/`reply` → `/post/${postId}` (legacy rows without `postId` stay unlinked — the
+old `orderId` held a commentId, never linkable). Both `NotificationsPage` and
+`NotificationBell` pick this up via the shared helpers, no component changes. 8 new tests
+in `notificationDisplay.test.ts` (preview body ×2, string-orderId body+href, postId href ×2,
+legacy null-postId ×2). Runtime-verified live (user 18 commented on user 17's post #12):
+notification rendered with preview, click navigated to `/post/12`, console clean.
+**Backend gap found:** `preview` arrives truncated to 20 chars mid-word (contract says
+≤255) → recorded in `backend-handoff.md` (Open). `actorId` rendering ("<tên> đã bình
+luận…") left for a follow-up — needs a user-lookup enrichment, optional per handoff.
+`build` / `lint` (0 err) / `test:run` (42 files, 285 tests) green.
+
 ### Memoize Context value objects (AuthContext + ApiErrorContext) — DONE (2026-07-06, /sweep)
 
 Closes the #1 perf-scan flag "Context value không memoize (2 chỗ)". `useAuth` returned a
@@ -32,6 +818,11 @@ decimal-string value (`"2000.00"`) would render raw as `2000.00 đ`. Widened bot
 call sites are now redundant but harmless (left in place for minimal diff). Regression
 tests added in `src/lib/utils.test.ts` (decimal-string input for both helpers, incl.
 millions abbreviation and non-numeric → `—`). `build` / `lint` (0 err) / `test:run` green.
+
+
+---
+
+# Archive — Release Sprint (2026-06)
 
 ## P0 — release blockers
 

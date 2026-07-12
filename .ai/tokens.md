@@ -13,6 +13,13 @@ The project has **two complementary token layers**. They are not interchangeable
 
 `canvas-*` / `ink-*` / `accent-*` / `bdr` resolve through CSS variables and are the **preferred** choice for color in new code. They are more descriptive and future-proof for theming.
 
+> ⚠️ **Opacity modifiers do NOT work on var()-based aliases.** `canvas-*`, `ink-*`,
+> `accent-pri/sec/cyan/green/red/amber`, and `bdr` are plain `var()` strings without
+> `<alpha-value>`, so `border-accent-amber/50` silently generates nothing (rings fall
+> back to Tailwind's default blue). When you need `/50` or `/[0.08]`, use the
+> literal-hex token instead: `tb-amber/50`, `tb-red/10`, or `accent-violet`/`accent-blue`
+> (those two are literal hex). Verified live 2026-07-11.
+
 Three colors exist **only** as semantic aliases — there is no `tb-*` equivalent:
 
 | Token | Hex | Notes |
@@ -187,8 +194,9 @@ Install new: `npx shadcn add <name>` — never copy-paste source manually.
 | `ProductListPage.tsx` | `text-[#52525B]` | `text-tb-muted` |
 | `ProductListPage.tsx` | `bg-[#1C1C1E]` | `bg-tb-elevated` |
 | `ProductListPage.tsx` | `border-[#27272A]` | `border-tb-border` |
-| `LoginPage.tsx` | `bg-[#0B0B0E]` | `bg-tb-base` |
 | `Avatar.tsx` | `style={{}}` with `--avatar-sz` / `--avatar-fs` | **DELIBERATE EXCEPTION** — dynamic sizing via CSS custom properties |
+
+(`LoginPage.tsx` `bg-[#0B0B0E]` fixed → `bg-tb-base`, 2026-07-11.)
 
 ## Inline `style={{}}` — when allowed
 

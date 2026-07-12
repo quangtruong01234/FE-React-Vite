@@ -1,8 +1,8 @@
 # API Reference — Frontend Contract
 
 Backend: NestJS gateway at `http://localhost:3000/api` (env: `VITE_API_URL`).
-All HTTP calls go through the `api` object in `src/api/index.ts`.
-For full backend endpoint details (paths, query params, all fields), see `.ai/context/backend-api.md`.
+All HTTP calls go through the `api` object exported by `src/api/index.ts`, which aggregates per-domain modules (`src/api/auth.ts`, `products.ts`, `orders.ts`, `cart.ts`, `payment.ts`, `inventory.ts`, `chat.ts`, `social.ts`, `notifications.ts`, `reviews.ts`, `users.ts`, `upload.ts`, `misc.ts`). The `request()` wrapper lives in `src/api/client.ts`.
+For the full endpoint catalogue (paths, query params, all fields), see `.ai/context/backend-api.md`.
 
 ## Conventions
 
@@ -43,25 +43,14 @@ interface PaginatedResponse<T> {
 }
 ```
 
-## Endpoint Table
+## Finding an endpoint
 
-| Namespace | Method | Path | Returns (after unwrap) |
-|---|---|---|---|
-| `api.auth.login` | POST | `/user/login` | `User` |
-| `api.auth.register` | POST | `/user/register` | `User` |
-| `api.auth.logout` | POST | `/user/logout` | `void` |
-| `api.products.getList` | GET | `/products/with-inventory/all` | `PaginatedResponse<ProductWithInventory>` |
-| `api.products.getWithInventory` | GET | `/products/:id/with-inventory` | `ProductWithInventory` |
-| `api.products.getMultipleWithInventory` | POST | `/products/with-inventory/multiple` | `ProductWithInventory[]` |
-| `api.products.create` | POST | `/products` | `Product` |
-| `api.products.getBrands` | GET | `/products/brands` | `Brand[]` |
-| `api.products.getCategories` | GET | `/products/categories` | `Category[]` |
-| `api.orders.create` | POST | `/order` | `Order` |
-| `api.orders.getByUser` | GET | `/order/user/:userId` | `PaginatedResponse<Order>` |
-| `api.orders.getStatusCounts` | GET | `/order/user/:userId/status-counts` | `OrderStatusCounts` |
+Don't maintain a duplicate endpoint table here — it drifts. To find an existing method:
 
-> `GET /user/me` — backend has shipped this endpoint but the FE `api` object has no method for it yet.
-> Auth state still uses the localStorage fallback. See `.ai/context/auth.md` FOLLOW-UP for the migration task.
+1. Open the matching domain file in `src/api/` (e.g. order calls → `src/api/orders.ts`) — each method's path and return type are declared inline.
+2. For raw backend details (query params, all response fields), see `.ai/context/backend-api.md`.
+
+Auth note: `api.auth.me` (GET `/user/me`) exists and drives auth state via `useQuery` — the old localStorage user cache has been removed (see `.ai/context/auth.md`).
 
 ## request() — how it works
 
@@ -106,8 +95,8 @@ const { data } = useQuery({
 
 ## Adding a New Endpoint
 
-1. Add request function to the appropriate namespace in `src/api/index.ts`
-2. Add response type to `src/types/index.ts`
-3. Add query key to `src/hooks/queryKeys.ts` if it's a GET
+1. Add request function to the matching domain file in `src/api/` (e.g. `src/api/orders.ts`); `index.ts` re-exports it via the `api` object
+2. Add response type to `src/types/<domain>.ts` (re-exported by the `types/index.ts` barrel)
+3. Add query key to `src/hooks/query/queryKeys.ts` if it's a GET
 4. Create the hook in `src/hooks/` or the feature folder
 5. Use the hook in the component — never call `api.*` directly from JSX

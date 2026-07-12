@@ -2,6 +2,22 @@
 
 > **Frontend dev**: use `.ai/api-reference.md` for the FE `api` object contract. This file documents raw backend endpoints, query params, and shapes — read it when you need the full endpoint detail that isn't exposed via the `api` object yet.
 
+## Contents
+
+- [Base](#base) · [Common Types](#common-types) (envelope · `PaginatedResponse<T>` · errors · enums)
+- [1. Auth & User](#1-auth--user) — register · login · logout · `/user/me` · `/user/:id` · PATCH · `/user/all`
+- [2. Product](#2-product) — CRUD · search · brands · categories · SKU · with-inventory · stock-check
+- [3. Order](#3-order) — create · admin list · by id · by user · status-counts · cancel · invoice · payment-url
+- [4. Payment](#4-payment) — options · payment-result · GHN webhook
+- [5. Inventory](#5-inventory) — CRUD · low-stock · by product/SKU · check/reserve/release-stock
+- [6. Social](#6-social) — posts · likes · comments · replies
+- [7. Notification](#7-notification) — list · mark read
+- [8. Chat (HTTP)](#8-chat-http) — conversations · messages
+- [9. Upload](#9-upload) — Cloudinary signature
+- [10. Misc](#10-misc) — health
+- [WebSocket](#websocket) — Notification WS · Chat WS
+- [Notes for Frontend](#notes-for-frontend)
+
 ## Base
 
 - **Base URL**: `http://localhost:3000`

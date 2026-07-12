@@ -19,3 +19,7 @@ design_handoff_trybuy_ui
 e2e/.auth/
 
 public
+
+# Local session/credential artifacts
+login.json
+*.cookies

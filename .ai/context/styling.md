@@ -33,18 +33,22 @@ import { cn } from '@/lib/utils';
 
 ### Icon button tròn — phải VUÔNG
 
-Nút icon tròn = `size-* grid place-items-center` (rule gốc trong CLAUDE.md). `size-*` ép `width = height` nên `rounded-full` ra hình tròn thật.
+Nút icon `<button>` sized (`size-*`) **BẮT BUỘC** dùng `<IconButton>` (`src/components/shared/IconButton.tsx`), KHÔNG dùng raw `<button>`. `IconButton` tự thêm `p-0 grid place-items-center type="button"`. Thiếu `p-0` → **UA padding mặc định của `<button>` nong box vượt quá `size-*`** → icon lệch tâm, nút to hơn `size-8` thật (đây là bug "icon bị lệch" hay gặp khi tạo nút mới). `size-*` ép `width = height` nên `rounded-full` ra hình tròn thật.
 
 ```tsx
-// ✅ vuông → tròn đều
-<button className="size-8 grid place-items-center rounded-full">
+// ✅ sized icon button → dùng IconButton (đã có p-0), vuông → tròn đều
+<IconButton className="size-8 rounded-full hover:bg-canvas-elevated">
   <X size={16} className="shrink-0" />
-</button>
+</IconButton>
+
+// ❌ raw <button> thiếu p-0 → UA padding nong box, icon lệch tâm
+<button className="size-8 grid place-items-center rounded-full">
 
 // ❌ w ≠ h → rounded-full thành BẦU DỤC (oval)
 <button className="w-10 h-8 flex items-center justify-center rounded-full">
 ```
 
+- Padded nav button KHÔNG sized (Header/NotificationBell) mới dùng raw `<button className="p-* grid place-items-center">`; `<span>`/`<Link>` icon container dùng `size-* grid place-items-center` (không cần `p-0`).
 - `rounded-full` + `border` trên element KHÔNG vuông → viền oval. Luôn `size-*` cho nút tròn, không dùng `w-* h-*` lệch nhau.
 - Lucide icon trong nút icon-only: luôn `shrink-0` (tránh méo khi flex co lại).
 - Đừng tự thêm `border` / ring trang trí khi "fix" — vi phạm minimal diff. Reuse nút close có sẵn (Dialog/Sheet) thay vì chế viền mới.
