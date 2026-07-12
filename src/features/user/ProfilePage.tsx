@@ -6,6 +6,7 @@ import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { EditProfileModal } from './EditProfileModal';
+import { profileContactInfo } from './profileAbout';
 import { FollowListModal } from './FollowListModal';
 import PostCard from '@/features/social/PostCard';
 import ProductCard from '@/features/product/ProductCard';
@@ -59,6 +60,9 @@ export default function ProfilePage(): ReactElement {
     queryFn: () => api.users.getById(userId),
     enabled: userId > 0,
   });
+
+  // email/role are private — only shown on your own profile, sourced from /user/me.
+  const contactInfo = profileContactInfo(isMe, currentUser);
 
   const { data: postsPage, isLoading: postsLoading } = useQuery({
     queryKey: queryKeys.social.postsByUser(userId, postsPageNum),
@@ -311,15 +315,19 @@ export default function ProfilePage(): ReactElement {
 
         {tab === 'about' && (
           <div className="bg-canvas-surface border border-bdr rounded-tb-card p-4 flex flex-col gap-3">
-            <div className="flex items-center gap-3 text-sm text-ink-pri">
-              <Mail size={16} className="text-ink-sec flex-none" />
-              {user.email}
-            </div>
-            <div className="flex items-center gap-3 text-sm text-ink-pri">
-              <Shield size={16} className="text-ink-sec flex-none" />
-              Vai trò:
-              <span className="uppercase font-semibold text-accent-amber">{user.role.rol_name}</span>
-            </div>
+            {contactInfo && (
+              <>
+                <div className="flex items-center gap-3 text-sm text-ink-pri">
+                  <Mail size={16} className="text-ink-sec flex-none" />
+                  {contactInfo.email}
+                </div>
+                <div className="flex items-center gap-3 text-sm text-ink-pri">
+                  <Shield size={16} className="text-ink-sec flex-none" />
+                  Vai trò:
+                  <span className="uppercase font-semibold text-accent-amber">{contactInfo.roleName}</span>
+                </div>
+              </>
+            )}
             <div className="flex items-center gap-3 text-sm text-ink-pri">
               <CheckCircle size={16} className="text-ink-sec flex-none" />
               Trạng thái:
@@ -331,11 +339,11 @@ export default function ProfilePage(): ReactElement {
         )}
       </div>
 
-      {isMe && user && (
+      {isMe && currentUser && (
         <EditProfileModal
           open={editing}
           onClose={() => setEditing(false)}
-          user={user}
+          user={currentUser}
         />
       )}
 

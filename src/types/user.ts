@@ -20,14 +20,23 @@ export interface Role {
   updatedAt: string;
 }
 
-export interface User {
+/**
+ * Shape returned by the public read `GET /user/:id` (and any public seller/author
+ * decoration): identity + display fields only. `email`/`role` are NOT included —
+ * backend strips them from public reads (handoff 2026-07-07). For the current
+ * user's own email/role read `useAuthContext().currentUser` (backed by `/user/me`).
+ */
+export interface PublicUser {
   id: number;
   username: string;
-  email: string;
   name?: string | null;
   avatar?: string | null;
-  role: Role;
   isActive: boolean;
+}
+
+export interface User extends PublicUser {
+  email: string;
+  role: Role;
   createdAt?: string;
 }
 

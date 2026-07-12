@@ -12,7 +12,7 @@ import { useConversations, useMarkConversationRead } from './useChat';
 import { ChatThread } from './ChatThread';
 import { cn } from '@/lib/format/utils';
 import { relativeTimeShort } from '@/lib/format/time';
-import type { Conversation, User } from '@/types';
+import type { Conversation, PublicUser } from '@/types';
 
 export default function MessagesPage(): ReactElement {
   const role = useRole();
@@ -73,7 +73,7 @@ export default function MessagesPage(): ReactElement {
   });
 
   const userMap = useMemo(() => {
-    const map = new Map<number, User>();
+    const map = new Map<number, PublicUser>();
     userResults.forEach((r, i) => {
       if (r.data) map.set(otherUserIds[i], r.data);
     });

@@ -15,8 +15,10 @@ import { Avatar } from '@/components/shared/Avatar';
 import { queryClient } from '@/lib/query/queryClient';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { api } from '@/api';
-import { uploadAvatar } from '@/lib/http/cloudinary';
+import { uploadAvatar, deleteMedia } from '@/lib/http/cloudinary';
+import { validateUploadFile, MAX_IMAGE_BYTES } from '@/lib/http/uploadValidation';
 import { cn } from '@/lib/format/utils';
+import { replacePendingAvatar, discardedAvatarOrphan, type PendingAvatar } from './avatarUpload';
 import type { User } from '@/types';
 
 const schema = z.object({
@@ -34,7 +36,9 @@ interface EditProfileModalProps {
 
 export function EditProfileModal({ open, onClose, user }: EditProfileModalProps): ReactElement {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  // The avatar uploaded this session but not yet persisted. Tracked with its
+  // publicId so cancel/replace can delete it from Cloudinary (UP-02).
+  const [pendingAvatar, setPendingAvatar] = useState<PendingAvatar | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -56,12 +60,19 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(user.id) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
-      handleClose();
+      // Saved — the pending upload is now the persisted avatar. Drop tracking
+      // WITHOUT deleting it, then close without the cancel-cleanup.
+      setPendingAvatar(null);
+      setUploadError(null);
+      onClose();
     },
   });
 
   function handleClose(): void {
-    setAvatarPreview(null);
+    // Cancel/close: delete the freshly-uploaded avatar that was never saved.
+    const orphan = discardedAvatarOrphan(pendingAvatar);
+    if (orphan) void deleteMedia(orphan);
+    setPendingAvatar(null);
     setUploadError(null);
     onClose();
   }
@@ -69,12 +80,22 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
   async function handleAvatarSelect(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = e.target.files?.[0];
     if (!file) return;
+    // UP-04: reject bad files before wasting an upload round-trip.
+    const invalid = validateUploadFile(file, { kind: 'image', maxBytes: MAX_IMAGE_BYTES });
+    if (invalid) {
+      setUploadError(invalid);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
     setUploading(true);
     setUploadError(null);
     try {
-      const { url } = await uploadAvatar(file, user.id);
-      setAvatarPreview(url);
-      setValue('avatar', url);
+      const { url, publicId } = await uploadAvatar(file, user.id);
+      // Replacing an earlier not-yet-saved avatar orphans it — delete it now.
+      const { next, orphan } = replacePendingAvatar(pendingAvatar, { url, publicId });
+      if (orphan) void deleteMedia(orphan);
+      setPendingAvatar(next);
+      setValue('avatar', next.url);
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : 'Upload thất bại');
     } finally {
@@ -87,7 +108,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
     await updateUser.mutateAsync(data);
   }
 
-  const displayAvatar = avatarPreview ?? user.avatar ?? undefined;
+  const displayAvatar = pendingAvatar?.url ?? user.avatar ?? undefined;
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>

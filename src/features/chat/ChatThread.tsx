@@ -6,7 +6,7 @@ import { useRole } from '@/hooks/auth/useRole';
 import { useChat } from './useChat';
 import { chatConnectionBanner } from './chatConnection';
 import { cn } from '@/lib/format/utils';
-import type { Conversation, User } from '@/types';
+import type { Conversation, PublicUser } from '@/types';
 
 function formatMessageTime(iso: string): string {
   const normalized = iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z';
@@ -28,7 +28,7 @@ function formatMessageTime(iso: string): string {
 interface ChatThreadProps {
   conversation: Conversation;
   onBack: () => void;
-  otherUser?: User;
+  otherUser?: PublicUser;
 }
 
 export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps): ReactElement {
@@ -250,7 +250,7 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
           disabled={!text.trim()}
           className="rounded-full bg-tb-gradient text-ink-pri flex items-center justify-center cursor-pointer border-0 disabled:opacity-40 disabled:cursor-not-allowed flex-none"
         >
-          <Send size={18} color="#FFFFFF" strokeWidth={2.5} />
+          <Send size={18} strokeWidth={2.5} className="shrink-0" />
         </button>
       </div>
     </div>
