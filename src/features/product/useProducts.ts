@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { api } from '@/api';
 import { formatPrice } from '@/lib/format/utils';
 import { queryKeys } from '@/hooks/query/queryKeys';
@@ -55,5 +55,8 @@ export function useProducts(
     queryKey: queryKeys.products.list(params),
     queryFn: () => api.products.getList(params),
     enabled: options.enabled ?? true,
+    // Paginated/filtered list — keep the previous page rendered while the next
+    // one loads instead of flashing an empty grid (isFetching signals the swap).
+    placeholderData: keepPreviousData,
   });
 }

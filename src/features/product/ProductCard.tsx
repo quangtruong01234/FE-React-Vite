@@ -6,6 +6,7 @@ import { cn } from '@/lib/format/utils';
 import { formatPrice } from '@/lib/format/utils';
 import { useAddToCart } from '@/hooks/data/useCart';
 import { IconButton } from '@/components/shared/IconButton';
+import { WishlistButton } from '@/components/shared/WishlistButton';
 import type { ProductWithInventory } from '@/types';
 
 interface ProductCardProps {
@@ -66,6 +67,11 @@ export default function ProductCard({ product }: ProductCardProps): ReactElement
             </span>
           </div>
         )}
+        <WishlistButton
+          productId={Number(product.id)}
+          iconSize={16}
+          className="absolute top-2.5 right-2.5 size-8 rounded-full bg-black/50 backdrop-blur-sm hover:bg-black/60 z-10"
+        />
       </Link>
 
       <div className="p-3 flex flex-col gap-2 flex-1">

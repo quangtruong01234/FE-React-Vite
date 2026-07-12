@@ -1,10 +1,22 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import type { CreateProductDto, ProductCondition } from '@/types';
 import { uploadProductImage, deleteMedia } from '@/lib/http/cloudinary';
+import { uploadFilesSequential } from '@/lib/http/uploadSequential';
+import { firstUploadError, capImageBatch, MAX_IMAGE_BYTES, MAX_PRODUCT_IMAGES } from '@/lib/http/uploadValidation';
 
 export interface VarGroup {
+  /** Stable identity for React keys — survives add/remove so a row's local
+   *  draft state doesn't leak onto a sibling when an earlier group is removed. */
+  id: number;
   name: string;
   options: string[];
+}
+
+let groupIdSeq = 0;
+
+/** Build a variation group with a fresh stable id. */
+export function makeVarGroup(partial: Partial<Omit<VarGroup, 'id'>> = {}): VarGroup {
+  return { id: groupIdSeq++, name: '', options: [], ...partial };
 }
 
 export interface ComboItem {
@@ -74,7 +86,7 @@ const DEFAULT_FIELDS: FormFields = {
   hasVariations: false,
   singlePrice: '',
   singleStock: '',
-  groups: [{ name: '', options: [] }],
+  groups: [makeVarGroup()],
   rows: {},
 };
 
@@ -203,7 +215,7 @@ export function useProductForm(
     if (fields.groups.length >= 2) return;
     setFields(prev => ({
       ...prev,
-      groups: [...prev.groups, { name: '', options: [] }],
+      groups: [...prev.groups, makeVarGroup()],
     }));
   }
 
@@ -216,20 +228,36 @@ export function useProductForm(
 
   async function addImages(files: File[], userId: number): Promise<void> {
     if (!files.length) return;
-    setUploadState({ active: true, percent: 0, error: null });
+    // Cap the batch so total images never exceed the backend's 10-image limit
+    // (over-limit would 400). Use imagesRef for the freshest count. UP-07: the
+    // notice tells the user what was dropped instead of slicing silently.
+    const { accepted, notice } = capImageBatch(imagesRef.current.length, files, MAX_PRODUCT_IMAGES);
+    if (!accepted.length) {
+      setUploadState({ active: false, percent: 0, error: notice });
+      return;
+    }
+    // UP-04: reject bad files before wasting an upload round-trip.
+    const invalid = firstUploadError(accepted, { kind: 'image', maxBytes: MAX_IMAGE_BYTES });
+    if (invalid) {
+      setUploadState({ active: false, percent: 0, error: invalid });
+      return;
+    }
+    // A partial-drop notice rides the error slot through the upload (the
+    // `finally` below preserves it).
+    setUploadState({ active: true, percent: 0, error: notice });
     try {
-      const uploaded: ImageItem[] = [];
-      for (let i = 0; i < files.length; i++) {
-        const result = await uploadProductImage(files[i], userId, p => {
-          const base = (i / files.length) * 100;
-          setUploadState(prev => ({ ...prev, percent: Math.round(base + p / files.length) }));
-        });
-        uploaded.push({ url: result.url, publicId: result.publicId });
-      }
-      setImages(prev => {
-        const next = [...prev, ...uploaded];
-        imagesRef.current = next;
-        return next;
+      // Commit each image as it uploads (UP-01): a mid-batch failure leaves the
+      // already-uploaded images in state (and in imagesRef), so removeImage/
+      // clearImages can still delete them instead of orphaning them on Cloudinary.
+      await uploadFilesSequential(accepted, {
+        upload: (file, _i, onProgress) => uploadProductImage(file, userId, onProgress),
+        onItem: ({ url, publicId }) =>
+          setImages(prev => {
+            const next = [...prev, { url, publicId }];
+            imagesRef.current = next;
+            return next;
+          }),
+        onProgress: percent => setUploadState(prev => ({ ...prev, percent })),
       });
     } catch (err: unknown) {
       setUploadState(prev => ({
@@ -237,6 +265,8 @@ export function useProductForm(
         error: err instanceof Error ? err.message : 'Upload ảnh thất bại',
       }));
     } finally {
+      // Preserves the error slot: a real upload error from the catch above, or
+      // the partial-drop notice set before the upload started.
       setUploadState(prev => ({ ...prev, active: false, percent: 0 }));
     }
   }

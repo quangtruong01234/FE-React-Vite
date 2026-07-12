@@ -11,9 +11,12 @@ import type {
   CreateProductDto,
   CreateBrandDto,
   CreateCategoryDto,
+  WishlistItem,
+  WishlistToggleResult,
 } from '@/types';
 import { request, toQuery } from './client';
 import { fetchBatchTolerant } from '@/lib/http/fetchBatchTolerant';
+import chunk from 'lodash/chunk';
 
 // Gateway DTO whitelist only knows the plural array keys `categoryIds`/`brandIds`,
 // repeated once per value (`?categoryIds=16&categoryIds=18`); singular or `[]` keys
@@ -27,6 +30,15 @@ export function buildProductListQuery(params: ProductParams): string {
   for (const id of categoryIds ?? []) sp.append('categoryIds', String(id));
   for (const id of brandIds ?? []) sp.append('brandIds', String(id));
   return sp.toString();
+}
+
+// `POST /products/with-inventory/multiple` validates its body (SEC-H2, 2026-07-09):
+// max 50 ids per request, 400 over the limit. Dedupe (server dedupes anyway, so
+// duplicates only waste the 50-slot budget) and chunk so any id set stays valid.
+export const MAX_BATCH_PRODUCT_IDS = 50;
+
+export function batchProductIds(productIds: number[]): number[][] {
+  return chunk([...new Set(productIds)], MAX_BATCH_PRODUCT_IDS);
 }
 
 export const productsApi = {
@@ -46,15 +58,23 @@ export const productsApi = {
 
   // P2-06 (resolved): backend now skips missing ids and returns partial array;
   // fetchBatchTolerant kept as safety net — fan-out only triggers on 404 which no longer happens.
-  getMultipleWithInventory: (productIds: number[]): Promise<ProductWithInventory[]> =>
-    fetchBatchTolerant(
-      productIds,
-      (ids) => request<ProductWithInventory[]>('/products/with-inventory/multiple', {
-        method: 'POST',
-        body: JSON.stringify({ productIds: ids }),
-      }),
-      (id) => request<ProductWithInventory>(`/products/${id}/with-inventory`),
-    ),
+  // SEC-H2 (2026-07-09): backend rejects batches >50 ids with 400 — batchProductIds
+  // dedupes and chunks so an oversized cart hydration can't 400 the whole batch.
+  getMultipleWithInventory: async (productIds: number[]): Promise<ProductWithInventory[]> => {
+    const batches = await Promise.all(
+      batchProductIds(productIds).map((batch) =>
+        fetchBatchTolerant(
+          batch,
+          (ids) => request<ProductWithInventory[]>('/products/with-inventory/multiple', {
+            method: 'POST',
+            body: JSON.stringify({ productIds: ids }),
+          }),
+          (id) => request<ProductWithInventory>(`/products/${id}/with-inventory`),
+        ),
+      ),
+    );
+    return batches.flat();
+  },
 
   getShopStats: (): Promise<{ productCount: number; totalStock: number; lowStockCount: number }> =>
     request('/products/shop/stats'),
@@ -120,4 +140,25 @@ export const productsApi = {
     const qs = toQuery({ quantity });
     return request<{ available: boolean; availableStock: number }>(`/products/${id}/stock-check${qs}`);
   },
+
+  // --- Wishlist / favorites (F6) ---
+
+  getWishlist: async (params: { page?: number; limit?: number } = {}): Promise<PaginatedResponse<WishlistItem>> => {
+    const qs = toQuery(params as Record<string, unknown>);
+    const result = await request<PaginatedResponse<WishlistItem> | WishlistItem[]>(`/products/wishlist${qs}`);
+    if (Array.isArray(result)) {
+      const page = params.page ?? 1;
+      const limit = params.limit ?? result.length;
+      return { data: result, total: result.length, page, limit, totalPages: 1, hasNext: false };
+    }
+    return result;
+  },
+
+  // Both mutations are idempotent server-side (add returns success on duplicate,
+  // remove returns 204 even if not currently wishlisted) — safe for optimistic UI.
+  addWishlist: (productId: number): Promise<WishlistToggleResult> =>
+    request<WishlistToggleResult>(`/products/wishlist/${productId}`, { method: 'POST' }),
+
+  removeWishlist: (productId: number): Promise<void> =>
+    request(`/products/wishlist/${productId}`, { method: 'DELETE' }),
 };

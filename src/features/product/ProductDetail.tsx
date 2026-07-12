@@ -1,6 +1,6 @@
 import { useState, useEffect, type ReactElement } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Truck, Shield, RotateCcw, Heart, ShoppingCart, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Truck, Shield, RotateCcw, ShoppingCart, ChevronRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
 import { useCart, useAddToCart } from '@/hooks/data/useCart';
@@ -13,6 +13,7 @@ import { getValidSkus, findMatchingSku, getOptionStock } from '@/lib/domain/sku'
 import { PriceText } from '@/components/shared/PriceText';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { Avatar } from '@/components/shared/Avatar';
+import { WishlistButton } from '@/components/shared/WishlistButton';
 import { ProductReviews } from './ProductReviews';
 
 const trustItems = [
@@ -375,12 +376,11 @@ if (loading) {
                   {addToCart.isPending ? 'Đang thêm…' : !allTiersSelected ? 'Chọn phân loại' : inCart ? `THÊM VÀO GIỎ (+${quantity})` : 'THÊM VÀO GIỎ HÀNG'}
                 </GradientButton>
               )}
-              <button
-                type="button"
-                aria-label="Yêu thích"
-                className="w-14 h-14 flex items-center justify-center rounded-xl border border-bdr bg-canvas-elevated text-ink-sec hover:border-accent-amber hover:text-accent-amber transition-colors cursor-pointer">
-                <Heart size={20} />
-              </button>
+              <WishlistButton
+                productId={Number(detail.id)}
+                iconSize={20}
+                className="size-14 rounded-xl border border-bdr bg-canvas-elevated hover:border-accent-amber"
+              />
             </div>
             {hasVariants && !allTiersSelected && (
               <p className="m-0 text-sm text-ink-sec">Vui lòng chọn đầy đủ phân loại</p>

@@ -147,7 +147,7 @@ export function VariationBuilder({
     <div className="flex flex-col gap-3">
       {groups.map((group, i) => (
         <GroupRow
-          key={i}
+          key={group.id}
           group={group}
           index={i}
           canRemove={groups.length > 1}

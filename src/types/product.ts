@@ -107,6 +107,21 @@ export interface CreateProductDto {
   skuList?: ProductSkuTier[];
 }
 
+// --- Wishlist / favorites (F6) ---
+
+/** A product row returned by `GET /products/wishlist` — the standard product
+ *  shape plus the timestamp the current user favorited it. */
+export interface WishlistItem extends Product {
+  wishlistedAt: string;
+}
+
+/** Response of `POST /products/wishlist/:productId` (idempotent add). */
+export interface WishlistToggleResult {
+  productId: number;
+  isWishlisted: boolean;
+  createdAt: string;
+}
+
 // --- Product reviews ---
 
 export interface ProductReviewDto {

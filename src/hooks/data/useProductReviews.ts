@@ -1,12 +1,15 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import type { ProductReviewDto } from '@/types';
 
 export function useProductReviews(productId: number, page: number) {
   return useQuery({
-    queryKey: queryKeys.reviews.byProduct(productId),
+    // Page belongs in the key — with only `byProduct(productId)` a page change
+    // never refetched. `byProduct` stays as the invalidation prefix.
+    queryKey: queryKeys.reviews.byProductPage(productId, page),
     queryFn: () => api.reviews.getByProduct(productId, page, 10),
+    placeholderData: keepPreviousData,
   });
 }
 

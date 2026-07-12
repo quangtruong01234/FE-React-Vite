@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/format/utils';
 import type { ApiError, CreateProductDto } from '@/types';
 import { useProductForm } from './product-form/useProductForm';
-import type { ImageItem, SkuRowState, VarGroup } from './product-form/useProductForm';
+import { makeVarGroup, type ImageItem, type SkuRowState, type VarGroup } from './product-form/useProductForm';
 import { BasicInfoSection } from './product-form/BasicInfoSection';
 import { VariationBuilder } from './product-form/VariationBuilder';
 import { SkuMatrix } from './product-form/SkuMatrix';
@@ -116,10 +116,9 @@ export default function CreateProductPage(): ReactElement {
   // so saving preserves data instead of resetting variations/stock to 0.
   const initialFields = useMemo(() => {
     if (!isEditMode || !existingProduct) return undefined;
-    const groups: VarGroup[] = (existingProduct.variations ?? []).map(v => ({
-      name: v.name,
-      options: [...v.options],
-    }));
+    const groups: VarGroup[] = (existingProduct.variations ?? []).map(v =>
+      makeVarGroup({ name: v.name, options: [...v.options] }),
+    );
     const rows: Record<string, SkuRowState> = {};
     (existingProduct.skus ?? []).forEach(s => {
       rows[JSON.stringify(s.tierIdx)] = {

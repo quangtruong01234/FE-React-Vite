@@ -19,6 +19,7 @@ import { cn } from "@/lib/format/utils";
 import { formatPrice } from "@/lib/format/utils";
 import { useProducts } from "../product/useProducts";
 import { productCategoryNames } from "../product/productCategories";
+import { buildLowStockRows } from "./lowStock";
 import { IconButton } from "@/components/shared/IconButton";
 import { ProductThumb } from "@/components/shared/ProductThumb";
 import { api } from "@/api";
@@ -255,13 +256,21 @@ export default function ShopPage() {
   const shopParams = { limit: 50, userId: currentUser?.id };
   const { data, isLoading, isFetching } = useProducts(shopParams);
   const showSkeleton = isLoading || isFetching;
-  const products = data?.data ?? [];
+  // Stable identity so the useMemo hooks below don't re-run every render.
+  const products = useMemo(() => data?.data ?? [], [data]);
 
   // Shop-wide stats from a dedicated endpoint (counts the whole shop, not just
   // the current page) — falls back to client-side aggregation while loading.
   const { data: shopStats } = useQuery({
     queryKey: queryKeys.products.shopStats,
     queryFn: () => api.products.getShopStats(),
+  });
+
+  // Low-stock rows behind the "Sắp hết hàng" stat card — server-scoped to this
+  // shop's products (`GET /inventory/low-stock`, role shop/admin).
+  const { data: lowStockRecords } = useQuery({
+    queryKey: queryKeys.inventory.lowStock,
+    queryFn: () => api.inventory.getLowStock(),
   });
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
@@ -332,6 +341,11 @@ export default function ShopPage() {
     );
   }, [products, search]);
 
+  const lowStockRows = useMemo(
+    () => buildLowStockRows(lowStockRecords ?? []),
+    [lowStockRecords],
+  );
+
   const productCount = shopStats?.productCount ?? products.length;
   const totalStock =
     shopStats?.totalStock ??
@@ -400,6 +414,53 @@ export default function ShopPage() {
             danger={lowStockCount > 0}
           />
         </div>
+
+        {/* Low-stock list */}
+        {lowStockRows.length > 0 && (
+          <div className="bg-canvas-surface border border-accent-red/30 rounded-tb-card overflow-hidden mb-7">
+            <div className="px-5 py-4 border-b border-bdr flex items-center gap-2">
+              <AlertTriangle size={16} className="shrink-0 text-accent-red" />
+              <h2 className="text-sm font-body font-medium text-ink-pri">
+                Sản phẩm sắp hết hàng
+              </h2>
+              <span className="text-sm text-ink-muted font-normal">
+                ({lowStockRows.length})
+              </span>
+            </div>
+            <ul className="divide-y divide-bdr">
+              {lowStockRows.map((row) => (
+                <li
+                  key={row.id}
+                  className="flex items-center gap-3 px-5 py-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <Link
+                      to={`/product/${row.productId}`}
+                      className="text-sm font-body font-medium text-ink-pri truncate block hover:text-accent-amber transition-colors"
+                    >
+                      {row.name}
+                    </Link>
+                    <p className="text-xs text-ink-muted font-mono">{row.sku}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-mono font-medium text-accent-red">
+                      Còn {row.availableStock}
+                    </p>
+                    <p className="text-xs text-ink-muted">
+                      Tối thiểu {row.minimumStock}
+                    </p>
+                  </div>
+                  <IconButton
+                    onClick={() => handleEdit(row.productId)}
+                    className="size-7 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec hover:border-accent-amber/50 hover:text-accent-amber transition-colors shrink-0"
+                  >
+                    <Pencil size={13} className="shrink-0" />
+                  </IconButton>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* Product table */}
         <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">

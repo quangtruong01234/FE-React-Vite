@@ -8,6 +8,7 @@ import { cn } from '@/lib/format/utils';
 import { api } from '@/api';
 import type { Brand, Category, ProductCondition } from '@/types';
 import type { ImageItem, FormErrors } from './useProductForm';
+import { proposalErrorMessage } from './proposalErrors';
 import { uploadProductImage } from '@/lib/http/cloudinary';
 
 const MAX_IMAGES = 6;
@@ -142,8 +143,8 @@ export function BasicInfoSection({
       onBrandChange(id);
       setBrandQuery('');
       setBrandOpen(false);
-    } catch {
-      setBrandError('Không thể tạo thương hiệu. Thử lại sau.');
+    } catch (error: unknown) {
+      setBrandError(proposalErrorMessage('brand', error));
     } finally {
       setBrandCreating(false);
     }
@@ -193,8 +194,8 @@ export function BasicInfoSection({
       setPendingCategoryIds(prev => new Set(prev).add(id));
       onCategoryToggle(id);
       setNewCatInput('');
-    } catch {
-      setCatError('Không thể tạo danh mục. Thử lại sau.');
+    } catch (error: unknown) {
+      setCatError(proposalErrorMessage('category', error));
     } finally {
       setCatCreating(false);
     }
