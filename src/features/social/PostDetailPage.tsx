@@ -179,8 +179,8 @@ export default function PostDetailPage(): ReactElement {
         {/* Stats row */}
         <div className="flex items-center justify-between px-4 pt-3 pb-2 text-xs text-ink-sec">
           <span className="flex items-center gap-1.5">
-            <span className="w-4 h-4 rounded-full bg-tb-gradient inline-flex items-center justify-center">
-              <Heart size={9} color="#fff" />
+            <span className="size-4 rounded-full bg-tb-gradient grid place-items-center">
+              <Heart size={9} className="text-ink-pri shrink-0" />
             </span>
             {displayLikeCount.toLocaleString('vi-VN')}
           </span>

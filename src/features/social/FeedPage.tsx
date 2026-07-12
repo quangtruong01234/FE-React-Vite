@@ -136,8 +136,8 @@ export default function FeedPage() {
         {/* End of feed */}
         {!isLoading && !isFetchingNextPage && !hasNextPage && posts.length > 0 && (
           <div className="flex flex-col items-center gap-2 py-8 text-center">
-            <div className="w-10 h-10 rounded-full bg-canvas-elevated flex items-center justify-center">
-              <PenLine size="18" className="text-ink-muted" />
+            <div className="size-10 rounded-full bg-canvas-elevated grid place-items-center">
+              <PenLine size={18} className="shrink-0 text-ink-muted" />
             </div>
             <p className="text-ink-muted text-sm font-body">Bạn đã xem hết bài viết rồi!</p>
           </div>

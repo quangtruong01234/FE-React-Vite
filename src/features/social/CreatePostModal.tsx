@@ -16,6 +16,14 @@ import { queryKeys } from '@/hooks/query/queryKeys';
 import { api } from '@/api';
 import { useProductsByIds } from '@/hooks/data/useProductsByIds';
 import { uploadImage, uploadVideo, deleteMedia } from '@/lib/http/cloudinary';
+import { uploadFilesSequential } from '@/lib/http/uploadSequential';
+import {
+  validateUploadFile,
+  firstUploadError,
+  capImageBatch,
+  MAX_IMAGE_BYTES,
+  MAX_VIDEO_BYTES,
+} from '@/lib/http/uploadValidation';
 import { cn } from '@/lib/format/utils';
 import { ProductPicker } from './ProductPicker';
 import { useUpdatePost } from './useFeed';
@@ -109,26 +117,39 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
   }
 
   async function uploadImageFiles(files: File[]) {
+    if (!files.length) return;
     const currentImages = mediaItems.filter((m) => m.type === 'image').length;
-    const available = MAX_IMAGES - currentImages;
-    const toUpload = files.slice(0, available);
-    if (!toUpload.length) return;
+    // UP-07: cap the batch and tell the user what was dropped instead of
+    // slicing silently.
+    const { accepted, notice } = capImageBatch(currentImages, files, MAX_IMAGES);
+    if (!accepted.length) {
+      setUpload({ active: false, percent: 0, error: notice });
+      if (imageInputRef.current) imageInputRef.current.value = '';
+      return;
+    }
 
-    setUpload({ active: true, percent: 0, error: null });
+    // UP-04: reject bad files before wasting an upload round-trip.
+    const invalid = firstUploadError(accepted, { kind: 'image', maxBytes: MAX_IMAGE_BYTES });
+    if (invalid) {
+      setUpload({ active: false, percent: 0, error: invalid });
+      if (imageInputRef.current) imageInputRef.current.value = '';
+      return;
+    }
+
+    // A partial-drop notice rides the error slot through the upload (the
+    // `finally` below preserves it).
+    setUpload({ active: true, percent: 0, error: notice });
 
     try {
-      const uploaded: Array<{ url: string; publicId: string }> = [];
-      for (let i = 0; i < toUpload.length; i++) {
-        const result = await uploadImage(toUpload[i], currentUser?.id ?? 0, (p) => {
-          const base = (i / toUpload.length) * 100;
-          setUpload((prev) => ({ ...prev, percent: Math.round(base + p / toUpload.length) }));
-        });
-        uploaded.push(result);
-      }
-      setMediaItems((prev) => [
-        ...prev,
-        ...uploaded.map(({ url, publicId }) => ({ url, publicId, type: 'image' as const })),
-      ]);
+      // Commit each image the moment it uploads (UP-01): if a later file fails,
+      // the ones already uploaded stay in state — visible and cleanable via
+      // handleClose/removeMedia — instead of being stranded as Cloudinary orphans.
+      await uploadFilesSequential(accepted, {
+        upload: (file, _i, onProgress) => uploadImage(file, currentUser?.id ?? 0, onProgress),
+        onItem: ({ url, publicId }) =>
+          setMediaItems((prev) => [...prev, { url, publicId, type: 'image' as const }]),
+        onProgress: (percent) => setUpload((prev) => ({ ...prev, percent })),
+      });
     } catch (err: unknown) {
       setUpload((prev) => ({
         ...prev,
@@ -159,6 +180,14 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
   async function handleVideoSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // UP-04: reject bad files before wasting an upload round-trip.
+    const invalid = validateUploadFile(file, { kind: 'video', maxBytes: MAX_VIDEO_BYTES });
+    if (invalid) {
+      setUpload({ active: false, percent: 0, error: invalid });
+      if (videoInputRef.current) videoInputRef.current.value = '';
+      return;
+    }
 
     setUpload({ active: true, percent: 0, error: null });
 
@@ -265,7 +294,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
                       <img
                         src={item.url}
                         alt=""
-                        className="w-full max-h-60 object-contain rounded-tb-cta bg-canvas-elevated"
+                        className="w-full aspect-video object-contain rounded-tb-cta bg-canvas-elevated"
                       />
                     ) : (
                       <video
@@ -329,9 +358,9 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
                 )}
               >
                 {upload.active ? (
-                  <Loader2 size="18" className="animate-spin" />
+                  <Loader2 size={18} className="shrink-0 animate-spin" />
                 ) : (
-                  <ImagePlus size="18" />
+                  <ImagePlus size={18} className="shrink-0" />
                 )}
               </button>
               <input
@@ -356,7 +385,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
                   'disabled:opacity-40 disabled:cursor-not-allowed',
                 )}
               >
-                <Video size="18" />
+                <Video size={18} className="shrink-0" />
               </button>
               <input
                 ref={videoInputRef}
@@ -379,7 +408,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
               disabled={isSubmitting || upload.active}
               size="sm"
             >
-              {isSubmitting ? <Loader2 size="14" className="animate-spin" /> : null}
+              {isSubmitting ? <Loader2 size={14} className="shrink-0 animate-spin" /> : null}
               {isEdit ? 'Lưu' : 'Đăng bài'}
             </GradientButton>
           </div>

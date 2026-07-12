@@ -108,7 +108,7 @@ export default function PostCard({ post }: PostCardProps) {
           <div className="flex items-center gap-1.5 text-[13px] text-ink-muted">
             {time && <span>{time}</span>}
             {time && <span>·</span>}
-            <Globe size="13" />
+            <Globe size={13} className="shrink-0" />
           </div>
         </div>
 
@@ -160,9 +160,10 @@ export default function PostCard({ post }: PostCardProps) {
           <button
             type="button"
             onClick={(e) => openLightbox(e, 0)}
-            className="w-full bg-black flex items-center justify-center max-h-[520px] overflow-hidden border-0 p-0 cursor-pointer"
+            className="w-full bg-black flex items-center justify-center aspect-[4/3] max-h-[520px] overflow-hidden border-0 p-0 cursor-pointer"
           >
-            <img src={images[0]} alt="" className="max-w-full max-h-[520px] object-contain" />
+            {/* Fixed aspect reserves the slot before the image loads → no feed CLS. */}
+            <img src={images[0]} alt="" className="max-w-full max-h-full object-contain" />
           </button>
         ) : images.length === 3 ? (
           <div className="grid grid-cols-2 gap-0.5">
@@ -253,8 +254,8 @@ export default function PostCard({ post }: PostCardProps) {
       {/* stats row */}
       <div className="flex items-center justify-between px-5 pt-3 pb-2 text-[13px] text-ink-sec">
         <span className="flex items-center gap-1.5">
-          <span className="w-5 h-5 rounded-full bg-tb-gradient inline-flex items-center justify-center">
-            <Heart size="11" color="#fff" />
+          <span className="size-5 rounded-full bg-tb-gradient grid place-items-center">
+            <Heart size={11} className="shrink-0 text-white" />
           </span>
           {post.likeCount.toLocaleString('vi-VN')}
         </span>
@@ -274,8 +275,8 @@ export default function PostCard({ post }: PostCardProps) {
           )}
         >
           <Heart
-            size="19"
-            className={cn(post.isLiked && 'fill-current')}
+            size={19}
+            className={cn('shrink-0', post.isLiked && 'fill-current')}
           />
           Thích
         </button>
@@ -283,14 +284,14 @@ export default function PostCard({ post }: PostCardProps) {
         <button
           onClick={() => void navigate(`/post/${post.id}`)}
           className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg bg-transparent border-0 cursor-pointer font-semibold text-[16px] text-ink-sec hover:bg-canvas-elevated transition-colors overflow-visible">
-          <MessageCircle size="19" />
+          <MessageCircle size={19} className="shrink-0" />
           Bình luận
         </button>
 
         <button
           onClick={(e) => { e.stopPropagation(); void share(post.id); }}
           className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg bg-transparent border-0 cursor-pointer font-semibold text-[16px] text-ink-sec hover:bg-canvas-elevated transition-colors overflow-visible">
-          <Share2 size="19" />
+          <Share2 size={19} className="shrink-0" />
           Chia sẻ
         </button>
       </div>

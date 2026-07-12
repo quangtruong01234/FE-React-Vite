@@ -96,8 +96,8 @@ export function useUpdatePost() {
       updateFeedLike(queryClient, feedKey, updated.id, updated);
       // …and refresh the surfaces that hold their own copy.
       queryClient.setQueryData<Post>(queryKeys.social.post(updated.id), updated);
-      void queryClient.invalidateQueries({ queryKey: ['social', 'following-feed'] });
-      void queryClient.invalidateQueries({ queryKey: ['social', 'user'] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.social.followingFeedAll });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.social.userScopeAll });
     },
   });
 }
@@ -121,8 +121,8 @@ export function useDeletePost() {
         };
       });
       // …then refetch the other surfaces that could hold it.
-      void queryClient.invalidateQueries({ queryKey: ['social', 'following-feed'] });
-      void queryClient.invalidateQueries({ queryKey: ['social', 'user'] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.social.followingFeedAll });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.social.userScopeAll });
       queryClient.removeQueries({ queryKey: queryKeys.social.post(postId) });
     },
   });
