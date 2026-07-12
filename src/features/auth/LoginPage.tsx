@@ -6,6 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { useLogin } from './useLogin';
 import { registerSchema, type RegisterFormData } from './auth.schema';
+import { ForgotPasswordForm } from './ForgotPasswordForm';
+import { PasswordField } from './PasswordField';
 import { api } from '@/api';
 import { useAuthContext } from '@/context/AuthContext';
 import type { User } from '@/types';
@@ -24,8 +26,7 @@ const ghostBtn =
 const linkBtn =
   'bg-transparent !border-none p-0 rounded-none text-tb-amber font-semibold text-[13px] cursor-pointer';
 
-// Social login, remember-me, and forgot-password have no backend endpoints
-// (auth = login/register/logout/me only) — disabled with a "sắp ra mắt" label
+// Social login has no backend endpoint — disabled with a "sắp ra mắt" label
 // per P2-03 rather than shipping dead controls.
 const COMING_SOON_TITLE = 'Tính năng sắp ra mắt';
 
@@ -58,7 +59,7 @@ function LeftPanel(): ReactElement {
   ];
 
   return (
-    <aside className="hidden md:flex flex-col justify-between px-[64px] py-[60px] overflow-hidden border-r border-tb-border bg-[#0B0B0E] bg-login-left">
+    <aside className="hidden md:flex flex-col justify-between px-[64px] py-[60px] overflow-hidden border-r border-tb-border bg-tb-base bg-login-left">
       <TBLogo />
 
       <div className="flex flex-col gap-[22px] max-w-[480px]">
@@ -105,7 +106,9 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
   } = useForm<RegisterFormData>({ resolver: zodResolver(registerSchema) });
 
   const { mutateAsync: registerMutate, isPending: registerPending } = useMutation({
-    mutationFn: (data: RegisterFormData) => api.auth.register(data),
+    // confirmPassword is client-side only — never sent to the backend
+    mutationFn: ({ username, email, password }: RegisterFormData) =>
+      api.auth.register({ username, email, password }),
   });
 
   const { mutateAsync: loginAfterRegister, isPending: loginPending } = useMutation({
@@ -184,23 +187,21 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
               {errors.email && <span className="text-xs text-tb-red">{errors.email.message}</span>}
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label htmlFor="reg-password" className="font-body font-[500] text-[11px] leading-[1.4] text-tb-secondary tracking-[0.04em] uppercase">
-                Mật khẩu
-              </label>
-              <input
-                id="reg-password"
-                type="password"
-                placeholder="Tối thiểu 8 ký tự"
-                className={cn(
-                  'h-[44px] bg-tb-elevated border rounded-[10px] px-[14px] text-white font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
-                  'focus:border-[rgba(245,158,11,0.5)] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)]',
-                  errors.password ? 'border-tb-red focus:border-tb-red focus:shadow-[0_0_0_4px_rgba(239,68,68,0.10)]' : 'border-tb-border',
-                )}
-                {...register('password')}
-              />
-              {errors.password && <span className="text-xs text-tb-red">{errors.password.message}</span>}
-            </div>
+            <PasswordField
+              id="reg-password"
+              label="Mật khẩu"
+              placeholder="Tối thiểu 8 ký tự"
+              error={errors.password?.message}
+              inputProps={register('password')}
+            />
+
+            <PasswordField
+              id="reg-confirm-password"
+              label="Nhập lại mật khẩu"
+              placeholder="Nhập lại mật khẩu"
+              error={errors.confirmPassword?.message}
+              inputProps={register('confirmPassword')}
+            />
 
             <GradientButton type="submit" disabled={loading} size="lg" className="w-full">
               {loading ? <Spinner /> : 'Đăng ký ngay →'}
@@ -221,7 +222,8 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
 
 // ─── Login page ───────────────────────────────────────────────────────────────
 export default function LoginPage(): ReactElement {
-  const [showRegister, setShowRegister] = useState(false);
+  const [view, setView] = useState<'login' | 'register' | 'forgot'>('login');
+  const [resetNotice, setResetNotice] = useState(false);
   const { loginSuccess } = useAuthContext();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -231,15 +233,24 @@ export default function LoginPage(): ReactElement {
     void navigate(searchParams.get('next') ?? '/');
   }
 
-  const { form, errors, isPending: loading, apiError, showPassword, handleChange, handleSubmit, togglePassword } =
+  // Reset succeeded — the backend does NOT log the user in; return to the
+  // login form with a success notice so they sign in with the new password.
+  function handleResetSuccess(): void {
+    setView('login');
+    setResetNotice(true);
+  }
+
+  const { form, errors, isPending: loading, apiError, showPassword, rememberMe, handleChange, handleSubmit, togglePassword, toggleRememberMe } =
     useLogin(handleAuthSuccess);
 
   return (
     <main className="tb-enter min-h-screen grid grid-cols-1 md:grid-cols-[1.1fr_1fr]">
       <LeftPanel />
 
-      {showRegister ? (
-        <RegisterForm onBack={() => setShowRegister(false)} onRegisterSuccess={handleAuthSuccess} />
+      {view === 'register' ? (
+        <RegisterForm onBack={() => setView('login')} onRegisterSuccess={handleAuthSuccess} />
+      ) : view === 'forgot' ? (
+        <ForgotPasswordForm onBack={() => setView('login')} onResetSuccess={handleResetSuccess} />
       ) : (
         <section className="px-6 py-12 md:px-[64px] md:py-[60px] flex flex-col justify-center items-stretch">
           <div className="max-w-[420px] w-full mx-auto flex flex-col gap-[22px]">
@@ -253,6 +264,11 @@ export default function LoginPage(): ReactElement {
             </div>
 
             <div className="tb-enter tb-stagger flex flex-col gap-[14px]">
+              {resetNotice && !apiError && (
+                <div className="bg-accent-green/15 border border-accent-green/30 rounded-tb-input text-accent-green text-[13px] px-[14px] py-[10px] text-center">
+                  Đặt lại mật khẩu thành công. Hãy đăng nhập với mật khẩu mới.
+                </div>
+              )}
               {apiError && (
                 <div className="bg-red-950/40 border border-tb-red/40 rounded-tb-input text-tb-red text-[13px] px-[14px] py-[10px] text-center">
                   {apiError}
@@ -298,24 +314,19 @@ export default function LoginPage(): ReactElement {
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <label
-                    title={COMING_SOON_TITLE}
-                    className="inline-flex items-center gap-2 font-body text-[13px] text-tb-muted cursor-not-allowed"
-                  >
+                  <label className="inline-flex items-center gap-2 font-body text-[13px] text-tb-secondary cursor-pointer">
                     <input
                       type="checkbox"
-                      disabled
-                      className="accent-[#F59E0B] cursor-not-allowed"
+                      checked={rememberMe}
+                      onChange={toggleRememberMe}
+                      className="accent-tb-amber cursor-pointer"
                     />
                     Ghi nhớ đăng nhập
-                    <span className="text-[11px] text-tb-muted">(sắp ra mắt)</span>
                   </label>
                   <button
                     type="button"
-                    disabled
-                    aria-disabled
-                    title={COMING_SOON_TITLE}
-                    className="bg-transparent !border-none p-0 font-body font-medium text-[13px] text-tb-muted cursor-not-allowed"
+                    onClick={() => { setResetNotice(false); setView('forgot'); }}
+                    className={linkBtn}
                   >
                     Quên mật khẩu?
                   </button>
@@ -348,7 +359,7 @@ export default function LoginPage(): ReactElement {
                 Chưa có tài khoản?{' '}
                 <button
                   type="button"
-                  onClick={() => setShowRegister(true)}
+                  onClick={() => setView('register')}
                   className={linkBtn}
                 >
                   Đăng ký ngay

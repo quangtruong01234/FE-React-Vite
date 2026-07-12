@@ -1,7 +1,7 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/api';
-import type { User } from '@/types';
+import type { LoginDto, User } from '@/types';
 
 interface LoginForm {
   username: string;
@@ -14,9 +14,11 @@ interface UseLoginReturn {
   isPending: boolean;
   apiError: string;
   showPassword: boolean;
+  rememberMe: boolean;
   handleChange: (e: ChangeEvent<HTMLInputElement>) => void;
   handleSubmit: (e: FormEvent<HTMLFormElement>) => Promise<void>;
   togglePassword: () => void;
+  toggleRememberMe: () => void;
 }
 
 export function useLogin(onLoginSuccess: (user: User) => void): UseLoginReturn {
@@ -24,9 +26,10 @@ export function useLogin(onLoginSuccess: (user: User) => void): UseLoginReturn {
   const [errors, setErrors] = useState<Partial<LoginForm>>({});
   const [apiError, setApiError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const { mutateAsync: loginMutate, isPending } = useMutation({
-    mutationFn: (data: LoginForm) => api.auth.login(data),
+    mutationFn: (data: LoginDto) => api.auth.login(data),
     onError: (err: unknown) => {
       const msg = err && typeof err === 'object' && 'message' in err
         ? String((err as { message: unknown }).message)
@@ -55,7 +58,12 @@ export function useLogin(onLoginSuccess: (user: User) => void): UseLoginReturn {
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
     setApiError('');
     try {
-      const user = await loginMutate({ username: form.username, password: form.password });
+      // Unchecked → omit rememberMe entirely (backend default = 5h session)
+      const user = await loginMutate({
+        username: form.username,
+        password: form.password,
+        ...(rememberMe ? { rememberMe: true } : {}),
+      });
       onLoginSuccess(user);
     } catch {
       // error handled in onError
@@ -66,5 +74,9 @@ export function useLogin(onLoginSuccess: (user: User) => void): UseLoginReturn {
     setShowPassword((v) => !v);
   }
 
-  return { form, errors, isPending, apiError, showPassword, handleChange, handleSubmit, togglePassword };
+  function toggleRememberMe(): void {
+    setRememberMe((v) => !v);
+  }
+
+  return { form, errors, isPending, apiError, showPassword, rememberMe, handleChange, handleSubmit, togglePassword, toggleRememberMe };
 }
