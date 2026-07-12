@@ -3,9 +3,12 @@ import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import CharacterCount from '@tiptap/extension-character-count';
 import { Bold, Italic, List, ListOrdered, ImagePlus, Heading2, Minus } from 'lucide-react';
-import { useRef, type ReactElement, type ChangeEvent } from 'react';
+import { useRef, useState, type ReactElement, type ChangeEvent } from 'react';
 import { IconButton } from '@/components/shared/IconButton';
+import { deleteMedia } from '@/lib/http/cloudinary';
+import { validateUploadFile, MAX_IMAGE_BYTES } from '@/lib/http/uploadValidation';
 import { cn } from '@/lib/format/utils';
+import { partitionEditorImages, type TrackedImage } from './richTextImages';
 
 const MAX_CHARS = 5000;
 
@@ -14,7 +17,7 @@ interface Props {
   onChange: (html: string) => void;
   placeholder?: string;
   userId: number;
-  onUploadImage: (file: File, userId: number) => Promise<{ url: string }>;
+  onUploadImage: (file: File, userId: number) => Promise<{ url: string; publicId: string }>;
 }
 
 interface ToolbarButtonProps {
@@ -43,6 +46,11 @@ function ToolbarButton({ onClick, active, title, children }: ToolbarButtonProps)
 
 export function RichTextEditor({ value, onChange, placeholder, userId, onUploadImage }: Props): ReactElement {
   const imageInputRef = useRef<HTMLInputElement>(null);
+  // Images uploaded into the editor this session, tracked with their Cloudinary
+  // publicId so an image removed from the editor can be cleaned up (UP-03).
+  const trackedRef = useRef<TrackedImage[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const editor = useEditor({
     extensions: [
@@ -53,6 +61,14 @@ export function RichTextEditor({ value, onChange, placeholder, userId, onUploadI
     content: value || '',
     onUpdate({ editor: e }) {
       const html = e.isEmpty ? '' : e.getHTML();
+      // Prune assets no longer referenced in the editor so they don't orphan on
+      // Cloudinary (UP-03). Only session-uploaded images are tracked, so
+      // pre-existing images embedded in `value` are never destroyed.
+      const { kept, removed } = partitionEditorImages(trackedRef.current, html);
+      if (removed.length) {
+        trackedRef.current = kept;
+        removed.forEach(img => void deleteMedia(img.publicId));
+      }
       onChange(html);
     },
     editorProps: {
@@ -66,8 +82,23 @@ export function RichTextEditor({ value, onChange, placeholder, userId, onUploadI
     const file = e.target.files?.[0];
     if (!file || !editor) return;
     if (imageInputRef.current) imageInputRef.current.value = '';
-    const result = await onUploadImage(file, userId);
-    editor.chain().focus().setImage({ src: result.url }).run();
+    // UP-04: reject bad files before wasting an upload round-trip.
+    const invalid = validateUploadFile(file, { kind: 'image', maxBytes: MAX_IMAGE_BYTES });
+    if (invalid) {
+      setUploadError(invalid);
+      return;
+    }
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const result = await onUploadImage(file, userId);
+      editor.chain().focus().setImage({ src: result.url }).run();
+      trackedRef.current = [...trackedRef.current, { url: result.url, publicId: result.publicId }];
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : 'Upload ảnh thất bại');
+    } finally {
+      setUploading(false);
+    }
   }
 
   const charCount = editor?.storage.characterCount.characters() ?? 0;
@@ -126,15 +157,19 @@ export function RichTextEditor({ value, onChange, placeholder, userId, onUploadI
         </ToolbarButton>
         <ToolbarButton
           onClick={() => imageInputRef.current?.click()}
-          title="Insert image"
+          title={uploading ? 'Đang tải ảnh...' : 'Insert image'}
         >
-          <ImagePlus size={13} className="shrink-0" />
+          <ImagePlus size={13} className={cn('shrink-0', uploading && 'opacity-40')} />
         </ToolbarButton>
 
         <span className={cn('ml-auto text-xs font-mono tabular-nums', isNearLimit ? 'text-accent-red' : 'text-ink-muted')}>
           {charCount}/{MAX_CHARS}
         </span>
       </div>
+
+      {uploadError && (
+        <p className="px-3.5 pt-2 text-xs text-accent-red font-body">{uploadError}</p>
+      )}
 
       {/* Editor area */}
       <div className="relative px-3.5 py-2.5">

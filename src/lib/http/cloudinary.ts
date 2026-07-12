@@ -1,5 +1,7 @@
 import { api } from '@/api';
 import type { UploadSignature } from '@/types';
+import { outcomeFromError, outcomeFromResult, type DeleteMediaOutcome } from './deleteMediaOutcome';
+import { signedUploadFields } from './signedUploadFields';
 
 const CHUNK_SIZE = 6 * 1024 * 1024; // 6 MB
 
@@ -31,11 +33,9 @@ async function uploadChunked(
 
     const form = new FormData();
     form.append('file', chunk);
-    form.append('signature', sig.signature);
-    form.append('timestamp', String(sig.timestamp));
-    form.append('api_key', sig.api_key);
-    form.append('folder', sig.folder);
-    form.append('public_id', publicId);
+    for (const [key, value] of Object.entries(signedUploadFields(sig))) {
+      form.append(key, value);
+    }
     if (totalChunks > 1) {
       form.append('upload_id', uploadId);
     }
@@ -113,6 +113,17 @@ export async function uploadAvatar(
   return uploadChunked(file, sig, 'image', onProgress);
 }
 
-export async function deleteMedia(publicId: string): Promise<void> {
-  await api.upload.deleteMedia(publicId);
+/**
+ * Best-effort orphan cleanup. Callers fire this and forget (`void deleteMedia(id)`),
+ * so it must never reject — a `502/503` (Cloudinary/network) or `400/403`
+ * (foreign/persisted id) leaves the asset as an orphan instead of throwing an
+ * unhandled rejection. Returns the classified outcome for callers that want it.
+ */
+export async function deleteMedia(publicId: string): Promise<DeleteMediaOutcome> {
+  try {
+    const res = await api.upload.deleteMedia(publicId);
+    return outcomeFromResult(res.result);
+  } catch (error: unknown) {
+    return outcomeFromError(error);
+  }
 }

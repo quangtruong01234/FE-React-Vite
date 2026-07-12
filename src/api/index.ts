@@ -11,12 +11,14 @@ import { uploadApi } from './upload';
 import { cartApi } from './cart';
 import { miscApi } from './misc';
 import { reviewsApi } from './reviews';
+import { shippingApi } from './shipping';
 
 export { registerUnauthorizedHandler } from './client';
 
 export const api = {
   auth: authApi,
   users: usersApi,
+  shipping: shippingApi,
   products: productsApi,
   orders: ordersApi,
   payment: paymentApi,

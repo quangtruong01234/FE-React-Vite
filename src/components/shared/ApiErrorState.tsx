@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   LogIn,
   ShieldX,
@@ -60,7 +61,7 @@ interface ApiErrorStateProps {
 }
 
 export function ApiErrorState({ error = {} as ApiError, onRetry, embedded = false }: ApiErrorStateProps) {
-  const navigate = (to: string) => { window.location.href = to; };
+  const navigate = useNavigate();
   const cfg = error.statusCode != null ? ERROR_MAP[error.statusCode] : undefined;
 
   // Hooks must run unconditionally — derive from optional `cfg` and gate render below.
@@ -140,7 +141,7 @@ export function ApiErrorState({ error = {} as ApiError, onRetry, embedded = fals
         {/* actions */}
         <div className="w-full flex flex-col gap-2.5">
           {cfg.primary && PrimaryIcon ? (
-            <GradientButton className="w-full" onClick={() => navigate(cfg.primary!.to)}>
+            <GradientButton className="w-full" onClick={() => { void navigate(cfg.primary!.to); }}>
               <PrimaryIcon size={16} className="shrink-0" /> {cfg.primary.label}
             </GradientButton>
           ) : (
@@ -152,14 +153,14 @@ export function ApiErrorState({ error = {} as ApiError, onRetry, embedded = fals
           <div className="flex gap-2.5">
             <button
               type="button"
-              onClick={() => (window.history.length > 1 ? window.history.back() : navigate('/'))}
+              onClick={() => { void (window.history.length > 1 ? navigate(-1) : navigate('/')); }}
               className="flex-1 inline-flex items-center justify-center gap-2 py-3 px-4 rounded-tb-cta border border-bdr bg-canvas-elevated text-ink-sec text-sm font-display font-black uppercase tracking-widest hover:border-ink-muted transition-colors"
             >
               <ArrowLeft size={15} className="shrink-0" /> Quay lại
             </button>
             <button
               type="button"
-              onClick={() => navigate('/')}
+              onClick={() => { void navigate('/'); }}
               className="flex-1 inline-flex items-center justify-center gap-2 py-3 px-4 rounded-tb-cta border border-bdr bg-canvas-elevated text-ink-sec text-sm font-display font-black uppercase tracking-widest hover:border-ink-muted transition-colors"
             >
               <Home size={15} className="shrink-0" /> Trang chủ

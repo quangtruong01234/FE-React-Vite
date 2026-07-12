@@ -16,6 +16,8 @@ export interface InventoryRecord {
   minimumStock?: number;
   location?: string;
   isLowStock: boolean;
+  /** Denormalized on `GET /inventory/low-stock` only; null when the product was deleted. */
+  productName?: string | null;
 }
 
 export interface CreateInventoryDto {

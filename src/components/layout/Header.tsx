@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Search, Plus, MessageSquare, ShoppingCart } from 'lucide-react';
+import { Search, Plus, MessageSquare, ShoppingCart, Heart } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { useCart } from '@/hooks/data/useCart';
@@ -40,6 +40,7 @@ export function Header(): ReactElement {
         >
           <button
             type="submit"
+            aria-label="Tìm kiếm"
             className="absolute left-3.5 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 cursor-pointer"
           >
             <Search size={18} className="text-ink-muted pointer-events-none shrink-0" />
@@ -73,6 +74,15 @@ export function Header(): ReactElement {
           </Link>
 
           <NotificationBell />
+
+          {/* Wishlist */}
+          <Link
+            to="/wishlist"
+            aria-label="Yêu thích"
+            className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-[10px] p-2.5 grid place-items-center hover:border-accent-amber transition-colors"
+          >
+            <Heart size={20} className="shrink-0" />
+          </Link>
 
           {/* Cart */}
           <Link

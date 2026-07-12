@@ -10,10 +10,12 @@ const LoginPage          = lazy(() => import('@/features/auth/LoginPage'));
 const FeedPage           = lazy(() => import('@/features/social/FeedPage'));
 const PostDetailPage     = lazy(() => import('@/features/social/PostDetailPage'));
 const MarketplacePage    = lazy(() => import('@/features/product/MarketplacePage'));
+const WishlistPage       = lazy(() => import('@/features/wishlist/WishlistPage'));
 const ProductDetail      = lazy(() => import('@/features/product/ProductDetail'));
 const CheckoutPage       = lazy(() => import('@/features/cart/CheckoutPage'));
 const OrderHistoryPage   = lazy(() => import('@/features/order/OrderHistoryPage'));
 const ProfilePage        = lazy(() => import('@/features/user/ProfilePage'));
+const AddressesPage      = lazy(() => import('@/features/address/AddressesPage'));
 const MessagesPage       = lazy(() => import('@/features/chat/MessagesPage'));
 const NotificationsPage  = lazy(() => import('@/features/notifications/NotificationsPage'));
 const OrderDetailPage    = lazy(() => import('@/features/order/OrderDetailPage'));
@@ -28,6 +30,8 @@ const CartPage           = lazy(() => import('@/features/cart/CartPage'));
 const SellerOrdersPage   = lazy(() => import('@/features/order/SellerOrdersPage'));
 const ReturnRequestsPage       = lazy(() => import('@/features/order/ReturnRequestsPage'));
 const SellerReturnRequestsPage = lazy(() => import('@/features/order/SellerReturnRequestsPage'));
+const ShopAnalyticsPage        = lazy(() => import('@/features/order/ShopAnalyticsPage'));
+const AdminAnalyticsPage       = lazy(() => import('@/features/admin/AdminAnalyticsPage'));
 
 function AppLayout(): ReactElement {
   return (
@@ -95,6 +99,7 @@ export const router = createBrowserRouter([
     children: [
       { path: 'post/:id',          element: <PostDetailPage /> },
       { path: 'marketplace',       element: <MarketplacePage /> },
+      { path: 'wishlist',          element: <WishlistPage /> },
       { path: 'product/:id',       element: <ProductDetail /> },
       { path: 'cart',               element: <CartPage /> },
       { path: 'checkout',          element: <CheckoutPage /> },
@@ -103,6 +108,7 @@ export const router = createBrowserRouter([
       { path: 'order/:id',         element: <OrderDetailPage /> },
       { path: 'payment-result',    element: <PaymentResultPage /> },
       { path: 'profile/:id',       element: <ProfilePage /> },
+      { path: 'addresses',         element: <AddressesPage /> },
       { path: 'notifications',     element: <NotificationsPage /> },
       {
         path: 'shop',
@@ -133,6 +139,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute requiredRole="shop">
             <SellerReturnRequestsPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'shop/analytics',
+        element: (
+          <ProtectedRoute requiredRole="shop">
+            <ShopAnalyticsPage />
           </ProtectedRoute>
         ),
       },
@@ -174,6 +188,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute requiredRole="admin">
             <ReportedPostsPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin/analytics',
+        element: (
+          <ProtectedRoute requiredRole="admin">
+            <AdminAnalyticsPage />
           </ProtectedRoute>
         ),
       },

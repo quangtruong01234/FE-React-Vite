@@ -7,4 +7,6 @@ export interface UploadSignature {
   api_key: string;
   folder: string;
   public_id: string;
+  /** Signed by the backend (SEC-M8) — must be sent to Cloudinary verbatim when present. */
+  allowed_formats?: string;
 }
