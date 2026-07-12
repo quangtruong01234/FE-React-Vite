@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { addItemToCartCache } from '@/hooks/query/cartCache';
+import { isStaleCartItemError } from '@/features/cart/cartItemErrors';
 import type { AddToCartDto, ServerCart, UpdateCartItemDto } from '@/types';
 
 export function useCart() {
@@ -40,6 +41,12 @@ export function useUpdateCartItem() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.cart.all });
     },
+    onError: (error: unknown) => {
+      // Owner-bound 404: the local item id is stale/foreign — resync from server.
+      if (isStaleCartItemError(error)) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.cart.all });
+      }
+    },
   });
 }
 
@@ -49,6 +56,12 @@ export function useRemoveCartItem() {
     mutationFn: (itemId: number) => api.cart.removeItem(itemId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.cart.all });
+    },
+    onError: (error: unknown) => {
+      // Owner-bound 404: the local item id is stale/foreign — resync from server.
+      if (isStaleCartItemError(error)) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.cart.all });
+      }
     },
   });
 }

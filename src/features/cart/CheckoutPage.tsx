@@ -15,10 +15,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   checkoutSchema,
-  buildShippingAddress,
-  ADDRESS_FIELDS,
   type CheckoutFormData,
 } from "./checkout.schema";
+import { AddressBookPicker } from "@/features/address/AddressBookPicker";
+import { buildGhnShippingAddress } from "@/features/address/addressUtils";
 import { usePaymentOptions } from "./usePaymentOptions";
 import { setPendingCheckout } from "./pendingCheckout";
 import { buildCheckoutSignature, resolveIdempotencyKey } from "./idempotency";
@@ -39,6 +39,7 @@ import {
   useClearCart,
 } from "@/hooks/data/useCart";
 import type {
+  Address,
   CreateOrderDto,
   PaymentMethod,
   ProductWithInventory,
@@ -75,6 +76,7 @@ export default function CheckoutPage(): ReactElement {
   const clearCart = useClearCart();
   const [stockError, setStockError] = useState<Record<number, string>>({});
   const [successOrderIds, setSuccessOrderIds] = useState<number[] | null>(null);
+  const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
 
   const allItems = serverCart?.items ?? [];
   const items = selectedIds.size > 0 ? allItems.filter(i => selectedIds.has(i.id)) : allItems;
@@ -104,13 +106,10 @@ export default function CheckoutPage(): ReactElement {
   const isMutating = updateItem.isPending || removeCartItem.isPending;
 
   const {
-    register,
     handleSubmit,
     control,
     setError,
     clearErrors,
-    getValues,
-    watch,
     formState: { errors, isSubmitting },
   } = useForm<CheckoutFormData>({
     resolver: zodResolver(checkoutSchema),
@@ -196,27 +195,22 @@ export default function CheckoutPage(): ReactElement {
   const discountAmount = !multiSeller && voucher ? voucher.discountAmount : 0;
   const grandTotal = discountedGrandTotal(totalPrice, discountAmount, shippingFee);
 
-  // Recalculation needed whenever any address field changes.
+  // A previewed fee is priced against the chosen address — drop it whenever the
+  // selected address changes so a stale amount is never shown.
+  const selectedAddressId = selectedAddress?.id ?? null;
   useEffect(() => {
-    const sub = watch((_, { name }) => {
-      if (name && (ADDRESS_FIELDS as readonly string[]).includes(name)) {
-        resetShipping();
-      }
-    });
-    return () => sub.unsubscribe();
-  }, [watch, resetShipping]);
+    resetShipping();
+  }, [selectedAddressId, resetShipping]);
 
   function handleCalcShipping(): void {
-    const data = getValues();
-    const missing = ADDRESS_FIELDS.some((f) => !String(data[f] ?? "").trim());
-    if (missing) {
+    if (!selectedAddress) {
       setError("root", {
-        message: "Vui lòng nhập đầy đủ địa chỉ giao hàng trước khi tính phí.",
+        message: "Vui lòng chọn địa chỉ giao hàng trước khi tính phí.",
       });
       return;
     }
     clearErrors("root");
-    calcShipping(buildShippingAddress(data));
+    calcShipping(buildGhnShippingAddress(selectedAddress));
   }
 
   async function removeOrderedItemsFromCart(): Promise<void> {
@@ -233,6 +227,11 @@ export default function CheckoutPage(): ReactElement {
 
   async function onSubmit(data: CheckoutFormData): Promise<void> {
     setStockError({});
+
+    if (!selectedAddress) {
+      setError("root", { message: "Vui lòng chọn địa chỉ giao hàng." });
+      return;
+    }
 
     try {
       const productIds = items.map((item) => item.productId);
@@ -256,7 +255,7 @@ export default function CheckoutPage(): ReactElement {
       const result = await placeOrder({
         dto: {
           paymentMethod: data.paymentMethod,
-          shippingAddress: buildShippingAddress(data),
+          shippingAddress: buildGhnShippingAddress(selectedAddress),
           items: orderItems,
           // F3: redeem the previewed code (single-seller baskets only).
           ...(voucher && !multiSeller ? { voucherCode: voucher.code } : {}),
@@ -307,40 +306,6 @@ export default function CheckoutPage(): ReactElement {
           : "Đặt hàng thất bại. Vui lòng thử lại.";
       setError("root", { message: msg });
     }
-  }
-
-  function renderAddressField(
-    name: (typeof ADDRESS_FIELDS)[number],
-    label: string,
-    placeholder: string,
-    autoComplete: string,
-  ): ReactElement {
-    return (
-      <div className="flex flex-col gap-1.5">
-        <label
-          htmlFor={name}
-          className="font-body font-[500] text-[11px] leading-[1.4] text-ink-sec tracking-[0.04em] uppercase"
-        >
-          {label}
-        </label>
-        <input
-          id={name}
-          placeholder={placeholder}
-          autoComplete={autoComplete}
-          className={cn(
-            "h-[44px] bg-canvas-base border rounded-[10px] px-[14px] text-ink-pri font-body text-[14px] outline-none placeholder:text-ink-muted transition-[border-color,box-shadow] duration-[120ms]",
-            "focus:border-[rgba(245,158,11,0.5)] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)]",
-            errors[name]
-              ? "border-accent-red focus:border-accent-red focus:shadow-[0_0_0_4px_rgba(239,68,68,0.10)]"
-              : "border-bdr",
-          )}
-          {...register(name)}
-        />
-        {errors[name] && (
-          <span className="text-xs text-accent-red">{errors[name]?.message}</span>
-        )}
-      </div>
-    );
   }
 
   if (successOrderIds) {
@@ -460,16 +425,10 @@ export default function CheckoutPage(): ReactElement {
               <h2 className="m-0 font-display font-bold text-base uppercase tracking-[0.04em] text-white">
                 1. Địa chỉ giao hàng
               </h2>
-              <div className="grid sm:grid-cols-2 gap-4">
-                {renderAddressField("fullName", "Họ tên người nhận", "Nguyễn Văn A", "name")}
-                {renderAddressField("phone", "Số điện thoại", "0987654321", "tel")}
-              </div>
-              {renderAddressField("addressLine", "Số nhà, tên đường", "123 Nguyễn Huệ", "address-line1")}
-              <div className="grid sm:grid-cols-3 gap-4">
-                {renderAddressField("ward", "Phường/xã", "Phường Bến Nghé", "address-level3")}
-                {renderAddressField("district", "Quận/huyện", "Quận 1", "address-level2")}
-                {renderAddressField("province", "Tỉnh/thành phố", "TP. Hồ Chí Minh", "address-level1")}
-              </div>
+              <AddressBookPicker
+                selectedId={selectedAddress?.id ?? null}
+                onSelect={setSelectedAddress}
+              />
             </div>
 
             {/* Payment method */}
@@ -500,25 +459,28 @@ export default function CheckoutPage(): ReactElement {
                             className={cn(
                               "flex items-center gap-[14px] px-[18px] py-[14px] text-left rounded-tb-cta border w-full cursor-pointer",
                               active
-                                ? "bg-amber-400/[0.08] border-amber-400/50"
+                                ? "bg-tb-amber/[0.08] border-tb-amber/50"
                                 : "bg-tb-elevated border-tb-border",
                             )}
                           >
                             <span
                               className={cn(
-                                "w-5 h-5 rounded-full shrink-0 border-2 inline-flex items-center justify-center",
+                                "size-5 rounded-full shrink-0 border-2 grid place-items-center",
                                 active ? "border-tb-amber" : "border-tb-muted",
                               )}
                             >
                               {active && (
-                                <span className="w-[10px] h-[10px] rounded-full bg-tb-amber" />
+                                <span className="size-2.5 rounded-full bg-tb-amber" />
                               )}
                             </span>
                             <Icon
                               size={18}
-                              color={active ? "#F59E0B" : "#A1A1AA"}
+                              className={cn(
+                                "shrink-0",
+                                active ? "text-accent-amber" : "text-ink-sec",
+                              )}
                             />
-                            <span className="flex-1 font-body font-semibold text-sm text-white">
+                            <span className="flex-1 font-body font-semibold text-sm text-ink-pri">
                               {name}
                             </span>
                           </button>
@@ -736,7 +698,7 @@ export default function CheckoutPage(): ReactElement {
 
             <GradientButton
               type="submit"
-              disabled={loading || productsError || Object.keys(stockError).length > 0}
+              disabled={loading || productsError || !selectedAddress || Object.keys(stockError).length > 0}
               className="w-full py-4 text-lg font-bold rounded-xl"
             >
               {loading ? "Đang đặt hàng..." : "XÁC NHẬN ĐẶT HÀNG →"}
