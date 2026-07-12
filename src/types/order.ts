@@ -1,4 +1,4 @@
-import type { PaymentMethod } from './payment';
+import type { PaymentMethod } from "./payment";
 
 // --- Order ---
 
@@ -18,8 +18,15 @@ export interface OrderItem {
 }
 
 export type OrderStatus =
-  | 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivering' | 'completed' | 'canceled'
-  | 'return_requested' | 'refunded';
+  | "pending"
+  | "confirmed"
+  | "processing"
+  | "shipped"
+  | "delivering"
+  | "completed"
+  | "canceled"
+  | "return_requested"
+  | "refunded";
 
 /** `GET /api/order/user/:id/status-counts` — full-history order count per status (not page-scoped). */
 export interface OrderStatusCounts {
@@ -38,10 +45,10 @@ export interface OrderStatusCounts {
 
 // --- Return / refund (F2) ---
 
-export type ReturnRequestStatus = 'pending_review' | 'approved' | 'rejected';
+export type ReturnRequestStatus = "pending_review" | "approved" | "rejected";
 
 /** Recorded refund outcome: online methods settle instantly, COD is settled manually by an operator. */
-export type RefundStatus = 'refunded' | 'manual_pending';
+export type RefundStatus = "refunded" | "manual_pending";
 
 export interface ReturnRequest {
   id: number;
@@ -119,7 +126,7 @@ export interface CreateOrderDto {
 
 // --- Voucher (F3) ---
 
-export type VoucherDiscountType = 'percent' | 'fixed';
+export type VoucherDiscountType = "percent" | "fixed";
 
 /** `POST /api/order/voucher/validate` — previews a code against the basket; does NOT redeem. */
 export interface VoucherValidateDto {
@@ -161,4 +168,45 @@ export interface ShippingFeeDto {
 export interface ShippingFeeResponse {
   shippingFee: number;
   expectedDeliveryTime: string | null;
+}
+
+// --- Analytics (F4) ---
+
+export interface AnalyticsQueryParams {
+  from?: string;
+  to?: string;
+  interval?: "day" | "month";
+  topN?: number;
+}
+
+export interface RevenuePoint {
+  period: string;
+  revenue: number;
+  orderCount: number;
+}
+
+export interface TopProductStat {
+  productId: number;
+  productName: string;
+  quantitySold: number;
+  revenue: number;
+}
+
+export interface OrderAnalyticsSummary {
+  totalRevenue: number;
+  completedOrders: number;
+  totalOrders: number;
+  averageOrderValue: number;
+}
+
+/** `GET /api/order/seller/analytics` (scope `seller`) or `/api/order/admin/analytics` (scope `global`). */
+export interface OrderAnalytics {
+  scope: "seller" | "global";
+  from: string;
+  to: string;
+  interval: "day" | "month";
+  summary: OrderAnalyticsSummary;
+  revenueOverTime: RevenuePoint[];
+  statusDistribution: Record<OrderStatus, number>;
+  topProducts: TopProductStat[];
 }

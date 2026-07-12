@@ -21,16 +21,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { cn, formatVnd } from '@/lib/format/utils';
 import { formatDateTime } from '@/lib/format/time';
-import type { ApiError, OrderStatus } from '@/types';
+import type { OrderStatus } from '@/types';
 import { PAYMENT_LABEL } from './orderConstants';
 import { useCreateReview } from '@/hooks/data/useProductReviews';
-
-function resolveReviewError(error: unknown): string {
-  const err = error as ApiError;
-  if (err?.statusCode === 404) return 'Đơn hàng chưa được xác nhận hoàn thành';
-  if (err?.statusCode === 409) return 'Bạn đã đánh giá sản phẩm này rồi';
-  return err?.message ?? 'Đã xảy ra lỗi';
-}
+import { reviewErrorMessage, REVIEW_COMMENT_MAX } from '@/features/product/productReview';
 
 function OrderItemReviewForm({ productId }: { productId: number }) {
   const [rating, setRating] = useState(5);
@@ -49,13 +43,13 @@ function OrderItemReviewForm({ productId }: { productId: number }) {
         value={comment}
         onChange={(e) => setComment(e.target.value)}
         placeholder="Nhận xét (không bắt buộc)"
-        maxLength={2000}
+        maxLength={REVIEW_COMMENT_MAX}
         rows={2}
         className="w-full resize-none rounded-tb-input border border-bdr bg-canvas-base text-ink-pri font-body text-xs px-3 py-2 placeholder:text-ink-muted focus:outline-none focus:border-accent-amber transition-colors"
       />
       {createReview.error && (
         <p className="m-0 font-body text-xs text-accent-red">
-          {resolveReviewError(createReview.error)}
+          {reviewErrorMessage(createReview.error)}
         </p>
       )}
       <div>

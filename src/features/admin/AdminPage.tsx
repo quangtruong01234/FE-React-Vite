@@ -1,5 +1,5 @@
 import { type ReactElement, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Users, ShoppingBag } from 'lucide-react';
 import { cn, formatVnd } from '@/lib/format/utils';
 import { formatDate } from '@/lib/format/time';
@@ -20,6 +20,8 @@ export default function AdminPage(): ReactElement {
   const { data: usersData, isLoading: usersLoading } = useQuery({
     queryKey: queryKeys.users.list(usersPage, USERS_PER_PAGE),
     queryFn: () => api.users.getPaginated(usersPage, USERS_PER_PAGE),
+    // Keep the previous page rendered while the next one loads (no empty flash).
+    placeholderData: keepPreviousData,
   });
 
   const users = usersData?.data ?? [];
