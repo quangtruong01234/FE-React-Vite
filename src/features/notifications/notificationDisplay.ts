@@ -43,8 +43,13 @@ function reviewBody(n: Notification, subject: string, approved: boolean): string
   return reason ? `${label} đã bị từ chối. Lý do: ${reason}` : `${label} đã bị từ chối.`;
 }
 
-function orderBody(n: Notification, text: (orderId: number) => string): string | null {
+function orderBody(n: Notification, text: (orderId: number | string) => string): string | null {
   return n.orderId != null ? text(n.orderId) : null;
+}
+
+/** Comment/reply: personalize with the comment text when the backend sent it. */
+function socialBody(n: Notification, generic: string, withPreview: (preview: string) => string): string {
+  return n.preview ? withPreview(n.preview) : generic;
 }
 
 const TYPE_CONFIG: Record<string, TypeConfig> = {
@@ -86,12 +91,20 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
   comment: {
     Icon: MessageCircle, color: 'text-accent-cyan bg-accent-cyan/10',
     title: 'Bình luận mới',
-    body: () => 'Có người vừa bình luận về bài viết của bạn.',
+    body: (n) => socialBody(
+      n,
+      'Có người vừa bình luận về bài viết của bạn.',
+      (preview) => `Có người vừa bình luận về bài viết của bạn: “${preview}”`,
+    ),
   },
   reply: {
     Icon: Reply, color: 'text-accent-cyan bg-accent-cyan/10',
     title: 'Phản hồi mới',
-    body: () => 'Có người vừa trả lời bình luận của bạn.',
+    body: (n) => socialBody(
+      n,
+      'Có người vừa trả lời bình luận của bạn.',
+      (preview) => `Có người vừa trả lời bình luận của bạn: “${preview}”`,
+    ),
   },
   brand_approved: {
     Icon: Tag, color: 'text-accent-green bg-accent-green/10',
@@ -125,15 +138,17 @@ export function getNotificationContent(n: Notification): NotificationContent {
   return { title: config.title, body: config.body(n) ?? n.message };
 }
 
-// comment/reply notifications carry a commentId/replyId in orderId — not a real
-// order id and not enough to deep-link to the post, so they get no href.
 const ORDER_TYPES = new Set([
   'payment_completed', 'order_placed', 'order_shipped', 'order_canceled',
   'order_return_requested', 'order_return_approved', 'order_return_rejected',
 ]);
 
+const SOCIAL_TYPES = new Set(['comment', 'reply']);
+
 export function getNotificationHref(n: Notification): string | null {
   if (ORDER_TYPES.has(n.type) && n.orderId != null) return `/order/${n.orderId}`;
+  // Legacy comment/reply rows (pre 2026-07-06) have no postId — no deep link.
+  if (SOCIAL_TYPES.has(n.type) && n.postId != null) return `/post/${n.postId}`;
   return null;
 }
 

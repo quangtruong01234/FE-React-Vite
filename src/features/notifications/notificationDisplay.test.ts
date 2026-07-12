@@ -14,6 +14,9 @@ function notif(partial: Partial<Notification> = {}): Notification {
     userId: 1,
     type: 'order_placed',
     orderId: 42,
+    postId: null,
+    actorId: null,
+    preview: null,
     message: 'raw backend message',
     isRead: false,
     createdAt: '2026-06-24T00:00:00.000Z',
@@ -43,11 +46,23 @@ describe('getNotificationContent', () => {
     expect(content.body).toBe('raw backend message');
   });
 
-  it('replaces generic English comment/reply messages with Vietnamese text', () => {
+  it('replaces generic English comment/reply messages with Vietnamese text when preview is missing', () => {
     expect(getNotificationContent(notif({ type: 'comment', message: 'Someone commented on your post' })).body)
       .toBe('Có người vừa bình luận về bài viết của bạn.');
     expect(getNotificationContent(notif({ type: 'reply', message: 'Someone replied to your comment' })).body)
       .toBe('Có người vừa trả lời bình luận của bạn.');
+  });
+
+  it('appends the comment/reply preview when the backend sends it', () => {
+    expect(getNotificationContent(notif({ type: 'comment', preview: 'Sản phẩm đẹp quá!' })).body)
+      .toBe('Có người vừa bình luận về bài viết của bạn: “Sản phẩm đẹp quá!”');
+    expect(getNotificationContent(notif({ type: 'reply', preview: 'Cảm ơn bạn nhé' })).body)
+      .toBe('Có người vừa trả lời bình luận của bạn: “Cảm ơn bạn nhé”');
+  });
+
+  it('renders order types with a bigint-string orderId', () => {
+    expect(getNotificationContent(notif({ type: 'payment_completed', orderId: '107' })).body)
+      .toBe('Đơn hàng #107 đã được thanh toán thành công.');
   });
 
   it('extracts the brand name from the backend message', () => {
@@ -91,9 +106,18 @@ describe('getNotificationHref', () => {
     expect(getNotificationHref(notif({ type: 'order_return_approved', orderId: 9 }))).toBe('/order/9');
   });
 
-  it('does not link comment/reply — orderId holds a comment id, not an order id', () => {
-    expect(getNotificationHref(notif({ type: 'comment', orderId: 123 }))).toBeNull();
-    expect(getNotificationHref(notif({ type: 'reply', orderId: 123 }))).toBeNull();
+  it('links order types with a bigint-string orderId', () => {
+    expect(getNotificationHref(notif({ type: 'order_shipped', orderId: '107' }))).toBe('/order/107');
+  });
+
+  it('links comment/reply to the post when postId is present', () => {
+    expect(getNotificationHref(notif({ type: 'comment', orderId: null, postId: 8 }))).toBe('/post/8');
+    expect(getNotificationHref(notif({ type: 'reply', orderId: null, postId: 8 }))).toBe('/post/8');
+  });
+
+  it('does not link legacy comment/reply rows without a postId', () => {
+    expect(getNotificationHref(notif({ type: 'comment', orderId: 123, postId: null }))).toBeNull();
+    expect(getNotificationHref(notif({ type: 'reply', orderId: 123, postId: null }))).toBeNull();
   });
 
   it('does not link order types missing an orderId or unknown types', () => {
