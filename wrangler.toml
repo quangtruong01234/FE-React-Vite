@@ -1,0 +1,29 @@
+# Cloudflare Workers static-assets config (CD-FE-01).
+#
+# This is an assets-ONLY Worker: no `main`, no script, no runtime code. Cloudflare
+# just serves dist/ from the edge. Requests to static assets are not metered, so
+# this stays on the free plan regardless of traffic.
+#
+# Deployed from GitHub Actions (.github/workflows/deploy.yml), NOT from
+# Cloudflare's Git integration — see DEPLOYMENT.md for why running both is a
+# problem. `wrangler deploy` reads this file for the Worker name and the asset
+# directory, and creates the Worker on first run.
+#
+# `name` is the Worker's identity. Changing it does not rename anything: the next
+# deploy creates a SECOND Worker and the site you are looking at never updates.
+name = "fe-react-vite"
+compatibility_date = "2026-08-06"
+
+[assets]
+# Must stay in sync with vite's build.outDir.
+directory = "./dist"
+
+# React Router owns every path in this app. Without this, a hard refresh on
+# /product/prod_x (or any deep link a user pastes) asks Cloudflare for a file
+# that was never built and gets a 404: the router never boots, so the in-app 404
+# route in src/router.tsx never renders either.
+#
+# "single-page-application" serves /index.html with a **200** for any path that
+# does not match a built file — the browser keeps the original URL, which is what
+# React Router reads on boot.
+not_found_handling = "single-page-application"

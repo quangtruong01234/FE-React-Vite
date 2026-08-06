@@ -1,0 +1,55 @@
+name: CI
+
+# Same contract as the api repo's CI: green on `main` is what authorises a
+# release. deploy.yml keys off this workflow's *name* ("CI") via workflow_run —
+# renaming it silently stops every deploy.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # Node 22 matches the api repo's CI and clears Vite 7's floor
+          # (>=20.19 / >=22.12).
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        # vitest only; vite.config.ts excludes e2e/**. The Playwright specs need
+        # a live gateway plus a browser download, so they stay a local/manual
+        # gate (npm run test:e2e) rather than a CI job.
+        run: npm run test:run
+
+      - name: Build
+        # `npm run build` is `tsc --noEmit && vite build` — this step is the
+        # typecheck gate as much as the bundle gate. It builds WITHOUT the
+        # production VITE_* values on purpose: deploy.yml rebuilds with them, and
+        # a PR from a fork must never see them. The fallbacks in
+        # src/api/client.ts keep this build valid.
+        run: npm run build

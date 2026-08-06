@@ -18,7 +18,14 @@ design_handoff_trybuy_ui
 /playwright/.cache/
 e2e/.auth/
 
-public
+# Design screenshots dropped into public/ — ignore the images, NOT the folder.
+# A bare `public` entry excludes the directory itself, and git cannot re-include
+# a file whose parent directory is excluded. Anything added to public/ later
+# (robots.txt, a real favicon, _headers) would be missing from the deploy with
+# no error anywhere: CI clones the repo, so what is not tracked is not built.
+public/*.png
+public/*.jpg
+public/*.jpeg
 
 # Local session/credential artifacts
 login.json

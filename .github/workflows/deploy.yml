@@ -1,0 +1,125 @@
+name: Deploy
+
+# Production deploy to Cloudflare Workers (CD-FE-01).
+#
+# Flow: CI goes green on `main` -> this workflow rebuilds that exact commit with
+# the production VITE_* values baked in -> `wrangler deploy` uploads dist/ to the
+# assets-only Worker described by wrangler.toml.
+#
+# Cloudflare's own Git integration (Workers Builds) must stay DISCONNECTED. With
+# both wired up every push builds twice, two deployments race, and the one that
+# never ran the tests can win.
+#
+# Why rebuild instead of reusing CI's artifact: Vite inlines `import.meta.env` at
+# BUILD time. CI builds without the production URLs (a fork PR must never see
+# them), so its dist/ points at http://localhost:3000 and would be a dead site.
+# There is no "configure at runtime" step for a static bundle.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   CLOUDFLARE_API_TOKEN   created from the "Edit Cloudflare Workers" template.
+#                          Not the Global API Key — that one cannot be scoped.
+#   CLOUDFLARE_ACCOUNT_ID  Workers & Pages -> Account details.
+#
+# Required `production` Environment variables (Settings -> Environments). These
+# are variables, not secrets: every one of them is readable in the shipped bundle
+# anyway, and marking them secret only makes the build log harder to read.
+#   VITE_API_URL               https://api.<domain>/api
+#   VITE_CHAT_URL              https://api.<domain>
+#   VITE_WS_NOTIFICATION_URL   https://api.<domain>
+#
+# The gateway must be told about the Worker's origin or every request fails CORS
+# and the auth cookie is dropped — see DEPLOYMENT.md for the exact backend env
+# (`FRONTEND_URL`, `AUTH_COOKIE_SAME_SITE=none`).
+#
+# Rollback: Cloudflare keeps every version. Dashboard -> the Worker -> Deployments
+# -> roll back to the last good one. No rebuild needed; the previous immutable
+# bundle is still there.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Cloudflare Workers
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+
+    # workflow_run fires on failed CI runs too — only deploy green main builds.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - name: Checkout the commit CI validated
+        uses: actions/checkout@v4
+        with:
+          # workflow_run checks out the DEFAULT BRANCH HEAD unless told
+          # otherwise. Without this ref a deploy would ship whatever landed on
+          # main after CI started — an unvalidated commit. Falls back to
+          # github.sha for the workflow_dispatch path.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build for production
+        # Vite's loadEnv prefers inline process.env VITE_* over any .env file, so
+        # these win without a committed .env.production. A missing variable does
+        # NOT fail the build on its own — src/api/client.ts falls back to
+        # http://localhost:3000 and ships a dead bundle. Hence the guard.
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_CHAT_URL: ${{ vars.VITE_CHAT_URL }}
+          VITE_WS_NOTIFICATION_URL: ${{ vars.VITE_WS_NOTIFICATION_URL }}
+        run: |
+          set -euo pipefail
+          for name in VITE_API_URL VITE_CHAT_URL VITE_WS_NOTIFICATION_URL; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is not set on the production Environment."
+              echo "Deploying without it bakes http://localhost:3000 into the bundle."
+              exit 1
+            fi
+          done
+          npm run build
+
+      - name: Verify the bundle is not pointing at localhost
+        # Cheap last line of defence: a MISSPELLED variable name would pass the
+        # guard above (it only sees an empty value) but still leave a dev URL
+        # inlined. Verified both ways — a build with the production values has no
+        # localhost:3000 anywhere in dist/assets, a build without them does.
+        run: |
+          set -euo pipefail
+          if grep -rq "localhost:3000" dist/assets; then
+            echo "::error::dist/ still references localhost:3000 — check the production Environment variables."
+            exit 1
+          fi
+
+      - name: Publish to Cloudflare
+        # Plain npx rather than cloudflare/wrangler-action: wrangler reads both
+        # of these env vars natively, so the action would only add a version to
+        # keep pinned and a third party in the release path. `wrangler deploy`
+        # creates the Worker on first run — no dashboard step needed.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        # Pinned to a major: assets-only Workers (`[assets]` with
+        # not_found_handling and no `main`) need wrangler >= 3.91, and an
+        # unpinned npx would silently follow whatever ships next.
+        run: npx --yes wrangler@4 deploy
