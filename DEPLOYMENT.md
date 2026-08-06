@@ -9,6 +9,7 @@ versa.
 | | |
 |---|---|
 | Host | Cloudflare Workers (static assets), Worker `fe-react-vite` |
+| Live URL | https://fe-react-vite.quangtruong01234.workers.dev |
 | Build | GitHub Actions runner: `npm run build` → `dist/` |
 | Release trigger | CI green on `main` → `.github/workflows/deploy.yml` |
 | Config | `wrangler.toml` (assets-only Worker, no script) |
