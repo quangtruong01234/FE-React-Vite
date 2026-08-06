@@ -8,6 +8,11 @@ on:
   push:
     branches:
       - main
+  # Manual re-run without a commit. Also the way to tell a broken push trigger
+  # apart from Actions being blocked outright: if dispatch works and push does
+  # not, the problem is the trigger; if neither runs, it is repo settings or
+  # billing.
+  workflow_dispatch:
 
 permissions:
   contents: read
