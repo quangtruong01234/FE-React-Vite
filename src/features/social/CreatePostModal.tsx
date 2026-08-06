@@ -10,13 +10,16 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { api } from '@/api';
 import { useProductsByIds } from '@/hooks/data/useProductsByIds';
 import { uploadImage, uploadVideo, deleteMedia } from '@/lib/http/cloudinary';
+import { cldImage } from '@/lib/http/cloudinaryUrl';
 import { uploadFilesSequential } from '@/lib/http/uploadSequential';
+import { resolveUploadOwner } from '@/lib/http/uploadOwner';
 import {
   validateUploadFile,
   firstUploadError,
@@ -118,6 +121,14 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
 
   async function uploadImageFiles(files: File[]) {
     if (!files.length) return;
+    // UP-06: block the upload while unauthenticated instead of tagging media
+    // with a wrong `0_...` owner prefix the real user can never clean up.
+    const owner = resolveUploadOwner(currentUser);
+    if ('error' in owner) {
+      setUpload({ active: false, percent: 0, error: owner.error });
+      if (imageInputRef.current) imageInputRef.current.value = '';
+      return;
+    }
     const currentImages = mediaItems.filter((m) => m.type === 'image').length;
     // UP-07: cap the batch and tell the user what was dropped instead of
     // slicing silently.
@@ -145,7 +156,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
       // the ones already uploaded stay in state — visible and cleanable via
       // handleClose/removeMedia — instead of being stranded as Cloudinary orphans.
       await uploadFilesSequential(accepted, {
-        upload: (file, _i, onProgress) => uploadImage(file, currentUser?.id ?? 0, onProgress),
+        upload: (file, _i, onProgress) => uploadImage(file, owner.ownerId, onProgress),
         onItem: ({ url, publicId }) =>
           setMediaItems((prev) => [...prev, { url, publicId, type: 'image' as const }]),
         onProgress: (percent) => setUpload((prev) => ({ ...prev, percent })),
@@ -181,6 +192,14 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // UP-06: block the upload while unauthenticated (see uploadImageFiles).
+    const owner = resolveUploadOwner(currentUser);
+    if ('error' in owner) {
+      setUpload({ active: false, percent: 0, error: owner.error });
+      if (videoInputRef.current) videoInputRef.current.value = '';
+      return;
+    }
+
     // UP-04: reject bad files before wasting an upload round-trip.
     const invalid = validateUploadFile(file, { kind: 'video', maxBytes: MAX_VIDEO_BYTES });
     if (invalid) {
@@ -192,7 +211,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
     setUpload({ active: true, percent: 0, error: null });
 
     try {
-      const result = await uploadVideo(file, currentUser?.id ?? 0, (p) => {
+      const result = await uploadVideo(file, owner.ownerId, (p) => {
         setUpload((prev) => ({ ...prev, percent: p }));
       });
       // If replacing an existing video, delete the old one from Cloudinary
@@ -261,6 +280,9 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
           <DialogTitle className="font-display text-lg text-ink-pri">
             {isEdit ? 'Chỉnh sửa bài viết' : 'Tạo bài viết'}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Nhập nội dung, đính kèm ảnh hoặc video và gắn sản phẩm cho bài viết.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col min-h-0 flex-1">
@@ -292,7 +314,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
                   <div key={item.url} className="relative group">
                     {item.type === 'image' ? (
                       <img
-                        src={item.url}
+                        src={cldImage(item.url, 800)}
                         alt=""
                         className="w-full aspect-video object-contain rounded-tb-cta bg-canvas-elevated"
                       />

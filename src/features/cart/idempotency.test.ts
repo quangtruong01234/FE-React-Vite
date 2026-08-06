@@ -4,25 +4,25 @@ import { buildCheckoutSignature, resolveIdempotencyKey } from "./idempotency";
 describe("buildCheckoutSignature", () => {
   it("is independent of item order", () => {
     const a = buildCheckoutSignature([
-      { productId: 1, quantity: 2, skuId: 5 },
-      { productId: 3, quantity: 1 },
+      { productId: 'prod_1', quantity: 2, skuId: 5 },
+      { productId: 'prod_3', quantity: 1 },
     ]);
     const b = buildCheckoutSignature([
-      { productId: 3, quantity: 1 },
-      { productId: 1, quantity: 2, skuId: 5 },
+      { productId: 'prod_3', quantity: 1 },
+      { productId: 'prod_1', quantity: 2, skuId: 5 },
     ]);
     expect(a).toBe(b);
   });
 
   it("changes when quantity changes", () => {
-    const a = buildCheckoutSignature([{ productId: 1, quantity: 2 }]);
-    const b = buildCheckoutSignature([{ productId: 1, quantity: 3 }]);
+    const a = buildCheckoutSignature([{ productId: 'prod_1', quantity: 2 }]);
+    const b = buildCheckoutSignature([{ productId: 'prod_1', quantity: 3 }]);
     expect(a).not.toBe(b);
   });
 
   it("distinguishes a missing SKU from a present one", () => {
-    const a = buildCheckoutSignature([{ productId: 1, quantity: 1 }]);
-    const b = buildCheckoutSignature([{ productId: 1, quantity: 1, skuId: 0 }]);
+    const a = buildCheckoutSignature([{ productId: 'prod_1', quantity: 1 }]);
+    const b = buildCheckoutSignature([{ productId: 'prod_1', quantity: 1, skuId: 0 }]);
     expect(a).not.toBe(b);
   });
 });

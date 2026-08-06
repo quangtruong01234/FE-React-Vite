@@ -20,11 +20,11 @@ export default function MessagesPage(): ReactElement {
 
   const location = useLocation();
   const navigate = useNavigate();
-  const initOtherUserId = (location.state as { otherUserId?: number } | null)?.otherUserId;
+  const initOtherUserId = (location.state as { otherUserId?: string } | null)?.otherUserId;
 
   const { conversations, isLoading } = useConversations();
   const markConversationRead = useMarkConversationRead();
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
   function selectConversation(c: Conversation): void {
@@ -33,7 +33,7 @@ export default function MessagesPage(): ReactElement {
   }
 
   const { mutate: openConversation } = useMutation({
-    mutationFn: (otherUserId: number) => api.chat.createConversation({ otherUserId }),
+    mutationFn: (otherUserId: string) => api.chat.createConversation({ otherUserId }),
     onSuccess: (conv) => {
       setSelectedId(conv.id);
       queryClient.setQueryData<Conversation[]>(queryKeys.conversations.all, (old) => {
@@ -53,12 +53,12 @@ export default function MessagesPage(): ReactElement {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function otherUserId(c: Conversation): number {
+  function otherUserId(c: Conversation): string {
     return meId !== undefined && c.user1Id === meId ? c.user2Id : c.user1Id;
   }
 
   const otherUserIds = useMemo(() => {
-    const ids = new Set<number>();
+    const ids = new Set<string>();
     conversations.forEach((c) => ids.add(otherUserId(c)));
     return Array.from(ids);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -73,12 +73,11 @@ export default function MessagesPage(): ReactElement {
   });
 
   const userMap = useMemo(() => {
-    const map = new Map<number, PublicUser>();
+    const map = new Map<string, PublicUser>();
     userResults.forEach((r, i) => {
       if (r.data) map.set(otherUserIds[i], r.data);
     });
     return map;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userResults, otherUserIds]);
 
   const filtered = search.trim()
@@ -106,7 +105,7 @@ export default function MessagesPage(): ReactElement {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Tìm hội thoại…"
-              className="w-full bg-canvas-elevated border border-bdr rounded-full py-2 pl-9 pr-3 text-sm text-ink-pri placeholder:text-ink-muted outline-none focus:border-amber-400/50"
+              className="w-full bg-canvas-elevated border border-bdr rounded-full py-2 pl-9 pr-3 text-sm text-ink-pri placeholder:text-ink-muted outline-none focus:border-tb-amber/50"
             />
           </div>
         </div>

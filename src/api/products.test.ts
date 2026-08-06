@@ -26,6 +26,16 @@ describe('buildProductListQuery', () => {
     expect(qs).not.toContain('[]');
   });
 
+  it('appends provinceIds as the SINGULAR repeated key the gateway expects', () => {
+    expect(buildProductListQuery({ provinceIds: [201, 299] })).toBe('provinceId=201&provinceId=299');
+  });
+
+  it('never emits provinceIds plural or bracket syntax for the province filter', () => {
+    const qs = buildProductListQuery({ provinceIds: [201] });
+    expect(qs).not.toMatch(/provinceIds=/);
+    expect(qs).not.toContain('[]');
+  });
+
   it('keeps scalar params alongside array filters and skips empty values', () => {
     const qs = buildProductListQuery({
       page: 2,
@@ -43,20 +53,20 @@ describe('batchProductIds', () => {
   });
 
   it('keeps a small id set as a single batch', () => {
-    expect(batchProductIds([3, 1, 2])).toEqual([[3, 1, 2]]);
+    expect(batchProductIds(['prod_3', 'prod_1', 'prod_2'])).toEqual([['prod_3', 'prod_1', 'prod_2']]);
   });
 
   it('dedupes ids so duplicates (same product, different SKU) do not waste batch slots', () => {
-    expect(batchProductIds([1, 2, 1, 3, 2])).toEqual([[1, 2, 3]]);
+    expect(batchProductIds(['prod_1', 'prod_2', 'prod_1', 'prod_3', 'prod_2'])).toEqual([['prod_1', 'prod_2', 'prod_3']]);
   });
 
   it('keeps exactly 50 distinct ids in one batch', () => {
-    const ids = Array.from({ length: MAX_BATCH_PRODUCT_IDS }, (_, i) => i + 1);
+    const ids = Array.from({ length: MAX_BATCH_PRODUCT_IDS }, (_, i) => `prod_${i + 1}`);
     expect(batchProductIds(ids)).toEqual([ids]);
   });
 
   it('splits 51+ distinct ids into batches of at most 50 covering every id', () => {
-    const ids = Array.from({ length: 120 }, (_, i) => i + 1);
+    const ids = Array.from({ length: 120 }, (_, i) => `prod_${i + 1}`);
     const batches = batchProductIds(ids);
     expect(batches.map((b) => b.length)).toEqual([50, 50, 20]);
     expect(batches.flat()).toEqual(ids);

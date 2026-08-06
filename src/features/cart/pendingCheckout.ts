@@ -15,7 +15,7 @@ const KEY = 'tb_pending_checkout';
 
 export interface PendingCheckout {
   /** Orders created for this checkout (informational / correlation). */
-  orderIds: number[];
+  orderIds: string[];
   /** Specific cart item ids to remove on success. Ignored when `clearAll`. */
   cartItemIds: number[];
   /** Whether the whole cart was checked out (clear) vs a selected subset. */

@@ -3,6 +3,1023 @@
 > Historical record of completed FE work. **NOT auto-loaded** by any agent entry point.
 > Read on demand only when you need the history/rationale of a past change.
 > Current state (readiness, open/blocked tasks, known issues) lives in `snapshot.md`.
+> Newest first. Việc trước **2026-07-10** đã dời sang `CHANGELOG.archive.md` (cùng thư mục).
+
+## Maintenance
+
+### BE handoff inbox · 7 entry integrate một lượt (2026-08-06) — DONE
+
+`/sweep` chạy fix-mode trên toàn bộ mục `## Open` của `../.agent-local/frontend-handoff.md`.
+Bảy entry được đóng trong một batch; mỗi entry đã có bullet **FE INTEGRATED** riêng trong file
+handoff. Gate cuối: build ✓ · lint 0 error / 3 warning cũ · **614 test / 89 file ✓** (trước:
+589/86). Verify runtime bằng Chrome DevTools MCP trên gateway local, seller `techstore_demo`,
+console sạch.
+
+**Nguyên nhân gốc chung — `ApiError` không phải `Error`.** `request()` (`src/api/client.ts`)
+`throw` một **plain object** `{ statusCode, status, message }`. Mọi chỗ FE viết
+`error instanceof Error ? error.message : fallback` vì thế **luôn** rơi vào fallback và **vứt
+sạch message backend** — đúng thứ mà 3 trong 7 entry của BE than phiền. Cách sửa xuyên suốt:
+duck-type trên `message` / `statusCode`, không dùng `instanceof`.
+
+**HO-1 · message thật từ `POST /payment/url`.** `paymentUrlErrorMessage(error)`
+(`src/lib/domain/paymentUrl.ts`, +3 test) lấy `message` khi nó là string non-empty, ngược lại
+trả câu fallback tiếng Việt. Dùng ở `OrderDetailPage` (dưới nút thanh toán) và
+`CheckoutPage` — chỗ này trước đây `catch` **im lặng**; giờ `console.error` nhưng **vẫn
+navigate** sang trang đơn (đơn đã tạo xong rồi, submit lại là nhân đôi đơn — comment đã ghi rõ
+lý do này để lần sau không ai "sửa" thành retry). Verify: stub 502 → panel hiện
+"Cổng thanh toán ZaloPay không phản hồi. Vui lòng thử lại sau." đúng như envelope BE.
+
+**HO-2 · order detail phân biệt 404 với 403/5xx.** Trước đây `!order` ⇒ luôn
+"Không tìm thấy đơn hàng." — đơn của người khác (403) hay DB chết (500) đều hiện y hệt, người
+dùng tưởng đơn bị xoá. `orderLoadError(error)` (`src/features/order/orderDetailError.ts`,
++5 test) trả `null` cho 404 (giữ nguyên empty-state cũ) và trả `ApiError` cho phần còn lại →
+`<ApiErrorState onRetry={refetchOrder}>`. Verify: 404 thật → "Không tìm thấy đơn hàng." ·
+stub 403 → "BẠN KHÔNG CÓ QUYỀN TRUY CẬP" + message BE · stub 500 → "MÁY CHỦ GẶP SỰ CỐ".
+
+**Bug tiềm ẩn tự lộ ra khi làm HO-2:** `ApiErrorState` map theo status cứng và **render `null`**
+cho status không có trong map → một 500 trơn sẽ cho **trang trắng**. Đã thêm entry `500` +
+`UNEXPECTED` fallback, và `resolveErrorConfig()` gom mọi `>= 500` về entry 500. Không có
+đường nào ra `null` nữa (`ApiErrorState.test.tsx` +3).
+
+**HO-3 · 409 duplicate SKU về đúng field.** `productSubmitError(error)`
+(`src/features/product/product-form/productSubmitError.ts`, +7 test) trả
+`{ field: 'sku' | null, message }`: 409 + `/\bsku\b/i` ⇒ `field: 'sku'`, tách được tên SKU khỏi
+`"sku FOO already exists"` để nhắc đúng mã; 409 version-conflict phân loại riêng, message mềm.
+`CreateProductPage.onError` route `field === 'sku'` vào `form.setFieldError('sku', …)`.
+Verify: nhập SKU trùng → 409 → viền đỏ + "SKU này đã được dùng cho sản phẩm khác…" ngay dưới ô
+SKU, state form giữ nguyên (trước đây là toast chung chung, người bán không biết sửa ô nào).
+
+**HO-4 · PATCH sản phẩm chỉ gửi field bẩn.** `dirtyProductPatch(baseline, next)`
+(`src/features/product/product-form/productPatch.ts`, +8 test) diff bằng `lodash/isEqual`.
+Hai điểm không hiển nhiên: (a) `variations` + `skuList` là **cặp bất khả phân** — BE validate
+`skuList` với `variations` của *cùng* request, gửi một nửa là mất row biến thể, nên hễ một vế
+bẩn thì gửi cả hai; (b) key có giá trị `undefined` bị **drop** thay vì gửi. `SubmitVars` giờ là
+discriminated union (`create` full DTO vs `edit` patch); patch rỗng ⇒ điều hướng luôn, không
+bắn request. Verify: sửa mỗi giá biến thể → `PATCH /api/products/prod_ffc802c681d211f1` **200**
+với body **192 byte** đúng 3 key `price` + `skuList` + `variations` — không `sku`, không `name`,
+không `imageUrls`/`categoryIds` (trước: nguyên form). Dữ liệu dev đã khôi phục về 2000.
+Không opt-in field `version`: BE ghi rõ nó là opt-in và ồn, còn lost-update thì dirty-patch đã
+xử lý ở gốc.
+
+**HO-5 · `isActive` + BUG-B `userId`.** Không phải bug: `userId` trên
+`GET /products/with-inventory/all` là **load-bearing** — đó chính là cái làm `/shop` chỉ hiện
+sản phẩm của người bán đang đăng nhập. Đã thêm comment giữ chỗ ở `ShopPage.tsx:256` để lần sau
+không ai dọn nhầm. Verify: `/shop` gọi
+`…/with-inventory/all?limit=50&userId=usr_60ccbe6081c411f1`. Nhân tiện xác nhận contract
+public-id còn sống: `?userId=23` → **400** `"userId must match usr_<16 alphanumeric characters>"`.
+
+**BUG-D (cancel 503)** không có gì để gỡ — FE chưa từng ship mitigation cho nó; đã xác nhận lại
+với BE trong file handoff.
+
+**Gap mới ghi cho BE:** `PATCH /products/:id` **không xoá được optional field**. PATCH coi key
+vắng mặt là "giữ nguyên", JSON lại bỏ luôn key `undefined` → không có đường nào clear
+`description`/`brand`. Không phải regression (PATCH full-form trước đây cũng vậy) nhưng
+`dirtyProductPatch` làm nó lộ rõ → đã append vào `../.agent-local/backend-handoff.md`, chờ BE
+xác nhận `null` = clear.
+
+### GHN-ADDR-01 · checkout gửi đúng `toDistrictId` + `toWardCode` (2026-08-05) — DONE
+
+Backend mở hai field optional này từ **2026-07-23** và nhắc lại ở entry 2026-08-04, nhưng
+`grep -rn "toDistrictId\|toWardCode" src/` trả về **0 kết quả** — FE chưa bao giờ tích hợp. Hệ quả:
+**mọi** lần checkout đều rơi về free-text resolution, GHN tự đoán quận/phường từ chuỗi pipe
+`shippingAddress`. Tên mơ hồ resolve ra một địa điểm *sai mà vẫn hợp lệ* → đúng triệu chứng
+`shippingFee: 0` + `ghnOrderCode: null` trên đơn "thành công".
+
+Logic quyết định nằm trọn trong một helper thuần để test được:
+
+- `ghnLocationIds(address)` (`src/features/address/addressUtils.ts`) → `{ toDistrictId, toWardCode }`
+  từ địa chỉ đã lưu, hoặc `{}` khi một trong hai vế không dùng được (district id không phải số
+  nguyên / `< 1`, ward code rỗng).
+- **Cặp này all-or-nothing phía server** — gửi một nửa bị coi như không gửi gì. Nên trả `{}` để
+  rơi về free-text **có chủ đích**, thay vì rơi vì lỡ.
+- `toWardCode` giữ nguyên **string**: code kiểu `"013010"` mất số 0 đầu nếu đi qua bất kỳ vòng
+  chuyển số nào.
+
+`GhnLocationDto` mới ở `src/types/order.ts`; `CreateOrderDto` và `ShippingFeeDto` cùng `extends`
+nó. `CheckoutPage.tsx`: mutation tính phí ship giờ nhận nguyên `Address` (trước nhận chuỗi pipe)
+để spread được cặp id, và dto tạo đơn spread đúng cặp id đó — preview và vận đơn dùng chung một
+địa điểm chính xác.
+
+Test `addressUtils.test.ts` (+8): cả hai id trả về đúng · ward code có số 0 đầu giữ nguyên · ward
+code thừa khoảng trắng được trim · 5 case hỏng (ward rỗng/blank, district `0`/âm/không nguyên)
+đều ra `{}`. Gate: build ✓ · lint 0 error / 3 warning cũ · **589 test / 86 file ✓**.
+
+Verify runtime (DevTools MCP, `test1`, gateway thật): tạo địa chỉ HCMC / Quận 1 / Phường Bến Nghé
+→ `POST /order/shipping-fee` mang `"toDistrictId":1442,"toWardCode":"20101"`; đơn COD
+`POST /order` mang đúng cặp đó và trả về **`ghnOrderCode: "L8LR6R"`** (`ord_NiGCJU6Twm6fJupo`) —
+vận đơn thật thay cho `null` trước đây.
+
+Còn hở: `shippingFee` vẫn về `0` dù id đúng và `expectedDeliveryTime` hợp lệ. FE không sửa được
+(chỉ hiển thị số BE trả) → đã ghi vào `../.agent-local/backend-handoff.md` kèm 3 giả thuyết để BE
+loại trừ (from-district của seller chưa cấu hình / cùng quận / item `weight: null`).
+
+### order-history-filter · tab đếm 1 mà list rỗng (2026-08-04) — DONE
+
+Người dùng báo: tab "Trả hàng/Hoàn tiền **(1)**" bấm vào ra "Không có đơn hàng nào" — tưởng
+badge hardcode. Không phải: **badge và list đọc hai nguồn khác phạm vi**.
+
+- Badge ← `GET /order/user/:id/status-counts`, server đếm **toàn bộ lịch sử**.
+- List ← `useInfiniteQuery` mới tải **trang 1 (10 dòng)**, rồi `Array.filter` trên 10 dòng đó.
+- Live 2026-08-04, `usr_60ccb4be81c411f1` 65 đơn: `refunded: 1`, mà đơn refunded duy nhất
+  (`ord_516a9cee816611f1`) nằm index 18 → **trang 2**. Tab "Đang xử lý (15)" cũng chỉ hiện 4.
+- Nút "Tải thêm" bị gate `filterTab === 'all'` → trên tab đã lọc **không có lối thoát**.
+- Search theo mã đơn dính đúng lỗi đó: chỉ tìm trong 10 dòng đã tải.
+
+Không sửa được ở server: `GetOrdersByUserQueryDto` chỉ có `page` + `limit`, **không có `status`**
+(list seller thì có — `SellerOrdersQueryDto`). Gửi bừa `status=` bị `whitelist` nuốt im lặng, vẫn
+`200`, list không lọc.
+
+Mitigation `features/order/orderHistoryPaging.ts` (+ 6 test): tab ≠ `all` hoặc đang search →
+kéo **hết** trang còn lại rồi mới lọc; và chặn empty-state trong lúc còn trang chưa tải — trước
+đây nó khẳng định "không có" khi chưa xem xong. Nút "Tải thêm" chuyển sang gate `!narrowed` (chỉ
+còn ý nghĩa ở tab `all`). Verify live: tab return hiện đúng 1 đơn, tab "Đang xử lý" đúng 15/15.
+
+Giá phải trả: 65 đơn = 7 request (`page=1..7`) để lọc ra 1 dòng; 500 đơn = 50 request. Đã ghi
+`backend-handoff.md` (Open 2026-08-04) — thêm `?status=` là xoá hẳn module này. Kèm theo:
+`backend-api.md` sửa dòng "Status counts are not page-scoped… That is correct, not a bug" (đọc
+xong dễ tưởng lệch là chuyện bình thường) + `pitfalls.md` §1b.
+
+Gates: build ✓ · lint 0 error / 3 warning cũ · test 571/571 (84 file).
+
+### payment-result-orderid · deep-link sau thanh toán là link chết (2026-08-04) — DONE
+
+Snapshot ghi item này là "regex `/^\d+$/` không khớp public id `ord_`". Verify live bằng Chrome
+DevTools MCP thì **ngược lại**, và nặng hơn:
+
+- Backend gửi `?order=111` — id **nội bộ dạng số**. Bằng chứng: `buildFrontendPaymentResultUrl()`
+  (`apps/payments/src/payments.service.ts:340-374`) nhận đúng biến `orderId` mà `:114` đưa vào
+  `{ orderId: Number(orderId) }`; `payments.service.spec.ts:162` assert nguyên văn
+  `?order=111&method=vnpay`.
+- Regex cũ **nhận** số đó rồi dựng `/order/111`. Mà `GET /api/order/111` → **400**
+  `"Invalid id — expected format ord_<16 alphanumeric characters>"` (đối chứng:
+  `/api/order/ord_516a9c38816611f1` → 200), nên `/order/111` render "Không tìm thấy đơn hàng."
+  → không phải "id bị rơi về `/orders`" mà là **link chết chắc chắn** sau mọi lần thanh toán.
+
+Fix: tách `resolveResultOrderId()` ra `src/features/payment/paymentResultParams.ts`, guard bằng
+`/^ord_[0-9A-Za-z]{16}$/` — đúng shape `libs/common/src/public-id/public-id.util` validate. Viết
+theo **shape public id** chứ không theo luật "reject số", nên ngày BE đổi contract thì deep-link
+tự sống lại, FE không phải sửa. Số → coi như không có id → fallback `/orders`.
+
+- `paymentResultParams.test.ts` — 5 test (public id · id số live `111`/`999` · null/rỗng ·
+  txn ref của cổng · near-miss 14/17 ký tự, sai prefix, có gạch, có space).
+- `e2e/payment-result.buyer.spec.ts` viết lại: 2 → 4 case, mỗi nhánh success/failure một lần với
+  public id và một lần với id số. Spec cũ assert `#999` + `href="/order/999"` — tức là **đang
+  đóng đinh chính con bug** (vi phạm `/e2e` rule 5).
+- Backend gap ghi vào `../.agent-local/backend-handoff.md` (Open 2026-08-04), kèm một phát hiện
+  phụ: `apps/payments/.env.example:119,127` trỏ return URL của cả 2 cổng về
+  `/api/gateway/payment-result` — endpoint trả **JSON thuần**, không redirect, nên user thật sẽ
+  đứng trên trang JSON.
+
+Gates: build ✓ (24,8s, gồm tsc) · lint 0 error / 3 warning advisory cũ · test 565/565 (83 file).
+
+### ai-context-audit · đại tu bộ context `.ai/` (2026-08-03/04) — DONE
+
+Rà toàn bộ guidance mà agent đọc. Chi tiết từng batch + phần còn treo: `context-system-backlog.md`.
+
+- **A — 9 mâu thuẫn nguy hiểm.** Doc bảo agent làm hỏng code đang đúng. Nặng nhất: luật
+  `renderHook` wrapper sai ở `testing.md` + `add-test.md` + `review.md`.
+- **B — path/name drift.** 28× `frontend/src`→`src`; `hooks/queryKeys.ts`→`hooks/query/queryKeys.ts`;
+  `hooks/useAuth.ts`→`hooks/auth/useAuth.ts`; `CartContext.tsx:22`→`AuthContext.tsx:22`.
+- **C1/C2/C4 — cắt mỡ.** `snapshot.md` 67.150→9.044 B (−86,5%) · `project.md` −74 dòng ·
+  `CHANGELOG.md` 173.758→89.845 B (−48%, phần trước 2026-07-10 sang `CHANGELOG.archive.md`
+  **nguyên văn**).
+- **D — 4 file kiến thức mới/mở rộng.** `context/domain.md` (state machine đơn hàng, return/refund,
+  voucher, idempotency, role × màn hình) · `context/pitfalls.md` (13 mục *triệu chứng → nguyên nhân
+  → luật*, chủ đề chung là **thất bại im lặng**) · mục E2E trong `testing.md` · lớp `Common Types`
+  của `context/backend-api.md`.
+- **E — 2 lệnh mới.** `/sync-context` (quét drift doc↔code, 7 check) · `/e2e`.
+- **C3 — rà dead content bằng chính `/sync-context`: CLEAN.** 136 path, 88 tên, 31 route, mọi
+  npm script đều resolve. Path chết chỉ còn trong changelog — đúng thiết kế.
+- **Hai lỗi thật lòi ra từ việc verify chứ không chép doc:** `npm run build` không typecheck
+  (entry riêng ngay dưới) và enum `OrderStatus` trong `backend-api.md` ghi 6 giá trị trong khi code
+  có 9 — agent tin bảng cũ sẽ viết `switch` không exhaustive.
+- **Chi phí context:** always-loaded 12.239 → **12.627 B ≈ 3,5k token/session**. Mọi file mới đều
+  **on-demand** qua Context Map, không cái nào vào `@import`.
+- **C5+C6 — `.claude/settings.json`, user dán tay** (file nằm trong deny list của chính nó nên
+  agent soạn patch chứ không sửa được): `Edit(.claude/context/**)` → `Edit(.ai/**)` — allow-list
+  vẫn trỏ vào thư mục đã xoá nên **mọi lần sửa doc đều phải approve tay**, chính là ma sát suốt
+  đợt này; thêm deny `git checkout*` / `git clean*` (xoá được việc chưa commit) và `curl *` /
+  `Invoke-WebRequest*`; gỡ `tsc` khỏi Stop hook vì gate `build` đã lo. Đã đọc lại file xác nhận.
+- **Gates:** markdown-only ở batch cuối; vẫn chạy đủ — xem entry `build-typecheck`.
+
+### build-typecheck · `npm run build` giờ mới thực sự chạy `tsc` + 3 lỗi type tồn đọng (2026-08-04) — DONE
+
+Phát hiện khi viết `.ai/context/pitfalls.md`: chạy `npx tsc --noEmit` để lấy bằng chứng cho một
+mục thì ra **3 lỗi thật**, trong khi `npm run build` vẫn xanh.
+
+- **Nguyên nhân gốc.** `"build": "vite build"` — không gọi `tsc` ở đâu cả (Vite transpile bằng
+  esbuild, vứt hết type). Template Vite chuẩn là `"tsc -b && vite build"`; chỗ này bị rơi mất.
+  Trong khi đó **4 file doc** (`core.md:12`, `project.md:80`, `workflows/fix-typescript.md:3`,
+  `workflows/review.md:27`) đều khẳng định build "includes `tsc --noEmit`" → không ai chạy
+  typecheck riêng, và `npm run lint` ở repo này không bật type-aware rule nên cũng không bắt hộ.
+  Hệ quả: 3 lỗi sống trong working tree từ **2026-07-22 → 2026-08-04**.
+- **Fix 1 — gate.** `package.json` → `"build": "tsc --noEmit && vite build"`. Chọn sửa **code cho
+  khớp doc** (không sửa doc cho khớp code) vì ý định của doc mới là đúng: không bao giờ đóng task
+  với TS error. Script `typecheck` sẵn có giữ nguyên cho lần chạy lẻ.
+- **Fix 2 — `SOCKET_CONNECT_OPTIONS` (2 lỗi).** `as const` làm `transports` thành
+  `readonly ["websocket"]`, không assign được vào `string[] | TransportCtor[]` của socket.io ở cả
+  `socket.ts:53` và `useChat.ts:121`. Đổi sang annotation tường minh
+  `Partial<ManagerOptions & SocketOptions>` (bỏ `as const`) — vẫn là single source of truth,
+  test `socket.test.ts` giữ nguyên và vẫn pass.
+- **Fix 3 — `persistSimpleStock` sku (1 lỗi).** Đợt sku-optional (2026-07-22) đổi
+  `CreateProductDto.sku` thành optional nhưng không kéo theo `CreateInventoryDto.sku` và
+  `persistSimpleStock(productId, sku: string, …)`. Runtime vốn đã đúng — bỏ trống thì backend cấp
+  fallback `PROD-<productId>` (đã runtime-verify 2026-07-22: `inventory.sku: "PROD-60"`); chỉ có
+  **type** là tụt lại. Nới `CreateInventoryDto.sku?: string` (kèm comment ghi nguồn xác minh) và
+  `persistSimpleStock` nhận `string | undefined`.
+- **Không thêm test.** Cả 3 đều là type-only, không sinh nhánh runtime nào để unit-test; bản thân
+  `tsc` trong gate mới **chính là** cái test cho lớp lỗi này (trước đó không tồn tại).
+- **Gates:** `npm run build` ✓ (giờ gồm tsc, 14,6s) · `npm run lint` 0 error / 3 warning
+  (đúng danh sách advisory cũ) · `npm run test:run` 560/560 ✓ / 82 file.
+- Bài học ghi thường trú vào `.ai/context/pitfalls.md` mục 9.
+
+### raw-palette-retoken · drain raw-Tailwind-palette styling debt (2026-07-23, /sweep) — DONE
+
+Audit-lens sweep found ~28 raw Tailwind-palette classes (numbered palette: `amber-400`,
+`red-500`, `red-950`, `amber-500`, …) still surviving across 11 files — a core-rule
+violation ("No hardcoded hex and no raw palette — use `tb-*` tokens"). Retokened all of
+them to `tb-*` / `accent-*` equivalents.
+
+- **New token.** Added literal-hex `tb-cyan` (`#06B6D4`) to `tailwind.config.js`, mirroring
+  the earlier `tb-green` addition. Needed because the `ApiErrorState` cyan tone (404/503
+  configs) uses opacity modifiers (`/30`, `/10`), and the CRITICAL pitfall (tokens.md, verified
+  live 2026-07-11) is that opacity modifiers silently no-op on var()-based aliases like
+  `accent-cyan` — rings fall back to default blue. Literal `tb-cyan` emits real hex-alpha.
+- **Retokened (11 files).** `ApiErrorState.tsx` TONES (amber/red/cyan rings, chips, dots →
+  `tb-*`/`accent-*`); `PaymentResultPage.tsx` (spinner + error banner); `LoginPage.tsx` &
+  `ForgotPasswordForm.tsx` & `PostDetailPage.tsx` & `ProfilePage.tsx` (error banners
+  `bg-red-9xx` → `bg-tb-red/10`); `ChatThread.tsx`, `MessagesPage.tsx`, `CommentNode.tsx`,
+  `PostDetailPage.tsx` (composer `focus:border-amber-400/50` → `focus:border-tb-amber/50`);
+  `ProductDetail.tsx` (selected-variant border + highlight bg); `CartPage.tsx` &
+  `MarketplacePage.tsx` (native form-control `accent-amber-*` → `accent-tb-amber`).
+- **Docs.** `tokens.md` updated: `tb-cyan` added to the color-token table, listed as the
+  `tb-*` equivalent for `accent-cyan`, folded into the opacity-modifier guidance and quick
+  decision table (cyan is no longer "alias-only").
+- **Validation.** `npm run build` ✓, `npm run lint` 0 errors (3 pre-existing deferred warnings:
+  `ui/button`, `ui/badge`, `AuthContext`), `npm run test:run` 560 ✓. No test added — pure
+  token-equivalent className/config swap with no testable logic (documented precedent).
+- **Verified via built CSS (static, no runtime):** rebuilt and confirmed every new opacity
+  class emits correct hex-alpha, proving the alias no-op pitfall was avoided — `tb-cyan/30`
+  = `#06b6d44d`, `tb-cyan/10` = `#06b6d41a`, `tb-red/10` = `#ef44441a`, `tb-amber/50`
+  = `#f59e0b80`, `accent-tb-amber` = `accent-color:#F59E0B`; 0 stale raw-palette classes
+  remain in the bundle. Full-stack runtime skipped: color-equivalent visual swap, no backend
+  confirmed running.
+
+### cloudinary-chunk-plan · test-cover chunked-upload math (2026-07-23, /sweep) — DONE
+
+Closed the deferred snapshot Convention gap "`cloudinary.ts` vẫn chưa có test (chunk math,
+progress, orphan logic)". The chunk-planning math was inline inside `uploadChunked` (wrapped
+around `fetch`), so it could not be unit-tested without stubbing the network.
+
+- **Extract.** New pure helper `src/lib/http/uploadChunkPlan.ts` — `planUploadChunks(fileSize,
+  chunkSize = CHUNK_SIZE)` returns the ordered `{ index, start, end, contentRange, percent }[]`
+  (offsets, `bytes <start>-<end-1>/<size>` header, and rounded cumulative progress); plus
+  `buildUploadId(timestamp, publicId)` for the `X-Unique-Upload-Id` value. `CHUNK_SIZE` (6 MB)
+  moved here too.
+- **Wire.** `uploadChunked` now iterates `planUploadChunks(file.size)` and emits each chunk's
+  `contentRange` / `percent` — byte-identical to the previous inline `for` loop (same header
+  string, same `Math.round(((i+1)/total)*100)` progress).
+- **Test.** `uploadChunkPlan.test.ts` (+9): single sub-chunk file, multi-chunk with a small
+  remainder, exact-multiple (no empty trailing chunk), contiguous non-overlapping ranges, last
+  chunk ends exactly at file size, `Content-Range` last-byte = `end-1`, progress `25→50→75→100`,
+  zero-byte/negative/zero-chunk → `[]`, custom chunk size, and `buildUploadId` join. Orphan
+  cleanup (`deleteMedia`) was already covered by `deleteMediaOutcome.test.ts`; what remains
+  untested in `cloudinary.ts` is only the `fetch` I/O orchestration (integration-level).
+- **Validation.** `npm run build` ✓, `npm run lint` 0 errors (3 pre-existing deferred warnings:
+  `ui/button`, `ui/badge`, `AuthContext`), `npm run test:run` 551→560 ✓.
+- **Runtime-verified (Chrome DevTools MCP, techstore_demo, live gateway :3000, dev :5173,
+  2026-07-23):** uploaded an 8,673,083-byte PNG (2 chunks) via `/sell` → signature `POST
+  /api/upload/signature?folder=trybuy%2Fproducts` **201** → two Cloudinary chunk POSTs both **200**,
+  and the live `Content-Range` / `X-Unique-Upload-Id` headers matched the helper exactly: chunk 0
+  `bytes 0-6291455/8673083` (resp `{done:false,bytes:6291456}`), chunk 1 `bytes
+  6291456-8673082/8673083` (resp `{done:true, secure_url:…}`), shared upload id
+  `1784755719_23_zdm1kDY6wZ`. Image rendered in slot 1 (1/6, BÌA badge); no new console errors
+  (only pre-existing 502s on cart/notifications + a socket.io warn).
+
+### apierror-deadcode · delete unused `ApiErrorContext` (2026-07-22, /sweep) — DONE
+
+Cleared the `react-refresh/only-export-components` warning on `src/context/ApiErrorContext.tsx`
+by removing the file — investigation showed it was **entirely dead code**.
+
+- **Finding.** `ApiErrorProvider` is never mounted (`App.tsx` wraps only `QueryClientProvider`
+  + `AuthProvider` around the router), `useApiError` is never called, and there is no test or
+  barrel re-export — a full-repo grep for `useApiError` / `ApiErrorProvider` / `ApiErrorContext`
+  matched only doc files. The global-error mechanism it modelled was superseded: 401s go through
+  `registerUnauthorizedHandler` (→ redirect), and API errors render via the `ApiErrorState`
+  component + react-query error state. (It was memoized back on 2026-07-06, but that hardened a
+  provider nothing consumes.)
+- **Fix.** `git rm src/context/ApiErrorContext.tsx` (−31 lines). Extracting the hook to a
+  sibling file would have been pointless ceremony for code with zero consumers; deletion removes
+  the warning *and* the cruft.
+- **Validation.** `npm run build` ✓, `npm run lint` 4→3, `npm run test:run` 537/537 ✓.
+  Runtime smoke-tested via Chrome DevTools MCP (`canceltest1779978329`): login succeeds, `/`
+  (`FeedLayout` + `RightRail`) and `/messages` (`MessagesLayout`) render; only pre-existing
+  console noise (socket.io reconnect warnings + one broken-image 404), no new errors.
+- **Remaining 3 warnings** (`ui/button`, `ui/badge`, `AuthContext`) stay blocked/deferred — see
+  the router-layouts entry below.
+
+### router-layouts · move layout components out of `router.tsx` for Fast Refresh (2026-07-22, /sweep) — DONE
+
+Cleared the 3 `react-refresh/only-export-components` warnings on `src/router.tsx` (the
+`router` export is a non-component object, so colocating the `AppLayout` / `MessagesLayout` /
+`FeedLayout` function components in the same module breaks Fast Refresh for that file).
+
+- **Fix.** Moved the 3 layout components — plus the `FeedPage` / `MessagesPage` lazy handles
+  they exclusively render — into a new `src/routerLayouts.tsx` (a components-only module, a
+  valid Fast Refresh boundary). `router.tsx` imports them and now exports only `router`.
+  Dropped the now-unused `Outlet` / `AppShell` / `RightRail` imports from `router.tsx`
+  (`ProtectedRoute` stays — still used directly by role-gated route elements).
+- **No behavior change.** Same route tree, same lazy chunks, same layout wrapping — a pure
+  file reorganization. No unit test (a component-relocation refactor has no branching logic;
+  build + existing suite verify it — same rationale as the RR-prod-alias item).
+- **Validation.** `npm run build` ✓, `npm run lint` 7→4 (router×3 gone), `npm run test:run`
+  537/537 ✓.
+- **Remaining 4 warnings are blocked/deferred:** `ui/button` + `ui/badge` (`cva` variant
+  exports) live under the write-protected `src/components/ui/` shadcn-primitives dir; moving
+  `AuthContext`'s `useAuthContext` hook would churn its 12 importers — not justified by a
+  dev-only Fast Refresh warning.
+
+### payment-redirect · extract external gateway redirect into `redirectToPaymentGateway` (2026-07-22, /sweep) — DONE
+
+The one remaining runtime-facing lint warning (`react-hooks/immutability` on
+`CheckoutPage.tsx:286` `window.location.href = paymentUrl`) is closed. The identical
+external payment-gateway redirect was also duplicated in `useOrderPaymentUrl.ts:13` (the
+"Thanh toán ngay" re-pay action) — a DRY case (same logic in 2 places).
+
+- **Fix.** New helper `redirectToPaymentGateway(url)` in `src/lib/domain/paymentUrl.ts`
+  (`window.location.assign(url)`) — both call sites already resolve the URL through that
+  module, so it is the natural single home. `CheckoutPage` and `useOrderPaymentUrl` now call
+  the helper instead of assigning `window.location.href` inline. Behavior is identical
+  (both navigate the browser to the same gateway URL and push a history entry).
+- **Why this is the sanctioned `window.location`.** Core rule bans `window.location` in
+  favor of `useNavigate`/`<Link>`, whose sole exception is a cross-origin handoff the SPA
+  router cannot perform (the payment gateway). Isolating it behind a named lib helper keeps
+  components/hooks free of raw `window.location` and stops the React Compiler flagging the
+  global assignment inside a component.
+- **Test.** `paymentUrl.test.ts` (+1): stubs `window.location` (jsdom's `location.assign`
+  is non-configurable so the whole object is swapped via `defineProperty` and restored in a
+  `finally`) and asserts the helper calls `assign` once with the given URL.
+- **Not runtime-verified via MCP:** exercising it end-to-end requires initiating a real VNPay
+  handoff that navigates off-app to a third-party gateway; the change is a behavior-preserving
+  refactor of the redirect and the unit test covers the helper.
+- **Gates:** build ✓ / lint 0 errors (**8→7** warnings; all 7 left are advisory fast-refresh
+  export warnings) / test:run 537 ✓ (was 536, +1).
+
+### RR-prod-alias · react-router production build in prod bundle (2026-07-22, /sweep) — DONE
+
+React Router 7.15.1's package `exports` map points every condition (`module`/`import`/`default`)
+at `dist/development/*`, and the reachable-but-unlisted `dist/production/*` build is byte-for-byte
+the same API with `ENABLE_DEV_WARNINGS` compiled to `false`. As shipped, the production bundle
+carried the dev build → per-navigation debug logging (`warning()` calls like "Matched leaf route
+at location") and small per-navigation overhead. Confirmed pre-fix: dev chunks have
+`ENABLE_DEV_WARNINGS = true`, prod chunks `= false`; the debug string lived in `dist/assets/index-*.js`.
+
+- **Fix (option a — alias, no dep change).** `vite.config.ts` now redirects the two bare specifiers
+  that `react-router-dom` re-exports — `react-router` → `node_modules/react-router/dist/production/index.mjs`
+  and `react-router/dom` → `.../dist/production/dom-export.mjs` — but **only when `mode === 'production'`**,
+  via regex `find` aliases (`^react-router$` / `^react-router\/dom$`). The dev server and vitest keep
+  `mode` `development`/`test`, so they resolve React Router normally through its exports map and keep the
+  dev warnings. The `@` alias was moved to the array alias form alongside them. Option (b), upgrading to
+  react-router 8.x (major), was intentionally not taken — no dependency changes.
+- **No unit test** — a build-config alias has no branching logic to extract into a pure helper. The
+  verification is the build artifact itself.
+- **Verified via bundle grep after `npm run build`:** `dist/assets/*.js` now contains **0**
+  "Matched leaf route at location" and **0** `ENABLE_DEV_WARNINGS` (both present before), while React
+  Router invariant literals ("Absolute route path", "useRoutes") remain → the production RR build is
+  bundled, not tree-shaken away. `vite preview` boots and serves `index.html` + the main bundle (both 200).
+- Gates green: build ✓ / lint 0 errors (8 pre-existing warnings) / test:run 536 ✓ (the RTL suite renders
+  `RouterProvider`/`MemoryRouter` and navigates, exercising the RR runtime in `mode: test` — unaffected).
+- Full DevTools MCP console-noise click-through (login → navigate, confirm no RR debug logs) is optional
+  and left pending; it needs full-stack. The bundle-grep + preview-boot proof covers the fix's intent.
+
+### SCALE-05 · `request()` retries once on 503 + Retry-After (2026-07-22, /sweep) — DONE
+
+Backend hardening (handoff SCALE-05) sheds excess load early with `503` + a `Retry-After`
+header (default 2s) instead of letting saturated requests hang ~10s and time out. The request
+is shed *before* the handler runs, and payment callbacks/health probes are never shed, so a
+single retry is safe for any method (no double-processing).
+
+- **Pure policy helper.** Added `overloadRetryDelayMs(status, retryAfterHeader)` in
+  `src/api/retry.ts` → returns the ms to wait before one retry, or `null` for any non-503.
+  Caps the wait at `MAX_RETRY_DELAY_MS = 5000` (a garbage/huge header can't hang the UI) and
+  falls back to `DEFAULT_RETRY_AFTER_SECONDS = 2` when the header is missing/blank/non-numeric/
+  HTTP-date/negative.
+- **Wiring.** `request()` (`src/api/client.ts`) now sends via a `send()` closure, checks the
+  first response through the helper, and — on a 503 — waits then re-sends **once**. If the retry
+  also sheds, the `503` throws as a normal `ApiError` and generic 5xx handling takes over. JSON
+  string bodies re-fetch cleanly.
+- **Tests:** `retry.test.ts` (+6, helper decision matrix) and `index.test.ts` (+2 MSW round-trips:
+  503→retry→200 resolves; 503→503 throws `statusCode: 503`; both use `Retry-After: 0` so no wait).
+- Gates green: build ✓ / lint 0 errors (8 pre-existing warnings) / test:run 536 ✓.
+- Not runtime-verified — reproducing it needs the gateway actually overloaded; the MSW
+  integration test exercises the real fetch + retry path instead.
+
+### SCALE-01b · Sockets connect websocket-only (2026-07-22, /sweep) — DONE + runtime-verified
+
+Backend prep (handoff SCALE-01b) lets the gateway run as N clustered workers with no sticky
+sessions; the Socket.IO **polling** handshake round-robins across workers and breaks, while
+pure websocket works cross-worker (Redis adapter fans out broadcasts). Also closes the
+long-standing snapshot "polling-only" mystery — re-checked live 2026-07-19 the FE was still
+polling-only, and the root cause was simply that the client never forced the websocket transport.
+
+- **Shared options constant.** Added `SOCKET_CONNECT_OPTIONS = { withCredentials: true,
+  transports: ['websocket'] } as const` to `src/lib/realtime/socket.ts` and routed both
+  `io()` call sites through it: the ref-counted factory (presence + notification sockets) and
+  the per-thread chat socket in `useChat.ts`. Single source of truth so the two never drift.
+- **Test:** `socket.test.ts` (+1) asserts `SOCKET_CONNECT_OPTIONS` carries `withCredentials`
+  and the `['websocket']` transport (the invariant the backend requires to scale).
+- **Docs:** `realtime.md` gains a "Transport" note under Gateway Reference.
+- Gates green: build ✓ / lint 0 errors (8 pre-existing warnings) / test:run 529 ✓.
+- **Runtime-verified (Chrome DevTools MCP, techstore_demo, live gateway :3000, dev :5173):**
+  `/messages` thread opened with no disconnected/reconnecting banner; sent
+  "sweep SCALE-01b websocket-only verify" → optimistic message reconciled with a server
+  timestamp (server echoed `new_message` back over the socket), input cleared. **Zero
+  `socket.io/?EIO=4&transport=polling` requests in the entire network log** (previously these
+  flooded to `:3000`), confirming the polling handshake is gone and the websocket transport
+  connects against today's single-instance gateway.
+
+### refs-during-render group cleared + FMT-01 closed + flat-tsc clean (2026-07-19, /sweep 3)
+
+**Item 1 — lint refs-during-render (4 warnings, 12→8).**
+- **`useChat`** — `currentUserIdRef.current = currentUserId` moved from render into a
+  `useEffect([currentUserId])`; the socket effect's sync `setConnectionStatus('connecting')`
+  replaced by shared `useResetOnChange(conversationId, …)` (guarded so an emptied id tears
+  down without resetting), so a thread switch resets status during render with no cascading
+  re-render and no frame showing the previous thread's status.
+- **`CreateProductPage`** — `clearImagesRef.current = form.clearImages` moved into a
+  `useEffect([form.clearImages])`; unmount orphan-cleanup semantics unchanged.
+- **`MessagesPage`** — removed the unused `react-hooks/exhaustive-deps` eslint-disable on the
+  `userMap` memo.
+- Tests: new `useChat.test.tsx` (2, socket.io-client mocked via `vi.hoisted` FakeSocket):
+  connect → `connected`; switching conversations resets to `connecting`, joins the new room
+  and never re-joins the old one.
+- Runtime-verified (Chrome DevTools MCP, techstore_demo, live gateway): `/messages` thread
+  shows "Đang kết nối…" then clears on connect; send → "Đã gửi" + list preview updates;
+  console clean. Observed socket.io still polling-only (known open item, unrelated).
+
+**Item 2 — FMT-01 closed as moot.** The double-quote reformat of `api/orders.ts` /
+`types/order.ts` / `api/users.ts` is already in HEAD (landed with the F4 commit), so the
+recorded fix ("revert format-only diff before commit") has no window left; the current
+working-tree diff on those files is purely functional PUBID typing (`number`→`string`).
+Re-reverting quote style now would create exactly the format-only mega-diff FMT-01 warned
+about. No code change; lesson retained in snapshot.
+
+**Item 3 — latent flat-tsc errors fixed.** `npx tsc --noEmit` (non-incremental) exposed:
+`BasicInfoSection.onAddImages` still typed `Promise<void>` after AI-02 F3 made
+`useProductForm.addImages` return the uploaded batch → widened to `Promise<ImageItem[]>`
+(type-only; the section itself ignores the return). Also kept the new test lib-safe
+(`sockets[length-1]` helper instead of `.at()`, which the flat root config's older lib
+rejects). Flat `tsc --noEmit` now exits 0 — the "latent tsc errors" backlog item is closed.
+
+Gates: build ✓ · lint 0 errors / **8 warnings (12→8)** · test:run 78 files / 528 tests ✓ ·
+flat `npx tsc --noEmit` ✓.
+
+### set-state-in-effect group cleared — CartPage/ProductDetail/ChatDialog/BasicInfoSection (2026-07-18, /sweep)
+
+Cleared the remaining `react-hooks/set-state-in-effect` warning group (6 warnings incl.
+CartPage's companion `exhaustive-deps`) by removing the sync-`setState` effects in all four
+files. The removed effects also ran on mount, which `useResetOnChange` deliberately does not —
+so each component gained a lazy `useState` initializer to preserve mount-time behavior, with
+`useResetOnChange` handling subsequent changes in the same render pass:
+
+- **`CartPage`** — select-all now seeds from `items` in the initializer; reselect-all is keyed
+  on `cart?.id` (refetches of the same cart keep the user's manual selection).
+- **`ProductDetail`** — default variant tier selection extracted to pure helper
+  `defaultTierSelection(variations, skus)` in `lib/domain/sku.ts` (first in-stock option per
+  tier, malformed SKUs filtered via `getValidSkus`). The `products.withInventory` query moved
+  above the state declarations so the initializer sees cached data; three `useResetOnChange`
+  keys (`id`, `variations`, `skus`) share one idempotent `resetSelection`.
+- **`ChatDialog`** — stale conversation dropped during render on close (reopen can no longer
+  flash the previous thread); the create-on-open effect keeps `createConv` in deps and the
+  `eslint-disable` was removed (TanStack v5 `mutate` is stable).
+- **`BasicInfoSection`** — the verbatim-duplicated brand/category mirror effects extracted to
+  pure helper `mergeLocalOptions` (`product-form/localOptions.ts`): normalize ids to number,
+  keep session-proposed rows not yet in the prop list, dedupe once the server list contains
+  them. Lazy init now normalizes at mount (previously un-normalized until the effect ran).
+
+Tests: `sku.test.ts` +4 (`defaultTierSelection`), `localOptions.test.ts` 4,
+`CartPage.test.tsx` 2 (MSW: auto-select on load; manual deselect sticks),
+`ChatDialog.test.tsx` 2 (create-on-open renders thread; delayed second create after
+close/reopen shows "Đang kết nối…" with no stale thread).
+
+Gates: build ✓ · lint 0 errors / **12 warnings (18→12)** · test:run 77 files / 526 tests ✓.
+Runtime-verified (Chrome DevTools MCP, canceltest… + techstore_demo): cart loads with item
+auto-selected, deselect updates summary to 0 with no reset loop; product
+`prod_ffc8017d…` mounts with "Đen" SKU matched (add-to-cart enabled), clicking "Trắng"
+switches price 1.500→3.500 đ; `/sell` renders 14 categories and the brand combobox filters
+("So" → Microsoft/Sony + propose-new). Console clean. ChatDialog has no production mount
+point (the product-page Chat button navigates to `/messages`) — jsdom coverage only.
+No backend gap surfaced.
+
+### ApiErrorState countdown — set-state-in-effect warning cleared (2026-07-18, /sweep)
+
+The 429 rate-limit countdown reset (`setLeft(seconds)` in a `useEffect` keyed on `seconds`)
+was the priority runtime-facing lint warning: the effect fires after commit, so a new error
+painted one frame with the stale countdown before resetting. Replaced with the existing shared
+hook `useResetOnChange` (`src/hooks/ui/useResetOnChange.ts`, adjust-state-during-render pattern
+from the 2026-07-16 pagination sweep) — reset now lands in the same render pass. One-line swap
+in `ApiErrorState.tsx`; the per-second tick effect (real timer subscription) is untouched.
+
+Tests: `ApiErrorState.test.tsx` +3 (parse retry window from message + retry disabled; tick
+30s→29s under fake timers; new 429 error resets 28s→10s and relabels the retry button).
+Note: chained ticks need one `act(advanceTimersByTime(1000))` per tick — the next timeout is
+scheduled in an effect after the previous flush, so a single 2000ms advance only fires once.
+
+Gates: build ✓ · lint 0 errors / **18 warnings (19→18)** · test:run 74 files / 514 tests ✓.
+Runtime-verified (Chrome DevTools MCP, techstore_demo): 404 catch-all route renders the
+component correctly post-change, console clean. The 429 leg itself is unit-covered only
+(forcing a live 429 requires spamming a rate-limited endpoint).
+
+### STY pass 3 — tokenized PaymentResult success green (2026-07-18, /sweep)
+
+Added literal Tailwind token `tb-green` (`#10B981`) so success backgrounds can use opacity
+modifiers without the CSS-variable alias pitfall. `PaymentResultPage` now uses `bg-tb-green/15`
+and `text-accent-green` instead of raw Tailwind greens; `.ai/tokens.md` documents when to choose
+the semantic alias versus the literal token. Styling-only change, so no unit test was added.
+
+Gates: build ✓ · lint 0 errors / 19 pre-existing warnings · test:run 74 files / 511 tests ✓.
+Runtime-verified with Chrome DevTools on an isolated mocked success response: success badge 80×80,
+computed background `rgba(16, 185, 129, 0.15)`, icon 44×44 / `rgb(16, 185, 129)`, no overflow.
+
+## Feature integration
+
+### sku-optional — base-product SKU is now optional on the create form (2026-07-22, /sweep) — DONE + runtime-verified
+
+Integrated the backend "Product create without SKU fallback" handoff (2026-07-11): sellers can
+now create a base-price product without typing a SKU, and the backend provisions `PROD-<id>`.
+
+- **Finding.** The BE made `sku` optional (omit → inventory row gets `PROD-<productId>`), but the
+  FE still hard-required it in three places: `useProductForm.validate()` rejected a blank SKU,
+  `buildPayload()` substituted a `'DRAFT'` placeholder, and `CreateProductPage`'s `isReady` /
+  `missingItems` submit-gate listed SKU. So a seller was blocked before the request ever left.
+- **Fix (minimal diff).**
+  - `productSku.ts` (new pure helper) — `skuForPayload(raw)` trims and maps blank/whitespace to
+    `undefined` (omit the field) instead of `'DRAFT'`; `buildPayload()` uses it.
+  - `productReadiness.ts` (new pure helper) — `missingFields(fields)` / `isFormReady(fields)`
+    compute the submit-gate without SKU; `CreateProductPage` derives `isReady` and the "Còn thiếu"
+    list from it (replacing the inline duplicated logic).
+  - `validate()` dropped the "SKU không được để trống" rule.
+  - `CreateProductDto.sku` is now optional (`sku?: string`).
+  - `BasicInfoSection` label dropped the `*` and shows the hint "Bỏ trống để hệ thống tự tạo mã."
+- **Tests.** `productSku.test.ts` (+4), `productReadiness.test.ts` (+10, incl. explicit "never
+  lists SKU" + display-order assertions).
+- **Validation.** `npm run build` ✓, `npm run lint` 0 errors (3 pre-existing warnings), `npm run
+  test:run` 551/551 ✓ (+14). Runtime-verified via Chrome DevTools MCP (`techstore_demo`, live
+  gateway): the form went "Sẵn sàng để đăng" with SKU blank; `POST /api/products` body carried no
+  `sku` → **201**; `GET /products/:id/with-inventory` showed `product.sku:null` +
+  `inventory.sku:"PROD-60"`; fixture deleted with **204** (re-fetch 404).
+
+### UP-05 + UP-08 — chunked-upload signature fixes (2026-07-17, /sweep)
+
+Two bugs on the same Cloudinary upload path, both found/fixed in one pass:
+
+- **UP-08 (discovered during UP-05 runtime verify — the bigger one):** since the PUBID migration,
+  `user.id` is an opaque `usr_…` string, but FE forwarded it as `userId` to
+  `POST /api/upload/signature`, which validates `userId must be an integer number` → **every**
+  upload (post images/video, product images, avatars) failed with 400 before Cloudinary was even
+  reached. Probing showed the param-less call returns 201 and the backend derives the owner from
+  the JWT cookie, returning an owner-prefixed `public_id` (`23_xxx`) — which `uploadChunked`
+  already consumed. Fix: `api.upload.getSignature(folder)` drops `userId`/`publicId`;
+  `makePublicId` deleted. The four upload wrappers keep their `(_userId)` arg so call sites and
+  the UP-06 login gate stay untouched.
+- **UP-05:** the unsigned `upload_id` form field (old `cloudinary.ts:39-41`) broke Cloudinary's
+  SHA1 verification (every form param except `file`/`api_key`/`signature` is verified) → "Invalid
+  Signature" for every multi-chunk (>6MB) upload. Chunk association correctly rides the
+  `X-Unique-Upload-Id` header. Fix: per-chunk form building extracted to `buildChunkForm(chunk,
+  sig)` in `signedUploadFields.ts` — file + signed fields, nothing else.
+
+Tests: +3 in `signedUploadFields.test.ts` (exact key set incl. `allowed_formats`; `upload_id`
+never present; chunk under `file` with signed values verbatim). Gates: build ✓ · lint 0 errors
+(19 pre-existing warnings) · 74 files / 511 tests ✓. Runtime-verified (DevTools MCP, seller
+`/sell`, 8MB generated PNG): signature 201 without params → two Cloudinary chunk POSTs 200
+(`Content-Range` 0–6MB, 6MB–8MB) → `secure_url` returned, image shown as BÌA 1/6, AI-02 F3
+duplicate-check fired (200); removing the image issued `DELETE /api/upload/media` 200 (no orphan).
+Backend gap (signature endpoint rejects opaque `usr_` ids) recorded in `backend-handoff.md` —
+informational only; FE no longer needs the param.
+
+### AI-02 F1–F4 — durable risk state, resumable backfill, seller duplicate advisory, moderator feedback (2026-07-17, /sweep)
+
+Integrated the four AI-02 follow-up features from the backend handoff (2026-07-16). Scoring stays
+advisory — nothing blocks submit or auto-unlists.
+
+- **Types (`src/types/product.ts`):** `RiskScoringStatus` (`pending|ready|failed`); `RiskProduct`
+  extended with `riskScoringStatus`, `riskScoredAt`, `riskScoringAttempts`, `riskNextRetryAt`,
+  `riskLastError`; new `RiskBackfillParams/Result`, `RiskFeedbackDecision/Dto/Record`,
+  `DuplicateCheckResult` (match has `productId: string` — `prod_...` opaque). No pHash anywhere.
+- **API (`src/api/products.ts`):** `backfillRisk` (`POST /products/admin/risk/backfill`),
+  `sendRiskFeedback` (`POST /products/admin/risk/:id/feedback`), `checkRiskDuplicate`
+  (`POST /products/risk/duplicate-check`). All mutations — no new query keys needed.
+- **F1 scoring state (`features/admin/productRisk.ts` + `ProductRiskPage.tsx`):** `riskStatusMeta`
+  (pending → amber badge, failed → red, ready → null/no badge) rendered next to the score pill;
+  `riskRetryDetail` one-liner (`đã thử N lần · thử lại lúc <t> · lỗi: <msg>`, error part only when
+  failed) under the card header.
+- **F2 resumable backfill:** header button wired to a `useMutation` + pure reducer
+  (`BackfillState`/`INITIAL_BACKFILL_STATE`/`applyBackfillResult` — accumulates `enqueuedTotal`,
+  carries `nextCursor` session-locally) and `backfillButtonLabel` (idle "Chấm điểm sản phẩm cũ" →
+  "Đang xếp hàng..." → "Tiếp tục backfill (đã xếp N)" → disabled "Backfill hoàn tất — đã xếp N").
+  Success invalidates `queryKeys.products.adminRisk`.
+- **F4 moderator feedback:** rows with a `duplicate_image` flag (`hasDuplicateImageFlag`) show
+  "Xác nhận trùng" (red) / "Bỏ qua cảnh báo" → `sendRiskFeedback({decision})` + toast + invalidate.
+  `riskErrorMessage` gained `backfill`/`feedback` actions with Vietnamese generic fallbacks.
+- **F3 seller duplicate advisory:** `useProductForm.addImages` now returns the uploaded batch
+  (`Promise<ImageItem[]>`; mid-batch failure still resolves with the committed prefix — UP-01
+  preserved). `CreateProductPage` (create mode only) checks the first image of each uploaded batch
+  via `checkRiskDuplicate`; `duplicateCheck.ts` builds the warning view (hidden when dismissed, no
+  likely match, or the flagged image was removed from the form); `DuplicateWarningHint.tsx` renders
+  the amber non-blocking box with "Xem sản phẩm trùng" (`/product/:id`, new tab) and explicit
+  "Tiếp tục đăng" dismiss. API errors are silent (advisory, PriceSuggestionHint pattern).
+- **Tests (+17):** `productRisk.test.ts` extended (status meta, retry detail, dup-flag gate,
+  backfill reducer/labels, new error actions); new `duplicateCheck.test.ts` (warning view incl.
+  dismissal and stale-image cases).
+
+Gates: `npm run build` ✓ · `npm run lint` 0 errors (19 pre-existing warnings) · `npm run test:run`
+74 files / 508 tests ✓. Runtime-verified (Chrome DevTools MCP): admin (`testadmin`) — list response
+carries all five new fields; backfill click → 202, button "Backfill hoàn tất — đã xếp 28" disabled,
+"Đang chờ chấm điểm" badge appeared on the re-queued row. Seller (`techstore_demo`) — `/sell`
+renders with the new wiring, no console errors; duplicate-check foreign URL → 403
+("Cannot attach media uploaded by another user"), owned Cloudinary asset → 200
+`{duplicateLikely:false, match:null}`. Feedback POST not runtime-exercised (no duplicate-flag row
+in the test DB; live write denied by permission policy) — covered by unit tests + gating verified
+(buttons absent on non-dup rows). No backend gaps found. Handoff entry moved to Done.
+
+### PUBID-01–07 opaque public-ID rollout (2026-07-17)
+
+Integrated the backend's complete public-ID migration across the frontend. Converted domains now
+use opaque strings end-to-end: users `usr_`, products `prod_`, orders `ord_`, addresses `addr_`,
+notifications `ntf_`, return requests `rr_`, posts `post_`, comments/replies `cmt_`, conversations
+`conv_`, and messages `msg_`.
+
+- Updated domain types and API contracts, including converted foreign keys and nullable legacy
+  `OrderItem.productId` after pre-snapshot product deletion.
+- Removed numeric coercion from converted route params and preserved public IDs in query keys,
+  ownership comparisons, wishlist/cart/checkout state, order navigation, and notification links.
+- Migrated social and chat REST/WebSocket payloads, reply threading, caches, presence, and optimistic
+  message IDs to strings.
+- Generalized tolerant batch fetching for string product IDs and updated fixtures/regressions to
+  assert representative opaque IDs.
+- Updated canonical agent guidance so future work distinguishes public string IDs from still-numeric
+  catalog, SKU, cart-row, inventory-row, and GHN identifiers.
+
+Gates: `tsc --noEmit` ✓; `npm run build` ✓; `npm run lint` 0 errors (19 pre-existing warnings);
+`npm run test:run` 73 files / 491 tests ✓. Chrome DevTools runtime verification against the live API:
+login exposed `usr_5W9c1VIy1h8L6pEV`; profile and product deep links rendered; order history exposed
+`ord_...` links; order detail resolved a nested `prod_...` link. Browser console had no errors (two
+transient Socket.IO close warnings while navigating). PUBID handoff entries moved to Done.
+
+### Marketplace filter by seller province + `sellerProvince` on product cards (2026-07-17)
+
+User request: filter products by the shop's city/province. FE had no location data on products —
+recorded as a backend gap 2026-07-16; BE shipped same day (`sellerProvince: {id,name}|null` per row
+from the seller's default GHN address, plus a `provinceId` filter param on both list endpoints —
+singular repeated key, `provinceId[]` brackets are stripped by the gateway).
+
+- `src/types/product.ts` — `Product.sellerProvince?: { id; name } | null`; `ProductParams.provinceIds?: number[]`.
+- `src/api/products.ts` — `buildProductListQuery` appends `provinceId=<id>` per value (+2 tests
+  locking the singular-key/no-bracket contract).
+- `src/features/product/productParams.ts` — `provinceIds` in `ProductQueryState`/`buildProductParams`
+  (omitted when empty; tests updated).
+- `src/features/product/marketplaceUrl.ts` — `provinceIds` in `MarketplaceFilters`; URL param
+  `?province=201,299` (csv, validated, omitted when empty; +1 test, round-trip covers it).
+- `src/features/product/MarketplacePage.tsx` — "Tỉnh/Thành" `SelectFilter` section in the sidebar
+  (reuses the category/brand component; options from `useProvinces()` — GHN master data, 1h stale);
+  counts into the filter badge / clear-all / `hasActiveFilters`.
+- `src/features/product/ProductCard.tsx` — renders `sellerProvince.name` with a `MapPin` icon when present.
+
+Follow-up (same date): removed the quick add-to-cart button from `ProductCard` (Marketplace +
+ProfilePage lists) — products can have SKU variations, so a list-level add can put the wrong
+SKU/price in the cart. Adding now happens only on the detail page, which resolves the matched
+`skuId`. Tests updated to assert the button is gone (491/491 green). Note: `ProductChip` (social
+posts) still does a direct `addToCart` without SKU — same bug class, not yet requested/changed.
+
+Gates: `npm run build` ✓, eslint 0 on touched files, `npm run test:run` 490/490 ✓ (incl. new cases).
+Runtime-verified via Chrome DevTools MCP: sidebar renders full GHN province list; clicking "Hà Nội" →
+URL `?province=201`, request `...&provinceId=201`, 28→12 products all showing "Hà Nội"; multi-select →
+`province=201,202` with repeated `provinceId` keys; reload restores both selections. Handoff entry moved
+to Done in `../.agent-local/frontend-handoff.md` with the integration note.
+
+### URL-driven pagination + filters + fetch overlay across all 9 paginated pages (2026-07-16)
+
+User report: clicking pagination gave no loading feedback, and neither page number nor filters were
+reflected in the URL (no `?page=2`, no shareable/back-button-friendly filter state). Scope confirmed
+via AskUserQuestion: **all paginated pages**, loading style = dim old grid + centered spinner.
+
+**Shared primitives (new):**
+
+- `src/hooks/ui/usePageParam.ts` (+ test 6) — `[page, setPage]` backed by `useSearchParams`;
+  `parsePageParam` falls back to 1 on junk; `setPage(1)` *deletes* the param (clean URLs, no `?page=1`).
+  Supports custom param names (`usePageParam('postsPage')`).
+- `src/hooks/ui/useFilterParam.ts` (+ test 6) — `[value, setValue]` for a string-union filter with an
+  allow-list + fallback; setting the default value deletes the param, and **every set also deletes
+  `page`** so a filter change + page reset land in ONE history entry / one request.
+- `src/components/shared/FetchingOverlay.tsx` — wraps a list/grid; when `fetching` (pass
+  `isFetching && !isLoading`) it dims children (`opacity-40 pointer-events-none`) and centers a
+  `Loader2` spinner. Layout classes go on an inner div, not the overlay.
+- `src/features/product/marketplaceUrl.ts` (+ test 13) — full Marketplace URL codec:
+  `parseMarketplaceFilters` / `serializeMarketplaceFilters` (params `search/category/brand/minPrice/
+  maxPrice/sort/page`, defaults omitted, csv id lists validated, inverted price range → no filter) +
+  `settledFilterPatch(live, debounced, committed)` guard: commit a debounced field to the URL only when
+  `debounced === live` (user stopped typing) AND `debounced !== committed` (actually changed) — stale
+  debounced values can never clobber external URL changes (header search, back/forward).
+
+**MarketplacePage rewritten:** the URL is the single source of truth (`parseMarketplaceFilters(searchParams)`);
+live input state exists only for search text + price fields, down-synced from the URL during render
+(guarded inequality checks) and up-committed via a debounced effect with `{ replace: true }` (no history
+spam while typing). Clicks (sort/category/brand/page) push normally so back/forward steps through states.
+Any filter change resets `page` to 1 in the same URL update. The old `useResetOnChange(searchParam, …)`
+header-search sync block is gone — obsolete once the URL is the state.
+
+**Wired pages (9):** MarketplacePage (full filters), WishlistPage (`page`), NotificationsPage
+(`page` + `tab=all|unread`), ReturnRequestsPage (`page`), SellerReturnRequestsPage (`page` +
+`status`, default `pending_review`), SellerOrdersPage (`page` + `status`, default `all`),
+ProductRiskPage (`page` + `minScore=1|40|70|0`), ReportedPostsPage (`page` + `status`, +
+`keepPreviousData` added to its inline query), ProfilePage (`postsPage` + `productsPage`; the
+`useResetOnChange(userId, …)` page reset was **removed** — `<Link>` navigation to another profile
+drops the query string, so pagination resets naturally, and `setSearchParams` during render would be
+illegal navigation anyway; `keepPreviousData` added to the posts query). `keepPreviousData` also added
+to `useMyReturnRequests` / `useReturnRequestQueue` / `useSellerOrders` / notifications list query, with
+`isFetching` exposed where missing. All lists wrapped in `<FetchingOverlay fetching={isFetching && !isLoading}>`.
+
+Gates: `npm run build` ✓ · `lint` 0 err / 19 pre-existing warn · `test:run` **73 files / 487 tests** ✓.
+**Runtime-verified (Chrome DevTools MCP, techstore_demo):** marketplace click page 2 → URL
+`/marketplace?page=2`; sort click → `?sort=price_asc` (page dropped); brand click → `?brand=2&sort=price_asc`;
+reload restores state from URL (sort button active, grid filtered 12→4); browser Back → `?sort=price_asc`
+with full grid back; notifications tab → `?tab=unread`; seller orders tab → `/sell/orders?status=completed`.
+Zero console errors/warnings. Pure FE change (no backend gap).
+
+### Wishlist membership fetch — fix 400 on `getWishlist(limit=200)`, page under BE's 100 cap (2026-07-16, /sweep)
+
+`useWishlistIds()` (drives the "already favorited" heart state on every product card + detail) fetched
+the membership set with a single `getWishlist({ page: 1, limit: 200 })`. The backend rejects any
+`limit > 100` with `400 Bad Request` (`"limit must not be greater than 100"`), so this request **always
+400'd** → the membership `Set` was always empty → hearts never rendered filled, even for favorited
+products. (Surfaced during the /sweep runtime pass: `GET /api/products/wishlist?page=1&limit=200` red.)
+
+Fix keeps full coverage instead of silently capping (which would drop favorites past item 100 from the
+Set): new pure helper `collectWishlistIds(fetchPage)` in `wishlistCache.ts` pages through
+`/products/wishlist` at `WISHLIST_ID_PAGE_SIZE = 100` (= BE max), accumulating ids until the server
+reports `!hasNext`, bounded by `MAX_WISHLIST_ID_PAGES = 10` so a pathological wishlist can't fan out
+unboundedly. `useWishlistIds` now calls it via `collectWishlistIds((page, limit) => api.products.getWishlist({ page, limit }))`;
+the old `WISHLIST_ID_LIMIT = 200` constant is gone. Colocated tests +5 (caps page size ≤100, single-page
+stop, multi-page merge, string-bigint id coercion across pages, page-bound). Runtime-verified via Chrome
+DevTools MCP: request is now `wishlist?page=1&limit=100 → 200`. Pure FE fix (no backend gap). Gates:
+build ✓, lint 0 err / 19 warn, test:run green.
+
+### `useResetOnChange` — kill pagination `setState`-in-`useEffect` on ProfilePage + MarketplacePage (2026-07-16, /sweep)
+
+Both `ProfilePage` and `MarketplacePage` reset pagination to page 1 when a route/URL value changed
+by calling `setState` inside a `useEffect` — the React-Compiler-flagged anti-pattern
+(`react-hooks/set-state-in-effect`). The effect fires *after* the render commits, so React painted a
+frame and the paginated `useQuery` kicked off a fetch with the **stale** page before the reset landed,
+then re-rendered and refetched — an avoidable cascading render + wasted request. `MarketplacePage` also
+tripped "cannot access `setPage`/`page` before declaration" because the effect referenced state
+declared below it.
+
+- **Shared hook `src/hooks/ui/useResetOnChange.ts` (test 5):** the React-recommended "adjusting state
+  during render" escape hatch, extracted since the pattern lived in 2+ feature folders (DRY rule).
+  Tracks the previous key in state; when `!Object.is(key, prevKey)` it updates the stored key and runs
+  the caller's `reset()` synchronously during render, so React discards the in-progress render and
+  restarts with the reset already applied — no stale frame/refetch escapes, and it never fires on the
+  initial render. Colocated `useResetOnChange.test.ts`: no-run-on-mount, run-once-on-change,
+  no-run-when-key-stable, run-again-per-distinct-change, and `NaN→NaN` treated as unchanged.
+- **`ProfilePage`:** dropped the `useEffect(() => { setPostsPageNum(1); setProductsPageNum(1); }, [userId])`
+  for `useResetOnChange(userId, …)`; removed the now-unused `useEffect` import.
+- **`MarketplacePage`:** derived `searchParam = searchParams.get('search') ?? ''`, moved all `useState`
+  declarations above the reset, and replaced the URL-sync effect with
+  `useResetOnChange(searchParam, () => { setSearch(searchParam); setPage(1); })` — syncs the search box
+  to the URL and jumps to page 1 in one render. Removed the `useEffect` import.
+- **Gates:** `npm run build` ✓ · `npm run lint` 0 errors, **19 warnings (was 22** — the 3 targeted
+  warnings gone, no new ones from the hook) · `npm run test:run` 70 files / 457 tests ✓.
+- **Runtime-verified (Chrome DevTools MCP, techstore_demo):** on `/marketplace` (28 products, 3 pages)
+  clicked page 2 → `GET /products/with-inventory/all?page=2…`; header search "sony" → in-place nav to
+  `/marketplace?search=sony` refetched **`page=1&…&search=sony`** (not a stale `page=2`), the 2 results
+  rendered (no empty state), and the sidebar/header search inputs synced to "sony". The only console
+  error was the pre-existing unrelated `GET /products/wishlist` 400 (F6 caveat).
+
+### Invoice PDF — seller + admin download access (2026-07-15, /sweep)
+
+Backend shipped a production-ready invoice PDF (real Vietnamese font + full money breakdown) and
+**widened access** on `GET /api/order/:id/invoice` from buyer-only to **buyer OR seller OR admin**
+(handoff "PDF invoice is now production-ready", 2026-07-15). FE previously exposed the download only
+on the buyer's `OrderDetailPage`.
+
+- **Shared `features/order/InvoiceDownloadButton.tsx`:** one component for all three surfaces (buyer,
+  seller, admin), replacing the inline buyer-only button. Owns its own `useOrderInvoice` mutation so
+  each button tracks independent pending/error state. Two variants: full (label + `Đang tải…` pending
+  text + inline Vietnamese error line) and `iconOnly` (compact `<IconButton>` with `FileDown`, error
+  surfaced via red border + `title`). No new mitigation needed — the download was already blob-based
+  (`api.orders.getInvoice` → `res.blob()`), so nothing to drop; this change only widens where the
+  button appears + hardens error UX.
+- **Pure helper `features/order/orderInvoice.ts` (test 6):** `invoiceFileName(orderId)` →
+  `invoice-<id>.pdf`, and `invoiceErrorMessage(unknown)` narrows `statusCode` and maps
+  400/401/403/404 → Vietnamese messages (+ generic fallback). `useOrderInvoice` now uses
+  `invoiceFileName` for the download attribute and no longer swallows the error in `onError`, so
+  consumers can render it.
+- **Wiring:** buyer `OrderDetailPage` (full, in the actions row) · seller `SellerOrdersPage` (full,
+  right-aligned in the expanded order card) · admin `AdminPage` orders table (new "Hóa đơn" column,
+  `iconOnly` per row; `colSpan` bumped 5→6).
+- build / lint (0 err, 22 pre-existing warn) / test:run green.
+- **Runtime-verified (Chrome DevTools MCP):** buyer full-button → `GET /api/order/118/invoice` 200;
+  admin (non-buyer) download of order #119 → `200 application/pdf`, 20843 bytes, `%PDF-` header;
+  non-party user → 403. (Note: the MCP `click` tool intermittently failed to land on the compact
+  admin icon-button; a direct DOM click confirmed the same button fires the request — an MCP
+  interaction artifact, not a code defect.)
+
+### UX — Checkout auto shipping-fee + OrderDetail price breakdown (2026-07-14)
+
+Two buyer-reported gaps: checkout only showed the shipping fee after clicking a "Tính phí"
+button, and the order-detail summary showed only the product line + final total (no
+subtotal / shipping / discount), reading as "incomplete".
+
+- **Checkout auto-calc (`CheckoutPage.tsx`):** replaced the manual `handleCalcShipping`
+  button with an effect keyed `[selectedAddressId, basketSignature, productsReady]` that
+  recomputes the GHN fee preview whenever the chosen address, basket, or product-load state
+  changes — guarded so it only fires with a selected address + ready products + non-empty
+  basket. `AddressBookPicker` auto-selects the default address on mount, so the fee shows on
+  checkout load with no user action. The old button is gone; the fee cell now shows a passive
+  hint ("Đang tính…" / "Chọn địa chỉ giao hàng"), and GHN failures still degrade to "Tính khi
+  giao hàng" (never block checkout). Dropped the now-unused `clearErrors` from `useForm`.
+- **OrderDetail breakdown (`OrderDetailPage.tsx`):** the summary footer now renders Tạm tính /
+  Phí vận chuyển (Miễn phí when 0) / Giảm giá (+ `voucherCode` when present) / Tổng cộng.
+- **Pure helper (`orderSummary.ts` → `orderPriceBreakdown`):** initially derived `shippingFee =
+  max(0, total − subtotal + discount)` (clamped, `Number()`-coerced) because the order API
+  returned only the net `total`; backend gap was recorded in `../.agent-local/backend-handoff.md`.
+- **Backend follow-up integrated (2026-07-14):** BE shipped explicit `subtotal: number` and a
+  non-null `shippingFee: number` on every order read path + single-seller `POST /api/order`
+  (gateway-only, additive, `total = subtotal − discountAmount + shippingFee`). FE now reads them
+  directly: `Order` type gained optional `subtotal`/`shippingFee`, and `orderPriceBreakdown`
+  prefers the BE values, keeping the `total − subtotal + discount` derivation only as a
+  fallback for legacy/multi-seller responses that predate the fields. Tests +3 (BE values used,
+  BE `shippingFee` wins over derivation, decimal-string coercion) = 14 total.
+- build / lint (0 err, 22 pre-existing warn) / test:run (68 files, 446) green.
+- **Runtime-verified (Chrome DevTools MCP, user 17):** order #115 → Tạm tính 5.800đ / Phí vận
+  chuyển Miễn phí (total==subtotal → clamp 0) / Tổng cộng 5.800đ; `/checkout` with Sony
+  WF-1000XM5 (299đ) and the default address auto-selected → Phí vận chuyển 46.207đ + Tổng thanh
+  toán 46.506đ shown automatically, no click.
+- **Sweep close-out (2026-07-18):** moved the stale backend handoff entry from Open to Done
+  after reconfirming the shipped integration. Gates remain green: build ✓, lint 0 errors
+  (19 tracked warnings), test:run 511/511 ✓. No new code or backend gap.
+
+### UP-06 — Block unauthenticated uploads instead of stamping owner `0` (2026-07-14, /sweep)
+
+`CreatePostModal` called `uploadImage/uploadVideo(file, currentUser?.id ?? 0, …)`, so an
+upload attempted without a logged-in user would stamp the Cloudinary `public_id` with a
+`0_…` owner prefix — the wrong owner, which the backend rejects and which a real user can
+never clean up. Replaced the `?? 0` fallback with an explicit login guard.
+
+- **Pure helper (`src/lib/http/uploadOwner.ts`, 4 tests):** `resolveUploadOwner(currentUser)`
+  returns `{ ownerId }` when a user is present and `{ error: UPLOAD_LOGIN_REQUIRED }` (VN
+  message) otherwise. Guards on `id == null` (not truthiness) so a legitimate id `0` is
+  still accepted while `null`/`undefined` are rejected.
+- **`CreatePostModal.tsx`:** both `uploadImageFiles` (image batch) and `handleVideoSelect`
+  guard at the top — on `error` they set the upload error state, reset the file input, and
+  return before any network call; on success they pass the resolved `owner.ownerId` to
+  `uploadImage`/`uploadVideo`.
+- Runtime E2E still owed — the modal is only reachable while authenticated, so the unauth
+  path can't be forced through the normal UI.
+
+### STY debt pass 2 — order pages + checkout retoken to `tb-*`/semantic aliases (2026-07-14, /sweep)
+
+Second styling pass (pass 1 hex→token closed 2026-07-11): removed raw Tailwind palette
+classes from the order and checkout surfaces, all className-only (no logic change).
+
+- **Order (`OrderDetailPage`):** active-step / progress gradients
+  `bg-gradient-to-br from-amber-400 to-orange-500` → `bg-tb-gradient`, `bg-gradient-to-r …`
+  → `bg-tb-gradient-90`; canceled banner + return button `border-red-500/30 bg-red-500/5
+  text-red-300 hover:bg-red-500/10` → `border-tb-red/30 bg-tb-red/5 text-accent-red
+  hover:bg-tb-red/10`; `text-white` → `text-ink-pri`.
+- **Order lists (`OrderHistoryPage`, `SellerOrdersPage`, `ReturnRequestsPage`,
+  `SellerReturnRequestsPage`):** error banners `bg-red-950/30` → `bg-tb-red/10`; reject
+  buttons retoken to `tb-red`/`accent-red`; search-input `focus:border-amber-400/50` →
+  `focus:border-tb-amber/50`, order-card `hover:border-amber-400/30` →
+  `hover:border-tb-amber/30`; `text-white` → `text-ink-pri`. `ShippingAddressBlock`
+  `text-white` → `text-ink-pri`.
+- **`CheckoutPage`:** footer `text-gray-500` → `text-ink-muted`, `text-gray-400` →
+  `text-ink-sec`; order/stock error banners `bg-red-950/30|20` → `bg-tb-red/10`; voucher
+  input `focus:border-amber-400/50` → `focus:border-tb-amber/50`; headings `text-white` →
+  `text-ink-pri`.
+- Used literal-hex `tb-*` tokens wherever alpha is needed (`tb-red/10`, `tb-amber/50`)
+  because opacity modifiers no-op on var()-based aliases (see `tokens.md`).
+- Runtime-verified (Chrome DevTools MCP, techstore_demo): `/orders` list + `/checkout`
+  (COD, 1 item) render cleanly with correct contrast and no layout shift.
+- **Deferred to pass 3:** `PaymentResultPage` `bg-green-500/15` — there is no `tb-green`
+  token (`accent-green` is alias-only, no alpha), so a clean retoken needs a new config
+  token first (a design decision, not opened here).
+
+### AI-01 — Catalog price suggestion for the seller product form (2026-07-14, /sweep)
+
+Backend shipped an advisory catalog price-statistics endpoint for authenticated sellers
+(`GET /api/products/price-suggestion?categoryId=&brandId?=&condition=`). It returns the
+median plus P25/P75/min/max (integer VND) for comparable listings and never validates or
+changes the submitted product price. The FE surfaces it as an optional, editable hint in
+the create/edit product form — sellers keep full control of the price.
+
+- **Types (`src/types/product.ts`):** `PriceSuggestion`
+  (`sufficientData: boolean`, `sampleSize: number`, and `median/p25/p75/min/max: number | null`)
+  and `PriceSuggestionParams` (`categoryId: number`, optional `brandId?: number`,
+  `condition?: ProductCondition`).
+- **API (`src/api/products.ts`):** `getPriceSuggestion(params)` → `PriceSuggestion`
+  (`GET /products/price-suggestion`, query built with the existing `toQuery`).
+- **Query keys:** `products.priceSuggestion(params)` — keyed on the full params object so
+  category/brand/condition changes cache independently.
+- **Pure helper (`src/features/product/product-form/priceSuggestion.ts`, 8 tests):**
+  `buildPriceSuggestionParams(categoryIds, brandId, condition)` returns `null` when no
+  category is selected (query stays disabled), otherwise anchors on the first selected
+  category and includes `brandId` only when present. `priceSuggestionView(data)` returns
+  `null` while loading, when `sufficientData` is false, or on a degenerate response missing
+  `median/p25/p75`; otherwise it formats the P25–P75 range + median as VND (`formatVnd`) and
+  carries the raw median for one-tap apply.
+- **Hook (`src/features/product/product-form/usePriceSuggestion.ts`):** memoizes params on
+  primitives (first category id / brand id / condition) so the debounce timer only re-arms on
+  a real change, debounces 400ms via `useDebouncedValue`, runs `useQuery` only when a category
+  exists (`enabled`), with a 5-minute `staleTime`. Returns the view model or `null` — failures
+  stay silent since the hint is advisory.
+- **Widget (`src/features/product/product-form/PriceSuggestionHint.tsx`):** renders nothing
+  until there is a suggestion; otherwise an `accent-amber` advisory box (`TrendingUp` icon,
+  "Giá phổ biến cùng danh mục: {range} (dựa trên {n} sản phẩm)") with a "Dùng {median}" apply
+  button.
+- **Wiring (`CreateProductPage.tsx`):** the hint sits at the top of Section 03 above the price
+  field; apply sets `singlePrice` (single-price product) or fills every variation row's price
+  when `hasVariations`.
+
+Gates: `npm run build` ✓ · `npm run lint` ✓ (0 errors, 22 pre-existing warnings) ·
+`npm run test:run` ✓ (67 files, 435 tests). **Runtime E2E verified (Chrome DevTools MCP,
+techstore_demo):** selecting "Audio" (category 17) fired
+`GET /api/products/price-suggestion?categoryId=17&condition=new` → 200
+`{sufficientData:true, sampleSize:7, median:299, p25:129, p75:1500, min:39, max:3500}`; the
+hint rendered "129 đ – 1.500 đ (dựa trên 7 sản phẩm)" with a "Dùng 299 đ" button, and clicking
+it populated the price field with 299. No backend gap — the contract matched exactly.
+
+### AI-02 — Admin product risk / duplicate-detection queue (2026-07-13, /sweep)
+
+Backend shipped advisory post-commit risk scoring for products (cross-seller
+perceptual-image similarity, unusually low category pricing, near-duplicate names) behind
+two admin-only routes. Scores never block seller flows or auto-unlist products — the FE
+queue is a triage aid only.
+
+- **Types (`src/types/product.ts`):** `ProductRiskFlag` discriminated union
+  (`duplicate_image` / `price_anomaly` / `similar_name`), `RiskProduct extends Product`
+  (`riskScore: number`, `riskFlags: ProductRiskFlag[]` — clean/unscored rows are
+  backend-normalized to `0`/`[]`, see runtime-verify note), `ProductRescoreResult`,
+  `ProductRiskParams`.
+- **API (`src/api/products.ts`):** `getAdminRisk({minScore,page,limit})` →
+  `PaginatedResponse<RiskProduct>` (`GET /products/admin/risk`; `toQuery` keeps
+  `minScore: 0`, which includes clean/unscored products) and `rescoreRisk(id)`
+  (`POST /products/admin/risk/:id/rescore`).
+- **Query keys:** `products.adminRisk` (list-level prefix) +
+  `products.adminRiskList(minScore, page)` — rescore invalidates the prefix so every
+  filter/page combination refetches.
+- **Pure helper (`src/features/admin/productRisk.ts`, 8 tests):** `riskScoreMeta`
+  (tiers ≥70 red / ≥40 amber / ≥1 neutral / 0 green), `riskFlagDescription` (Vietnamese
+  human-readable reason per flag, prices via `formatVnd`, ratios/similarity as percent),
+  `riskFlagMatchedProductId` (link target for image/name matches), `riskErrorMessage`
+  (404 → product gone, 403 → permission, server message passthrough, per-action generic).
+- **Page (`src/features/admin/ProductRiskPage.tsx`):** reuses the F5 moderation layout —
+  minScore filter pills (Có cờ 1 / Từ trung bình 40 / Rủi ro cao 70 / Tất cả 0), card per
+  product (ProductThumb, name → `/product/:id`, seller id/name, `formatPrice`, score badge,
+  inactive marker), flag list with matched-product links, actions "Xem sản phẩm" +
+  "Chấm điểm lại" (spinner while `isPending`, success toast with the new score).
+  `placeholderData: keepPreviousData` per the paginated-query convention.
+- **Wiring:** route `/admin/product-risk` (admin-guarded, lazy) in `router.tsx`; LeftRail
+  admin link "Rủi ro sản phẩm" (`ShieldAlert`); route-table row in `.ai/context/structure.md`.
+- **Gates:** `build` ✓ · `lint` 0 errors (22 pre-existing warnings) · `test:run`
+  66 files / 428 tests ✓.
+- **Runtime E2E verified (2026-07-13, Chrome DevTools MCP, `testadmin`):** started nodeA+nodeB,
+  logged in, walked `/admin/product-risk` — `GET .../risk?minScore=1&page=1&limit=20` → 200
+  (empty state, dev DB has no flagged products), filter "Tất cả sản phẩm" →
+  `minScore=0` refetch 200 renders 20 cards + pagination (2 pages), rescore on SP #38 →
+  `POST .../risk/38/rescore` 200 → prefix invalidation refetch 200. LeftRail link + active
+  state, score badges, product links all render correctly (screenshot taken).
+- **Real bug found during verification:** unscored products (visible at `minScore=0`) came
+  back with `riskScore: null` / `riskFlags: null` — the handoff contract says `number`/`[]` —
+  crashing the card on `riskFlags.length`. FE shipped a temporary `normalizeRiskFields`
+  mitigation + nullable types and filed the gap in `../.agent-local/backend-handoff.md`.
+  **BE fixed it the same day** (response-boundary normalization to `0`/`[]`, no migration
+  needed), so the mitigation was dropped again: non-null types restored, helper + its 2
+  tests removed, `RiskProductCard` reads the fields directly. Verified live post-fix: curl
+  probe shows `{riskScore:0,riskFlags:[]}` for clean rows and `/admin/product-risk` at
+  minScore=0 renders 20 cards. Gap CLOSED (both handoff files updated).
+- Handoff entry moved to **Done** in `../.agent-local/frontend-handoff.md`. (A pre-submit
+  seller duplicate warning is explicitly later scope backend-side.)
+
+### F7 — `order_created` notification display + deep-link (2026-07-13, /sweep)
+
+Backend added the `order_created` notification type for buyers immediately after order
+placement. The notification row shape and socket event are unchanged; only the additive
+type value is new. Order-lifecycle email delivery is server-side and required no FE work.
+
+- **`src/features/notifications/notificationDisplay.ts`:** added a dedicated
+  `order_created` display config using the existing `ShoppingBag` treatment, Vietnamese
+  title/body, and included the type in the order notification set so numeric or bigint-
+  string `orderId` values navigate to `/order/:id`.
+- **`notificationDisplay.test.ts`:** covers title/body generation, non-default icon
+  mapping, and the order-detail deep-link for the new type.
+- **Gates:** `build` ✓ · `lint` 0 errors (22 pre-existing warnings) · `test:run`
+  65 files / 419 tests ✓.
+- **Runtime-verified (Chrome DevTools MCP, live gateway, buyer user 17):** notification
+  id 89 rendered “Đặt hàng thành công” / “Đơn hàng #118 đã được đặt thành công.”; clicking
+  it opened the live order detail at `/order/118`.
+- Handoff entry moved to **Done** in `../.agent-local/frontend-handoff.md`. No backend
+  gap surfaced; the contract matched the handoff.
 
 ## Cleanup / hardening
 
@@ -363,767 +1380,9 @@ Gates: `build` ✓ · `lint` 0 errors (23 warn) · `test:run` 56 files / **369**
 
 ---
 
-# Archive — early-July sweeps (2026-07-05 → 2026-07-09)
-
-## Cleanup / hardening (archived)
-
-### Best-effort Cloudinary delete — no unhandled rejection on 502/503/400/403 (2026-07-09, /sweep)
-
-Integrates the delete-error-code half of the backend handoff "Image/video URL fields must be our
-Cloudinary URLs + upload rate limits + delete error codes" (Open, 2026-07-07): backend now returns
-`502` (Cloudinary auth/quota/5xx), `503` (network), or `400/403` (foreign/persisted id) from
-`DELETE /upload/media`, distinct from a real `200 { result: "not found" }`.
-
-- **Bug found:** every `deleteMedia` caller is fire-and-forget `void deleteMedia(id)` (orphan cleanup in
-  `RichTextEditor`, `EditProfileModal`, `useProductForm`, `CreatePostModal`), but `request()` **throws**
-  an `ApiError` on any non-2xx. So each failed cleanup (`502/503/400/403`) became an **unhandled promise
-  rejection** — no `.catch()` was attached anywhere.
-- **Fix:** `deleteMedia` (`lib/http/cloudinary.ts`) now catches internally and returns a typed
-  `DeleteMediaOutcome` instead of rejecting — cleanup is best-effort, a failed delete just leaves an
-  orphan. Return type widened `Promise<void>` → `Promise<DeleteMediaOutcome>`; all callers keep working
-  (`void` ignores the value).
-- **Pure helper** `lib/http/deleteMediaOutcome.ts` (test +8): `outcomeFromResult` maps the `200` body
-  (`"not found"` → `not-found`, else `deleted`); `outcomeFromError` maps a thrown error by `statusCode`
-  (`502/503` → `failed{transient:true}`; `400/403`/unknown → `failed{transient:false}`).
-- Gates: `build` ✓ · `lint` 0 errors (23 warn) · `test:run` 55 files / **361** tests ✓.
-- **Remaining (same handoff entry, low value):** `429` backoff on rapid signature requests — batch uploads
-  cap at ≤10 files, well under the 60 req/60s signature limit, so not built. Runtime E2E of the delete-error
-  path needs a live backend + forced Cloudinary 5xx (unreachable via normal UI — same constraint as UP-01…04).
-
-### GHN structured address + per-user address book — FE DONE + runtime-verified (2026-07-09, /sweep)
-
-Integrates the backend structured-address contract (handoff Open, 2026-07-01), replacing the 6 free-text
-checkout address fields with GHN-code cascading dropdowns + a saved address book. Backend side was
-runtime self-tested 10/10; FE build/lint/test all green (353). Layers added:
-
-- **Types** (`types/address.ts`): `Province {id:number,name}`, `District`, `Ward {id:string (WardCode),name}`,
-  `Address` (full row incl. GHN codes + names + `isDefault`), `CreateAddressDto`, `UpdateAddressDto`.
-- **API**: `api/shipping.ts` (`getProvinces`/`getDistricts`/`getWards` — master-data proxy, no GHN token on
-  client) wired into `api` as `api.shipping`; `api/users.ts` +5 address-book methods (`getAddresses`,
-  `createAddress`, `updateAddress`, `setDefaultAddress`, `deleteAddress`) on `/user/me/addresses`.
-- **Query keys**: `users.addresses` + a `shipping` tree (`provinces`, `districts(id)`, `wards(id)`).
-- **Pure helpers** (`features/address/addressUtils.ts`, test +8): `pickDefaultAddress` (isDefault → first →
-  null), `buildGhnShippingAddress` (compose the 6-part pipe string from the saved names, strip literal `|`),
-  `formatAddressSummary`.
-- **Hooks**: `useShippingLocations.ts` (`useProvinces`/`useDistricts`/`useWards`, cascading `enabled` gates,
-  1h master-data staleTime); `useAddresses.ts` (list query + create/update/setDefault/delete mutations, all
-  invalidate `users.addresses` since default flips ripple across siblings).
-- **UI** (`features/address/`): `AddressSelect` (tb-styled native `<select>` — the app has no dropdown
-  primitive and `ui/select.tsx` is edit-denied); `AddressFormModal` (Dialog: RHF+zod text fields + 3 cascading
-  selects that reset children on parent change + isDefault, create/edit modes); `AddressBookPicker` (checkout
-  radio cards, auto-selects the default once loaded, "＋ add" opens the modal and selects the new address);
-  `AddressesPage` (`/addresses` manage page: list, default badge, set-default, edit, delete-with-confirm).
-- **Wiring**: `/addresses` route (lazy) in `router.tsx`; a "Sổ địa chỉ" LeftRail link for logged-in users
-  (kept out of the shared 5-item primary nav so the mobile bottom bar doesn't overflow).
-- **CheckoutPage rework**: address form section → `<AddressBookPicker>`; `checkout.schema.ts` trimmed to just
-  `paymentMethod`; shipping-fee preview now resets on selected-address change and composes the string via
-  `buildGhnShippingAddress`; order-create `shippingAddress` uses the same (still the pipe NAME string — BE
-  recomputes fee server-side). Voucher/stock/idempotency/pendingCheckout/payment logic untouched.
-  `order/shippingAddress.ts` parser still works (pipe format preserved).
-
-✅ Runtime-verified (2026-07-09, /sweep, Chrome DevTools MCP): logged in as user 17 → `/addresses` renders
-(LeftRail "Sổ địa chỉ" link + existing default address); "Thêm địa chỉ" modal opens; GHN cascade loads live
-(provinces → districts → wards) and resets children on parent change; created "Trần Thị B / 45 Lê Duẩn,
-Phường Bến Nghé, Quận 1, Hồ Chí Minh" → new row appears immediately (create mutation + `users.addresses`
-invalidation) → header "2 địa chỉ"; delete-with-confirm removes it → back to "1 địa chỉ". Test data cleaned up.
-
-**Follow-up (2026-07-09): icon-button misalignment fix + doc rule.** AddressesPage edit/delete were raw
-`<button className="size-8 ... grid place-items-center">` with no `p-0`, so UA button padding stretched the box
-to ~44px and pushed the icon off-center → swapped to `<IconButton>` (now measured 32×32, padding 0). Root cause
-was a misleading example in `styling.md` (its "good" icon-button sample omitted `p-0`/`IconButton`) — fixed that
-example and added an always-loaded icon hard-rule to `core.md` so logic/feature tasks (which don't load
-`styling.md`) still see it. This is the recurring "new icon button bị lệch" class of bug.
-
-### F6 · Wishlist / favorites UI — FE DONE (2026-07-09, /sweep)
-
-Integrates the backend wishlist endpoints (handoff Open, 2026-07-07): `GET /products/wishlist?page=&limit=`
-(paginated envelope of `Product & {wishlistedAt}`), `POST /products/wishlist/:productId` (201, idempotent),
-`DELETE /products/wishlist/:productId` (204, idempotent). Both mutations idempotent server-side → optimistic
-UI is safe. Layers added:
-
-- **Types** (`types/product.ts`): `WishlistItem extends Product { wishlistedAt }`, `WishlistToggleResult`.
-- **API** (`api/products.ts`): `getWishlist` (tolerant of bare-array vs. envelope, same pattern as `getList`),
-  `addWishlist`, `removeWishlist`.
-- **Query keys** (`hooks/query/queryKeys.ts`): `products.wishlist` (list-level prefix), `wishlistList(page,limit)`,
-  `wishlistIds`. The prefix invalidates both the page view and the membership id-set in one call.
-- **Pure helpers** (`features/wishlist/wishlistCache.ts`): `wishlistIdSet` (build `Set<number>`, coerce
-  bigint-string ids) + `toggleWishlistId` (immutable add/remove). Test `wishlistCache.test.ts` (+7).
-- **Hooks** (`hooks/data/useWishlist.ts`): `useWishlistPage` (paginated page query), `useWishlistIds` (membership
-  `Set<number>`, fetched once at `limit=200` — drives every heart's filled/empty state), `useToggleWishlist`
-  (optimistic flip of the id-set cache with rollback onError, invalidate whole wishlist tree onSettled — mirrors
-  the `useCart` optimistic pattern).
-- **Shared button** (`components/shared/WishlistButton.tsx`): `IconButton` + Heart, reads `useWishlistIds` for
-  state, fires `useToggleWishlist`. `preventDefault()`+`stopPropagation()` so it's safe nested inside a `<Link>`.
-  `aria-pressed` + Vietnamese `aria-label`, Heart gets `fill-current` when wishlisted.
-- **Page** (`features/wishlist/WishlistPage.tsx`, route `/wishlist` in `router.tsx`, lazy): paginated grid of a
-  dedicated wishlist card (image/name/price + remove heart — no stock/add-to-cart because `WishlistItem` has no
-  `inventory`, unlike `ProductWithInventory`), skeleton/empty (`HeartOff` + link to marketplace)/error states,
-  `<Pagination>`.
-- **Wiring**: `Header.tsx` gets a Heart `/wishlist` nav link (before Cart); `ProductCard.tsx` gets a heart overlay
-  top-right of the image (placed AFTER the out-of-stock overlay so it stays clickable, `z-10`); `ProductDetail.tsx`
-  replaces its dead placeholder Heart button with `<WishlistButton>` (removed now-unused `Heart` import).
-
-Membership caveat documented in `useWishlist.ts`: the id-set fetches one 200-item page; a wishlist larger than that
-would leave hearts on overflow items un-filled until the page view loads them. Acceptable for current scale.
-Gates: `build` ✓ · `lint` 0 errors (23 warnings, all pre-existing) · `test:run` 53 files / 345 tests ✓.
-**Runtime E2E còn nợ** — Chrome DevTools MCP không connect trong session này; backend + FE dev server đều live
-(`GET /api/products/wishlist` → 401 auth-gated đúng như contract), cần login 1 tài khoản walk add/remove flow.
-
-### Low-stock seller dashboard list — FE DONE + runtime-verified (2026-07-09, /sweep)
-
-Integrates the backend low-stock entry (handoff Open, 2026-07-06); the endpoint
-(`GET /inventory/low-stock`, role-scoped shop/admin, seller-auto-scoped, `availableStock`-ASC,
-max 100) was already live with `inventoryApi.getLowStock` + `queryKeys.inventory.lowStock`
-wired but nothing consumed it. Added a low-stock panel to `ShopPage.tsx`: a `useQuery` on
-`queryKeys.inventory.lowStock` feeds a red-bordered card ("Sản phẩm sắp hết hàng") that renders
-only when rows exist, each row linking to `/product/:id`, showing name, SKU, "Còn {availableStock}"
-/ "Tối thiểu {minimumStock}", and an edit `IconButton`. Because `InventoryRecord` carries only
-`sku` + `productId` (no product name) and its `id`/`productId` arrive as stringified bigints,
-extracted the pure helper `buildLowStockRows(records, products)` (`src/features/shop/lowStock.ts`):
-it `Number()`-coerces the ids, joins each record to the shop's product list by id for a display
-name, **falls back to the SKU when the product isn't on the current page**, and defaults
-`minimumStock` to 0. Tests: `lowStock.test.ts` (+5: name enrich, SKU fallback, bigint-string
-coercion, minimumStock default, ASC-order preservation). Also stabilized `ShopPage`'s `products`
-fallback with `useMemo(() => data?.data ?? [], [data])` — this both fed the new `lowStockRows`
-memo a stable input and closed the pre-existing `react-hooks/exhaustive-deps` warning tracked in
-snapshot ("ShopPage: stabilize `products` fallback"), dropping lint 24 → 23 warnings.
-Runtime-verified via Chrome DevTools MCP: as `techstore_demo` (0 low-stock) the panel correctly
-stays hidden and `GET /api/inventory/low-stock` returns `200 {data:[]}`; as `test1` (1 low-stock)
-the panel renders row `SSSS_3663` "Còn 0 / Tối thiểu 0" with the SKU-fallback name (product off
-current page) — confirming both states and the fallback path live, console clean. Gates: `build`
-✓ · `lint` 0 errors (23 warnings) · `test:run` 52 files / 338 tests ✓.
-
-### STY-addendum · Social icon props to convention — DONE + runtime-verified (2026-07-09, /sweep)
-
-Closes the 🟢 STY-addendum sweep-audit finding (2026-07-07). Several social components used
-string `size="18"` on Lucide icons (project rule requires numeric `size={n}`), were missing the
-mandatory `shrink-0`, hardcoded `color="#fff"`, or used an inline `style` transform. Fixed across:
-`PostCard.tsx` (Globe/Heart×2/MessageCircle/Share2 → numeric size + `shrink-0`; stats heart
-container `w-5 h-5 inline-flex items-center justify-center` → `size-5 grid place-items-center`;
-`color="#fff"` → `text-white`), `FeedPage.tsx` (end-of-feed PenLine container → `size-10 grid
-place-items-center` + numeric size), `CreatePostModal.tsx` (Loader2×2/ImagePlus/Video → numeric
-size + `shrink-0`), and `FollowListModal.tsx` (dropped inline `style={{transform:'translate(-50%,
--50%)'}}` for `-translate-x-1/2 -translate-y-1/2`, matching the shadcn dialog convention).
-className/prop-only changes (no extractable logic → no unit test). Runtime-verified via Chrome
-DevTools MCP: feed renders with all post icons (privacy Globe, verified checks, Thích/Bình luận/
-Chia sẻ actions); the only console error is a pre-existing image 404 (broken Cloudinary data, not
-a regression). Gates: `build` ✓ · `lint` 0 errors · `test:run` 52 files / 338 tests ✓.
-
-### AN-01(a) · Analytics range-preset date logic extracted + tested — DONE + runtime-verified (2026-07-09, /sweep)
-
-Closes part (a) of the 🟢 AN-01 sweep-audit finding (2026-07-07): the F4 `AnalyticsDashboard`'s
-`applyRangePreset`/`toIsoDate` date math was inline and untested (violating the every-logic-ships-
-a-test rule). Extracted `toIsoDate(date)` and `rangePresetDates(days, now = new Date())` into a
-pure module `src/features/order/analytics/analyticsRange.ts` (`now` injectable for determinism);
-`rangePresetDates` returns an inclusive `{from, to}` where `to` is today and `from` is `N-1` days
-earlier, so a 7-day preset spans 7 calendar days. `AnalyticsDashboard.applyRangePreset` now calls
-`onFiltersChange({ ...filters, ...rangePresetDates(days) })`. Tests: `analyticsRange.test.ts` (+5:
-UTC slice, 7d/30d/90d spans, 1-day both-bounds-equal). Runtime-verified via Chrome DevTools MCP
-(`/shop/analytics` as `test1`): clicking the 90-day preset fires `GET /api/order/seller/analytics
-?interval=day&from=2026-04-10&to=2026-07-08` and the chart refetches — confirming the preset applies
-`from`/`to` and the query key picks them up. Parts (b) `useAnalyticsFilters` export-from-component
-and (c) recharts hex→`chartTheme.ts` remain open (lower priority). Gates: `build` ✓ · `lint` 0
-errors · `test:run` 52 files / 338 tests ✓.
-
-### Product image count capped at 10 in the UI — DONE (2026-07-09, /sweep)
-
-Integrates the backend media entry "Media URLs … capped at 10 images" (handoff Open,
-2026-07-07). The backend now `400`s when `imageUrls[]` on a product exceeds 10 entries, but
-`useProductForm.addImages` had no client-side cap — a seller picking 11+ images would upload
-them all and then hit a server error on save. Added pure helper `capFilesToLimit(currentCount,
-files, max)` + constant `MAX_PRODUCT_IMAGES = 10` in `src/lib/http/uploadValidation.ts`, and
-wired it into `addImages` (using the freshest count from `imagesRef`): a batch that would exceed
-10 is truncated to what fits, the rest are dropped with a message (`"Tối đa 10 ảnh, đã bỏ qua N
-ảnh"`), and an add when already at 10 is rejected outright (`"Tối đa 10 ảnh"`). `CreatePostModal`
-already caps post images at `MAX_IMAGES = 4` (≤ 10), so no change there. Ownership `403` is a
-no-op on the normal flow (FE only ever submits its own freshly-uploaded `secure_url`s); the
-product-image cleanup caveat is already satisfied — persisted images carry `publicId === ''` and
-`removeImage`/`clearImages` never `deleteMedia` them, so editing a product never destroys a
-Cloudinary asset a past order's P2-02 snapshot may reference. Tests: `uploadValidation.test.ts`
-(+5 for `capFilesToLimit`: fits-under, partial-drop, at-limit, over-limit clamp, `MAX_PRODUCT_IMAGES`
-= 10). Runtime E2E (picking 11+ images) pending live backend. Gates: `build` ✓ · `lint` 0 errors ·
-`test:run` 50 files / 328 tests ✓.
-
-### Dead inventory/user API declarations removed — DONE (2026-07-09, /sweep)
-
-Integrates the backend "Unused-API sweep" (handoff Open, 2026-07-06) which deleted a set of
-unbounded/duplicate routes. Removed the now-dead FE client methods (none had a UI consumer,
-verified by grep): `inventoryApi.getAll` (`GET /inventory`), `getBySku`, `getById`, `delete`,
-`checkStock`, `reserveStock`, `releaseStock`, and `usersApi.getAll` (`GET /user/all`). Kept the
-three live inventory routes (`create`, `getByProduct`, `update`) plus the now-hardened role-scoped
-`getLowStock`; kept `usersApi.getPaginated` (admin list) and `getFeaturedSellers` (feed right-rail).
-Stock checks already route through `productsApi.checkStock` (`GET /products/:id/stock-check`).
-Dropped the now-unused `StockCheckResponse` import. No standalone `/products/:id/skus` mutation
-methods existed FE-side (the canonical `PATCH /products/:id` with `skuList` is what's used), so
-nothing to remove there. Pure deletion of dead code — no test needed. Gates: `build` ✓ · `lint`
-0 errors · `test:run` 50 files / 328 tests ✓.
-
-### CLS · post images reserve their slot before load — DONE + runtime-verified (2026-07-09, /sweep)
-
-Closes the perf-scan TOP FIX (🟡, 2026-07-02). The single-image post in `PostCard.tsx` used
-`max-h-[520px] object-contain` with no reserved height, so the feed shifted layout when the image
-finished loading (hot-path CLS). Gave the container a fixed `aspect-[4/3]` (still capped by
-`max-h-[520px]`; the feed column is narrow enough that aspect governs and the cap never triggers),
-image switched to `max-h-full`. Also fixed the `CreatePostModal` preview image (`max-h-60` → `w-full
-aspect-video object-contain`) to match the video sibling and reserve its slot. className-only
-changes (no extractable logic → no unit test). Runtime-verified via Chrome DevTools MCP (feed as
-`techstore_demo`): the single-image post renders a fixed-height reserved slot even when the image
-URL 404s (pre-existing broken Cloudinary data, not a regression) — proving the slot reserves before
-load. Composer preview confirmed (post images cap 4). Gates: `build` ✓ · `lint` 0 errors ·
-`test:run` 50 files / 328 tests ✓.
-
-### QK-01 · Social invalidation via factory (no inline query keys) — DONE (2026-07-09, /sweep)
-
-Closes the 🟡 sweep-audit finding (2026-07-07). `useFeed.ts` (`useUpdatePost` +
-`useDeletePost` `onSuccess`) invalidated other social surfaces with raw inline arrays
-`['social', 'following-feed']` and `['social', 'user']` instead of the `queryKeys.social.*`
-factory. Because TanStack Query's `invalidateQueries` matches by prefix, if a factory key
-shape ever changed without the inline array following, the invalidation would silently stop
-matching — a stale for-you edit/delete leaving the following-feed and profile-post lists
-un-refreshed, with no error.
-
-Fix: added two list-level prefix keys to `hooks/query/queryKeys.ts` —
-`social.followingFeedAll` (`['social','following-feed']`, prefix of every `followingFeed(userId)`)
-and `social.userScopeAll` (`['social','user']`, the shared prefix of `postsByUser`, `followers`,
-and `following`). `useFeed.ts` now invalidates through these. Named `userScopeAll` (not
-`userPostsAll`) because `['social','user']` also covers followers/following — the invalidation
-behavior is byte-identical to the previous inline array, just sourced from the factory.
-
-Tests: `queryKeys.test.ts` (3) — asserts each list-level key is a true prefix of the
-item-level keys it must match (the exact property prefix-based invalidation relies on), plus a
-negative case that `followingFeedAll` does not match the for-you `feed`. This is the drift
-guard: change a social key shape without updating its list-level prefix and the test fails.
-Behavior is a pure refactor (identical resolved keys), so no runtime/full-stack E2E needed.
-Gates: `build` ✓ · `lint` 0 errors (24 pre-existing warnings) · `test:run` 50 files / 323 tests ✓.
-
-### VariationBuilder · stable group id keys — DONE (2026-07-09, /sweep)
-
-Closes the 🟡 perf-scan correctness gap (2026-07-02). `VariationBuilder` keyed each variation
-`GroupRow` by array index. `GroupRow` holds local `draft` state (the "thêm option" input), so
-removing an earlier group made React reuse the key=N instance for a *different* group — its draft
-could leak onto the sibling row. (In practice the input's `onBlur={commit}` flushes the draft on
-most removals, but any local state was fragile to add/remove reordering.)
-
-Fix: `VarGroup` gains a stable `id`, minted by a new `makeVarGroup(partial?)` factory
-(`useProductForm.ts`, module-level incrementing counter). All three construction sites use it —
-`DEFAULT_FIELDS`, `addGroup`, and `CreateProductPage`'s edit-mode hydration — and
-`VariationBuilder` now keys by `group.id`. `buildPayload` already projects variations to
-`{ name, options }`, so the `id` never leaks into the create/update DTO.
-
-Tests: `VariationBuilder.test.tsx` (3) — `makeVarGroup` id uniqueness, an add-option happy path,
-and a regression that types an uncommitted draft into the first group and removes it via
-`fireEvent` (bypassing the onBlur-commit that would otherwise mask instance reuse); it fails with
-index keys (draft leaks to the surviving row) and passes with `group.id` keys. Gates: `build` ✓ ·
-`lint` 0 errors (24 pre-existing warnings) · `test:run` 49 files / 320 tests ✓.
-
-### UP-04 · Client-side upload file validation — DONE (2026-07-09, /sweep)
-
-Closes the 🟡 UP-04 upload-audit finding (2026-07-07). `accept="image/*"`/`accept="video/*"` on
-the file pickers is only a hint — a user could still choose a 500 MB file or a non-media file,
-which failed only *after* the whole upload had spent the bandwidth, and the backend rejects SVG
-outright (script-vector, per the 2026-07-07 Cloudinary-URL-validation handoff).
-
-Fix: new pure helper `src/lib/http/uploadValidation.ts` — `validateUploadFile(file, { kind, maxBytes })`
-returns a Vietnamese error message (or `null`) after checking, in order: SVG images (blocked by
-MIME `image/svg+xml` or `.svg` extension), type mismatch (MIME prefix `image/`|`video/`, falling
-back to a file-extension allow-list mirroring the backend when the browser leaves `type` empty on
-paste/drag), and oversize (`MAX_IMAGE_BYTES` 10 MB / `MAX_VIDEO_BYTES` 100 MB). `firstUploadError`
-runs it over a batch and returns the first failure. Wired into all four upload consumers before
-the upload fires: `CreatePostModal` (image batch → whole selection rejected at the first bad file,
-+ single video), `useProductForm.addImages`, `EditProfileModal` avatar, `RichTextEditor`. Each
-surfaces the message through its existing upload-error state and resets the file input. This also
-closes the "do not upload SVG as an image" FE action from the Cloudinary-URL-validation handoff.
-
-Tests: `uploadValidation.test.ts` (14 — image/video accept, SVG by MIME + by extension, wrong
-MIME, cross-kind, oversize, empty-MIME extension fallback, unknown format, batch first-error).
-Gates: `build` ✓ · `lint` 0 errors (24 pre-existing warnings) · `test:run` 48 files / 317 tests ✓.
-Runtime E2E pending — an oversize/wrong-MIME file can't be forced through a normal `accept`-filtered
-picker (same constraint as UP-01/UP-02/UP-03); logic is fully unit-covered.
-
-### UP-03 · RichTextEditor upload error handling + orphan cleanup — DONE (2026-07-08, /sweep)
-
-Closes the 🟡 UP-03 upload-audit finding (2026-07-07). `RichTextEditor`
-(`src/components/shared/RichTextEditor.tsx`, the product-description editor) had two gaps:
-(1) `handleImageFile` `await`ed `onUploadImage` with no try/catch — a rejected upload became an
-unhandled promise rejection and the user saw nothing (the other 3 upload consumers all surface
-an inline error); (2) an image inserted into the editor and then deleted from the text orphaned
-its Cloudinary asset forever, because the component discarded the `publicId` and never tracked
-what it had inserted.
-
-Fix: (a) wrap the upload in try/catch with `uploading` + `uploadError` state — an inline
-`text-accent-red` message and a dimmed image button while in flight, matching the
-`CreatePostModal` / `useProductForm` pattern. (b) Track every session-uploaded image as
-`{ url, publicId }` in `trackedRef`; on each `onUpdate`, diff the tracked list against the
-editor HTML via a new pure helper `partitionEditorImages`
-(`src/components/shared/richTextImages.ts`) and `deleteMedia` any tracked image whose URL is no
-longer present. Only session uploads are tracked, so pre-existing images embedded in the `value`
-prop (editing a saved product) are never destroyed — same "only delete what this session owns"
-invariant as `useProductForm.removeImage`. The `onUploadImage` prop return type was widened from
-`{ url }` to `{ url, publicId }` (already satisfied by `uploadProductImage`'s `UploadResult`).
-
-Tests: `richTextImages.test.ts` (4 cases: all kept; one removed → flagged; empty editor → all
-removed; nothing tracked → no-op). `build` / `lint` (0 err, 24 advisory) / `test:run` (47 files,
-303 tests) green.
-
-**Still open:** (i) cancelling/unmounting the whole product form still orphans description images
-— they live inside the (possibly-saved) HTML, so a blanket unmount-cleanup would destroy the
-images of a successful save; this is the same server-side-cleanup gap already tracked in
-`backend-handoff.md` (Open, 2026-07-07 — orphan cleanup for replaced/removed persisted media).
-(ii) Runtime E2E pending — the upload-error and orphan-delete paths can't be triggered through
-the normal picker UI.
-
-### UP-02 · EditProfileModal avatar orphan cleanup (FE part) — DONE (2026-07-08, /sweep)
-
-Closes the FE-fixable part of the 🔴 UP-02 upload-audit finding (2026-07-07). The avatar is
-uploaded to Cloudinary the instant a file is chosen (`handleAvatarSelect`), but the component
-only kept the returned `url` and threw away the `publicId` — so it could never delete the
-asset. Consequences: (a) cancelling/closing the modal left the just-uploaded avatar orphaned;
-(b) choosing a different avatar before saving orphaned the previous upload. Fix: track a
-`pendingAvatar: { url, publicId } | null` and drive the orphan decisions through a new pure
-helper `src/features/user/avatarUpload.ts` — `replacePendingAvatar(prev, incoming)` returns
-the prior upload's publicId as the orphan on re-select, and `discardedAvatarOrphan(pending)`
-returns the publicId to delete on cancel/close. On a *successful* save the mutation's
-`onSuccess` clears the tracking WITHOUT deleting (the pending upload is now the persisted
-avatar) and closes without the cancel-cleanup path, so it never deletes the avatar it just
-saved. `displayAvatar` now derives from `pendingAvatar?.url ?? user.avatar` (dropped the
-redundant `avatarPreview` state). Tests: `avatarUpload.test.ts` (4 cases: first upload → no
-orphan; replace → prior orphaned; cancel → pending deleted; nothing uploaded → null).
-`build` / `lint` (0 err, 24 advisory) / `test:run` (46 files, 299 tests) green.
-
-**Part (c) still needs backend:** deleting the OLD *persisted* avatar when a new one is saved
-can't be done client-side — the FE never has the previous avatar's Cloudinary publicId (only
-its URL). Already tracked in `backend-handoff.md` (Open, 2026-07-07 — server-side orphan
-cleanup for replaced/removed persisted media, incl. avatar replace). Runtime E2E (cancel /
-re-select / save avatar against a live backend) recommended.
-
-### UP-01 · Batch image upload commits per-file (no stranded Cloudinary orphans) — DONE (2026-07-08, /sweep)
-
-Closes the 🔴 UP-01 upload-audit finding (2026-07-07). Both batch-image paths —
-`CreatePostModal.uploadImageFiles` (`src/features/social/CreatePostModal.tsx`) and
-`useProductForm.addImages` (`src/features/product/product-form/useProductForm.ts`) —
-accumulated upload results in a **local** `uploaded[]` array and only wrote them to
-component state after *every* file finished. A mid-batch failure (file N throws) discarded
-files 0…N-1: they never entered state, so `handleClose`/`removeMedia`/`removeImage`/
-`clearImages` could never `deleteMedia` them → the user lost the images **and** Cloudinary
-orphans piled up un-cleanably. Fix: new pure helper `uploadFilesSequential<T>`
-(`src/lib/http/uploadSequential.ts`) uploads one file at a time and commits each result via
-an `onItem` callback the moment it resolves (rethrowing on failure so the caller's `catch`
-still surfaces the error). Both call sites now delegate to it — the post modal appends each
-`MediaItem`, the product form appends each `ImageItem` and keeps `imagesRef` in sync — so a
-later failure leaves earlier successes visible in state and fully cleanable. This also
-resolves the DRY convention note (same batch-upload orchestration duplicated across two
-feature folders); a full `useMediaUpload` hook was intentionally *not* extracted because the
-two sites keep different state shapes (`MediaItem[]` with image/video type vs. `ImageItem[]`)
-— only the sequential-commit + aggregate-progress orchestration is shared. Tests:
-`uploadSequential.test.ts` (4 cases, incl. the key mid-batch-failure case asserting the two
-successful uploads stay committed while the batch rejects). `build` / `lint` (0 err, 24
-advisory warnings) / `test:run` (45 files, 295 tests) green. Runtime E2E pending — forcing a
-mid-batch Cloudinary failure isn't reproducible through the normal UI.
-
-### SEC-01 · Gitignore repo-root credential files + fix malformed `public` entry — DONE (2026-07-08, /sweep)
-
-Closes the 🔴 SEC-01 audit finding (2026-07-07): `login.json` (test-account login response
-with role/grants) and `user.cookies` (a real JWT `access_token`, curl cookie-jar format) sat
-untracked at `frontend/` and were **not** ignored — a single `git add .` would have committed
-live credentials. A prior in-progress edit had added the entries but fused the pre-existing
-`public` ignore entry into the comment header (`public# Local session/credential artifacts`);
-since `#` only opens a comment at line-start, `public` became a literal pattern `public# …`,
-so `public/` stopped being ignored and the four throwaway test images (`imag1.png`,
-`image2.png`, `image_screen_1.png`, `screen_2.png` — used for Chrome DevTools MCP product
-uploads) leaked into the untracked set. Fix: split the malformed line so `public` is its own
-entry again, followed by a proper `# Local session/credential artifacts` comment and
-`login.json` + `*.cookies`. `public` was confirmed an intentional committed entry (added in
-`05d940c` e2e-tooling commit). Config-only change (no code logic → verified via `git
-check-ignore` rather than a unit test): credentials + all four test images ignored,
-`public/vite.svg` still tracked, `git status` porcelain clean of anything sensitive.
-`build` / `lint` (0 err, 24 advisory warnings) / `test:run` (44 files, 291 tests) green.
-
-### Public profile email/role privacy (handoff integration) — DONE (2026-07-07, /sweep)
-
-Integrates the backend handoff "Public user/profile enrichment no longer includes email"
-(2026-07-07): `GET /user/:id` now returns `{ id, username, name, avatar, isActive }` only —
-no `email`, no `role`. This was a **live crash**: `ProfilePage` fetches via
-`api.users.getById` and the About tab read `user.role.rol_name` (→ `Cannot read properties of
-undefined` when `role` is absent) and `user.email` (→ blank). Fix: new `PublicUser` type
-(`src/types/user.ts`, `User extends PublicUser` adds `email`/`role`/`createdAt`); typed
-`usersApi.getById` → `PublicUser` (and the two consumers `MessagesPage` map + `ChatThread`
-`otherUser` prop, which only ever use id/name/username/avatar). ProfilePage now sources the
-private contact block (email + role) from `useAuthContext().currentUser` (backed by
-`/user/me`) via new pure helper `profileContactInfo(isMe, currentUser)` — shown only on your
-own profile, `null` for others (no leak, no crash); the public status row stays. Same reason,
-`EditProfileModal` now receives `currentUser` instead of the public `user` (it needs `email`
-to prefill). Tests: `profileAbout.test.ts` (3 cases: own → email+role; others → null; no auth
-→ null). `build` / `lint` (0 err) / `test:run` (44 files, 291 tests) green. Runtime E2E
-(view own vs. another user's profile About tab) recommended once backend is live.
-
-### Cart item owner-bound 404 → resync (handoff integration) — DONE (2026-07-07, /sweep)
-
-Integrates the backend handoff "Cart item PATCH/DELETE now owner-bound" (2026-07-07):
-`PATCH`/`DELETE /api/cart/items/:id` now return `404` (row unchanged) for a stale item id
-or one owned by another user, instead of mutating a globally-guessable row. FE previously
-had no `onError` on `useUpdateCartItem`/`useRemoveCartItem`, so such a 404 left the phantom
-item in the cart UI with no resync. Added pure predicate `isStaleCartItemError(error)`
-(`src/features/cart/cartItemErrors.ts`, narrows `ApiError.statusCode === 404`) + colocated
-`cartItemErrors.test.ts` (7 cases: 404 true; 400/409/500 false; null/undefined/string/Error/`{}`
-false). Wired `onError` on both mutations in `src/hooks/data/useCart.ts` to
-`invalidateQueries(cart.all)` when the error is a stale-item 404, dropping the phantom row
-and forcing a server refetch; TanStack mutations don't retry by default, so no same-id retry.
-`build` / `lint` (0 err) / `test:run` (43 files, 288 tests) green. Runtime E2E pending: the
-404 path needs a live backend + forged stale/foreign item id (unreachable via normal UI —
-handoff notes "no normal cart UI change expected").
-
-### Comment/reply notification deep-link + preview (handoff integration) — DONE + runtime-verified (2026-07-06, /sweep)
-
-Integrates the backend handoff "Comment/reply notifications now carry postId + actorId +
-preview" (2026-07-06). `Notification` type (`src/types/notification.ts`) gains
-`postId`/`actorId`/`preview` (`number|null`/`number|null`/`string|null`) and `orderId`
-widens to `number | string | null` (bigint column → backend serializes as string, e.g.
-`"107"`). `notificationDisplay.ts`: comment/reply body now appends the comment text when
-`preview` is present (`Có người vừa bình luận về bài viết của bạn: “…”`), falling back to
-the old generic Vietnamese line for legacy rows; `getNotificationHref` deep-links
-`comment`/`reply` → `/post/${postId}` (legacy rows without `postId` stay unlinked — the
-old `orderId` held a commentId, never linkable). Both `NotificationsPage` and
-`NotificationBell` pick this up via the shared helpers, no component changes. 8 new tests
-in `notificationDisplay.test.ts` (preview body ×2, string-orderId body+href, postId href ×2,
-legacy null-postId ×2). Runtime-verified live (user 18 commented on user 17's post #12):
-notification rendered with preview, click navigated to `/post/12`, console clean.
-**Backend gap found:** `preview` arrives truncated to 20 chars mid-word (contract says
-≤255) → recorded in `backend-handoff.md` (Open). `actorId` rendering ("<tên> đã bình
-luận…") left for a follow-up — needs a user-lookup enrichment, optional per handoff.
-`build` / `lint` (0 err) / `test:run` (42 files, 285 tests) green.
-
-### Memoize Context value objects (AuthContext + ApiErrorContext) — DONE (2026-07-06, /sweep)
-
-Closes the #1 perf-scan flag "Context value không memoize (2 chỗ)". `useAuth` returned a
-fresh object plus new `loginSuccess`/`logout` function identities every render, so the
-app-wide `AuthProvider` handed every consumer a new value object on each render (violating
-performance.md "memoize Context value objects"). Fixed: wrapped `loginSuccess`/`logout` in
-`useCallback` (deps `queryClient` / `logoutMutate`) and the returned object in `useMemo`
-(`src/hooks/useAuth.ts`). Same fix on `ApiErrorProvider` — `useMemo` the `{ globalError,
-setGlobalError }` value keyed on `globalError` (`setGlobalError` from `useState` is already
-identity-stable) (`src/context/ApiErrorContext.tsx`). Added a stable-identity regression
-test to `src/hooks/useAuth.test.tsx` (a no-op re-render returns the same object + same
-`loginSuccess`/`logout` references). Behavior unchanged — pure render-stability fix, no
-runtime UI verification needed. `build` / `lint` (0 err) / `test:run` (42 files, 281 tests)
-green.
-
-### Money helpers coerce decimal strings — DONE (2026-07-05, /sweep)
-
-Closes the "Price formatting / API contract mismatch" known issue and the "product money
-numbers cleanup" backlog item. Backend now serializes money fields as JSON numbers, but
-`formatPrice`/`formatVnd` (`src/lib/utils.ts`) still took a bare `number`, so any residual
-decimal-string value (`"2000.00"`) would render raw as `2000.00 đ`. Widened both to
-`number | string` and route through a shared `toMoneyNumber` helper (coerces strings via
-`Number`, guards non-finite → `—`). Backward-compatible: existing `Number(...)` wraps at
-call sites are now redundant but harmless (left in place for minimal diff). Regression
-tests added in `src/lib/utils.test.ts` (decimal-string input for both helpers, incl.
-millions abbreviation and non-numeric → `—`). `build` / `lint` (0 err) / `test:run` green.
-
-
----
-
-# Archive — Release Sprint (2026-06)
-
-## P0 — release blockers
-
-### P0-01 — Hợp nhất cart thành server cart — DONE (2026-06-24)
-
-- Server cart là source of truth duy nhất. `src/context/CartContext.tsx` và `CartSidebar.tsx` đã xóa; không còn import `CartContext` nào trong `src/` (đã grep xác nhận).
-- Quick-add `ProductCard.tsx` và social `ProductChip.tsx` đều dùng `useAddToCart()` từ `src/hooks/useCart.ts`. Header badge, `CartPage`, `CartDrawer`, `CheckoutPage` đọc cùng query key `queryKeys.cart.all`; mutation invalidate đúng cart query.
-
-**Acceptance đã đạt:** add từ marketplace + product detail + product chip cho cùng kết quả; quantity/remove/clear đồng bộ qua refresh/tab mới; không còn component commerce nào import `CartContext`.
-
-### P0-02 — Variation → SKU matching — DONE (FE) (2026-06-25)
-
-- Logic match SKU tập trung tại `src/lib/sku.ts` (có test `sku.test.ts`): `isValidSku`/`getValidSkus` loại SKU dị dạng (số tier ≠ số variation); `findMatchingSku` chỉ trả SKU khi chọn đủ tier và match exact; `getOptionStock` trả `null` cho tổ hợp không tồn tại → option bị `disabled` trước khi click.
-- `ProductDetail.tsx` dùng chung các helper này cho availability, price, max quantity và payload add-cart (cùng một luật). Product dị dạng (không có valid SKU) hiện banner "Phân loại sản phẩm đang được cập nhật", không cho add.
-- **Verify create-path (2026-06-25, seller `test1`, qua API):** tạo product 1 variation (2 options) → SKU `tierIdx` ra `[0]`/`[1]` (len 1 = số variation); tạo product 2 variation → `[0,0] [0,1] [1,0] [1,1]` (len 2). Cả `POST /api/products` lẫn `GET /api/products/:id/with-inventory` trả về đúng contract. → **Luồng tạo mới KHÔNG sinh dữ liệu hỏng**; FE (`buildCombosInternal` dựng tierIdx theo tích Descartes) + backend đều chuẩn. 2 product test đã xóa (`DELETE` 204).
-
-> Còn chờ backend (xem `snapshot.md`): migration/cleanup dữ liệu legacy (product cũ `tierIdx` len ≠ số variation); quét toàn catalog chưa hoàn tất (rate limit 20 req/60s).
-
-### P0-03 — Tạo product tạo/cập nhật inventory nguyên tử — DONE (FE mitigation) (2026-06-23)
-
-- `CreateProductPage.tsx` không còn nuốt `409`. Helper `persistSimpleStock()` xử lý seed tồn kho cho simple product: `POST /inventory`, nếu `409` thì `GET /inventory/product/:id` rồi `PUT /inventory/:id` để reconcile SKU + `availableStock` về đúng product mới (xử lý stale/orphan row do reuse ID).
-- Stock-persist fail (ngoài 409 do trùng SKU lúc create product) sẽ reject mutation → hiển thị error banner ở action bar, không còn báo "Đã đăng!" giả. `onSuccess` invalidate thêm `inventory.all` + `inventory.byProduct(id)`.
-
-> Còn chờ backend (xem `snapshot.md`): transaction atomic create product+inventory và cleanup orphan inventory khi xóa product (FE recovery chỉ là mitigation phía client).
-
-### P0-04 — Không xóa cart trước payment success — DONE (2026-06-25)
-
-- Online payment KHÔNG còn clear cart trước khi redirect gateway. `CheckoutPage` lưu `pendingCheckout` (orderIds + cartItemIds + `clearAll`) vào `sessionStorage` (`src/features/cart/pendingCheckout.ts`) rồi mới redirect.
-- `PaymentResultPage` chỉ consume cart khi gateway xác nhận success: `clearCart` (full) hoặc remove đúng các `cartItemIds` (selected subset), sau đó xóa pending state. Cancel/fail không vào page success nên cart được giữ nguyên.
-- Khi lấy payment URL fail sau khi order đã tạo: điều hướng người dùng tới order detail (`/order/:id`) — nơi có nút "Thanh toán ngay" (`useOrderPaymentUrl`) để retry trên cùng order — thay vì để họ submit lại tạo order trùng. Multi-seller → `/orders`.
-- Backend đã thêm `Idempotency-Key` header cho `POST /api/order` (single-flight Redis: 409 khi đang in-flight, replay response khi retry sau hoàn tất). FE giờ sinh và gửi key này: `api.orders.create(dto, idempotencyKey?)` set header `Idempotency-Key`.
-- `CheckoutPage` giữ key ổn định theo "checkout intent" qua `idemKeyRef`: helper thuần `src/features/cart/idempotency.ts` (`buildCheckoutSignature` = chữ ký productId/skuId/quantity không phụ thuộc thứ tự; `resolveIdempotencyKey` tái dùng key khi chữ ký không đổi, sinh key mới khi giỏ đổi). Double-submit / retry mạng → cùng key → backend replay thay vì tạo đơn trùng; đổi giỏ → key mới. Key sinh bằng `crypto.randomUUID()`.
-- **Test:** `idempotency.test.ts` (6 cases) — chạy pass (config node thuần, P3-01). `npm run build` pass.
-
-### P0-05 — Edit variation product (hydrate đầy đủ) — DONE (FE) (2026-06-23)
-
-- `useProductForm(initial?, initialImages?)` nhận seed. `CreateProductPage` hydrate đầy đủ ở edit mode qua `useMemo`:
-  - `initialFields`: name/description/sku/brand/condition/isActive/categoryIds/sellerNotes/hasVariations + `groups` (từ `existingProduct.variations`) + `rows` (map `JSON.stringify(sku.tierIdx)` → price/stock) + singlePrice/singleStock.
-  - `initialImages`: map `imageUrls`/`imageUrl` → `{ url, publicId: '' }`. `publicId: ''` đánh dấu ảnh đã-persist: `removeImage`/`clearImages` KHÔNG gọi `deleteMedia` cho ảnh này (chỉ xóa khỏi list), tránh phá ảnh khi user cancel.
-- Variation builder + SKU matrix render ở CẢ create lẫn edit (đã bỏ block "Chỉnh sửa phân loại chưa được hỗ trợ").
-- Guard phá hủy SKU: `originalTierIdx` (Set các `tierIdx` gốc); `handleSubmit` `window.confirm` khi edit mà có `tierIdx` gốc biến mất khỏi `form.combos`.
-- `onSuccess` invalidate thêm `products.detail(id)` + `products.withInventory(id)`. `buildPayload()` tự dựng `variations` + `skuList` + `imageUrls` từ state hydrate nên save-không-đổi bảo toàn dữ liệu.
-
-**Đã verify runtime (Chrome DevTools, 2026-06-23, seller `test1`):**
-
-- Product #2 (1 variation `Màu sắc` [Đỏ,Xanh], SKU `[0]`/`[1]`): mở edit nạp đủ name/SKU/danh mục/variation + ma trận SKU đúng giá/kho (Đỏ 199000/30, Xanh 249000/20). Save-không-đổi gửi `PATCH /api/products/2` với đầy đủ `variations` + `skuList`; response giữ nguyên → bảo toàn dữ liệu xác nhận.
-- Guard phá hủy SKU: xóa option `Xanh` rồi Save → `window.confirm`; Cancel → KHÔNG gửi PATCH, SKU `[1]` vẫn còn. ✓
-- **2 bug phát hiện & sửa khi test:** (1) `categoryIds`/`brandId` backend trả **string** (`["2"]`) → checkbox không tick khi edit; fix coerce `.map(Number)`/`Number()`. (2) Danh sách danh mục/brand **render trùng đôi** ở edit mode (effect so `prev` id string với `propIds` id number); fix normalize `prev` id → number trước filter (`BasicInfoSection.tsx`).
-
-> Còn chờ backend (xem `snapshot.md`): diff create/update/delete SKU ở tầng API và bảo vệ SKU đã có order/cart reference (FE mới confirm phía client).
-
-## P1
-
-### P1-02 — Order item enrichment (FE) — DONE + runtime-verified (2026-06-25)
-
-- Backend (DONE 2026-06-25) enrich mỗi order item trên cả 3 endpoint (`GET /order/:id`, `GET /order/user/:id` batch cả trang, `GET /order/seller/:id`): thêm `productName`, `skuId`, `skuLabel` (vd `"Màu sắc: Đỏ, Size: M"`, hoặc `null` khi không có variation) và `image` (ảnh đầu realtime, hoặc `null`). **Runtime self-test (Chrome DevTools MCP, user 17) xác nhận cả 3 field + `productName` có mặt trên cả list lẫn detail.**
-- **Bỏ hẳn `useProductsByIds` ở cả 2 trang buyer order** — đọc thẳng `item.productName`/`item.image`/`item.skuLabel`. Đây cũng là **bug fix**: `POST /products/with-inventory/multiple` trả `404 "Product not found"` khi BẤT KỲ product nào trong batch đã bị xóa → trước đây giết toàn bộ tên sản phẩm (rơi về "N sản phẩm"). Verify: 404 đó đã biến mất, tên thật render đúng.
-- **Types:** `OrderItem` thêm `productName?`/`skuId?`/`skuLabel?`/`image?` (optional, `null`-able); `SellerOrderItemDetail` bỏ `productName`/`skuId` trùng (kế thừa từ base, vẫn narrow image/skuLabel về required). Thêm `OrderStatusCounts` (`types/order.ts`).
-- **Helpers (`orderSummary.ts`):** `orderItemsSummary(items)` + `orderCoverImage(items)` giờ chỉ nhận `items` (đọc `item.productName`/`item.image`), bỏ tham số `productMap`.
-- **Buyer detail (`OrderDetailPage`):** thumbnail = `item.image`; tên = `item.productName`; render `item.skuLabel` dưới tên. Bỏ dòng seller-name (chỉ có khi hydrate product — vốn đã chết do 404).
-- **Buyer list (`OrderHistoryPage`):** filter-tab badges chuyển sang server count toàn lịch sử qua `GET /order/user/:id/status-counts` (`api.orders.getStatusCounts` + `useOrderStatusCounts` + queryKey `orders.statusCounts(userId)` nested dưới `byUser` → `useCancelOrder` invalidate `byUser` đã cover badge refresh). Helper thuần `orderFilterCounts()` map per-status → 4 tab (pending tab gộp pending+confirmed+processing+shipped+delivering). **Verify live: badges 42/11/6/25 khớp đúng map `{all:42,pending:9,confirmed:0,processing:1,shipped:1,delivering:0,completed:6,canceled:25}`.**
-- **Test:** `orderFilterCounts.test.ts` (3 cases) + `orderSummary.test.ts` viết lại theo signature mới (item-based). Full suite **18 files / 103 tests pass**; `build`/`lint` (0 errors) xanh.
-- Còn nợ: order snapshot tại thời điểm mua (P2-02) — `image`/`skuLabel`/`productName` hiện realtime nên order cũ sẽ lệch nếu product đổi/xóa. (Lưu ý ngoài scope: cart pages vẫn dùng `useProductsByIds` → cùng endpoint 404 nếu cart chứa product đã xóa.)
-
-### P1-01 — Seller order lifecycle — DONE (2026-06-25)
-
-- State machine seller tập trung tại `src/features/order/sellerOrderActions.ts` (`getSellerOrderAction(status)`): `pending → confirm`, `confirmed → ready-to-ship`, `processing → ship` ("Đã bàn giao vận chuyển"), `shipped → deliver` ("Bắt đầu giao hàng"), `delivering → complete` ("Hoàn tất đơn hàng"); chỉ `completed`/`canceled` terminal. Label khớp transition thực, chỉ render action hợp lệ.
-- Backend đã expose: (a) `GET /api/order/seller/:id` — detail riêng cho seller, mỗi item enrich `image` (`imageUrls[0]`) + `skuLabel` (build từ `variations` + `skuTierIdx`) + `productName`; (b) `PATCH /api/order/:id/ship|deliver|complete` — transition single-step sau `processing`, race-safe với GHN webhook.
-- **API + hooks:** `api.orders.getSellerOrderDetail/ship/deliver/complete`; `useAdvanceOrder()` (1 hook dispatch ship/deliver/complete, invalidate `orders.seller` + `orders.detail(id)` + `orders.sellerDetail(id)`); `SellerOrdersPage.handleAction`/`pendingKindFor` xử lý cả 5 kind. `confirm`/`ready-to-ship` giữ hook cũ.
-- **Detail accordion enrich item:** `useSellerOrderDetail(id, enabled)` lazy-fetch khi mở accordion (enabled theo `expanded` → list view nhẹ); item render `<ProductThumb>` (ảnh, fallback Package), tên thật, `skuLabel`. Fallback item rỗng khi detail chưa load; skeleton trong lúc fetch. Buyer/địa chỉ/payment/GHN lấy từ `OrderWithBuyer` của list (detail endpoint không trả buyer; list không refetch `GET /order/:id` để tránh 403).
-- `PAYMENT_LABEL` tách `src/features/order/orderConstants.ts` dùng chung buyer (`OrderDetailPage`) + seller (DRY). Types: `SellerOrderItemDetail` + `SellerOrderDetail` (`types/order.ts`). queryKey `orders.sellerDetail(id)` (prefix `['orders','seller']`).
-- **Test:** `sellerOrderActions.test.ts` (6 cases) pass. `npm run build` pass.
-
-### P1-02 — Buyer orders — DONE (FE) (2026-06-24)
-
-- `useOrdersByUser` chuyển sang `useInfiniteQuery` (page size 10, dừng theo `hasNext`); giữ key `orders.byUser` nên `useCancelOrder` invalidate vẫn refresh. `OrderHistoryPage` flatten `pages` + nút "Tải thêm đơn hàng" (chỉ tab "Tất cả").
-- Enrich item bằng hook dùng chung `src/hooks/useProductsByIds.ts` (`POST /products/with-inventory/multiple`, share cache `products.cartItems`): `OrderHistoryPage` hiện ảnh + tên sản phẩm đầu ("… +N sản phẩm khác"); `OrderDetailPage` hiện ảnh/tên/seller (brand→user.name) + link product, fallback Package khi thiếu ảnh.
-- Invoice download, retry payment (`useOrderPaymentUrl`), cancel policy theo state (`pending|confirmed|processing`) đã có sẵn ở `OrderDetailPage` — verify đạt.
-- Logic tóm tắt order row tách pure helper `src/features/order/orderSummary.ts` (`orderItemsSummary`/`orderCoverImage`) + test `orderSummary.test.ts` (7 cases pass).
-
-> Còn chờ backend (xem `snapshot.md`): SKU label per item + order snapshot (P2-02); per-status count chính xác cần server-side filter.
-
-### P1-03 — Kết nối social với commerce — DONE (phần không phụ thuộc backend) (2026-06-24)
-
-- **Global create-post:** `CreatePostModal` tách khỏi `FeedPage` lên app scope qua `src/features/social/GlobalCreatePost.tsx`, mount trong `AppShell` (cả 2 branch). Listen event `tb:createpost` (Header dispatch) → CTA mở từ mọi route. Modal lazy-load (`React.lazy`) → không kéo code upload Cloudinary vào main bundle (index 585kB → 448kB). `FeedPage` đã bỏ state/listener/render modal.
-- **Post action menu:** nút `MoreHorizontal` (trước là dead button) thay bằng `src/features/social/PostActionMenu.tsx` (dropdown click-outside theo pattern `ProfileMenu`, dùng `<IconButton>`): "Sao chép liên kết" (mọi người) + "Xóa bài viết" (chỉ chủ bài, `window.confirm`, `useDeletePost` → `DELETE /social/posts/:id`). Dùng ở cả `PostCard` và `PostDetailPage` (DRY). `useDeletePost` xóa post khỏi cache feed + invalidate following-feed/user posts + remove post detail query.
-- **Share:** nút "Chia sẻ" (trước no-op) nối `src/lib/sharePost.ts` (`sharePost` = Web Share API, fallback clipboard; `copyPostLink`; `postShareUrl` + test `sharePost.test.ts`). Toast qua hook `useSharePost` + component `ShareToast` (local-state, không thêm dep).
-- **Follow seller:** đã có sẵn trong `PostCard` — verify đạt.
-
-#### Backend integration — DONE (2026-06-26)
-
-- **Gắn sản phẩm vào post (`productId`):** types thêm `Post.productId: number | null`, `CreatePostDto.productId?`, `UpdatePostDto`, `ReportPostDto` (`src/types/social.ts`). `api.social.updatePost` (PATCH partial) + `reportPost` (POST) thêm vào `src/api/index.ts`.
-- **Product picker (composer):** `src/features/social/ProductPicker.tsx` — debounce search (`useDebouncedValue` 350ms) qua `useProducts({ search, limit: 6 }, { enabled })`, chọn/bỏ chip. Tích hợp vào `CreatePostModal` (`attachedProduct` state, hydrate khi edit qua `useProductsByIds`).
-- **Render `ProductChip` trong feed/detail:** `src/features/social/AttachedProduct.tsx` tự hydrate qua `useProductsByIds([productId])` (dùng chung cache `products.cartItems`, dedupe theo id) → render `ProductChip`. Gắn vào `PostCard` + `PostDetailPage` (`{post.productId != null && …}`) — phủ mọi consumer (Feed/Profile/Detail) không cần prop-drill.
-- **Edit post (PATCH):** `useUpdatePost` (`src/features/social/useFeed.ts`) cập nhật cache feed + post detail + invalidate following/user feed. Tái dùng global composer cho edit qua `src/features/social/composerEvents.ts` (`openEditPost(post)` dispatch `tb:editpost` mang `Post`); `GlobalCreatePost` listen cả create+edit, unmount khi đóng để reset prefill. `PostActionMenu` thêm item "Chỉnh sửa bài viết" (owner). Media đã-persist đánh dấu `publicId === ''` → không xóa khi remove/cancel.
-- **Report post:** `src/features/social/ReportPostDialog.tsx` (reason ≤500) + item "Báo cáo bài viết" (`!isOwner && canReport`). Lỗi map qua pure helper `reportPostError.ts` (`409`→đã báo cáo, `400`→tự báo cáo, `429`→rate-limit; test `reportPostError.test.ts` 5 case).
-- **Verify:** `npm run build` + `npm run lint` (0 errors) + `npm run test:run` (115 pass) xanh.
-
-### P1-04 — Hoàn thiện Profile / Shop — DONE (FE) (2026-06-24)
-
-- Tab "Sản phẩm" ở `ProfilePage` không còn empty-state hardcode. Dùng chung hook `useProducts({ userId, limit: 50, isActive: true })` (thêm option `{ enabled }` lazy-load khi mở tab, backward-compatible với `ShopPage`). Render grid bằng `ProductCard` có sẵn; skeleton/empty-state; label tab hiện count `(n)`. Comment cũ sai ("getList does not support userId filter") đã xóa.
-- `ShopPage` đã dùng `userId: currentUser?.id` filter từ trước — verify đạt.
-
-#### Multi-category integration — DONE (2026-06-26)
-
-- Backend giờ trả CẢ `categories[]` (object đầy đủ) LẪN `categoryIds: number[]` trên mọi product read. Type `Product` thêm `categories?: Category[]` (`src/types/product.ts`).
-- Shop table hiển thị nhiều danh mục: pure helper `src/features/product/productCategories.ts` (`productCategoryNames` — ưu tiên `categories[]`, fallback `category`; test 3 case). `ShopPage` ProductRow render pill multi-category (flex-wrap) thay cho single `category?.name`.
-- Editor multi-select prefill: `CreateProductPage` đã prefill `categoryIds` từ `existingProduct.categoryIds` (`BasicInfoSection` multi-checkbox) — verify đạt.
-- **Verify:** `npm run build` + `npm run lint` (0 errors) + `npm run test:run` (115 pass) xanh.
-
-> Còn chờ backend (xem `snapshot.md`): pagination Shop (stats + search server-side, P2-05).
-
-### P1-05 — Notification socket ownership — DONE (2026-06-24)
-
-- **Root cause:** `useNotifications()` gọi ở CẢ `NotificationBell` (Header, luôn mounted) lẫn `NotificationsPage`; mỗi lần gọi `useEffect` tự `io()` socket riêng → ở `/notifications` có 2 socket cùng prepend → notification nhân đôi + tốn 2 kết nối.
-- **Fix — single socket owner:** tách `src/features/notifications/notificationSocket.ts` — singleton socket ref-count (`acquireNotificationSocket()`): mở ở consumer đầu, đóng khi consumer cuối unmount → luôn chỉ 1 socket. `NotificationBell` luôn mounted → socket hiệu quả app scope, không cần Provider. `useNotifications` chỉ `useEffect(() => acquireNotificationSocket(), [])`.
-- **Dedupe theo ID:** pure helper `src/features/notifications/notificationCache.ts` (`prependNotification`) — bỏ qua nếu `id` đã tồn tại. Header + page đọc chung cache qua query key `notifications.list(1)`; mark-read/unread badge derive từ cache đó → đồng bộ 2 nơi.
-- **Reconnect:** socket.io tự reconnect; dedupe đảm bảo replay không tạo bản trùng.
-- **Test:** `notificationCache.test.ts` (4 cases). `npm run build` pass.
-
-### P1-06 — Chat reliability — DONE (phần không phụ thuộc backend) (2026-06-24)
-
-- **Nối CTA Chat product detail:** nút "Chat" ở seller card (`ProductDetail.tsx`) trước là dead button. Giờ điều hướng `/messages` kèm `state: { otherUserId: detail.userId }` (chưa login → `/login`). Dùng lại luồng deep-link đã có (`MessagesPage` consume `initOtherUserId` → `createConversation`) — DRY.
-- **Connection states:** `useChat` expose `connectionStatus: 'connecting' | 'connected' | 'reconnecting' | 'disconnected'` (track qua `connect`/`disconnect` + Manager `socket.io.on('reconnect_attempt'|'error')`). `ChatThread` render banner trạng thái (helper thuần `chatConnection.ts` → text/tone, `null` khi connected).
-- **Cleanup listeners:** cleanup effect giờ `socket.io.removeAllListeners()` + `socket.removeAllListeners()` trước `disconnect()`. `currentUserId` đọc qua `useRef` (không còn trong deps) → đổi account không re-subscribe (stale closure fix).
-- **Dọn dead code:** xóa `src/features/product/ChatRoom.tsx` — mock chat cũ (dữ liệu giả, hardcoded hex, vi phạm styling).
-- **Test:** `chatConnection.test.ts` (5 cases). `npm run build` pass. `ChatDialog.tsx` (popup inline) đã có nhưng chưa wire — để dành.
-
-#### P1-06 follow-up — Chat metadata (lastMessage + unreadCount) tích hợp — DONE (2026-06-26)
-
-Backend giao (handoff P1-06, 2026-06-26): `GET /chat/conversations` giờ trả mỗi conversation kèm `lastMessage` + `unreadCount` + `user1/2LastReadAt`, đã sort active-first; thêm `POST /chat/conversations/:id/read` reset unread của viewer.
-
-- **Types** (`types/chat.ts`): `Conversation` thêm `user1LastReadAt`/`user2LastReadAt`/`lastMessage: ConversationLastMessage | null`/`unreadCount`. Type mới `ConversationLastMessage`.
-- **API**: `api.chat.markConversationRead(id)` → `POST /chat/conversations/:id/read`.
-- **Bỏ hack localStorage**: `useConversations` xóa hẳn activity-map (`tb:chat:activity`, `STALE_KEY`/`STALE_MS`, `readActivityMap`/`markActivity`) + sort/staleness client-side — server đã sort active-first + trả metadata thật. Giờ chỉ `return data ?? []`.
-- **Helper thuần + test** (`chatConversations.ts` + `.test.ts`, 11 case): `conversationActivityTime`/`sortByActivity` (active-first), `applyIncomingMessage` (cập nhật `lastMessage`, bump `unreadCount` cho inbound ở thread không active, giữ 0 cho thread đang mở, không bump outbound, re-sort), `markConversationReadInList` (zero badge optimistic).
-- **Socket** (`useChat`): `new_message` dùng `applyIncomingMessage` thay vì set field `updatedAt` không tồn tại; bỏ `markActivity`.
-- **`useMarkConversationRead`** (mutation, optimistic zero badge qua `markConversationReadInList`).
-- **`MessagesPage`**: preview render `lastMessage.content` (prefix "Bạn: " khi tự gửi, fallback "Bắt đầu cuộc trò chuyện") thay vì `@username`; badge `unreadCount` (pattern `bg-tb-gradient` như `NotificationBell`); tên + preview in đậm khi có unread; thời gian theo `lastMessage.createdAt ?? createdAt`; click thread → `markConversationRead(id)`.
-- **Test:** full suite **126 unit tests pass** (22 files); `build` + `lint` (0 errors) xanh.
-- Còn nợ runtime: E2E 2 tài khoản (open → send → receive → unread badge → mark read → reconnect).
-
-#### ready-to-ship now gates on a real GHN waybill — failure surfaced to seller — DONE (2026-06-29)
-
-Backend giao (handoff NEW, 2026-06-28): `PATCH /api/order/:id/ready-to-ship` giờ resolve free-text shipping address → GHN IDs và **tạo waybill trước** khi advance. Thành công → `200`, order `processing` với `ghnOrderCode` non-null thật. Address không resolve được → `400`, order **giữ `confirmed`**. GHN unreachable → `500`, giữ `confirmed`.
-
-- **FE action #1 (render `ghnOrderCode`)**: đã sẵn — `SellerOrdersPage` render mã GHN ở cả card row + detail block (`order.ghnOrderCode`), không cần đổi code, chỉ bỏ giả định field luôn null.
-- **FE action #2 (surface failure)**: ready-to-ship/confirm không còn nuốt lỗi vào `console.error`. Helper thuần `sellerOrderActionError.ts` (`sellerOrderActionErrorMessage(error, kind)`) map status → message tiếng Việt: ready-to-ship `400` → "địa chỉ giao hàng không hợp lệ…", `500` → "không kết nối được GHN, đơn vẫn ở trạng thái đã xác nhận…"; fallback dùng server message rồi generic theo `kind`. `SellerOrdersPage` derive `actionError` từ mutation nào đang `isError` (kèm `variables` = order id) và render banner `#id · message` dưới banner lỗi list.
-- **Test:** `sellerOrderActionError.test.ts` (7 case, ready-to-ship 400/500/fallback/server-message + confirm không áp mapping 400). `build` (tsc + vite) xanh.
-- Còn nợ runtime: full-stack E2E (seller bấm "Sẵn sàng giao" với address xấu → 400 + banner; address tốt → `ghnOrderCode` hiện).
-
-#### F2 — Buyer-initiated return/refund tích hợp — DONE (2026-07-03)
-
-Backend giao (handoff NEW F2, 2026-06-30): buyer request return trên đơn `delivering`/`completed`; seller/admin approve (order → `refunded`, refund simulated) hoặc reject (order về `previousOrderStatus`). Order statuses mới `return_requested`/`refunded`.
-
-- **Types** (`types/order.ts`): `OrderStatus` thêm `return_requested`/`refunded`; `OrderStatusCounts` thêm 2 key optional; types mới `ReturnRequest`/`ReturnRequestStatus` (`pending_review|approved|rejected`)/`RefundStatus` (`refunded|manual_pending`). `userId`/`reviewedBy` model `number | string` (bigint có thể trả string).
-- **API** (`api/orders.ts`): `requestReturn(orderId, reason)`, `getMyReturnRequests(page, limit)`, `getReturnRequests(page, limit, status?)`, `approveReturnRequest(id)`, `rejectReturnRequest(id, reason)`. Query keys: `orders.returnRequests`/`returnMine`/`returnQueue` (`hooks/queryKeys.ts`).
-- **Helpers thuần** (`features/order/returnRequest.ts`): `canRequestReturn` (chỉ delivering/completed), `hasReturnActivity`, `findReturnRequestForOrder` (list newest-first, lấy match đầu — không có endpoint per-order nên OrderDetail tìm trong page 1 limit 50 của `/mine`), `returnStatusMeta` (label + tb-token class), `refundStatusLabel` ('Đã hoàn tiền · <method>' / 'Chờ hoàn tiền thủ công · <method>'), `returnRequestErrorMessage` (400 → message "không đủ điều kiện" thân thiện).
-- **Hooks** (`useReturnRequests.ts`): `useMyReturnRequests` (có `enabled` gate), `useReturnRequestQueue`, `useRequestReturn` (invalidate order detail + byUser + returnRequests), `useReviewReturnRequest` (approve/reject union variables; invalidate cả prefix `orders.all` vì order status đổi).
-- **Buyer UI:** `OrderDetailPage` — nút "Yêu cầu trả hàng" (chỉ khi eligible và không có request `pending_review`) mở form reason inline (maxLength 1000); panel trả hàng/hoàn tiền render request status pill + reason + rejectReason + dòng refund (`formatVnd`); timeline ẩn khi order ở return state. `OrderHistoryPage` — tab "Trả hàng/Hoàn tiền" (`orderFilterCounts` gộp 2 status, count optional `?? 0`) + link `/returns`. Trang mới `/returns` (`ReturnRequestsPage`) list request của mình, phân trang 10/trang.
-- **Seller UI:** trang mới `/sell/returns` (`SellerReturnRequestsPage`, ProtectedRoute shop) — queue với filter tab all/pending_review(mặc định)/approved/rejected, hành động "Duyệt & hoàn tiền" / "Từ chối" (reject cần reason inline), error banner `#id · message`. `SellerOrdersPage` thêm link `/sell/returns` + 2 filter status mới. `StatusBadge` thêm `return_requested` (amber) / `refunded` (violet).
-- **Test:** `returnRequest.test.ts` (eligibility matrix, find newest match, refund labels, error mapping) + `orderFilterCounts.test.ts` cập nhật (gộp return statuses, missing keys = 0). Full suite **187 tests / 30 files pass**; `npm run build` xanh.
-- **Open question BE:** `GET /order/user/:id/status-counts` có trả key `return_requested`/`refunded` không? FE coi là optional nên tab count degrade về 0 nếu thiếu — ghi vào `backend-handoff.md`.
-- Còn nợ runtime: E2E 2 tài khoản (buyer request → seller approve/reject → order status + notification).
-
-#### F3 — Voucher/discount codes tại checkout — DONE (2026-07-03)
-
-Backend giao (handoff NEW F3, 2026-06-30): `POST /order/voucher/validate` preview mã theo basket (không redeem); `POST /order` nhận `voucherCode` optional (chỉ đơn single-seller, multi-seller + code → 400; code case-insensitive; per-user redemption trùng → 400). Order trả kèm `voucherCode` + `discountAmount`, `total`/`codAmount` đã net discount.
-
-- **Types** (`types/order.ts`): `VoucherValidateDto`/`VoucherValidation`/`VoucherDiscountType`; `CreateOrderDto.voucherCode?`; `Order.voucherCode?` + `discountAmount?` (model `number | string | null` — decimal column có thể trả string ở response cũ).
-- **API** (`api/orders.ts`): `validateVoucher(dto)` → `POST /order/voucher/validate` (mutation, không cần query key).
-- **Helpers thuần** (`features/cart/voucher.ts`): `normalizeVoucherCode` (trim+uppercase), `distinctSellerCount` (bỏ qua product chưa load — không flip guard giữa chừng), `discountedGrandTotal` (clamp goods total ≥ 0 rồi + ship), `voucherErrorMessage` (404 → mã không tồn tại/vô hiệu; 400 map keyword expired/not-started/min/per-user/usage-limit/multi-seller → tiếng Việt, fallback server message).
-- **CheckoutPage:** input mã + nút "Áp dụng" trong summary card (Enter trong input → apply, không submit form); khi applied hiện dòng giảm giá (code chip amber + số tiền xanh + `IconButton` × để bỏ); grand total = `discountedGrandTotal(totalPrice, discount, shippingFee)`. **Stale guard:** effect reset voucher preview khi `buildCheckoutSignature(items)` đổi (đổi số lượng/SKU → phải validate lại, không redeem giá cũ). **Single-seller guard:** basket >1 seller (`product.userId` qua `productMap`) → thay input bằng note "Không áp dụng cho đơn nhiều người bán", không gửi code. `onSubmit` refactor dùng chung `buildOrderItems()` và thêm `voucherCode` vào dto khi có preview hợp lệ.
-- **OrderDetailPage:** dòng "Giảm giá (CODE) −xxx đ" trên dòng Tổng cộng khi `discountAmount > 0` (coerce `Number()`).
-- **Test:** `voucher.test.ts` (normalize, seller count, grand total clamp, error mapping matrix). Full suite **195 tests / 31 files pass**; `npm run build` xanh.
-- **Không làm (optional theo entry):** admin voucher CRUD UI (`/order/admin/vouchers` create/list/deactivate) — endpoints đã ghi trong handoff Done nếu cần sau.
-- Còn nợ runtime: E2E với voucher thật (BE self-test 10/10 nhưng FE chưa chạy live); cần admin tạo voucher trước.
-
-#### F5 — Admin post moderation queue tích hợp — DONE + runtime-verified (2026-07-03)
-
-Backend giao (handoff NEW F5, 2026-07-02): `GET /social/admin/reports?status=&page=&limit=` (PaginatedResponse group theo post, order most-recently-reported first) + 4 action `POST .../posts/:id/hide|unhide|dismiss` và `DELETE .../posts/:id` (admin role; hide flips pending→resolved, unhide KHÔNG re-open, dismiss giữ post visible, delete xóa vĩnh viễn post + reports). Hidden post bị loại khỏi 3 feed reads và `GET /social/posts/:id` → 404.
-
-- **Types** (`types/social.ts`): `PostReportStatus` (`pending|resolved|dismissed`), `PostReport`, `ReportedPost` (`Post` + `isHidden`/`hiddenAt`), `ReportedPostGroup` (post + reportCount/pendingCount/latestReportedAt/reports), `ModeratePostResult`, `DismissReportsResult`.
-- **API** (`api/social.ts`): `getReportedPosts(status='pending', page=1, limit=20)` + `hidePost`/`unhidePost`/`dismissReports`/`adminDeletePost`. Query keys: `social.adminReports` / `adminReportsList(status, page)`.
-- **Helpers thuần** (`features/admin/postModeration.ts`): `moderationActionsFor` (hide↔unhide theo `post.isHidden`; dismiss chỉ khi `pendingCount > 0`; delete luôn có), `reportStatusMeta` (label VN + tb-token class: pending amber / resolved green / dismissed muted), `moderationSuccessMessage`, `moderationErrorMessage` (404 → "Bài viết không còn tồn tại…", 403 → không có quyền, fallback server message rồi generic theo action).
-- **UI:** trang mới `/admin/reports` (`ReportedPostsPage`, lazy + `ProtectedRoute requiredRole="admin"`), link LeftRail "Kiểm duyệt bài viết" (icon `Flag`, đúng pattern admin links). 3 filter tab pending/resolved/dismissed (đổi tab reset page 1); card mỗi post: Avatar + link profile author, content preview (link `/post/:id` CHỈ khi post không hidden — hidden 404), badge đỏ "Đang ẩn khỏi feed", pill amber "n chờ xử lý", danh sách lý do report kèm status badge từng report; action row từ `moderationActionsFor`; **delete = confirm 2 bước inline** ("Hành động này không thể hoàn tác" + Xác nhận xoá/Huỷ); mỗi action `onSuccess` invalidate `social.adminReports` (refetch queue) + toast 3s; per-row pending qua `moderate.variables?.id`; Skeleton loading, empty state ShieldCheck, `<Pagination>` dùng `hasNext`.
-- **Test:** `postModeration.test.ts` (11 case: action matrix 4 tổ hợp isHidden×pendingCount, status meta + fallback, success/error messages 404/403/passthrough/generic). Full suite **206 tests / 32 files pass**; `npm run build` + `lint` xanh (0 errors).
-- **Runtime-verified (Chrome DevTools MCP, 2026-07-03, admin `testadmin`):** seed 2 pending reports lên post #8 (2 user khác nhau qua API); queue render đúng group (2 báo cáo · 2 chờ xử lý); Hide → `POST /hide` 201, refetch, post sang tab "Đã xử lý" với badge ẩn + actions thành Hiện lại/Xoá; Unhide → badge hết, reports GIỮ resolved (đúng contract không re-open); Dismiss đúng là biến mất khi pendingCount=0; delete confirm/cancel flow hoạt động (không xóa thật để giữ data test). End state: post #8 visible, 2 reports `resolved`. Lưu ý MCP tooling: `click` tool không trigger React handler trên page này — phải dispatch `button.click()` qua `evaluate_script` (quirk của tool, không phải bug app).
-- Không có backend gap — toàn bộ contract khớp runtime, không ghi `backend-handoff.md`.
-
-#### Featured sellers endpoint cho feed right-rail — DONE + runtime-verified (2026-07-04)
-
-Backend giao (handoff NEW, 2026-07-03): endpoint `GET /api/user/featured-sellers?limit=<1..20>` (JwtAuthGuard, mọi role đăng nhập, default 5) trả `data: [{ id, username, name, avatar }]` — shop account active, newest-first, chỉ field profile công khai. Thay cho `GET /user/all` admin-only (403 ×2 mỗi lần load feed → console error + card empty cho user thường).
-
-- **Types** (`types/user.ts`): type mới `FeaturedSeller` (`id`/`username`/`name: string|null`/`avatar: string|null`) — không có `role`/`email`/`grants`.
-- **API** (`api/users.ts`): `getFeaturedSellers(limit = 5)` → `GET /user/featured-sellers?limit=`. Query key `users.featuredSellers(limit)`.
-- **RightRail** (`components/layout/RightRail.tsx`): bỏ `getAll()` + filter role client-side (`u.role.rol_name === 'shop'|'admin'`) + `.slice(0,5)` — endpoint đã trả đúng shop newest-first. Sub-label đổi từ `role.rol_name` sang `@username`. `User` import bỏ (không còn dùng).
-- **Test:** `api/users.test.ts` (MSW, 2 case: default limit=5 gọi đúng `/user/featured-sellers` không đụng `/user/all`; custom limit forward). Full suite **214 tests / 34 files pass**; `build` + `lint` (0 errors) xanh.
-- **Runtime-verified (Chrome DevTools MCP, 2026-07-04, user 17, feed `/`):** card "Seller nổi bật" render techstore_demo (@techstore_demo, profile/23) + test1 (@test1, profile/20); network `GET /api/user/featured-sellers?limit=5 [200]`, KHÔNG còn `/api/user/all` 403 nào trên happy path → hết console error mỗi lần load feed.
-- Không có backend gap mới — BE đã giao endpoint; đây là integration thuần. Handoff entry move sang Done.
-
-#### Marketplace category/brand filter params — DONE + runtime-verified (2026-07-04)
-
-Backend phát hiện (handoff NEW, 2026-07-03): FE gửi `categoryId`/`brandId` (số ít) nhưng gateway DTO chỉ nhận `categoryIds`/`brandIds`; `ValidationPipe({ whitelist:true })` strip key lạ **im lặng** → filter danh mục/thương hiệu ở marketplace là NO-OP từ đầu (200 với kết quả không lọc).
-
-- **Fix** (`api/products.ts`): tách phần dựng query của `getList` thành helper thuần export `buildProductListQuery(params)` — append key số nhiều `categoryIds`/`brandIds`, lặp key theo từng value (`?categoryIds=16&categoryIds=18`, syntax gateway hỗ trợ; KHÔNG bao giờ dùng bracket `[]` — cũng bị whitelist strip). Scalar params + skip empty giữ nguyên hành vi.
-- **Test:** `api/products.test.ts` mới (6 case: repeated plural keys, không phát key số ít, không bracket syntax, scalar giữ kèm filter, empty string bị skip, params rỗng → chuỗi rỗng). Full suite **212 tests / 33 files pass**; `build` + `lint` (0 errors) xanh.
-- **Runtime-verified (Chrome DevTools MCP, 2026-07-04, user 17, gateway live):** marketplace 28 SP không lọc → chọn danh mục Audio → request `...&categoryIds=17` → **6 SP** đều audio → thêm brand Sony → `...&categoryIds=17&brandIds=23` → **đúng 2 SP** (Sony WF-1000XM5, WH-1000XM5). Filter lần đầu tiên thật sự narrow kết quả.
-- Không có backend gap — backend đã fix phía họ (PERF-10 + scalar→array transform); đây là bug FE-side thuần. Handoff entry đã move sang Done.
-
-## P2
-
-### P2-06 — Batch product endpoint resilience (FE mitigation) — DONE (2026-06-25)
-
-- **Vấn đề:** `POST /products/with-inventory/multiple` trả `404 "Product not found"` nếu BẤT KỲ id nào trong batch đã bị xóa → giết cả response, blank toàn bộ hydrate. Order pages đã thoát phụ thuộc (P1-02); cart pages (`CartDrawer`/`CartPage`/`CheckoutPage`) vẫn hydrate qua `useProductsByIds` → 1 product đã xóa trong giỏ làm hỏng toàn bộ.
-- **Fix tại API layer (DRY, cover hết 5 consumer):** `src/lib/fetchBatchTolerant.ts` — happy path vẫn 1 request batch; chỉ khi batch ném `404` mới fan-out per-id (`Promise.allSettled`) và giữ lại các id resolve được, drop id thiếu. Lỗi non-404 vẫn propagate để React Query surface/retry. `api.products.getMultipleWithInventory` bọc qua helper này (inject `fetchBatch` + `fetchOne` để test).
-- **Test:** `fetchBatchTolerant.test.ts` (4 cases: happy-path không fan-out, empty ids → `[]`, 404 → fan-out drop id thiếu, non-404 rethrow). Full suite **19 files / 107 tests pass**; `build`/`lint` (0 errors) xanh.
-- Còn nợ phía backend: endpoint nên skip id thiếu trả mảng partial thay vì 404 (khi đó FE fan-out thành no-op, vẫn an toàn).
-
-### P2-01 — Responsive baseline — DONE (2026-06-24)
-
-- **Checkout** (`CheckoutPage.tsx`): grid `grid-cols-[1fr_380px]` → `grid-cols-1 lg:grid-cols-[1fr_380px]`; summary chỉ `lg:sticky`; padding `px-4 sm:px-6`. Product row `flex-wrap` + info `min-w-[120px]` + controls `ml-auto` (đã verify hết overflow ở 360px: `scrollWidth === clientWidth`).
-- **Login** (`LoginPage.tsx`): `grid-cols-[1.1fr_1fr]` → `grid-cols-1 md:grid-cols-[1.1fr_1fr]`; form padding `px-6 py-12 md:px-[64px] md:py-[60px]`.
-- **Header** (`Header.tsx`): search `w-[520px] hidden sm:block` → `hidden md:block flex-1 max-w-[520px]`; nút "Tạo bài viết" thu gọn còn icon `<` sm.
-- **Mobile navigation:** thêm `src/components/layout/MobileNav.tsx` — bottom tab bar `md:hidden fixed bottom-0` (Bảng tin/Chợ/Thông báo/Đơn hàng/Cá nhân), mount trong `AppShell`. DRY: tách nav list ra `src/components/layout/navItems.ts` (`getPrimaryNavItems`); `LeftRail` dùng chung.
-- **Verify runtime (Chrome DevTools, seller `test1`):** 360×800 + 768×1024 đạt. `npm run build` pass.
-
-### P2-02 — Cart/order image fallback — DONE (FE) (2026-06-24)
-
-- **Root cause:** `CartPage`/`CartDrawer` render `<img src={imageUrl}>` không guard, `imageUrl` fallback `''` → `<img src="">` (request rác + vỡ layout). Các nơi khác tự chế fallback khác icon (🛍️/`ShoppingCart`/`Package`/`Package2`) → vi phạm DRY.
-- **Fix — shared component:** thêm `src/components/shared/ProductThumb.tsx` (+ test, 4 cases): không bao giờ `<img src="">`; có `src` → `<img object-cover>`, không có → icon `Package` trong `grid place-items-center`. Optional prop `to` → render `<Link>`.
-- **Migrate 7 call site:** `CartPage`, `CartDrawer`, `CheckoutPage`, `ProductChip`, `ShopPage`, `OrderHistoryPage`, `OrderDetailPage`. `ProductCard` giữ inline (badge overlay tuyệt đối). `npm run build` pass.
-
-#### P2-02 follow-up — backend order snapshot tích hợp — DONE (2026-06-26)
-
-Backend persist snapshot purchase-time của product image + SKU label cho order item (handoff P2-02, 2026-06-26); response shape không đổi — `item.image`/`item.skuLabel` giờ backed bởi snapshot thay vì live lookup, order cũ render đúng dù product bị sửa/xóa.
-
-- **FE không cần đổi hành vi:** order pages đã đọc decorated `item.image`/`item.skuLabel`/`item.productName` từ P1-02; `useProductsByIds` đã gỡ khỏi mọi order page (chỉ social attachment còn dùng).
-- Chỉ refresh 2 comment type trong `src/types/order.ts` (`OrderItem.image`, `SellerOrderItemDetail.image`) từ "realtime" → "purchase-time snapshot" cho đúng semantics. Đóng note "còn nợ backend" của P2-02 dưới P1-02.
-
-### P2-03 — Auth completeness — DONE (2026-06-25)
-
-- **Quyết định: disable + "sắp ra mắt"** (không implement). Backend chỉ có `login/register/logout/me`.
-- **`LoginPage` gỡ control chết:** remember-me checkbox (state set nhưng không gửi → xoá state), "Quên mật khẩu?", 2 nút OAuth Google/Facebook đều `disabled` + `aria-disabled` + `title="Tính năng sắp ra mắt"` + style mờ; thêm nhãn "(sắp ra mắt)" + caption. Hằng `COMING_SOON_TITLE` dùng chung.
-- **401 redirect — extract + test:** logic trong `request()` tách `src/api/unauthorized.ts` (`shouldRedirectToLogin`/`buildLoginRedirect`, pure) + test `unauthorized.test.ts` (10 cases).
-- **Role boundary tests:** `src/lib/roleAccess.test.ts` (P2-04) phủ logic guard.
-- **Register E2E:** cần RTL (chưa cài — P3-01); flow register→auto-login để lại cho khi test infra có.
-- `npm run build` pass; 25/25 test pass (unauthorized 10 + roleAccess 15) qua node-env config tạm.
-
-### P2-04 — Admin completion — DONE (2026-06-25)
-
-- **Backend đã hoàn tất** approval flow Phase 1/2/2b/2c (pending list, review+note, notification tới seller, product lock/unlock). FE approve/reject UI (`PendingBrandsPage`/`PendingCategoriesPage`) đã wire `api.products.reviewBrand|reviewCategory(id, {action, note})` + invalidate + toast — khớp contract.
-- **Fix nav gating:** admin trước đây thấy seller nav vì 3 nơi OR nhầm `isSeller || isAdmin`. Seller capability = role `shop`, admin KHÔNG phải seller → gate seller nav/route bằng `isSeller`.
-- **DRY + testable:** extract `src/lib/roleAccess.ts` (`canSell`/`canAdminister`/`roleSatisfies`) single source of truth + test `roleAccess.test.ts` (15 cases). `useRole` + `ProtectedRoute` dùng helper; `LeftRail`/`ProfileMenu` gate seller block bằng `isSeller`. LeftRail admin block thêm divider.
-- `npm run build` pass; 15/15 test pass.
-- **Đề xuất DRY (chưa làm, cần xác nhận):** `PendingBrandsPage` + `PendingCategoriesPage` gần trùng 100% → nên extract `PendingReviewTable` (shared) nhận `items`/`reviewFn`/labels.
-
-### P2-05 — Pagination 10/page nhất quán — DONE (phần API đã hỗ trợ) (2026-06-25)
-
-> Mục tiêu: mọi list page phân trang 10 item/trang, NGOẠI TRỪ `/marketplace` (12/trang theo grid). Component chung `src/components/shared/Pagination.tsx`; helper `getPageItems` ở `src/lib/pagination.ts` + test.
-
-- **`SellerOrdersPage`** (`/sell/orders`): `LIMIT` 20 → 10; `<Pagination>` thay block prev/next inline.
-- **`ProfilePage`** tab Bài viết + Sản phẩm: page state (reset khi đổi `userId`), `getPostsByUser(userId, page, 10)` + `useProducts({ userId, page, limit: 10 })`; label tab đếm theo `total` server; `<Pagination>`. `queryKeys.social.postsByUser` thêm `page`.
-- **`NotificationsPage`** (`/notifications`): `useNotifications(page)` parameterize, limit 50 → 10; `markRead` optimistic target đúng cache trang hiện tại; `<Pagination>`.
-- **`MarketplacePage`**: migrate sang `<Pagination>` dùng chung, GIỮ `limit: 12` (ngoại lệ).
-
-#### P2-05 follow-up — backend pagination/stat endpoints tích hợp — DONE (2026-06-26)
-
-Backend giao 3 endpoint additive (handoff P2-05, 2026-06-26). FE đã chuyển khỏi các fallback `limit` cao / tính client-side:
-
-- **Admin Users → `GET /user?page=&limit=`** (`api.users.getPaginated`, `PaginatedResponse<User>`). `AdminPage` đổi từ `users.getAll()` (`/user/all`) sang paginated (20/trang): query key `[...users.all, page, limit]`, state `usersPage`, card "Tổng người dùng" đọc `total` server (không còn `users.length` của 1 trang), thêm prev/next + "Trang x / y". `getAll()` giữ lại cho consumer khác.
-- **Shop stats → `GET /products/shop/stats`** (`api.products.getShopStats` → `{ productCount, totalStock, lowStockCount }`, query key `products.shopStats`). `ShopPage` 3 stat card đọc số toàn shop từ endpoint, fallback về aggregation client-side (`products.length`/reduce/filter) khi đang load → số đúng cả khi danh sách phân trang, không chỉ trang hiện tại.
-- **Notifications badge → `GET /notifications/unread-count`** (`api.notifications.getUnreadCount` → `{ unreadCount }`, query key `notifications.unreadCount`). `useNotifications` badge đọc count toàn cục thay vì đếm `!isRead` trên trang đã load. `markRead` optimistic decrement count cache (chỉ khi item đang unread) + rollback on error; socket realtime increment count khi insert thật (dedup qua `didInsert`).
-- **Test:** `didInsert` helper (pure, `notificationCache.ts`) + 3 case trong `notificationCache.test.ts`. Full suite **118 unit tests pass**; `build` + `lint` (0 errors) xanh.
-
-#### P2-06 follow-up — backend tolerant batch endpoint — DONE (2026-06-26)
-
-Backend fix `POST /products/with-inventory/multiple`: skip id thiếu trả mảng partial (+ `inventory: null` khi inventory service down) thay vì 404 toàn batch. FE giữ `fetchBatchTolerant` làm safety net (fan-out giờ no-op trên happy path); cập nhật comment ở `api.products.getMultipleWithInventory`.
-
-### P3-01 — Quality gates (phần đã làm) (2026-06-25)
-
-- `npm run build` pass.
-- `globalIgnores` thêm `design_handoff_trybuy_ui` → `npm run lint` sạch (exit 0, từ 370 lỗi → 0). Scripts `typecheck`/`lint`/`test:run` đã có trong `package.json`. Gate lint dùng được ngay (hiện chỉ phủ js/jsx).
-- Test infra files đã có (`vite.config.ts` test block, `src/test/setup.ts`, `src/test/msw/`, `renderWithProviders`) + test colocate (`sku.test.ts`, `orderSummary.test.ts`, `sellerOrderActions.test.ts`, `utils.test.ts`, `ProductCard.test.tsx`).
-
-> Còn lại (xem `snapshot.md`): `typescript-eslint` dep (lint TS/TSX) + cài dev deps test (vitest/jsdom/RTL/msw) — cả hai chặn bởi `npm install`.
-
-## Flows đã chạy pass trong runtime audit
-
-- Login/logout bằng user, shop và admin. Role routes `/sell`, `/sell/orders`, `/admin`.
-- Marketplace load products/categories/brands. Server cart page + checkout selection.
-- COD: shipping fee → create order → clear cart → order history. Buyer order detail + cancel.
-- Cloudinary upload + create product. Social create post tại feed.
-- Seller order list/filter/confirm mutation. Admin dashboard + pending brand/category pages.
-- Chat/notification WebSocket handshake khi FE dùng origin `http://localhost:5173`. Production build.
-
-> Pass ở đây chỉ xác nhận happy-path đã chạy; không xóa backlog về consistency/retry/responsive/UX.
-
-## Dữ liệu test đã tạo/thay đổi (audit 2026-06-19)
-
-- Product `#16 — E2E Bottle 20260619`, bị stock `0` do inventory conflict.
-- Post `E2E social smoke test 20260619`.
-- Order `#97`, đã cancel sau xác nhận flow.
-- Seller order `#4`, đã chuyển qua confirm + ready-to-ship, trạng thái cuối quan sát `processing`.
+# Phần cũ hơn → `CHANGELOG.archive.md`
+
+Các sweep đầu tháng 7 (2026-07-05 → 2026-07-09) và toàn bộ **P0 / P1 / P2 / P3-01** của đợt
+release-blocker tháng 6 (2026-06-19 → 2026-06-25) đã dời sang **`CHANGELOG.archive.md`**
+(cùng thư mục) ngày 2026-08-04 — nguyên văn, không sửa. Mở file đó khi cần truy nguyên một
+thay đổi trước 2026-07-10.

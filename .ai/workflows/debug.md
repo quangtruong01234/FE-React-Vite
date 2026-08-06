@@ -55,7 +55,7 @@ Pick ONE of:
 - Change only what the hypothesis requires.
 - Do NOT refactor unrelated code while you're here.
 - Do NOT add features.
-- Add a test if `.ai/testing.md` is set up (it isn't yet — skip if so).
+- **Add a test — mandatory.** Every fix ships with a colocated `*.test.ts(x)` that fails before the fix and passes after. Extract the logic into a pure helper if it's stuck inline in a component. See `.ai/testing.md`.
 
 ### Step 6 — Verify the fix
 
@@ -114,8 +114,4 @@ If escalation needed:
 ESCALATE — root cause not identified after 3 hypothesis cycles.
 Recommend: invoke `debugger` agent for deep investigation.
 ```
-
----
-
-**Model:** Sonnet 4.6 | **Effort:** Medium
-**Escalate to:** **Model:** Opus 4.8 | **Effort:** High — if 3+ hypothesis cycles fail, or error spans backend boundary.
+Escalate when 3+ hypothesis cycles fail, or the error spans the backend boundary.

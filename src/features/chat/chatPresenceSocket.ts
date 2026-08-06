@@ -13,12 +13,12 @@ const CHAT_URL = (import.meta.env.VITE_CHAT_URL as string | undefined) ?? 'http:
 
 type PresenceSocket = Socket<
   { new_message: (msg: Message) => void },
-  { join: (payload: { conversationId: number }) => void }
+  { join: (payload: { conversationId: string }) => void }
 >;
 
-let viewerId: number | undefined;
-let activeConversationId: number | null = null;
-const joined = new Set<number>();
+let viewerId: string | undefined;
+let activeConversationId: string | null = null;
+const joined = new Set<string>();
 let unsubscribeCache: (() => void) | null = null;
 
 /**
@@ -26,11 +26,11 @@ let unsubscribeCache: (() => void) | null = null;
  * (`useChat`) handles that thread's message + sound, so the presence listener
  * skips it to avoid playing the beep twice. Pass `null` when no thread is open.
  */
-export function setActiveConversation(id: number | null): void {
+export function setActiveConversation(id: string | null): void {
   activeConversationId = id;
 }
 
-function joinConversation(id: number): void {
+function joinConversation(id: string): void {
   const socket = presenceSocket.current();
   if (!socket || joined.has(id)) return;
   socket.emit('join', { conversationId: id });
@@ -101,7 +101,7 @@ const presenceSocket = createRefCountedSocket<PresenceSocket>(`${CHAT_URL}/chat`
 });
 
 /** @returns a release function for the caller's effect cleanup. */
-export function acquireChatPresenceSocket(meId: number | undefined): () => void {
+export function acquireChatPresenceSocket(meId: string | undefined): () => void {
   viewerId = meId;
   return presenceSocket.acquire();
 }

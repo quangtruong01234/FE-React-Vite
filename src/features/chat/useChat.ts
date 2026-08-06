@@ -11,6 +11,8 @@ import {
   type ChatMessage, type MessagesInfiniteData,
 } from './chatMessages';
 import { acquireChatPresenceSocket, setActiveConversation } from './chatPresenceSocket';
+import { SOCKET_CONNECT_OPTIONS } from '@/lib/realtime/socket';
+import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
 import type { ChatConnectionStatus } from './chatConnection';
 import type { Conversation, Message, PaginatedResponse } from '@/types';
 
@@ -20,7 +22,7 @@ const CHAT_URL = (import.meta.env.VITE_CHAT_URL as string | undefined) ?? 'http:
 
 type ChatSocket = Socket<
   { new_message: (msg: Message) => void; error: (err: string) => void },
-  { join: (payload: { conversationId: number }) => void; leave: (payload: { conversationId: number }) => void; send_message: (payload: { conversationId: number; content: string }) => void }
+  { join: (payload: { conversationId: string }) => void; leave: (payload: { conversationId: string }) => void; send_message: (payload: { conversationId: string; content: string; parentMessageId?: string }) => void }
 >;
 
 export function useConversations(): { conversations: Conversation[]; isLoading: boolean } {
@@ -39,7 +41,7 @@ export function useConversations(): { conversations: Conversation[]; isLoading: 
  * sound for any incoming message, on any thread, from anywhere in the app.
  * Mount once high in the tree (the Header is always rendered when authenticated).
  */
-export function useChatPresence(meId?: number): void {
+export function useChatPresence(meId?: string): void {
   useEffect(() => acquireChatPresenceSocket(meId), [meId]);
 }
 
@@ -47,10 +49,10 @@ export function useChatPresence(meId?: number): void {
  * Mark a conversation read on the server and optimistically clear its unread
  * badge in the cached list. Call when the viewer opens a thread.
  */
-export function useMarkConversationRead(): (conversationId: number) => void {
+export function useMarkConversationRead(): (conversationId: string) => void {
   const { mutate } = useMutation({
-    mutationFn: (conversationId: number) => api.chat.markConversationRead(conversationId),
-    onMutate: (conversationId: number) => {
+    mutationFn: (conversationId: string) => api.chat.markConversationRead(conversationId),
+    onMutate: (conversationId: string) => {
       queryClient.setQueryData<Conversation[]>(queryKeys.conversations.all, (old) =>
         old ? markConversationReadInList(old, conversationId) : old,
       );
@@ -59,10 +61,10 @@ export function useMarkConversationRead(): (conversationId: number) => void {
   return mutate;
 }
 
-export function useChat(conversationId: number, currentUserId?: number): {
+export function useChat(conversationId: string, currentUserId?: string): {
   messages: ChatMessage[];
   isLoading: boolean;
-  sendMessage: (content: string, senderId: number) => void;
+  sendMessage: (content: string, senderId: string) => void;
   hasNextPage: boolean;
   fetchNextPage: () => void;
   isFetchingNextPage: boolean;
@@ -71,12 +73,21 @@ export function useChat(conversationId: number, currentUserId?: number): {
   const [socketMessages, setSocketMessages] = useState<Message[]>([]);
   const [pendingMessages, setPendingMessages] = useState<ChatMessage[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<ChatConnectionStatus>('connecting');
-  const tempIdRef = useRef(-1);
+  const tempIdRef = useRef(0);
 
   // Keep the latest viewer id in a ref so the socket handler reads it without
   // re-subscribing on every account change (and never fires a stale sound).
   const currentUserIdRef = useRef(currentUserId);
-  currentUserIdRef.current = currentUserId;
+  useEffect(() => {
+    currentUserIdRef.current = currentUserId;
+  }, [currentUserId]);
+
+  // Back to "connecting" the moment the thread changes — adjusted during render
+  // so no frame shows the previous thread's status while the socket effect
+  // reconnects. An emptied id tears down without reconnecting, so no reset.
+  useResetOnChange(conversationId, () => {
+    if (conversationId) setConnectionStatus('connecting');
+  });
 
   const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: queryKeys.messages.byConversation(conversationId),
@@ -84,7 +95,7 @@ export function useChat(conversationId: number, currentUserId?: number): {
     initialPageParam: 1,
     getNextPageParam: (lastPage, _allPages, lastPageParam) =>
       lastPage.hasNext ? (lastPageParam as number) + 1 : undefined,
-    enabled: conversationId > 0,
+    enabled: conversationId.length > 0,
   });
 
   // All pages: page 1 = newest 10, page 2 = next older 10, etc.
@@ -99,16 +110,15 @@ export function useChat(conversationId: number, currentUserId?: number): {
   // Tell the app-scoped presence socket which thread is open so it doesn't also
   // beep for it (this thread's own socket below handles that).
   useEffect(() => {
-    if (conversationId <= 0) return;
+    if (!conversationId) return;
     setActiveConversation(conversationId);
     return () => setActiveConversation(null);
   }, [conversationId]);
 
   useEffect(() => {
-    if (conversationId <= 0) return;
+    if (!conversationId) return;
 
-    setConnectionStatus('connecting');
-    const socket: ChatSocket = io(`${CHAT_URL}/chat`, { withCredentials: true });
+    const socket: ChatSocket = io(`${CHAT_URL}/chat`, SOCKET_CONNECT_OPTIONS);
     socketRef.current = socket;
 
     socket.on('connect', () => {
@@ -162,8 +172,8 @@ export function useChat(conversationId: number, currentUserId?: number): {
     };
   }, [conversationId]);
 
-  function sendMessage(content: string, senderId: number): void {
-    const tempId = tempIdRef.current--;
+  function sendMessage(content: string, senderId: string): void {
+    const tempId = `pending_${tempIdRef.current++}`;
     const pending: ChatMessage = {
       id: tempId,
       conversationId,

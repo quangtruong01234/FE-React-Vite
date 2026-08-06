@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Truck, Shield, RotateCcw, ShoppingCart, ChevronRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -9,7 +9,10 @@ import { useAuthContext } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/format/utils';
-import { getValidSkus, findMatchingSku, getOptionStock } from '@/lib/domain/sku';
+import { getValidSkus, findMatchingSku, getOptionStock, defaultTierSelection } from '@/lib/domain/sku';
+import { cldImage } from '@/lib/http/cloudinaryUrl';
+import { preloadImage } from '@/lib/http/preloadImage';
+import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
 import { PriceText } from '@/components/shared/PriceText';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { Avatar } from '@/components/shared/Avatar';
@@ -28,39 +31,32 @@ export default function ProductDetail(): ReactElement {
   const { data: cart } = useCart();
   const addToCart = useAddToCart();
 
-  const [quantity, setQuantity] = useState(1);
-  const [activeImg, setActiveImg] = useState(0);
-  const [selectedTiers, setSelectedTiers] = useState<Record<number, number>>({});
-  const [variantError, setVariantError] = useState('');
-
   const { currentUser } = useAuthContext();
 
   const { data: detail, isLoading: loading, error } = useQuery({
-    queryKey: queryKeys.products.withInventory(Number(id)),
-    queryFn: () => api.products.getWithInventory(Number(id)),
+    queryKey: queryKeys.products.withInventory(id ?? ''),
+    queryFn: () => api.products.getWithInventory(id ?? ''),
     enabled: !!id,
   });
 
-  useEffect(() => {
+  const [quantity, setQuantity] = useState(1);
+  const [activeImg, setActiveImg] = useState(0);
+  const [selectedTiers, setSelectedTiers] = useState<Record<number, number>>(() =>
+    defaultTierSelection(detail?.variations, detail?.skus),
+  );
+  const [variantError, setVariantError] = useState('');
+
+  // Re-derive the auto-selection whenever the route id or the product's
+  // variation/SKU data changes (adjust-state-during-render, no effect cascade).
+  const resetSelection = (): void => {
     setVariantError('');
-    const variations = detail?.variations ?? [];
-    if (!variations.length) {
-      setSelectedTiers({});
-      return;
-    }
-    // Auto-select the first in-stock option per tier, considering only valid SKUs.
-    // Malformed products (no valid SKU) start with nothing selected.
-    const valid = getValidSkus(detail?.skus, variations.length);
-    const defaults: Record<number, number> = {};
-    variations.forEach((variation, tier) => {
-      const firstAvailable = variation.options.findIndex((_, optIdx) =>
-        valid.some((s) => s.tierIdx[tier] === optIdx && s.stockQuantity > 0),
-      );
-      if (firstAvailable >= 0) defaults[tier] = firstAvailable;
-    });
-    setSelectedTiers(defaults);
-  }, [id, detail?.variations, detail?.skus]);
-if (loading) {
+    setSelectedTiers(defaultTierSelection(detail?.variations, detail?.skus));
+  };
+  useResetOnChange(id, resetSelection);
+  useResetOnChange(detail?.variations, resetSelection);
+  useResetOnChange(detail?.skus, resetSelection);
+
+  if (loading) {
     return (
       <div className="min-h-screen bg-canvas-base">
         <div className="bg-canvas-surface border-b border-bdr px-5 py-3">
@@ -118,7 +114,7 @@ if (loading) {
     : (inventory?.availableStock ?? null);
   const isLowStock = hasVariants ? false : (inventory?.isLowStock ?? false);
   const maxQty = available != null ? Math.min(available, 99) : 99;
-  const inCart     = cart?.items.find(i => i.productId === Number(detail.id));
+  const inCart     = cart?.items.find(i => i.productId === detail.id);
   const sellerName = detail.brand?.name ?? detail.user?.name ?? 'Shop Official';
   const gallery: string[] = (detail.imageUrls?.length ?? 0) > 0
     ? (detail.imageUrls as string[])
@@ -126,7 +122,7 @@ if (loading) {
       ? [detail.imageUrl]
       : [];
 
-  const isOwner = !!currentUser && Number(detail.userId) === currentUser.id;
+  const isOwner = !!currentUser && detail.userId === currentUser.id;
   const effectivePrice = (hasVariants && matchedSku) ? Number(matchedSku.price) : Number(detail.price);
   const skuOutOfStock = hasVariants && allTiersSelected && matchedSku != null && matchedSku.stockQuantity === 0;
 
@@ -146,9 +142,9 @@ if (loading) {
         setVariantError('Phân loại này hiện không có hàng');
         return;
       }
-      addToCart.mutate({ productId: Number(detail.id), quantity, skuId: Number(matchedSku.id) });
+      addToCart.mutate({ productId: detail.id, quantity, skuId: Number(matchedSku.id) });
     } else {
-      addToCart.mutate({ productId: Number(detail.id), quantity });
+      addToCart.mutate({ productId: detail.id, quantity });
     }
   }
 
@@ -189,9 +185,10 @@ if (loading) {
             <div className="relative aspect-square bg-canvas-elevated rounded-[20px] border border-bdr overflow-hidden">
               {gallery.length > 0 ? (
                 <img
-                  src={gallery[activeImg]}
+                  src={cldImage(gallery[activeImg], 1200)}
                   alt={detail.name}
                   className="w-full h-full object-cover"
+                  fetchPriority="high"
                 />
               ) : (
                 <div className="w-full h-full grid place-items-center text-ink-muted text-sm font-body">
@@ -205,14 +202,17 @@ if (loading) {
                   <button
                     key={i}
                     onClick={() => setActiveImg(i)}
+                    // The hero requests a wider derivative than the thumb, so
+                    // warm it on hover instead of on click.
+                    onMouseEnter={() => preloadImage(cldImage(src, 1200))}
                     className={cn(
                       'w-[84px] h-[84px] rounded-xl bg-canvas-elevated border flex-none overflow-hidden cursor-pointer transition-all',
                       activeImg === i
-                        ? 'border-amber-400/60 shadow-[0_0_0_3px_rgba(245,158,11,0.15)]'
+                        ? 'border-tb-amber/60 shadow-[0_0_0_3px_rgba(245,158,11,0.15)]'
                         : 'border-tb-border',
                     )}
                   >
-                    <img src={src} alt="" className="w-full h-full object-cover" />
+                    <img src={cldImage(src, 200)} alt="" className="w-full h-full object-cover" loading="lazy" />
                   </button>
                 ))}
               </div>
@@ -377,7 +377,7 @@ if (loading) {
                 </GradientButton>
               )}
               <WishlistButton
-                productId={Number(detail.id)}
+                productId={detail.id}
                 iconSize={20}
                 className="size-14 rounded-xl border border-bdr bg-canvas-elevated hover:border-accent-amber"
               />
@@ -405,7 +405,7 @@ if (loading) {
                     type="button"
                     onClick={() =>
                       currentUser
-                        ? navigate('/messages', { state: { otherUserId: Number(detail.userId) } })
+                        ? navigate('/messages', { state: { otherUserId: detail.userId } })
                         : navigate('/login')
                     }
                     className="bg-canvas-elevated border border-bdr rounded-[10px] px-3 py-2 font-body font-semibold text-xs text-tb-secondary cursor-pointer hover:border-accent-amber hover:text-white transition-colors whitespace-nowrap">
@@ -416,7 +416,7 @@ if (loading) {
                 <div className="grid grid-cols-3 gap-3 pt-4 border-t border-bdr">
                   {trustItems.map(({ Icon, label, sub }) => (
                     <div key={label} className="flex items-center gap-2.5">
-                      <span className="w-9 h-9 rounded-[10px] bg-amber-400/[0.10] text-tb-amber flex-none inline-flex items-center justify-center">
+                      <span className="w-9 h-9 rounded-[10px] bg-tb-amber/[0.10] text-tb-amber flex-none inline-flex items-center justify-center">
                         <Icon size={18} />
                       </span>
                       <div className="flex flex-col">

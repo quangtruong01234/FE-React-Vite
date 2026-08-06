@@ -181,10 +181,10 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
         )}
 
         {!isLoading && messages.map((m, i) => {
-          const isMe = meId !== undefined && Number(m.senderId) === Number(meId);
+          const isMe = meId !== undefined && m.senderId === meId;
           const prevMsg = messages[i - 1];
           const showAvatar = !isMe && (i === 0 || prevMsg?.senderId !== m.senderId);
-          const isLastMine = isMe && !m.status && messages.slice(i + 1).every((n) => Number(n.senderId) !== Number(meId));
+          const isLastMine = isMe && !m.status && messages.slice(i + 1).every((n) => n.senderId !== meId);
 
           return (
             <div
@@ -243,7 +243,7 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
             }
           }}
           placeholder="Nhắn tin…"
-          className="flex-1 bg-canvas-elevated border border-bdr rounded-full px-4 py-2.5 text-sm text-ink-pri placeholder:text-ink-muted outline-none focus:border-amber-400/50"
+          className="flex-1 bg-canvas-elevated border border-bdr rounded-full px-4 py-2.5 text-sm text-ink-pri placeholder:text-ink-muted outline-none focus:border-tb-amber/50"
         />
         <button
           onClick={handleSend}

@@ -9,9 +9,9 @@ import { queryKeys } from '@/hooks/query/queryKeys';
  */
 export interface OrderViewScope {
   /** Order detail page for this id. */
-  orderId?: number;
+  orderId?: string;
   /** Buyer history + filter badges — byUser prefix also covers statusCounts. */
-  buyerId?: number;
+  buyerId?: string;
   /** Seller order lists (list + detail). */
   seller?: boolean;
   /** Return-request lists (buyer "mine" + seller queue). */

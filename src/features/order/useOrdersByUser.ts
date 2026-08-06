@@ -9,13 +9,13 @@ const PAGE_SIZE = 10;
  * the server's `hasNext` decides when to stop. Keeps the existing
  * `orders.byUser` key so `useCancelOrder` invalidation still refreshes the list.
  */
-export function useOrdersByUser(userId: number) {
+export function useOrdersByUser(userId: string) {
   return useInfiniteQuery({
     queryKey: queryKeys.orders.byUser(userId),
     queryFn: ({ pageParam }) => api.orders.getByUser(userId, pageParam as number, PAGE_SIZE),
     initialPageParam: 1,
     getNextPageParam: (lastPage, _allPages, lastPageParam) =>
       lastPage.hasNext ? (lastPageParam as number) + 1 : undefined,
-    enabled: userId > 0,
+    enabled: userId.length > 0,
   });
 }

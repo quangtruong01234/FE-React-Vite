@@ -1,11 +1,12 @@
 import { useState, type ReactElement } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Check, Truck, MapPin, Wallet, FileDown, CreditCard, XCircle, RotateCcw,
+  ArrowLeft, Check, Truck, MapPin, Wallet, CreditCard, XCircle, RotateCcw,
 } from 'lucide-react';
 import { useOrder } from './useOrder';
+import { orderLoadError } from './orderDetailError';
 import { useCancelOrder } from './useCancelOrder';
-import { useOrderInvoice } from './useOrderInvoice';
+import { InvoiceDownloadButton } from './InvoiceDownloadButton';
 import { useOrderPaymentUrl } from './useOrderPaymentUrl';
 import { useMyReturnRequests, useRequestReturn } from './useReturnRequests';
 import {
@@ -14,11 +15,14 @@ import {
 } from './returnRequest';
 import { useRole } from '@/hooks/auth/useRole';
 import { ShippingAddressBlock } from './ShippingAddressBlock';
+import { orderPriceBreakdown } from './orderSummary';
+import { ApiErrorState } from '@/components/shared/ApiErrorState';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ProductThumb } from '@/components/shared/ProductThumb';
 import { StarRating } from '@/components/shared/StarRating';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GradientButton } from '@/components/shared/GradientButton';
+import { paymentUrlErrorMessage } from '@/lib/domain/paymentUrl';
 import { cn, formatVnd } from '@/lib/format/utils';
 import { formatDateTime } from '@/lib/format/time';
 import type { OrderStatus } from '@/types';
@@ -26,7 +30,7 @@ import { PAYMENT_LABEL } from './orderConstants';
 import { useCreateReview } from '@/hooks/data/useProductReviews';
 import { reviewErrorMessage, REVIEW_COMMENT_MAX } from '@/features/product/productReview';
 
-function OrderItemReviewForm({ productId }: { productId: number }) {
+function OrderItemReviewForm({ productId }: { productId: string }) {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -83,14 +87,13 @@ const TL_LABEL: Record<string, string> = {
 export default function OrderDetailPage(): ReactElement {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const orderId = Number(id ?? 0);
+  const orderId = id ?? '';
 
-  const { data: order, isLoading } = useOrder(orderId);
+  const { data: order, isLoading, error: orderError, refetch: refetchOrder } = useOrder(orderId);
   const role = useRole();
-  const meId = role?.me?.id ?? 0;
+  const meId = role?.me?.id ?? '';
 
   const cancelOrder = useCancelOrder(meId);
-  const downloadInvoice = useOrderInvoice();
   const getPaymentUrl = useOrderPaymentUrl();
 
   // F2 return/refund — hooks must run before the early returns below.
@@ -120,6 +123,13 @@ export default function OrderDetailPage(): ReactElement {
   }
 
   if (!order) {
+    // BUG-404-01: only a real 404 means "đơn hàng không tồn tại" — 403 / 5xx /
+    // offline get their own panel instead of sending the buyer hunting for an
+    // order that is still there.
+    const loadError = orderLoadError(orderError);
+    if (loadError) {
+      return <ApiErrorState error={loadError} onRetry={() => { void refetchOrder(); }} />;
+    }
     return (
       <div className="max-w-[820px] mx-auto text-center py-20">
         <p className="font-body text-ink-sec mb-4">Không tìm thấy đơn hàng.</p>
@@ -139,6 +149,7 @@ export default function OrderDetailPage(): ReactElement {
   const returnRequest = findReturnRequestForOrder(myReturns?.data ?? [], order.id);
   // A rejected request restores the order to delivering/completed — the buyer may re-request.
   const canSubmitReturn = returnEligible && returnRequest?.status !== 'pending_review';
+  const breakdown = orderPriceBreakdown(order);
 
   return (
     <div className="max-w-[820px] mx-auto">
@@ -153,7 +164,7 @@ export default function OrderDetailPage(): ReactElement {
       {/* Heading */}
       <div className="flex items-start justify-between gap-3 mb-6 flex-wrap">
         <div>
-          <h1 className="font-display font-black text-3xl text-white m-0">Đơn hàng #{order.id}</h1>
+          <h1 className="font-display font-black text-3xl text-ink-pri m-0">Đơn hàng #{order.id}</h1>
           <p className="text-sm text-ink-sec m-0 mt-1">Đặt lúc {formatDateTime(order.createdAt)}</p>
         </div>
         <StatusBadge status={order.status} />
@@ -170,14 +181,14 @@ export default function OrderDetailPage(): ReactElement {
                   <span className={cn(
                     'w-9 h-9 rounded-full flex items-center justify-center border-2',
                     done
-                      ? 'bg-gradient-to-br from-amber-400 to-orange-500 border-transparent text-white'
+                      ? 'bg-tb-gradient border-transparent text-ink-pri'
                       : 'bg-canvas-elevated border-bdr text-ink-muted',
                   )}>
                     {done ? <Check size={16} /> : <span className="text-xs font-bold">{i + 1}</span>}
                   </span>
                   <span className={cn(
                     'text-[11px] text-center font-medium',
-                    done ? 'text-white' : 'text-ink-muted',
+                    done ? 'text-ink-pri' : 'text-ink-muted',
                   )}>
                     {TL_LABEL[s]}
                   </span>
@@ -186,7 +197,7 @@ export default function OrderDetailPage(): ReactElement {
             })}
             <div className="absolute top-[18px] left-[10%] right-[10%] h-0.5 bg-bdr z-0">
               <div
-                className="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all"
+                className="h-full bg-tb-gradient-90 transition-all"
                 style={{ width: `${progressPct}%` }}
               />
             </div>
@@ -194,14 +205,14 @@ export default function OrderDetailPage(): ReactElement {
           {order.ghnOrderCode && (
             <div className="mt-4 pt-4 border-t border-bdr flex items-center gap-2 text-sm text-ink-sec">
               <Truck size={15} className="text-accent-amber" />
-              Mã vận đơn GHN: <span className="font-mono text-white">{order.ghnOrderCode}</span>
+              Mã vận đơn GHN: <span className="font-mono text-ink-pri">{order.ghnOrderCode}</span>
             </div>
           )}
         </div>
       ) : isCanceled ? (
-        <div className="bg-canvas-surface border border-red-500/30 rounded-xl p-4 mb-4 flex items-center gap-3">
-          <XCircle size={20} className="text-red-300 shrink-0" />
-          <span className="text-sm text-red-200">Đơn hàng đã được hủy.</span>
+        <div className="bg-canvas-surface border border-tb-red/30 rounded-xl p-4 mb-4 flex items-center gap-3">
+          <XCircle size={20} className="text-accent-red shrink-0" />
+          <span className="text-sm text-accent-red">Đơn hàng đã được hủy.</span>
         </div>
       ) : null}
 
@@ -223,7 +234,7 @@ export default function OrderDetailPage(): ReactElement {
           </div>
           {returnRequest ? (
             <div className="flex flex-col gap-1.5">
-              <p className="m-0 text-sm text-white">Lý do: {returnRequest.reason}</p>
+              <p className="m-0 text-sm text-ink-pri">Lý do: {returnRequest.reason}</p>
               {returnRequest.status === 'rejected' && returnRequest.rejectReason && (
                 <p className="m-0 text-sm text-accent-red">
                   Người bán từ chối: {returnRequest.rejectReason}
@@ -258,7 +269,7 @@ export default function OrderDetailPage(): ReactElement {
           <div className="text-xs font-semibold uppercase tracking-wide text-ink-muted mb-2 flex items-center gap-1.5">
             <Wallet size={13} /> Thanh toán
           </div>
-          <div className="text-sm text-white font-semibold">
+          <div className="text-sm text-ink-pri font-semibold">
             {PAYMENT_LABEL[order.paymentMethod] ?? order.paymentMethod}
           </div>
           <div className="text-xs text-ink-sec mt-1">
@@ -290,41 +301,55 @@ export default function OrderDetailPage(): ReactElement {
               <div className="min-w-0 flex-1">
                 <Link
                   to={`/product/${item.productId}`}
-                  className="text-sm font-medium text-white truncate block hover:text-accent-amber transition-colors"
+                  className="text-sm font-medium text-ink-pri truncate block hover:text-accent-amber transition-colors"
                 >
                   {item.productName ?? `Sản phẩm #${item.productId}`}
                 </Link>
                 {item.skuLabel && <div className="text-xs text-ink-sec truncate">{item.skuLabel}</div>}
                 <div className="text-xs text-ink-muted font-mono">SL: {item.quantity}</div>
               </div>
-              <span className="font-mono font-bold text-sm text-white whitespace-nowrap">
+              <span className="font-mono font-bold text-sm text-ink-pri whitespace-nowrap">
                 {formatVnd(item.price * item.quantity)}
               </span>
             </div>
-            {order.status === 'completed' && (
+            {order.status === 'completed' && item.productId && (
               <OrderItemReviewForm productId={item.productId} />
             )}
           </div>
           );
         })}
-        {Number(order.discountAmount ?? 0) > 0 && (
-          <div className="px-4 py-2.5 flex justify-between items-center text-sm text-ink-sec border-b border-bdr">
-            <span>
-              Giảm giá
-              {order.voucherCode && (
-                <span className="font-mono text-xs text-accent-amber"> ({order.voucherCode})</span>
-              )}
-            </span>
-            <span className="font-mono text-accent-green">
-              −{formatVnd(Number(order.discountAmount))}
+        <div className="px-4 py-3 flex flex-col gap-2 bg-canvas-elevated/40 border-t border-bdr">
+          <div className="flex justify-between items-center text-sm text-ink-sec">
+            <span>Tạm tính</span>
+            <span className="font-mono">{formatVnd(breakdown.subtotal)}</span>
+          </div>
+          <div className="flex justify-between items-center text-sm text-ink-sec">
+            <span>Phí vận chuyển</span>
+            {breakdown.shippingFee === 0 ? (
+              <span className="text-accent-green font-medium">Miễn phí</span>
+            ) : (
+              <span className="font-mono">{formatVnd(breakdown.shippingFee)}</span>
+            )}
+          </div>
+          {breakdown.discount > 0 && (
+            <div className="flex justify-between items-center text-sm text-ink-sec">
+              <span>
+                Giảm giá
+                {order.voucherCode && (
+                  <span className="font-mono text-xs text-accent-amber"> ({order.voucherCode})</span>
+                )}
+              </span>
+              <span className="font-mono text-accent-green">
+                −{formatVnd(breakdown.discount)}
+              </span>
+            </div>
+          )}
+          <div className="flex justify-between items-center pt-2 border-t border-bdr">
+            <span className="font-semibold text-ink-pri">Tổng cộng</span>
+            <span className="font-mono font-black text-xl text-accent-amber">
+              {formatVnd(breakdown.total)}
             </span>
           </div>
-        )}
-        <div className="px-4 py-3 flex justify-between items-center bg-canvas-elevated/40">
-          <span className="font-semibold text-white">Tổng cộng</span>
-          <span className="font-mono font-black text-xl text-accent-amber">
-            {formatVnd(Number(order.total))}
-          </span>
         </div>
       </div>
 
@@ -339,19 +364,12 @@ export default function OrderDetailPage(): ReactElement {
             {getPaymentUrl.isPending ? 'Đang xử lý...' : 'Thanh toán ngay'}
           </GradientButton>
         )}
-        <button
-          onClick={() => downloadInvoice.mutate(order.id)}
-          disabled={downloadInvoice.isPending}
-          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-pri font-semibold text-sm cursor-pointer hover:border-accent-amber transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          <FileDown size={15} />
-          {downloadInvoice.isPending ? 'Đang tải...' : 'Tải hóa đơn PDF'}
-        </button>
+        <InvoiceDownloadButton orderId={order.id} />
         {canCancel && (
           <button
             onClick={() => cancelOrder.mutate(order.id)}
             disabled={cancelOrder.isPending}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-tb-input border border-red-500/30 bg-red-500/5 text-red-300 font-semibold text-sm cursor-pointer hover:bg-red-500/10 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-tb-input border border-tb-red/30 bg-tb-red/5 text-accent-red font-semibold text-sm cursor-pointer hover:bg-tb-red/10 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <XCircle size={15} />
             {cancelOrder.isPending ? 'Đang hủy...' : 'Hủy đơn'}
@@ -410,9 +428,7 @@ export default function OrderDetailPage(): ReactElement {
       )}
       {getPaymentUrl.isError && (
         <p className="mt-3 mb-0 font-body text-sm text-accent-red">
-          {getPaymentUrl.error instanceof Error
-            ? getPaymentUrl.error.message
-            : 'Không thể lấy đường dẫn thanh toán. Vui lòng thử lại.'}
+          {paymentUrlErrorMessage(getPaymentUrl.error)}
         </p>
       )}
       {cancelOrder.isError && (

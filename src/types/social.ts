@@ -1,20 +1,20 @@
 // --- Social: posts & comments ---
 
 export interface PostAuthor {
-  id: number;
+  id: string;
   username: string;
   name?: string;
   avatar: string | null;
 }
 
 export interface Post {
-  id: number;
-  userId: number;
+  id: string;
+  userId: string;
   content: string;
   imageUrls: string[] | null;
   videoUrl: string | null;
   /** Optional attached product. Not hydrated server-side — use `useProductsByIds`. */
-  productId: number | null;
+  productId: string | null;
   createdAt: string;
   updatedAt: string;
   likeCount: number;
@@ -24,9 +24,10 @@ export interface Post {
 }
 
 export interface Comment {
-  id: number;
-  postId: number;
-  userId: number;
+  id: string;
+  postId: string;
+  userId: string;
+  parentCommentId?: string | null;
   content: string;
   replyCount?: number;
   createdAt: string;
@@ -40,7 +41,7 @@ export interface CreatePostDto {
   content: string;
   imageUrls?: string[];
   videoUrl?: string;
-  productId?: number;
+  productId?: string;
 }
 
 /** Partial update — owner-only `PATCH /social/posts/:id`. */
@@ -48,7 +49,7 @@ export interface UpdatePostDto {
   content?: string;
   imageUrls?: string[] | null;
   videoUrl?: string | null;
-  productId?: number | null;
+  productId?: string | null;
 }
 
 export interface ReportPostDto {
@@ -61,7 +62,7 @@ export type PostReportStatus = 'pending' | 'resolved' | 'dismissed';
 
 export interface PostReport {
   id: number;
-  reporterId: number;
+  reporterId: string;
   reason: string;
   status: PostReportStatus;
   createdAt: string;
@@ -83,12 +84,12 @@ export interface ReportedPostGroup {
 }
 
 export interface ModeratePostResult {
-  postId: number;
+  postId: string;
   isHidden: boolean;
 }
 
 export interface DismissReportsResult {
-  postId: number;
+  postId: string;
   /** Number of pending reports flipped to dismissed. */
   dismissed: number;
 }
@@ -99,7 +100,7 @@ export interface CreateCommentDto {
 
 export interface CreateReplyDto {
   content: string;
-  postId: number;
+  postId: string;
 }
 
 export interface LikeResult {
@@ -110,23 +111,23 @@ export interface LikeResult {
 
 export interface FollowResult {
   followed: boolean;
-  followingId: number;
+  followingId: string;
 }
 
 export interface FollowUser {
-  id: number;
+  id: string;
   username: string;
   avatar: string | null;
 }
 
 export interface FollowerItem {
-  followerId: number;
+  followerId: string;
   createdAt: string;
   user: FollowUser;
 }
 
 export interface FollowingItem {
-  followingId: number;
+  followingId: string;
   createdAt: string;
   user: FollowUser;
 }

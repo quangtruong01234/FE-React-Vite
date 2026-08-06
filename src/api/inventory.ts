@@ -17,7 +17,7 @@ export const inventoryApi = {
   getLowStock: (): Promise<InventoryRecord[]> =>
     request<InventoryRecord[]>('/inventory/low-stock'),
 
-  getByProduct: (productId: number): Promise<InventoryRecord> =>
+  getByProduct: (productId: string): Promise<InventoryRecord> =>
     request<InventoryRecord>(`/inventory/product/${productId}`),
 
   update: (id: number, data: UpdateInventoryDto): Promise<InventoryRecord> =>

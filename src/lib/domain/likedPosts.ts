@@ -1,23 +1,23 @@
-const key = (userId: number) => `liked_posts:${userId}`;
+const key = (userId: string) => `liked_posts:${userId}`;
 
-function load(userId: number): Set<number> {
+function load(userId: string): Set<string> {
   try {
     const raw = localStorage.getItem(key(userId));
-    return raw ? new Set(JSON.parse(raw) as number[]) : new Set();
+    return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
   } catch {
     return new Set();
   }
 }
 
-function save(userId: number, set: Set<number>): void {
+function save(userId: string, set: Set<string>): void {
   localStorage.setItem(key(userId), JSON.stringify([...set]));
 }
 
-export function isPostLiked(userId: number, postId: number): boolean {
+export function isPostLiked(userId: string, postId: string): boolean {
   return load(userId).has(postId);
 }
 
-export function setPostLiked(userId: number, postId: number, liked: boolean): void {
+export function setPostLiked(userId: string, postId: string, liked: boolean): void {
   const set = load(userId);
   if (liked) {
     set.add(postId);

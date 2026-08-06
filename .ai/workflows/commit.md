@@ -32,10 +32,11 @@ Map each file to a scope:
 | `src/features/auth/`                  | `auth`     |
 | `src/features/product/`               | `product`  |
 | `src/features/cart/`                  | `cart`     |
-| `src/features/orders/`                | `orders`   |
+| `src/features/order/`                 | `order`    |
 | `src/features/social/`                | `social`   |
 | `src/features/<other>/`               | `<other>`  |
-| `src/api/`, `src/types/`, `src/hooks/`, `src/components/`, `src/router.tsx` | `core` |
+| `src/api/`, `src/types/`, `src/hooks/`, `src/lib/`, `src/components/`, `src/context/`, `src/router.tsx`, `src/routerLayouts.tsx` | `core` |
+| `src/test/`, `e2e/`, `*.test.ts(x)` when they are the whole change | `test` |
 | `.ai/`, `AGENTS.md`, `.gitignore` AI entries | `ai` |
 | `.claude/`, `.codex/`, `.agents/` tool adapters | `ai` |
 | `tailwind.config.js`, `vite.config.*`, `tsconfig.*`, `package.*` | `build` |
@@ -82,7 +83,7 @@ Present the proposed commits grouped in order:
 ```
 ── Proposed Commits ─────────────────────────────
 1. feat(social)  → src/features/social/
-2. feat(core)    → src/api/index.ts, src/types/index.ts, src/hooks/queryKeys.ts, src/hooks/useRole.ts
+2. feat(core)    → src/api/index.ts, src/types/index.ts, src/hooks/query/queryKeys.ts, src/hooks/auth/useRole.ts
 3. feat(product) → src/features/product/
 4. fix(auth)     → src/features/auth/
 5. fix(cart)     → src/features/cart/
@@ -116,7 +117,4 @@ Do **not** push. After all commits, report:
 - [ ] Scope matches the files in that group
 - [ ] No `console.log` or bare `// TODO` added (warn if found)
 - [ ] No `.env` / secrets in diff (REFUSE TO PROCEED if found)
-
----
-
-**Model:** Sonnet 4.6 | **Effort:** Low
+- [ ] No `../.agent-local/` file staged — handoff/test-account files live outside the repo and must never be committed

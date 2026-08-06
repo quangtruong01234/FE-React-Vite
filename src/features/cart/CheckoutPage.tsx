@@ -18,7 +18,7 @@ import {
   type CheckoutFormData,
 } from "./checkout.schema";
 import { AddressBookPicker } from "@/features/address/AddressBookPicker";
-import { buildGhnShippingAddress } from "@/features/address/addressUtils";
+import { buildGhnShippingAddress, ghnLocationIds } from "@/features/address/addressUtils";
 import { usePaymentOptions } from "./usePaymentOptions";
 import { setPendingCheckout } from "./pendingCheckout";
 import { buildCheckoutSignature, resolveIdempotencyKey } from "./idempotency";
@@ -30,7 +30,7 @@ import {
   discountedGrandTotal,
   voucherErrorMessage,
 } from "./voucher";
-import { resolvePaymentUrl } from "@/lib/domain/paymentUrl";
+import { resolvePaymentUrl, redirectToPaymentGateway, paymentUrlErrorMessage } from "@/lib/domain/paymentUrl";
 import { api } from "@/api";
 import {
   useCart,
@@ -74,13 +74,13 @@ export default function CheckoutPage(): ReactElement {
   const updateItem = useUpdateCartItem();
   const removeCartItem = useRemoveCartItem();
   const clearCart = useClearCart();
-  const [stockError, setStockError] = useState<Record<number, string>>({});
-  const [successOrderIds, setSuccessOrderIds] = useState<number[] | null>(null);
+  const [stockError, setStockError] = useState<Record<string, string>>({});
+  const [successOrderIds, setSuccessOrderIds] = useState<string[] | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
 
   const allItems = serverCart?.items ?? [];
   const items = selectedIds.size > 0 ? allItems.filter(i => selectedIds.has(i.id)) : allItems;
-  const productIds = [...new Set(items.map((i) => i.productId))].sort((a, b) => a - b);
+  const productIds = [...new Set(items.map((i) => i.productId))].sort();
 
   const {
     data: productsData,
@@ -92,8 +92,8 @@ export default function CheckoutPage(): ReactElement {
     enabled: productIds.length > 0,
   });
 
-  const productMap = new Map<number, ProductWithInventory>();
-  productsData?.forEach((p) => productMap.set(Number(p.id), p));
+  const productMap = new Map<string, ProductWithInventory>();
+  productsData?.forEach((product) => productMap.set(product.id, product));
 
   function getEffectivePrice(item: (typeof items)[0]): number {
     return effectiveUnitPrice(item, productMap.get(item.productId));
@@ -109,7 +109,6 @@ export default function CheckoutPage(): ReactElement {
     handleSubmit,
     control,
     setError,
-    clearErrors,
     formState: { errors, isSubmitting },
   } = useForm<CheckoutFormData>({
     resolver: zodResolver(checkoutSchema),
@@ -144,10 +143,13 @@ export default function CheckoutPage(): ReactElement {
     isError: shippingFailed,
     reset: resetShipping,
   } = useMutation({
-    mutationFn: (shippingAddress: string) =>
+    mutationFn: (address: Address) =>
       api.orders.getShippingFee({
-        shippingAddress,
+        shippingAddress: buildGhnShippingAddress(address),
         items: buildShippingFeeItems(items, productMap),
+        // GHN-ADDR-01: preview against the exact district/ward the user picked,
+        // so the fee shown here is the one the waybill will be built from.
+        ...ghnLocationIds(address),
       }),
   });
 
@@ -195,23 +197,20 @@ export default function CheckoutPage(): ReactElement {
   const discountAmount = !multiSeller && voucher ? voucher.discountAmount : 0;
   const grandTotal = discountedGrandTotal(totalPrice, discountAmount, shippingFee);
 
-  // A previewed fee is priced against the chosen address — drop it whenever the
-  // selected address changes so a stale amount is never shown.
+  // A previewed fee is priced against the chosen address + basket. Recompute it
+  // automatically whenever either changes (once product data is ready for
+  // accurate weights) so the fee shows without a manual click and never goes
+  // stale. GHN failures degrade gracefully — see the summary render below.
   const selectedAddressId = selectedAddress?.id ?? null;
+  const productsReady = productIds.length === 0 || productsData != null;
   useEffect(() => {
     resetShipping();
-  }, [selectedAddressId, resetShipping]);
-
-  function handleCalcShipping(): void {
-    if (!selectedAddress) {
-      setError("root", {
-        message: "Vui lòng chọn địa chỉ giao hàng trước khi tính phí.",
-      });
-      return;
-    }
-    clearErrors("root");
-    calcShipping(buildGhnShippingAddress(selectedAddress));
-  }
+    if (!selectedAddress || !productsReady || items.length === 0) return;
+    calcShipping(selectedAddress);
+    // items/productMap are captured fresh each run; the primitive keys below are
+    // what should retrigger the preview (address change, basket change, load).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAddressId, basketSignature, productsReady]);
 
   async function removeOrderedItemsFromCart(): Promise<void> {
     try {
@@ -257,6 +256,9 @@ export default function CheckoutPage(): ReactElement {
           paymentMethod: data.paymentMethod,
           shippingAddress: buildGhnShippingAddress(selectedAddress),
           items: orderItems,
+          // GHN-ADDR-01: same exact ids the fee was previewed with, so the
+          // waybill is built for the address the buyer actually chose.
+          ...ghnLocationIds(selectedAddress),
           // F3: redeem the previewed code (single-seller baskets only).
           ...(voucher && !multiSeller ? { voucherCode: voucher.code } : {}),
         },
@@ -287,8 +289,12 @@ export default function CheckoutPage(): ReactElement {
             cartItemIds: isPartial ? items.map((i) => i.id) : [],
             clearAll: !isPartial,
           });
-          window.location.href = paymentUrl;
-        } catch {
+          redirectToPaymentGateway(paymentUrl);
+        } catch (paymentErr: unknown) {
+          // PROD-PAY-01: the route now fails loudly with a reason instead of an
+          // endless `orderUrl: null` — keep it out of the void so the failure is
+          // diagnosable. The buyer sees it on the order page, where the retry lives.
+          console.error('Payment URL failed:', paymentUrlErrorMessage(paymentErr));
           // The order(s) already exist. Re-submitting would create duplicates,
           // so route the user to the created order to retry payment on the SAME
           // order (OrderDetailPage exposes a "Thanh toán ngay" action).
@@ -314,7 +320,7 @@ export default function CheckoutPage(): ReactElement {
         <div className="bg-canvas-surface border border-bdr rounded-2xl p-10 max-w-md w-full mx-4 flex flex-col items-center gap-5 text-center">
           <CheckCircle size={56} className="text-accent-green" />
           <div>
-            <h2 className="font-display font-black text-2xl text-white m-0 mb-1">
+            <h2 className="font-display font-black text-2xl text-ink-pri m-0 mb-1">
               Đặt hàng thành công!
             </h2>
             <p className="font-body text-sm text-ink-sec m-0">
@@ -415,14 +421,14 @@ export default function CheckoutPage(): ReactElement {
           {/* LEFT — form */}
           <div className="flex flex-col gap-4">
             {errors.root?.message && (
-              <div className="bg-red-950/30 border border-accent-red text-accent-red px-4 py-3 rounded-xl text-sm">
+              <div className="bg-tb-red/10 border border-accent-red text-accent-red px-4 py-3 rounded-xl text-sm">
                 {errors.root.message}
               </div>
             )}
 
             {/* Address */}
             <div className="bg-canvas-elevated rounded-tb-card border border-bdr p-5 flex flex-col gap-4">
-              <h2 className="m-0 font-display font-bold text-base uppercase tracking-[0.04em] text-white">
+              <h2 className="m-0 font-display font-bold text-base uppercase tracking-[0.04em] text-ink-pri">
                 1. Địa chỉ giao hàng
               </h2>
               <AddressBookPicker
@@ -433,7 +439,7 @@ export default function CheckoutPage(): ReactElement {
 
             {/* Payment method */}
             <div className="bg-canvas-elevated rounded-tb-card border border-bdr p-5 flex flex-col gap-4">
-              <h2 className="m-0 font-display font-bold text-base uppercase tracking-[0.04em] text-white">
+              <h2 className="m-0 font-display font-bold text-base uppercase tracking-[0.04em] text-ink-pri">
                 2. Phương thức thanh toán
               </h2>
               <Controller
@@ -518,7 +524,7 @@ export default function CheckoutPage(): ReactElement {
                   key={item.id}
                   className={cn(
                     "px-4 py-3 border-b border-bdr last:border-b-0",
-                    stockError[item.productId] && "bg-red-950/20",
+                    stockError[item.productId] && "bg-tb-red/10",
                   )}
                 >
                   <div className="flex flex-wrap items-center gap-3">
@@ -616,13 +622,9 @@ export default function CheckoutPage(): ReactElement {
                 ) : shippingFailed ? (
                   <span className="text-ink-muted">Tính khi giao hàng</span>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={handleCalcShipping}
-                    className="text-accent-amber font-medium hover:underline cursor-pointer"
-                  >
-                    Tính phí
-                  </button>
+                  <span className="text-ink-muted">
+                    {selectedAddress ? "Đang tính…" : "Chọn địa chỉ giao hàng"}
+                  </span>
                 )}
               </div>
               {/* Voucher (F3) — previewed via /voucher/validate, redeemed on create */}
@@ -668,7 +670,7 @@ export default function CheckoutPage(): ReactElement {
                         }
                       }}
                       placeholder="Mã giảm giá"
-                      className="h-9 flex-1 min-w-0 bg-canvas-base border border-bdr rounded-[10px] px-3 text-ink-pri font-mono text-[13px] uppercase placeholder:normal-case placeholder:font-body placeholder:text-ink-muted outline-none focus:border-amber-400/50 transition-colors"
+                      className="h-9 flex-1 min-w-0 bg-canvas-base border border-bdr rounded-[10px] px-3 text-ink-pri font-mono text-[13px] uppercase placeholder:normal-case placeholder:font-body placeholder:text-ink-muted outline-none focus:border-tb-amber/50 transition-colors"
                     />
                     <button
                       type="button"
@@ -704,13 +706,13 @@ export default function CheckoutPage(): ReactElement {
               {loading ? "Đang đặt hàng..." : "XÁC NHẬN ĐẶT HÀNG →"}
             </GradientButton>
 
-            <p className="text-center font-body text-xs text-gray-500 leading-relaxed m-0">
+            <p className="text-center font-body text-xs text-ink-muted leading-relaxed m-0">
               Bằng việc đặt hàng, bạn đồng ý với{" "}
-              <span className="text-gray-400 underline cursor-pointer">
+              <span className="text-ink-sec underline cursor-pointer">
                 Điều khoản sử dụng
               </span>{" "}
               và{" "}
-              <span className="text-gray-400 underline cursor-pointer">
+              <span className="text-ink-sec underline cursor-pointer">
                 Chính sách bảo mật
               </span>{" "}
               của TryBuy.

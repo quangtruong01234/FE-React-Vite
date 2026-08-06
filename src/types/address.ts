@@ -24,8 +24,8 @@ export interface Ward {
 
 /** A saved shipping address. GHN codes captured alongside display names. */
 export interface Address {
-  id: number;
-  userId: number;
+  id: string;
+  userId: string;
   recipientName: string;
   phone: string;
   addressLine: string;

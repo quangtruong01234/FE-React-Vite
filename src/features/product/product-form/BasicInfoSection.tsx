@@ -9,7 +9,10 @@ import { api } from '@/api';
 import type { Brand, Category, ProductCondition } from '@/types';
 import type { ImageItem, FormErrors } from './useProductForm';
 import { proposalErrorMessage } from './proposalErrors';
+import { mergeLocalOptions } from './localOptions';
+import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
 import { uploadProductImage } from '@/lib/http/cloudinary';
+import { cldImage } from '@/lib/http/cloudinaryUrl';
 
 const MAX_IMAGES = 6;
 
@@ -31,9 +34,9 @@ const inputCls = (hasError?: boolean) =>
 interface Props {
   images: ImageItem[];
   uploadState: { active: boolean; percent: number; error: string | null };
-  onAddImages: (files: File[], userId: number) => Promise<void>;
+  onAddImages: (files: File[], userId: string) => Promise<ImageItem[]>;
   onRemoveImage: (index: number) => void;
-  userId: number;
+  userId: string;
 
   name: string;
   description: string;
@@ -86,26 +89,17 @@ export function BasicInfoSection({
   // --- Brand combobox state ---
   const [brandQuery, setBrandQuery] = useState('');
   const [brandOpen, setBrandOpen] = useState(false);
-  const [localBrands, setLocalBrands] = useState<Brand[]>(brands);
+  const [localBrands, setLocalBrands] = useState<Brand[]>(() => mergeLocalOptions(brands, []));
   const [pendingBrandIds, setPendingBrandIds] = useState<Set<number>>(new Set());
   const [brandCreating, setBrandCreating] = useState(false);
   const [brandError, setBrandError] = useState<string | null>(null);
   const brandRef = useRef<HTMLDivElement>(null);
 
-  // keep localBrands in sync when the prop list updates (initial load)
-  // Normalize id to number because the API returns string ids despite the type
-  useEffect(() => {
-    setLocalBrands(prev => {
-      const normalized = brands.map(b => ({ ...b, id: Number(b.id) }));
-      const propIds = new Set(normalized.map(b => b.id));
-      // Normalize prev ids too: when the prop list loads before mount, prev holds
-      // string ids that would never match the numeric propIds, duplicating rows.
-      const newOnly = prev
-        .map(b => ({ ...b, id: Number(b.id) }))
-        .filter(b => !propIds.has(b.id));
-      return [...normalized, ...newOnly];
-    });
-  }, [brands]);
+  // keep localBrands in sync when the prop list updates (initial load) —
+  // adjust-state-during-render, keyed on the prop list identity
+  useResetOnChange(brands, () => {
+    setLocalBrands(prev => mergeLocalOptions(brands, prev));
+  });
 
   // close dropdown on outside click
   useEffect(() => {
@@ -162,24 +156,17 @@ export function BasicInfoSection({
   }
 
   // --- Category "add new" state ---
-  const [localCategories, setLocalCategories] = useState<Category[]>(categories);
+  const [localCategories, setLocalCategories] = useState<Category[]>(
+    () => mergeLocalOptions(categories, []),
+  );
   const [pendingCategoryIds, setPendingCategoryIds] = useState<Set<number>>(new Set());
   const [newCatInput, setNewCatInput] = useState('');
   const [catCreating, setCatCreating] = useState(false);
   const [catError, setCatError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setLocalCategories(prev => {
-      const normalized = categories.map(c => ({ ...c, id: Number(c.id) }));
-      const propIds = new Set(normalized.map(c => c.id));
-      // Normalize prev ids too: when the prop list loads before mount, prev holds
-      // string ids that would never match the numeric propIds, duplicating rows.
-      const newOnly = prev
-        .map(c => ({ ...c, id: Number(c.id) }))
-        .filter(c => !propIds.has(c.id));
-      return [...normalized, ...newOnly];
-    });
-  }, [categories]);
+  useResetOnChange(categories, () => {
+    setLocalCategories(prev => mergeLocalOptions(categories, prev));
+  });
 
   async function handleCreateCategory(): Promise<void> {
     const trimmed = newCatInput.trim();
@@ -247,7 +234,7 @@ export function BasicInfoSection({
                   i === 0 && 'ring-2 ring-accent-amber/40',
                 )}
               >
-                <img src={img.url} alt="" className="w-full h-full object-cover" />
+                <img src={cldImage(img.url, 400)} alt="" className="w-full h-full object-cover" />
                 {i === 0 && (
                   <span className="absolute bottom-1 left-1 text-[9px] font-display font-bold uppercase tracking-wider bg-accent-amber text-canvas-base px-1.5 py-0.5 rounded-tb-pill">
                     Bìa
@@ -522,7 +509,7 @@ export function BasicInfoSection({
 
           {/* SKU */}
           <div className="flex flex-col gap-1.5">
-            <Label className="text-ink-pri font-body text-sm">Mã SKU *</Label>
+            <Label className="text-ink-pri font-body text-sm">Mã SKU</Label>
             <div className="flex gap-2">
               <Input
                 value={sku}
@@ -542,7 +529,9 @@ export function BasicInfoSection({
                 <RefreshCw size={15} className="shrink-0" />
               </IconButton>
             </div>
-            {errors.sku && <p className="text-xs text-accent-red font-body">{errors.sku}</p>}
+            {errors.sku
+              ? <p className="text-xs text-accent-red font-body">{errors.sku}</p>
+              : <p className="text-xs text-ink-muted font-body">Bỏ trống để hệ thống tự tạo mã.</p>}
           </div>
         </div>
       </div>

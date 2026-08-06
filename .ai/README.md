@@ -6,7 +6,7 @@ This directory is the canonical, tool-neutral source for repository guidance use
 - `context/`: engineering rules loaded by task area
 - `workflows/`: reusable workflow protocols
 - `roles/`: shared specialist-agent instructions
-- `agent-handoff/`: live readiness handoff — lean `snapshot.md` (current state, open/blocked work) + `CHANGELOG.md` (completed work, not auto-loaded)
+- `agent-handoff/`: live readiness handoff — lean `snapshot.md` (current state, open/blocked work) + `CHANGELOG.md` (completed work, not auto-loaded; pre-2026-07-10 in `CHANGELOG.archive.md`)
 - `api-reference.md`, `testing.md`, `tokens.md`: focused reference documents
 
 Tool entry points and adapters remain separate:

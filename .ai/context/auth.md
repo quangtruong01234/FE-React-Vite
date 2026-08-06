@@ -32,7 +32,7 @@ const { currentUser, loginSuccess, logout } = useAuthContext();
 
 - On 401 → redirect to `/login` (NOT `/auth/login`)
 - Use `useNavigate` — never `window.location`
-- `RequireAuth` guard already redirects when `currentUser` is null
+- `ProtectedRoute` (`src/components/auth/ProtectedRoute.tsx`) already redirects when `currentUser` is null
 
 ## Rules recap
 

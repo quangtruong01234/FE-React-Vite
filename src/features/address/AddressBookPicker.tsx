@@ -7,7 +7,7 @@ import { AddressFormModal } from './AddressFormModal';
 import type { Address } from '@/types';
 
 interface AddressBookPickerProps {
-  selectedId: number | null;
+  selectedId: string | null;
   onSelect: (address: Address) => void;
 }
 

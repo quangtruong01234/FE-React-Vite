@@ -6,7 +6,7 @@ import { useDeletePost } from './useFeed';
 import { ReportPostDialog } from './ReportPostDialog';
 
 interface PostActionMenuProps {
-  postId: number;
+  postId: string;
   /** Whether the current viewer owns the post (enables destructive actions). */
   isOwner: boolean;
   /** Whether a viewer is logged in — gates the report action. */

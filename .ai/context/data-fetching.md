@@ -3,7 +3,7 @@
 ## QueryClient setup
 
 ```ts
-// lib/queryClient.ts
+// lib/query/queryClient.ts
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -17,19 +17,19 @@ export const queryClient = new QueryClient({
 
 ## Query Keys — centralize always
 
-All keys in `hooks/queryKeys.ts`. **IDs are `number`, not `string`.**
+All keys in `hooks/query/queryKeys.ts`. Converted public IDs are opaque strings and must remain unchanged; unconverted catalog/SKU/cart-row/inventory-row/GHN IDs remain numbers.
 
 ```ts
 export const queryKeys = {
   products: {
     all: ['products'] as const,
     list: (params: ProductParams) => ['products', 'list', params] as const,
-    detail: (id: number) => ['products', id] as const,
-    withInventory: (id: number) => ['products', id, 'inventory'] as const,
+    detail: (id: string) => ['products', id] as const,
+    withInventory: (id: string) => ['products', id, 'inventory'] as const,
   },
   orders: {
     all: ['orders'] as const,
-    byUser: (userId: number) => ['orders', 'user', userId] as const,
+    byUser: (userId: string) => ['orders', 'user', userId] as const,
   },
   auth: {
     me: ['auth', 'me'] as const,
@@ -37,7 +37,7 @@ export const queryKeys = {
 };
 ```
 
-> **Known inconsistency:** `useProduct.ts` currently uses inline `['products']`. New code MUST use `queryKeys.*` — do not propagate the inline pattern.
+> `src/` has **zero** inline query keys — every `useQuery`/`useMutation` goes through the factory. Keep it that way.
 
 ## useQuery pattern
 
@@ -49,11 +49,11 @@ export function useProducts(params: ProductParams) {
   });
 }
 
-export function useProduct(id: number) {
+export function useProduct(id: string | undefined) {
   return useQuery({
     queryKey: queryKeys.products.detail(id),
-    queryFn: () => api.products.getById(id),
-    enabled: id > 0,   // guard against 0/NaN from useParams
+    queryFn: () => api.products.getById(id!),
+    enabled: Boolean(id),
   });
 }
 ```
@@ -61,8 +61,7 @@ export function useProduct(id: number) {
 Deriving id from route params:
 ```ts
 const { id } = useParams();
-const productId = Number(id);
-const { data } = useProduct(productId);   // enabled guards NaN
+const { data } = useProduct(id); // preserve the `prod_...` route value unchanged
 ```
 
 ## useMutation pattern

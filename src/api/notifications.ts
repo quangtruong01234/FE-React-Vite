@@ -7,7 +7,7 @@ export const notificationsApi = {
     return request<PaginatedResponse<Notification>>(`/notifications${qs}`);
   },
 
-  markRead: (id: number): Promise<{ success: boolean }> =>
+  markRead: (id: string): Promise<{ success: boolean }> =>
     request<{ success: boolean }>(`/notifications/${id}/read`, { method: 'PATCH' }),
 
   getUnreadCount: (): Promise<{ unreadCount: number }> =>

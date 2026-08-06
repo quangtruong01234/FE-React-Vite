@@ -13,7 +13,7 @@ export interface PrimaryNavItem {
  * Primary navigation entries shared by the desktop `LeftRail` and the mobile
  * `MobileNav`. Keeping a single source avoids the two drifting apart.
  */
-export function getPrimaryNavItems(me?: { id: number } | null): PrimaryNavItem[] {
+export function getPrimaryNavItems(me?: { id: string } | null): PrimaryNavItem[] {
   return [
     { icon: Home, label: 'Bảng tin', shortLabel: 'Bảng tin', to: '/' },
     { icon: Store, label: 'Chợ sản phẩm', shortLabel: 'Chợ', to: '/marketplace' },

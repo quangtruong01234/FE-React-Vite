@@ -2,8 +2,11 @@ import { useState, type ReactElement } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, BadgeCheck, Ban, RotateCcw } from 'lucide-react';
 import { useReturnRequestQueue, useReviewReturnRequest } from './useReturnRequests';
+import { usePageParam } from '@/hooks/ui/usePageParam';
+import { useFilterParam } from '@/hooks/ui/useFilterParam';
 import { returnStatusMeta, refundStatusLabel } from './returnRequest';
 import { Pagination } from '@/components/shared/Pagination';
+import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatVnd } from '@/lib/format/utils';
 import { formatDateTime } from '@/lib/format/time';
@@ -18,6 +21,8 @@ const FILTER_OPTS: { id: FilterKey; label: string; status?: ReturnRequestStatus 
   { id: 'rejected',       label: 'Từ chối',   status: 'rejected' },
 ];
 
+const FILTER_KEYS: readonly FilterKey[] = FILTER_OPTS.map(o => o.id);
+
 const LIMIT = 10;
 
 function RequestCard({
@@ -28,8 +33,8 @@ function RequestCard({
 }: {
   request: ReturnRequest;
   pendingAction: 'approve' | 'reject' | null;
-  onApprove: (id: number) => void;
-  onReject: (id: number, reason: string) => void;
+  onApprove: (id: string) => void;
+  onReject: (id: string, reason: string) => void;
 }): ReactElement {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -44,7 +49,7 @@ function RequestCard({
           <RotateCcw size={15} className="text-accent-amber shrink-0" />
           <Link
             to={`/order/${request.orderId}`}
-            className="font-mono font-bold text-[13px] text-white hover:text-accent-amber transition-colors"
+            className="font-mono font-bold text-[13px] text-ink-pri hover:text-accent-amber transition-colors"
           >
             Đơn #{request.orderId}
           </Link>
@@ -86,7 +91,7 @@ function RequestCard({
                 type="button"
                 disabled={busy}
                 onClick={() => setRejectOpen(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-tb-input border border-red-500/30 bg-red-500/5 text-red-300 font-body font-semibold text-sm cursor-pointer hover:bg-red-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-tb-input border border-tb-red/30 bg-tb-red/5 text-accent-red font-body font-semibold text-sm cursor-pointer hover:bg-tb-red/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Ban size={15} className="shrink-0" />
                 Từ chối
@@ -107,7 +112,7 @@ function RequestCard({
                   type="button"
                   disabled={busy || !rejectReason.trim()}
                   onClick={() => onReject(request.id, rejectReason.trim())}
-                  className="px-4 py-2 rounded-tb-input border border-red-500/30 bg-red-500/5 text-red-300 font-body font-semibold text-sm cursor-pointer hover:bg-red-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 rounded-tb-input border border-tb-red/30 bg-tb-red/5 text-accent-red font-body font-semibold text-sm cursor-pointer hover:bg-tb-red/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {pendingAction === 'reject' ? 'Đang từ chối...' : 'Xác nhận từ chối'}
                 </button>
@@ -130,11 +135,11 @@ function RequestCard({
 
 export default function SellerReturnRequestsPage(): ReactElement {
   const navigate = useNavigate();
-  const [filterTab, setFilterTab] = useState<FilterKey>('pending_review');
-  const [page, setPage] = useState(1);
+  const [filterTab, setFilterTab] = useFilterParam<FilterKey>('status', FILTER_KEYS, 'pending_review');
+  const [page, setPage] = usePageParam();
 
   const activeStatus = FILTER_OPTS.find(o => o.id === filterTab)?.status;
-  const { data, isLoading, error } = useReturnRequestQueue(page, LIMIT, activeStatus);
+  const { data, isLoading, isFetching, error } = useReturnRequestQueue(page, LIMIT, activeStatus);
   const review = useReviewReturnRequest();
 
   const requests = data?.data ?? [];
@@ -152,12 +157,12 @@ export default function SellerReturnRequestsPage(): ReactElement {
         : 'Không thể xử lý yêu cầu. Vui lòng thử lại.')
     : null;
 
+  // setFilterTab also drops ?page= in the same URL update (useFilterParam).
   const handleTabChange = (key: FilterKey): void => {
     setFilterTab(key);
-    setPage(1);
   };
 
-  const pendingActionFor = (id: number): 'approve' | 'reject' | null => {
+  const pendingActionFor = (id: string): 'approve' | 'reject' | null => {
     if (!review.isPending || review.variables?.id !== id) return null;
     return review.variables.action;
   };
@@ -175,7 +180,7 @@ export default function SellerReturnRequestsPage(): ReactElement {
         </button>
       </div>
 
-      <h1 className="font-display font-black text-[36px] leading-[1.05] tracking-[-0.02em] text-white m-0 mb-1">
+      <h1 className="font-display font-black text-[36px] leading-[1.05] tracking-[-0.02em] text-ink-pri m-0 mb-1">
         Yêu cầu trả hàng
       </h1>
       <p className="font-body text-sm text-ink-sec mt-1 mb-7">
@@ -183,12 +188,12 @@ export default function SellerReturnRequestsPage(): ReactElement {
       </p>
 
       {errorMsg && (
-        <div className="bg-red-950/30 border border-accent-red text-accent-red px-4 py-3 rounded-xl mb-6 text-sm font-body">
+        <div className="bg-tb-red/10 border border-accent-red text-accent-red px-4 py-3 rounded-xl mb-6 text-sm font-body">
           {errorMsg}
         </div>
       )}
       {reviewErrorMsg && (
-        <div className="bg-red-950/30 border border-accent-red text-accent-red px-4 py-3 rounded-xl mb-6 text-sm font-body">
+        <div className="bg-tb-red/10 border border-accent-red text-accent-red px-4 py-3 rounded-xl mb-6 text-sm font-body">
           {review.variables ? <span className="font-mono font-bold">#{review.variables.id}</span> : null} · {reviewErrorMsg}
         </div>
       )}
@@ -203,7 +208,7 @@ export default function SellerReturnRequestsPage(): ReactElement {
               type="button"
               onClick={() => handleTabChange(opt.id)}
               className={cn(
-                'flex-none px-[18px] py-[10px] rounded-full text-white font-body font-semibold text-[13px] cursor-pointer whitespace-nowrap border',
+                'flex-none px-[18px] py-[10px] rounded-full text-ink-pri font-body font-semibold text-[13px] cursor-pointer whitespace-nowrap border',
                 active ? 'bg-tb-gradient border-transparent' : 'bg-tb-elevated border-tb-border',
               )}
             >
@@ -230,17 +235,19 @@ export default function SellerReturnRequestsPage(): ReactElement {
       )}
 
       {!isLoading && requests.length > 0 && (
-        <div className="flex flex-col gap-3">
-          {requests.map((req) => (
-            <RequestCard
-              key={req.id}
-              request={req}
-              pendingAction={pendingActionFor(req.id)}
-              onApprove={(id) => review.mutate({ id, action: 'approve' })}
-              onReject={(id, reason) => review.mutate({ id, action: 'reject', reason })}
-            />
-          ))}
-        </div>
+        <FetchingOverlay fetching={isFetching && !isLoading}>
+          <div className="flex flex-col gap-3">
+            {requests.map((req) => (
+              <RequestCard
+                key={req.id}
+                request={req}
+                pendingAction={pendingActionFor(req.id)}
+                onApprove={(id) => review.mutate({ id, action: 'approve' })}
+                onReject={(id, reason) => review.mutate({ id, action: 'reject', reason })}
+              />
+            ))}
+          </div>
+        </FetchingOverlay>
       )}
 
       {!isLoading && (

@@ -10,7 +10,7 @@ import type { FollowerItem, FollowingItem } from '@/types';
 interface FollowListModalProps {
   open: boolean;
   onClose: () => void;
-  userId: number;
+  userId: string;
   mode: 'followers' | 'following';
 }
 

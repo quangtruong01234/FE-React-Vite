@@ -3,6 +3,7 @@ import type { CreateProductDto, ProductCondition } from '@/types';
 import { uploadProductImage, deleteMedia } from '@/lib/http/cloudinary';
 import { uploadFilesSequential } from '@/lib/http/uploadSequential';
 import { firstUploadError, capImageBatch, MAX_IMAGE_BYTES, MAX_PRODUCT_IMAGES } from '@/lib/http/uploadValidation';
+import { skuForPayload } from './productSku';
 
 export interface VarGroup {
   /** Stable identity for React keys — survives add/remove so a row's local
@@ -73,7 +74,7 @@ function buildCombosInternal(groups: VarGroup[]): { valid: VarGroup[]; combos: C
   };
 }
 
-const DEFAULT_FIELDS: FormFields = {
+export const DEFAULT_FIELDS: FormFields = {
   name: '',
   description: '',
   sku: '',
@@ -92,6 +93,50 @@ const DEFAULT_FIELDS: FormFields = {
 
 export type SimpleField = keyof Omit<FormFields, 'groups' | 'rows'>;
 
+/**
+ * Form state → API payload. Pure (no hook state) so the same builder can produce
+ * the *baseline* payload of a saved product, which is what lets edit mode PATCH
+ * only the fields that actually changed — see `dirtyProductPatch`.
+ */
+export function buildProductPayload(fields: FormFields, imageUrls: string[]): CreateProductDto {
+  const { valid: validGroups, combos } = buildCombosInternal(fields.groups);
+
+  const common = {
+    name: fields.name.trim(),
+    description: fields.description.trim() || undefined,
+    sku: skuForPayload(fields.sku),
+    brandId: fields.brandId,
+    categoryIds: fields.categoryIds.length > 0 ? fields.categoryIds : [1],
+    isActive: fields.isActive,
+    condition: fields.condition,
+    sellerNotes: fields.sellerNotes.trim() || undefined,
+    weight: fields.weight === '' ? undefined : Number(fields.weight),
+    imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+  };
+
+  if (fields.hasVariations && combos.length > 0) {
+    const skuList = combos.map(c => ({
+      tierIdx: c.tierIdx,
+      price: Number(fields.rows[c.tierIdx]?.price ?? 0),
+      stockQuantity: Number(fields.rows[c.tierIdx]?.stockQuantity ?? 0),
+    }));
+    const prices = skuList.map(s => s.price).filter(p => p > 0);
+    return {
+      ...common,
+      price: prices.length ? Math.min(...prices) : 0,
+      stockQuantity: skuList.reduce((s, x) => s + x.stockQuantity, 0),
+      variations: validGroups.map(g => ({ name: g.name.trim(), options: g.options })),
+      skuList,
+    };
+  }
+
+  return {
+    ...common,
+    price: Number(fields.singlePrice) || 0,
+    stockQuantity: Number(fields.singleStock) || 0,
+  };
+}
+
 export interface UseProductFormReturn {
   fields: FormFields;
   errors: FormErrors;
@@ -107,7 +152,9 @@ export interface UseProductFormReturn {
   removeOptionFromGroup: (index: number, optionIndex: number) => void;
   addGroup: () => void;
   removeGroup: (index: number) => void;
-  addImages: (files: File[], userId: number) => Promise<void>;
+  /** Uploads the batch and resolves with the items that made it (a mid-batch
+   *  failure resolves with the successful prefix — see UP-01). */
+  addImages: (files: File[], userId: string) => Promise<ImageItem[]>;
   removeImage: (index: number) => void;
   clearImages: () => void;
   validate: (draftMode?: boolean) => FormErrors;
@@ -226,37 +273,40 @@ export function useProductForm(
     }));
   }
 
-  async function addImages(files: File[], userId: number): Promise<void> {
-    if (!files.length) return;
+  async function addImages(files: File[], userId: string): Promise<ImageItem[]> {
+    if (!files.length) return [];
     // Cap the batch so total images never exceed the backend's 10-image limit
     // (over-limit would 400). Use imagesRef for the freshest count. UP-07: the
     // notice tells the user what was dropped instead of slicing silently.
     const { accepted, notice } = capImageBatch(imagesRef.current.length, files, MAX_PRODUCT_IMAGES);
     if (!accepted.length) {
       setUploadState({ active: false, percent: 0, error: notice });
-      return;
+      return [];
     }
     // UP-04: reject bad files before wasting an upload round-trip.
     const invalid = firstUploadError(accepted, { kind: 'image', maxBytes: MAX_IMAGE_BYTES });
     if (invalid) {
       setUploadState({ active: false, percent: 0, error: invalid });
-      return;
+      return [];
     }
     // A partial-drop notice rides the error slot through the upload (the
     // `finally` below preserves it).
     setUploadState({ active: true, percent: 0, error: notice });
+    const uploadedBatch: ImageItem[] = [];
     try {
       // Commit each image as it uploads (UP-01): a mid-batch failure leaves the
       // already-uploaded images in state (and in imagesRef), so removeImage/
       // clearImages can still delete them instead of orphaning them on Cloudinary.
       await uploadFilesSequential(accepted, {
         upload: (file, _i, onProgress) => uploadProductImage(file, userId, onProgress),
-        onItem: ({ url, publicId }) =>
+        onItem: ({ url, publicId }) => {
+          uploadedBatch.push({ url, publicId });
           setImages(prev => {
             const next = [...prev, { url, publicId }];
             imagesRef.current = next;
             return next;
-          }),
+          });
+        },
         onProgress: percent => setUploadState(prev => ({ ...prev, percent })),
       });
     } catch (err: unknown) {
@@ -269,6 +319,7 @@ export function useProductForm(
       // the partial-drop notice set before the upload started.
       setUploadState(prev => ({ ...prev, active: false, percent: 0 }));
     }
+    return uploadedBatch;
   }
 
   function removeImage(index: number): void {
@@ -298,7 +349,7 @@ export function useProductForm(
 
     if (!fields.name.trim()) errs.name = 'Tên sản phẩm không được để trống';
     if (fields.categoryIds.length === 0) errs.categoryIds = 'Chọn ít nhất một danh mục';
-    if (!fields.sku.trim()) errs.sku = 'SKU không được để trống';
+    // SKU is optional — backend auto-provisions `PROD-<id>` when omitted.
 
     if (!draftMode) {
       if (fields.hasVariations) {
@@ -326,40 +377,7 @@ export function useProductForm(
   }
 
   function buildPayload(): CreateProductDto {
-    const common = {
-      name: fields.name.trim(),
-      description: fields.description.trim() || undefined,
-      sku: fields.sku.trim() || 'DRAFT',
-      brandId: fields.brandId,
-      categoryIds: fields.categoryIds.length > 0 ? fields.categoryIds : [1],
-      isActive: fields.isActive,
-      condition: fields.condition,
-      sellerNotes: fields.sellerNotes.trim() || undefined,
-      weight: fields.weight === '' ? undefined : Number(fields.weight),
-      imageUrls: images.length > 0 ? images.map(img => img.url) : undefined,
-    };
-
-    if (fields.hasVariations && combos.length > 0) {
-      const skuList = combos.map(c => ({
-        tierIdx: c.tierIdx,
-        price: Number(fields.rows[c.tierIdx]?.price ?? 0),
-        stockQuantity: Number(fields.rows[c.tierIdx]?.stockQuantity ?? 0),
-      }));
-      const prices = skuList.map(s => s.price).filter(p => p > 0);
-      return {
-        ...common,
-        price: prices.length ? Math.min(...prices) : 0,
-        stockQuantity: skuList.reduce((s, x) => s + x.stockQuantity, 0),
-        variations: validGroups.map(g => ({ name: g.name.trim(), options: g.options })),
-        skuList,
-      };
-    }
-
-    return {
-      ...common,
-      price: Number(fields.singlePrice) || 0,
-      stockQuantity: Number(fields.singleStock) || 0,
-    };
+    return buildProductPayload(fields, images.map(img => img.url));
   }
 
   function setFieldError(key: string, message: string): void {

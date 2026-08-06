@@ -1,7 +1,7 @@
 import { type ReactElement } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  Store, LayoutDashboard, PlusCircle, Tag, Layers, ClipboardList, Flag, BarChart3, MapPin,
+  Store, LayoutDashboard, PlusCircle, Tag, Layers, ClipboardList, Flag, BarChart3, MapPin, ShieldAlert,
 } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
 import { Avatar } from '@/components/shared/Avatar';
@@ -196,6 +196,18 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
               <Flag size={16} className="shrink-0" />
             </span>
             <span className="flex-1 font-body font-semibold text-sm text-ink-pri">Kiểm duyệt bài viết</span>
+          </Link>
+          <Link
+            to="/admin/product-risk"
+            className={cn(
+              'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors',
+              isActive('/admin/product-risk') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
+            )}
+          >
+            <span className="size-8 rounded-full bg-accent-amber/10 text-accent-amber flex-none grid place-items-center">
+              <ShieldAlert size={16} className="shrink-0" />
+            </span>
+            <span className="flex-1 font-body font-semibold text-sm text-ink-pri">Rủi ro sản phẩm</span>
           </Link>
           <Link
             to="/admin/analytics"

@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
+import { cldImage } from '@/lib/http/cloudinaryUrl';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthContext } from '@/context/AuthContext';
@@ -27,7 +28,7 @@ type CommentFormData = z.infer<typeof commentSchema>;
 export default function PostDetailPage(): ReactElement {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const postId = Number(id ?? 0);
+  const postId = id ?? '';
   const { currentUser } = useAuthContext();
 
   const [liked, setLiked] = useState(false);
@@ -38,7 +39,7 @@ export default function PostDetailPage(): ReactElement {
   const { data: post, isLoading: postLoading, error: postError } = useQuery({
     queryKey: queryKeys.social.post(postId),
     queryFn: () => api.social.getPostById(postId),
-    enabled: postId > 0,
+    enabled: postId.length > 0,
   });
 
   const { data: commentsPage, isLoading: commentsLoading } = useComments(postId);
@@ -98,7 +99,7 @@ export default function PostDetailPage(): ReactElement {
         >
           <ArrowLeft size={16} /> Bảng tin
         </button>
-        <div className="bg-red-950/30 border border-accent-red text-accent-red px-4 py-3 rounded-xl text-sm">
+        <div className="bg-tb-red/10 border border-accent-red text-accent-red px-4 py-3 rounded-xl text-sm">
           {errMsg}
         </div>
       </div>
@@ -163,14 +164,21 @@ export default function PostDetailPage(): ReactElement {
         {post.imageUrls && post.imageUrls.length > 0 && (
           post.imageUrls.length === 1 ? (
             <img
-              src={post.imageUrls[0]}
+              src={cldImage(post.imageUrls[0], 1200)}
               alt=""
               className="w-full max-h-[520px] object-cover aspect-[3/2]"
+              fetchPriority="high"
             />
           ) : (
             <div className="grid grid-cols-2 gap-0.5">
               {post.imageUrls.slice(0, 2).map((url, i) => (
-                <img key={i} src={url} alt="" className="w-full aspect-square object-cover" />
+                <img
+                  key={i}
+                  src={cldImage(url, 800)}
+                  alt=""
+                  className="w-full aspect-square object-cover"
+                  fetchPriority={i === 0 ? 'high' : 'auto'}
+                />
               ))}
             </div>
           )
@@ -252,7 +260,7 @@ export default function PostDetailPage(): ReactElement {
           <input
             {...register('content')}
             placeholder="Viết bình luận…"
-            className="flex-1 bg-canvas-elevated border border-bdr rounded-full px-4 py-2.5 text-sm text-ink-pri placeholder:text-ink-muted outline-none focus:border-amber-400/50"
+            className="flex-1 bg-canvas-elevated border border-bdr rounded-full px-4 py-2.5 text-sm text-ink-pri placeholder:text-ink-muted outline-none focus:border-tb-amber/50"
           />
           <button
             type="submit"

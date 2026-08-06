@@ -11,6 +11,7 @@ export interface ProductQueryState {
   search: string;
   categoryIds: number[];
   brandIds: number[];
+  provinceIds: number[];
   minPrice: number;
   maxPrice: number;
 }
@@ -22,7 +23,7 @@ export interface ProductQueryState {
  * ceiling — by default there is no upper price filter.
  */
 export function buildProductParams(state: ProductQueryState): ProductParams {
-  const { page, limit, sortBy, sortOrder, search, categoryIds, brandIds, minPrice, maxPrice } = state;
+  const { page, limit, sortBy, sortOrder, search, categoryIds, brandIds, provinceIds, minPrice, maxPrice } = state;
   return {
     page,
     limit,
@@ -31,6 +32,7 @@ export function buildProductParams(state: ProductQueryState): ProductParams {
     ...(search ? { search } : {}),
     ...(categoryIds.length > 0 ? { categoryIds } : {}),
     ...(brandIds.length > 0 ? { brandIds } : {}),
+    ...(provinceIds.length > 0 ? { provinceIds } : {}),
     ...(minPrice > 0 ? { minPrice } : {}),
     ...(maxPrice < DEFAULT_MAX_PRICE ? { maxPrice } : {}),
   };

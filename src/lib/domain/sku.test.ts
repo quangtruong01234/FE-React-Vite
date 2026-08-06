@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { ProductSku } from '@/types';
-import { isValidSku, getValidSkus, findMatchingSku, getOptionStock } from './sku';
+import { isValidSku, getValidSkus, findMatchingSku, getOptionStock, defaultTierSelection } from './sku';
 
 function sku(partial: Partial<ProductSku> & { tierIdx: number[] }): ProductSku {
   return {
@@ -56,6 +56,41 @@ describe('findMatchingSku', () => {
   it('returns undefined for a combination that does not exist', () => {
     const multi = [sku({ id: 9, tierIdx: [0, 0], stockQuantity: 3 })];
     expect(findMatchingSku(multi, { 0: 1, 1: 1 }, 2)).toBeUndefined();
+  });
+});
+
+describe('defaultTierSelection', () => {
+  // tier0 = colour (Đỏ=0, Xanh=1), tier1 = size (S=0, M=1)
+  const variations = [
+    { name: 'Màu sắc', options: ['Đỏ', 'Xanh'] },
+    { name: 'Size', options: ['S', 'M'] },
+  ];
+
+  it('returns empty for a product without variations', () => {
+    expect(defaultTierSelection(undefined, undefined)).toEqual({});
+    expect(defaultTierSelection([], [sku({ tierIdx: [] })])).toEqual({});
+  });
+
+  it('selects the first in-stock option per tier', () => {
+    const skus = [
+      sku({ id: 1, tierIdx: [0, 0], stockQuantity: 0 }),
+      sku({ id: 2, tierIdx: [1, 1], stockQuantity: 3 }),
+    ];
+    // Đỏ/S out of stock → Xanh (1) + M (1)
+    expect(defaultTierSelection(variations, skus)).toEqual({ 0: 1, 1: 1 });
+  });
+
+  it('ignores malformed SKUs and preselects nothing when no valid SKU exists', () => {
+    const malformed = [sku({ id: 1, tierIdx: [0], stockQuantity: 5 })]; // 1 tier vs 2 variations
+    expect(defaultTierSelection(variations, malformed)).toEqual({});
+  });
+
+  it('leaves a tier unselected when none of its options are in stock', () => {
+    const skus = [
+      sku({ id: 1, tierIdx: [0, 0], stockQuantity: 0 }),
+      sku({ id: 2, tierIdx: [1, 0], stockQuantity: 0 }),
+    ];
+    expect(defaultTierSelection(variations, skus)).toEqual({});
   });
 });
 

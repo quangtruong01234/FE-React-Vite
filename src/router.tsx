@@ -1,13 +1,11 @@
-import { lazy, Suspense, type ReactElement } from 'react';
-import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { ApiErrorState } from '@/components/shared/ApiErrorState';
 import { registerUnauthorizedHandler } from '@/api';
-import { AppShell } from '@/components/layout/AppShell';
-import { RightRail } from '@/components/layout/RightRail';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { PageSkeleton } from '@/components/shared/PageSkeleton';
+import { AppLayout, MessagesLayout, FeedLayout } from './routerLayouts';
 const LoginPage          = lazy(() => import('@/features/auth/LoginPage'));
-const FeedPage           = lazy(() => import('@/features/social/FeedPage'));
 const PostDetailPage     = lazy(() => import('@/features/social/PostDetailPage'));
 const MarketplacePage    = lazy(() => import('@/features/product/MarketplacePage'));
 const WishlistPage       = lazy(() => import('@/features/wishlist/WishlistPage'));
@@ -16,7 +14,6 @@ const CheckoutPage       = lazy(() => import('@/features/cart/CheckoutPage'));
 const OrderHistoryPage   = lazy(() => import('@/features/order/OrderHistoryPage'));
 const ProfilePage        = lazy(() => import('@/features/user/ProfilePage'));
 const AddressesPage      = lazy(() => import('@/features/address/AddressesPage'));
-const MessagesPage       = lazy(() => import('@/features/chat/MessagesPage'));
 const NotificationsPage  = lazy(() => import('@/features/notifications/NotificationsPage'));
 const OrderDetailPage    = lazy(() => import('@/features/order/OrderDetailPage'));
 const PaymentResultPage  = lazy(() => import('@/features/payment/PaymentResultPage'));
@@ -25,6 +22,7 @@ const AdminPage               = lazy(() => import('@/features/admin/AdminPage'))
 const PendingBrandsPage       = lazy(() => import('@/features/admin/PendingBrandsPage'));
 const PendingCategoriesPage   = lazy(() => import('@/features/admin/PendingCategoriesPage'));
 const ReportedPostsPage       = lazy(() => import('@/features/admin/ReportedPostsPage'));
+const ProductRiskPage         = lazy(() => import('@/features/admin/ProductRiskPage'));
 const CreateProductPage       = lazy(() => import('@/features/product/CreateProductPage'));
 const CartPage           = lazy(() => import('@/features/cart/CartPage'));
 const SellerOrdersPage   = lazy(() => import('@/features/order/SellerOrdersPage'));
@@ -32,36 +30,6 @@ const ReturnRequestsPage       = lazy(() => import('@/features/order/ReturnReque
 const SellerReturnRequestsPage = lazy(() => import('@/features/order/SellerReturnRequestsPage'));
 const ShopAnalyticsPage        = lazy(() => import('@/features/order/ShopAnalyticsPage'));
 const AdminAnalyticsPage       = lazy(() => import('@/features/admin/AdminAnalyticsPage'));
-
-function AppLayout(): ReactElement {
-  return (
-    <ProtectedRoute>
-      <AppShell>
-        <Outlet />
-      </AppShell>
-    </ProtectedRoute>
-  );
-}
-
-function MessagesLayout(): ReactElement {
-  return (
-    <ProtectedRoute>
-      <AppShell fixedHeight>
-        <MessagesPage />
-      </AppShell>
-    </ProtectedRoute>
-  );
-}
-
-function FeedLayout(): ReactElement {
-  return (
-    <ProtectedRoute>
-      <AppShell rightRail={<RightRail />}>
-        <FeedPage />
-      </AppShell>
-    </ProtectedRoute>
-  );
-}
 
 export const router = createBrowserRouter([
   {
@@ -188,6 +156,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute requiredRole="admin">
             <ReportedPostsPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin/product-risk',
+        element: (
+          <ProtectedRoute requiredRole="admin">
+            <ProductRiskPage />
           </ProtectedRoute>
         ),
       },

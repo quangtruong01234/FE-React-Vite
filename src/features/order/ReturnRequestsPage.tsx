@@ -1,9 +1,11 @@
-import { useState, type ReactElement } from 'react';
+import { type ReactElement } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, RotateCcw } from 'lucide-react';
 import { useMyReturnRequests } from './useReturnRequests';
+import { usePageParam } from '@/hooks/ui/usePageParam';
 import { returnStatusMeta, refundStatusLabel } from './returnRequest';
 import { Pagination } from '@/components/shared/Pagination';
+import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatVnd } from '@/lib/format/utils';
 import { formatDateTime } from '@/lib/format/time';
@@ -12,8 +14,8 @@ const LIMIT = 10;
 
 export default function ReturnRequestsPage(): ReactElement {
   const navigate = useNavigate();
-  const [page, setPage] = useState(1);
-  const { data, isLoading, error } = useMyReturnRequests(page, LIMIT);
+  const [page, setPage] = usePageParam();
+  const { data, isLoading, isFetching, error } = useMyReturnRequests(page, LIMIT);
 
   const requests = data?.data ?? [];
   const totalPages = data?.totalPages ?? 1;
@@ -37,7 +39,7 @@ export default function ReturnRequestsPage(): ReactElement {
         </button>
       </div>
 
-      <h1 className="font-display font-black text-[36px] leading-[1.05] tracking-[-0.02em] text-white m-0 mb-1">
+      <h1 className="font-display font-black text-[36px] leading-[1.05] tracking-[-0.02em] text-ink-pri m-0 mb-1">
         Yêu cầu trả hàng
       </h1>
       <p className="font-body text-sm text-ink-sec mt-1 mb-7">
@@ -45,7 +47,7 @@ export default function ReturnRequestsPage(): ReactElement {
       </p>
 
       {errorMsg && (
-        <div className="bg-red-950/30 border border-accent-red text-accent-red px-4 py-3 rounded-xl mb-6 text-sm font-body">
+        <div className="bg-tb-red/10 border border-accent-red text-accent-red px-4 py-3 rounded-xl mb-6 text-sm font-body">
           {errorMsg}
         </div>
       )}
@@ -65,7 +67,8 @@ export default function ReturnRequestsPage(): ReactElement {
       )}
 
       {!isLoading && requests.length > 0 && (
-        <div className="flex flex-col gap-3">
+        <FetchingOverlay fetching={isFetching && !isLoading}>
+          <div className="flex flex-col gap-3">
           {requests.map((req) => {
             const meta = returnStatusMeta(req.status);
             const refundLine = refundStatusLabel(req);
@@ -76,7 +79,7 @@ export default function ReturnRequestsPage(): ReactElement {
                     <RotateCcw size={15} className="text-accent-amber shrink-0" />
                     <Link
                       to={`/order/${req.orderId}`}
-                      className="font-mono font-bold text-[13px] text-white hover:text-accent-amber transition-colors"
+                      className="font-mono font-bold text-[13px] text-ink-pri hover:text-accent-amber transition-colors"
                     >
                       Đơn #{req.orderId}
                     </Link>
@@ -104,7 +107,8 @@ export default function ReturnRequestsPage(): ReactElement {
               </div>
             );
           })}
-        </div>
+          </div>
+        </FetchingOverlay>
       )}
 
       {!isLoading && (

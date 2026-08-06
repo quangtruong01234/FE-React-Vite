@@ -1,5 +1,6 @@
 import type { ApiError } from '@/types';
 import { shouldRedirectToLogin, buildLoginRedirect } from './unauthorized';
+import { overloadRetryDelayMs } from './retry';
 
 export const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
 
@@ -9,13 +10,23 @@ export function registerUnauthorizedHandler(fn: NavigateFn): void {
   handleUnauthorized = fn;
 }
 
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
 export async function request<T>(path: string, init?: RequestInit & { skipUnauthorizedRedirect?: boolean }): Promise<T> {
   const { skipUnauthorizedRedirect, ...fetchInit } = init ?? {};
-  const res = await fetch(`${API_BASE}${path}`, {
+  const send = (): Promise<Response> => fetch(`${API_BASE}${path}`, {
     ...fetchInit,
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...fetchInit?.headers },
   });
+  let res = await send();
+  // Backend sheds excess load early with 503 + Retry-After (SCALE-05); the shed
+  // request never reached the handler, so a single delayed retry is safe for any method.
+  const retryDelay = overloadRetryDelayMs(res.status, res.headers.get('Retry-After'));
+  if (retryDelay !== null) {
+    await sleep(retryDelay);
+    res = await send();
+  }
   if (!res.ok) {
     if (shouldRedirectToLogin(res.status, skipUnauthorizedRedirect)) {
       handleUnauthorized(buildLoginRedirect(window.location.pathname));

@@ -5,7 +5,7 @@ import { IconButton } from '@/components/shared/IconButton';
 import { useWishlistIds, useToggleWishlist } from '@/hooks/data/useWishlist';
 
 interface WishlistButtonProps {
-  productId: number;
+  productId: string;
   /** Container styling (size + shape + background). Icon color is handled here. */
   className?: string;
   iconSize?: number;

@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
 import { useRemoveCartItem, useClearCart } from '@/hooks/data/useCart';
 import { getPendingCheckout, clearPendingCheckout } from '@/features/cart/pendingCheckout';
+import { resolveResultOrderId } from './paymentResultParams';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { cn } from '@/lib/format/utils';
 import { queryKeys } from '@/hooks/query/queryKeys';
@@ -14,10 +15,11 @@ export default function PaymentResultPage(): ReactElement {
   const [searchParams] = useSearchParams();
 
   const params = Object.fromEntries(searchParams.entries());
-  // Only a numeric `order` param is a real order id — vnp_TxnRef/apptransid are gateway
-  // transaction refs, and multi-seller payments cover several orders at once.
-  const orderParam = searchParams.get('order') ?? '';
-  const orderId = /^\d+$/.test(orderParam) ? orderParam : '';
+  // `orderId` is only set when `order` is a routable public id. Today the gateway
+  // sends the internal numeric id, so this is `''` and the page links to the order
+  // list — see `resolveResultOrderId` for the evidence. Multi-seller payments omit
+  // `order` entirely, which lands in the same branch.
+  const orderId = resolveResultOrderId(searchParams.get('order'));
   const method = searchParams.get('method') ?? (searchParams.has('vnp_TxnRef') ? 'vnpay' : 'zalopay');
   const gwLabel = method === 'vnpay' ? 'VNPay' : 'ZaloPay';
 
@@ -56,8 +58,8 @@ export default function PaymentResultPage(): ReactElement {
       <div className="min-h-screen bg-canvas-base flex items-center justify-center p-4">
         <div className="bg-canvas-surface border border-bdr rounded-2xl p-10 max-w-md w-full flex flex-col items-center gap-5 text-center">
           <div className="relative w-20 h-20 flex items-center justify-center">
-            <span className="absolute inset-0 rounded-full border-4 border-amber-500/20" />
-            <span className="absolute inset-0 rounded-full border-4 border-transparent border-t-amber-500 animate-spin" />
+            <span className="absolute inset-0 rounded-full border-4 border-tb-amber/20" />
+            <span className="absolute inset-0 rounded-full border-4 border-transparent border-t-tb-amber animate-spin" />
             <CreditCard size={28} className="text-accent-amber" />
           </div>
           <div>
@@ -76,8 +78,8 @@ export default function PaymentResultPage(): ReactElement {
       <div className="bg-canvas-surface border border-bdr rounded-2xl p-10 max-w-md w-full flex flex-col items-center gap-5 text-center">
         {isSuccess ? (
           <>
-            <div className="w-20 h-20 rounded-full bg-green-500/15 flex items-center justify-center">
-              <CheckCircle size={44} className="text-green-400" />
+            <div className="w-20 h-20 rounded-full bg-tb-green/15 flex items-center justify-center">
+              <CheckCircle size={44} className="text-accent-green" />
             </div>
             <div>
               <h2 className="font-display font-black text-2xl text-white m-0 mb-1">
@@ -113,8 +115,8 @@ export default function PaymentResultPage(): ReactElement {
           </>
         ) : (
           <>
-            <div className="w-20 h-20 rounded-full bg-red-500/15 flex items-center justify-center">
-              <XCircle size={44} className="text-red-400" />
+            <div className="w-20 h-20 rounded-full bg-tb-red/15 flex items-center justify-center">
+              <XCircle size={44} className="text-accent-red" />
             </div>
             <div>
               <h2 className="font-display font-black text-2xl text-white m-0 mb-1">

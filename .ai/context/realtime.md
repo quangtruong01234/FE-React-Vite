@@ -30,6 +30,13 @@ Origins come from env (fallback `http://localhost:3000`):
 Auth: both gateways read the `access_token` HttpOnly cookie automatically when
 `withCredentials: true`. No token passing in handshake options.
 
+Transport: every socket connects with `transports: ['websocket']` (skip the polling
+handshake). The gateway can run as N clustered workers with no sticky sessions, so a
+polling handshake round-robins across workers and breaks — pure websocket works
+cross-worker (backend SCALE-01b). Both call sites (the ref-counted factory and the
+per-thread chat socket) share `SOCKET_CONNECT_OPTIONS` from `src/lib/realtime/socket.ts`
+— never inline the connection options.
+
 Full event payloads → `.ai/context/backend-api.md` §WebSocket.
 
 ---

@@ -4,25 +4,25 @@ import { queryKeys } from '@/hooks/query/queryKeys';
 import { api } from '@/api';
 import type { Comment, CommentTree } from '@/types';
 
-export function useComments(postId: number) {
+export function useComments(postId: string) {
   return useQuery({
     queryKey: queryKeys.social.comments(postId),
     queryFn: () => api.social.getComments(postId),
-    enabled: postId > 0,
+    enabled: postId.length > 0,
   });
 }
 
-export function useReplies(commentId: number, enabled = false) {
+export function useReplies(commentId: string, enabled = false) {
   return useQuery<CommentTree>({
     queryKey: queryKeys.social.replies(commentId),
     queryFn: () => api.social.getReplies(commentId) as Promise<CommentTree>,
-    enabled: enabled && commentId > 0,
+    enabled: enabled && commentId.length > 0,
   });
 }
 
 export function useCreateComment() {
   return useMutation({
-    mutationFn: ({ postId, content }: { postId: number; content: string }) =>
+    mutationFn: ({ postId, content }: { postId: string; content: string }) =>
       api.social.createComment(postId, { content }),
     onSuccess: (_data: Comment, { postId }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.social.comments(postId) });
@@ -35,7 +35,7 @@ export function useCreateComment() {
 
 export function useCreateReply() {
   return useMutation({
-    mutationFn: ({ commentId, content, postId: _postId }: { commentId: number; content: string; postId: number }) =>
+    mutationFn: ({ commentId, content, postId: _postId }: { commentId: string; content: string; postId: string }) =>
       api.social.createReply(commentId, { content, postId: _postId }),
     onSuccess: (_data: Comment, { commentId, postId }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.social.replies(commentId) });
@@ -49,7 +49,7 @@ export function useCreateReply() {
 
 export function useDeleteComment() {
   return useMutation({
-    mutationFn: ({ commentId }: { commentId: number; postId: number; parentCommentId?: number }) =>
+    mutationFn: ({ commentId }: { commentId: string; postId: string; parentCommentId?: string }) =>
       api.social.deleteComment(commentId),
     onSuccess: (_data: unknown, { postId, parentCommentId }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.social.comments(postId) });

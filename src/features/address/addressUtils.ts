@@ -1,4 +1,4 @@
-import type { Address } from '@/types';
+import type { Address, GhnLocationDto } from '@/types';
 
 /**
  * Pick which saved address a checkout should preselect. The backend already
@@ -30,6 +30,25 @@ export function buildGhnShippingAddress(address: Address): string {
   return GHN_PARTS.map((f) =>
     String(address[f]).trim().replace(/\|/g, ' '),
   ).join('|');
+}
+
+/**
+ * GHN-ADDR-01: the exact GHN district/ward a saved address points at, for the
+ * shipping-fee preview and the order create. Without them GHN resolves the
+ * free-text pipe string by name, and an ambiguous name resolves to a
+ * wrong-but-valid location — which is what produces `shippingFee: 0` and a null
+ * `ghnOrderCode` on an otherwise-successful order.
+ *
+ * The pair is all-or-nothing server-side (sending one is treated as sending
+ * neither), so return `{}` unless both parts are usable and let the request
+ * fall back to free-text deliberately rather than by accident.
+ */
+export function ghnLocationIds(address: Address): GhnLocationDto {
+  const wardCode = address.wardCode?.trim() ?? '';
+  if (!Number.isInteger(address.districtId) || address.districtId < 1 || !wardCode) {
+    return {};
+  }
+  return { toDistrictId: address.districtId, toWardCode: wardCode };
 }
 
 /** Human-readable one-line summary: "addressLine, ward, district, province". */

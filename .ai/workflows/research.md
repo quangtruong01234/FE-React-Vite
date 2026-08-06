@@ -55,36 +55,29 @@ Produce a structured report. Do not edit any file. Do not suggest a PR. Just inf
 ── Research: <topic> ────────────────────────────
 
 SCOPE
-  Subject:  Cart state persistence
-  Aspect:   How and where cart is saved/restored across reloads
-  Boundary: src/context/CartContext.tsx, src/features/cart/
+  Subject:  Cart state
+  Aspect:   Where the cart lives and how it survives a reload
+  Boundary: src/hooks/data/useCart.ts, src/hooks/query/cartCache.ts, src/features/cart/
 
 FINDINGS
 
-1. Cart state lives in CartContext (src/context/CartContext.tsx:18-45)
-   - useState<CartItem[]> as source of truth
-   - useEffect writes to localStorage on every change (key: 'cart')
-   - Initial state lazy-reads localStorage on mount
+1. Cart is server state, not client state (src/hooks/data/useCart.ts)
+   - useQuery on queryKeys.cart.* — the backend owns the cart
+   - No CartContext, no localStorage persistence
 
-2. CartSidebar (src/features/cart/CartSidebar.tsx) consumes via useCartContext()
-   - No direct localStorage access ✓
+2. CartPage (src/features/cart/CartPage.tsx) consumes useCart()
+   - No direct api/ or fetch access ✓
 
-3. CheckoutPage clears cart on order success (line 78) via setCart([])
-   - localStorage gets cleared by the useEffect ✓
+3. Mutations write through cartCache.ts helpers (src/hooks/query/cartCache.ts)
+   - Optimistic update + invalidate on settle
 
 INCONSISTENCIES
-  - CartContext uses key 'cart' (no namespace); AuthContext uses key 'user'.
-    Not a bug, just worth noting for future SSR/multi-tab work.
+  - <none found> / <or: file:line + what diverges>
 
 QUESTIONS RAISED (not answered here)
-  - What happens on multi-tab edit? No cross-tab sync detected.
-  - localStorage quota — large carts could hit limits, no handling.
+  - Multi-tab: does a cart mutation in tab A refresh tab B? No broadcast detected.
 
 NO ACTION TAKEN
   This is a research report. Run /debug or /scaffold-feature if action needed.
 ─────────────────────────────────────────────────
 ```
-
----
-
-**Model:** Sonnet 4.6 | **Effort:** Low

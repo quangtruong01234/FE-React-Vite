@@ -26,8 +26,8 @@ export function sortByActivity(convs: Conversation[]): Conversation[] {
 export function applyIncomingMessage(
   convs: Conversation[],
   message: Pick<Message, 'id' | 'conversationId' | 'senderId' | 'content' | 'createdAt'>,
-  viewerId: number | undefined,
-  activeConversationId: number | null,
+  viewerId: string | undefined,
+  activeConversationId: string | null,
 ): Conversation[] {
   const updated = convs.map((c) => {
     if (c.id !== message.conversationId) return c;
@@ -55,7 +55,7 @@ export function applyIncomingMessage(
 /** Optimistically clear a conversation's unread badge (mirrors the read POST). */
 export function markConversationReadInList(
   convs: Conversation[],
-  conversationId: number,
+  conversationId: string,
 ): Conversation[] {
   return convs.map((c) => (c.id === conversationId ? { ...c, unreadCount: 0 } : c));
 }

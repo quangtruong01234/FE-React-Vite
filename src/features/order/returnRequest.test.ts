@@ -11,9 +11,9 @@ import {
 
 function makeRequest(overrides: Partial<ReturnRequest> = {}): ReturnRequest {
   return {
-    id: 1,
-    orderId: 10,
-    userId: 17,
+    id: 'rr_1',
+    orderId: 'ord_10',
+    userId: 'usr_17',
     reason: 'Sản phẩm lỗi',
     status: 'pending_review',
     rejectReason: null,
@@ -50,15 +50,15 @@ describe('hasReturnActivity', () => {
 
 describe('findReturnRequestForOrder', () => {
   it('returns the first (newest) match for the order', () => {
-    const newest = makeRequest({ id: 3, orderId: 10, status: 'rejected' });
-    const older = makeRequest({ id: 1, orderId: 10 });
-    const other = makeRequest({ id: 2, orderId: 99 });
-    expect(findReturnRequestForOrder([newest, other, older], 10)).toBe(newest);
+    const newest = makeRequest({ id: 'rr_3', orderId: 'ord_10', status: 'rejected' });
+    const older = makeRequest({ id: 'rr_1', orderId: 'ord_10' });
+    const other = makeRequest({ id: 'rr_2', orderId: 'ord_99' });
+    expect(findReturnRequestForOrder([newest, other, older], 'ord_10')).toBe(newest);
   });
 
   it('returns null when the order has no request', () => {
-    expect(findReturnRequestForOrder([makeRequest({ orderId: 99 })], 10)).toBeNull();
-    expect(findReturnRequestForOrder([], 10)).toBeNull();
+    expect(findReturnRequestForOrder([makeRequest({ orderId: 'ord_99' })], 'ord_10')).toBeNull();
+    expect(findReturnRequestForOrder([], 'ord_10')).toBeNull();
   });
 });
 

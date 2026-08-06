@@ -19,9 +19,9 @@ type ReplyFormData = z.infer<typeof replySchema>;
 
 interface CommentNodeProps {
   comment: Comment | CommentTree;
-  postId: number;
+  postId: string;
   depth?: number;
-  parentCommentId?: number;
+  parentCommentId?: string;
 }
 
 export function CommentNode({
@@ -123,7 +123,7 @@ export function CommentNode({
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') setReplying(false);
                 }}
-                className="flex-1 bg-canvas-elevated border border-bdr rounded-full px-3.5 py-2 text-sm text-ink-pri placeholder:text-ink-muted outline-none focus:border-amber-400/50"
+                className="flex-1 bg-canvas-elevated border border-bdr rounded-full px-3.5 py-2 text-sm text-ink-pri placeholder:text-ink-muted outline-none focus:border-tb-amber/50"
               />
               <button
                 type="submit"

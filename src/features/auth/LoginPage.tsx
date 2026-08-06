@@ -145,7 +145,7 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
 
         <div className="tb-enter tb-stagger flex flex-col gap-[14px]">
           {errors.root?.message && (
-            <div className="bg-red-950/40 border border-tb-red/40 rounded-tb-input text-tb-red text-[13px] px-[14px] py-[10px] text-center">
+            <div className="bg-tb-red/10 border border-tb-red/40 rounded-tb-input text-tb-red text-[13px] px-[14px] py-[10px] text-center">
               {errors.root.message}
             </div>
           )}
@@ -270,7 +270,7 @@ export default function LoginPage(): ReactElement {
                 </div>
               )}
               {apiError && (
-                <div className="bg-red-950/40 border border-tb-red/40 rounded-tb-input text-tb-red text-[13px] px-[14px] py-[10px] text-center">
+                <div className="bg-tb-red/10 border border-tb-red/40 rounded-tb-input text-tb-red text-[13px] px-[14px] py-[10px] text-center">
                   {apiError}
                 </div>
               )}

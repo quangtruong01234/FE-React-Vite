@@ -8,10 +8,10 @@ import type { OrderStatusCounts } from '@/types';
  * the entire history (server-side), so badges stay accurate regardless of how
  * many pages the infinite list has loaded. No-ops while `userId <= 0`.
  */
-export function useOrderStatusCounts(userId: number): ReturnType<typeof useQuery<OrderStatusCounts>> {
+export function useOrderStatusCounts(userId: string): ReturnType<typeof useQuery<OrderStatusCounts>> {
   return useQuery({
     queryKey: queryKeys.orders.statusCounts(userId),
     queryFn: () => api.orders.getStatusCounts(userId),
-    enabled: userId > 0,
+    enabled: userId.length > 0,
   });
 }

@@ -8,11 +8,11 @@ export const chatApi = {
   getConversations: (): Promise<Conversation[]> =>
     request<Conversation[]>('/chat/conversations'),
 
-  getMessages: (conversationId: number, page = 1, limit = 50): Promise<PaginatedResponse<Message>> => {
+  getMessages: (conversationId: string, page = 1, limit = 50): Promise<PaginatedResponse<Message>> => {
     const qs = toQuery({ page, limit });
     return request<PaginatedResponse<Message>>(`/chat/conversations/${conversationId}/messages${qs}`);
   },
 
-  markConversationRead: (conversationId: number): Promise<void> =>
+  markConversationRead: (conversationId: string): Promise<void> =>
     request(`/chat/conversations/${conversationId}/read`, { method: 'POST' }),
 };

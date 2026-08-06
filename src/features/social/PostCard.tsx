@@ -1,9 +1,11 @@
 import { Globe, Heart, MessageCircle, Share2, UserPlus, UserCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 import { IconButton } from '@/components/shared/IconButton';
 import { useNavigate, Link } from 'react-router-dom';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/format/utils';
+import { cldImage } from '@/lib/http/cloudinaryUrl';
+import { preloadImage } from '@/lib/http/preloadImage';
 import { Avatar } from '@/components/shared/Avatar';
 import { ModalCloseButton } from '@/components/shared/ModalCloseButton';
 import { useAuthContext } from '@/context/AuthContext';
@@ -19,13 +21,19 @@ import type { Post } from '@/types';
 
 interface PostCardProps {
   post: Post;
+  /**
+   * First post in the feed: its image is the LCP candidate, so it loads
+   * eagerly at high priority. Every other post lazy-loads instead of the
+   * previous behaviour (no attribute = eager for the whole feed).
+   */
+  priority?: boolean;
 }
 
-export default function PostCard({ post }: PostCardProps) {
+export default function PostCard({ post, priority = false }: PostCardProps) {
   const navigate = useNavigate();
   const { currentUser } = useAuthContext();
-  const viewerId = currentUser?.id ?? 0;
-  const isOwnPost = viewerId !== 0 && viewerId === post.author.id;
+  const viewerId = currentUser?.id ?? '';
+  const isOwnPost = viewerId.length > 0 && viewerId === post.author.id;
 
   const { mutate: likePost, isPending: isLiking } = useLikePost();
   const { mutate: unlikePost, isPending: isUnliking } = useUnlikePost();
@@ -37,7 +45,9 @@ export default function PostCard({ post }: PostCardProps) {
   const { toast, share, copy } = useSharePost();
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const images = post.imageUrls ?? [];
+  // Stable identity — `?? []` would otherwise hand the callbacks below a fresh
+  // array on every render.
+  const images = useMemo(() => post.imageUrls ?? [], [post.imageUrls]);
 
   const openLightbox = useCallback((e: React.MouseEvent, i: number) => {
     e.stopPropagation();
@@ -45,6 +55,12 @@ export default function PostCard({ post }: PostCardProps) {
   }, []);
 
   const closeLightbox = useCallback(() => setLightboxIndex(null), []);
+
+  // The tile and the lightbox request different derivatives, so the click would
+  // otherwise start a fresh round-trip. Hover is the intent signal — warm it.
+  const warmLightbox = useCallback((i: number) => {
+    preloadImage(cldImage(images[i], 1600));
+  }, [images]);
 
   const goPrev = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -113,7 +129,7 @@ export default function PostCard({ post }: PostCardProps) {
         </div>
 
         {/* Follow toggle — only show for other users when logged in */}
-        {!isOwnPost && viewerId !== 0 && !isFollowLoading && (
+        {!isOwnPost && viewerId.length > 0 && !isFollowLoading && (
           <button
             type="button"
             onClick={handleFollowToggle}
@@ -136,7 +152,7 @@ export default function PostCard({ post }: PostCardProps) {
         <PostActionMenu
           postId={post.id}
           isOwner={isOwnPost}
-          canReport={viewerId !== 0}
+          canReport={viewerId.length > 0}
           onCopyLink={() => void copy(post.id)}
           onEdit={() => openEditPost(post)}
         />
@@ -160,28 +176,43 @@ export default function PostCard({ post }: PostCardProps) {
           <button
             type="button"
             onClick={(e) => openLightbox(e, 0)}
+            onMouseEnter={() => warmLightbox(0)}
             className="w-full bg-black flex items-center justify-center aspect-[4/3] max-h-[520px] overflow-hidden border-0 p-0 cursor-pointer"
           >
             {/* Fixed aspect reserves the slot before the image loads → no feed CLS. */}
-            <img src={images[0]} alt="" className="max-w-full max-h-full object-contain" />
+            <img
+              src={cldImage(images[0], 1200)}
+              alt=""
+              className="max-w-full max-h-full object-contain"
+              loading={priority ? 'eager' : 'lazy'}
+              fetchPriority={priority ? 'high' : 'auto'}
+            />
           </button>
         ) : images.length === 3 ? (
           <div className="grid grid-cols-2 gap-0.5">
             <button
               type="button"
               onClick={(e) => openLightbox(e, 0)}
+              onMouseEnter={() => warmLightbox(0)}
               className="bg-black row-span-2 overflow-hidden border-0 p-0 cursor-pointer"
             >
-              <img src={images[0]} alt="" className="w-full h-full object-cover" />
+              <img
+                src={cldImage(images[0], 800)}
+                alt=""
+                className="w-full h-full object-cover"
+                loading={priority ? 'eager' : 'lazy'}
+                fetchPriority={priority ? 'high' : 'auto'}
+              />
             </button>
             {images.slice(1, 3).map((url, i) => (
               <button
                 key={i + 1}
                 type="button"
                 onClick={(e) => openLightbox(e, i + 1)}
+                onMouseEnter={() => warmLightbox(i + 1)}
                 className="bg-black aspect-square overflow-hidden border-0 p-0 cursor-pointer"
               >
-                <img src={url} alt="" className="w-full h-full object-cover" />
+                <img src={cldImage(url, 600)} alt="" className="w-full h-full object-cover" loading="lazy" />
               </button>
             ))}
           </div>
@@ -192,9 +223,16 @@ export default function PostCard({ post }: PostCardProps) {
                 key={i}
                 type="button"
                 onClick={(e) => openLightbox(e, i)}
+                onMouseEnter={() => warmLightbox(i)}
                 className="bg-black aspect-square overflow-hidden border-0 p-0 cursor-pointer"
               >
-                <img src={url} alt="" className="w-full h-full object-cover" />
+                <img
+                  src={cldImage(url, 600)}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  loading={priority && i === 0 ? 'eager' : 'lazy'}
+                  fetchPriority={priority && i === 0 ? 'high' : 'auto'}
+                />
               </button>
             ))}
           </div>
@@ -225,7 +263,7 @@ export default function PostCard({ post }: PostCardProps) {
 
           {/* Image */}
           <img
-            src={images[lightboxIndex]}
+            src={cldImage(images[lightboxIndex], 1600)}
             alt=""
             className="max-w-[90vw] max-h-[90vh] object-contain select-none cursor-default"
             onClick={(e) => e.stopPropagation()}

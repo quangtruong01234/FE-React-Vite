@@ -6,6 +6,7 @@ import { Bold, Italic, List, ListOrdered, ImagePlus, Heading2, Minus } from 'luc
 import { useRef, useState, type ReactElement, type ChangeEvent } from 'react';
 import { IconButton } from '@/components/shared/IconButton';
 import { deleteMedia } from '@/lib/http/cloudinary';
+import { cldImage } from '@/lib/http/cloudinaryUrl';
 import { validateUploadFile, MAX_IMAGE_BYTES } from '@/lib/http/uploadValidation';
 import { cn } from '@/lib/format/utils';
 import { partitionEditorImages, type TrackedImage } from './richTextImages';
@@ -16,8 +17,8 @@ interface Props {
   value: string;
   onChange: (html: string) => void;
   placeholder?: string;
-  userId: number;
-  onUploadImage: (file: File, userId: number) => Promise<{ url: string; publicId: string }>;
+  userId: string;
+  onUploadImage: (file: File, userId: string) => Promise<{ url: string; publicId: string }>;
 }
 
 interface ToolbarButtonProps {
@@ -92,8 +93,12 @@ export function RichTextEditor({ value, onChange, placeholder, userId, onUploadI
     setUploadError(null);
     try {
       const result = await onUploadImage(file, userId);
-      editor.chain().focus().setImage({ src: result.url }).run();
-      trackedRef.current = [...trackedRef.current, { url: result.url, publicId: result.publicId }];
+      // Embed the delivery-transformed URL, not the raw original — this string is
+      // persisted into the description HTML and rendered as-is everywhere later.
+      // Track that same URL so `partitionEditorImages` keeps matching it.
+      const src = cldImage(result.url, 1000);
+      editor.chain().focus().setImage({ src }).run();
+      trackedRef.current = [...trackedRef.current, { url: src, publicId: result.publicId }];
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : 'Upload ảnh thất bại');
     } finally {

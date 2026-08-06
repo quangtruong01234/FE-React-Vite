@@ -1,7 +1,7 @@
 // --- Cart ---
 
 export interface CartItem {
-  productId: number;
+  productId: string;
   name: string;
   price: number;
   image: string;
@@ -17,7 +17,7 @@ export interface Cart {
 export interface ServerCartItem {
   id: number;
   cartId: number;
-  productId: number;
+  productId: string;
   skuId: number | null;
   skuTierIdx: string | null;
   quantity: number;
@@ -27,13 +27,13 @@ export interface ServerCartItem {
 
 export interface ServerCart {
   id: number;
-  userId: number;
+  userId: string;
   items: ServerCartItem[];
   createdAt: string;
 }
 
 export interface AddToCartDto {
-  productId: number;
+  productId: string;
   quantity: number;
   skuId?: number;
 }

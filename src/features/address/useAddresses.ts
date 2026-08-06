@@ -24,7 +24,7 @@ export function useCreateAddress() {
 export function useUpdateAddress() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: UpdateAddressDto }) =>
+    mutationFn: ({ id, data }: { id: string; data: UpdateAddressDto }) =>
       api.users.updateAddress(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.addresses });
@@ -35,7 +35,7 @@ export function useUpdateAddress() {
 export function useSetDefaultAddress() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.users.setDefaultAddress(id),
+    mutationFn: (id: string) => api.users.setDefaultAddress(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.addresses });
     },
@@ -45,7 +45,7 @@ export function useSetDefaultAddress() {
 export function useDeleteAddress() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.users.deleteAddress(id),
+    mutationFn: (id: string) => api.users.deleteAddress(id),
     onSuccess: () => {
       // Deleting the default auto-promotes another — refetch to reflect it.
       queryClient.invalidateQueries({ queryKey: queryKeys.users.addresses });

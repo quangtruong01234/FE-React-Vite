@@ -1,15 +1,15 @@
 // --- Notification ---
 
 export interface Notification {
-  id: number;
-  userId: number;
+  id: string;
+  userId: string;
   type: string;
   /** Order id for order-type notifications; bigint column → backend may serialize as string ("107"). */
-  orderId: number | string | null;
+  orderId: string | null;
   /** Post to deep-link to — set only for type "comment" | "reply". */
-  postId: number | null;
+  postId: string | null;
   /** userId of the commenter/replier — set only for type "comment" | "reply". */
-  actorId: number | null;
+  actorId: string | null;
   /** Comment/reply text (≤255 chars) — set only for type "comment" | "reply". */
   preview: string | null;
   message: string;

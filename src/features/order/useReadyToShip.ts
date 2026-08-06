@@ -3,9 +3,9 @@ import { api } from '@/api';
 import { invalidateOrderViews } from '@/lib/query/orderInvalidation';
 import type { Order } from '@/types';
 
-export function useReadyToShip(): ReturnType<typeof useMutation<Order, unknown, number>> {
+export function useReadyToShip(): ReturnType<typeof useMutation<Order, unknown, string>> {
   return useMutation({
-    mutationFn: (orderId: number) => api.orders.readyToShip(orderId),
+    mutationFn: (orderId: string) => api.orders.readyToShip(orderId),
     onSuccess: (_data, orderId) => {
       invalidateOrderViews({ orderId, seller: true });
     },

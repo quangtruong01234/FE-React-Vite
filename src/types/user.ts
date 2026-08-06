@@ -27,7 +27,7 @@ export interface Role {
  * user's own email/role read `useAuthContext().currentUser` (backed by `/user/me`).
  */
 export interface PublicUser {
-  id: number;
+  id: string;
   username: string;
   name?: string | null;
   avatar?: string | null;
@@ -48,7 +48,7 @@ export interface UpdateUserDto {
 
 /** Public seller card for the feed right-rail — no email/role/grants. */
 export interface FeaturedSeller {
-  id: number;
+  id: string;
   username: string;
   name: string | null;
   avatar: string | null;

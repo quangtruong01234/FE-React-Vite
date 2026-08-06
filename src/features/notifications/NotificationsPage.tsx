@@ -1,7 +1,10 @@
-import { useState, type ReactElement } from 'react';
+import { type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BellOff } from 'lucide-react';
 import { useNotifications } from './useNotifications';
+import { usePageParam } from '@/hooks/ui/usePageParam';
+import { useFilterParam } from '@/hooks/ui/useFilterParam';
+import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
 import {
   getNotificationMeta,
   getNotificationContent,
@@ -38,12 +41,13 @@ function groupByDate(notifications: Notification[]): { label: string; items: Not
 }
 
 type FilterKey = 'all' | 'unread';
+const FILTER_KEYS: readonly FilterKey[] = ['all', 'unread'];
 
 export default function NotificationsPage(): ReactElement {
   const navigate = useNavigate();
-  const [page, setPage] = useState(1);
-  const { notifications, unreadCount, totalPages, isLoading, markRead, markAllRead } = useNotifications(page);
-  const [tab, setTab] = useState<FilterKey>('all');
+  const [page, setPage] = usePageParam();
+  const { notifications, unreadCount, totalPages, isLoading, isFetching, markRead, markAllRead } = useNotifications(page);
+  const [tab, setTab] = useFilterParam<FilterKey>('tab', FILTER_KEYS, 'all');
 
   const list = tab === 'unread' ? notifications.filter((n) => !n.isRead) : notifications;
   const groups = groupByDate(list);
@@ -124,7 +128,8 @@ export default function NotificationsPage(): ReactElement {
 
       {/* Grouped list */}
       {!isLoading && groups.length > 0 && (
-        <div className="flex flex-col gap-4">
+        <FetchingOverlay fetching={isFetching && !isLoading}>
+          <div className="flex flex-col gap-4">
           {groups.map(({ label, items }) => (
             <div key={label}>
               <div className="text-xs font-semibold uppercase tracking-wide text-ink-muted mb-1.5 px-1">
@@ -167,7 +172,8 @@ export default function NotificationsPage(): ReactElement {
               </div>
             </div>
           ))}
-        </div>
+          </div>
+        </FetchingOverlay>
       )}
 
       {!isLoading && (

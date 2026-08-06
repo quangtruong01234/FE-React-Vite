@@ -12,10 +12,10 @@ import { request, toQuery } from './client';
 
 export const usersApi = {
   // Public read — no email/role (backend strips them from public profiles, 2026-07-07).
-  getById: (id: number): Promise<PublicUser> =>
+  getById: (id: string): Promise<PublicUser> =>
     request<PublicUser>(`/user/${id}`),
 
-  update: (id: number, data: UpdateUserDto): Promise<User> =>
+  update: (id: string, data: UpdateUserDto): Promise<User> =>
     request<User>(`/user/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   // Note: the admin-only `GET /user/all` was removed backend-side (2026-07-06);
@@ -44,19 +44,19 @@ export const usersApi = {
       body: JSON.stringify(data),
     }),
 
-  updateAddress: (addressId: number, data: UpdateAddressDto): Promise<Address> =>
+  updateAddress: (addressId: string, data: UpdateAddressDto): Promise<Address> =>
     request<Address>(`/user/me/addresses/${addressId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
 
-  setDefaultAddress: (addressId: number): Promise<Address> =>
+  setDefaultAddress: (addressId: string): Promise<Address> =>
     request<Address>(`/user/me/addresses/${addressId}/default`, {
       method: 'PATCH',
     }),
 
   // Deleting the default auto-promotes the most-recent remaining address.
-  deleteAddress: (addressId: number): Promise<{ success: boolean }> =>
+  deleteAddress: (addressId: string): Promise<{ success: boolean }> =>
     request<{ success: boolean }>(`/user/me/addresses/${addressId}`, {
       method: 'DELETE',
     }),

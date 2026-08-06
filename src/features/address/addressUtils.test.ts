@@ -2,14 +2,15 @@ import { describe, it, expect } from 'vitest';
 import {
   pickDefaultAddress,
   buildGhnShippingAddress,
+  ghnLocationIds,
   formatAddressSummary,
 } from './addressUtils';
 import type { Address } from '@/types';
 
 function makeAddress(overrides: Partial<Address> = {}): Address {
   return {
-    id: 1,
-    userId: 17,
+    id: 'addr_0000000000000001',
+    userId: 'usr_0000000000000017',
     recipientName: 'Nguyễn Văn A',
     phone: '0987654321',
     addressLine: '123 Nguyễn Huệ',
@@ -32,15 +33,15 @@ describe('pickDefaultAddress', () => {
   });
 
   it('prefers the address flagged isDefault over ordering', () => {
-    const a = makeAddress({ id: 1, isDefault: false });
-    const b = makeAddress({ id: 2, isDefault: true });
-    expect(pickDefaultAddress([a, b])?.id).toBe(2);
+    const a = makeAddress({ id: 'addr_0000000000000001', isDefault: false });
+    const b = makeAddress({ id: 'addr_0000000000000002', isDefault: true });
+    expect(pickDefaultAddress([a, b])?.id).toBe('addr_0000000000000002');
   });
 
   it('falls back to the first entry when none is flagged default', () => {
-    const a = makeAddress({ id: 5, isDefault: false });
-    const b = makeAddress({ id: 6, isDefault: false });
-    expect(pickDefaultAddress([a, b])?.id).toBe(5);
+    const a = makeAddress({ id: 'addr_0000000000000005', isDefault: false });
+    const b = makeAddress({ id: 'addr_0000000000000006', isDefault: false });
+    expect(pickDefaultAddress([a, b])?.id).toBe('addr_0000000000000005');
   });
 });
 
@@ -62,6 +63,36 @@ describe('buildGhnShippingAddress', () => {
   it('trims surrounding whitespace on each part', () => {
     const addr = makeAddress({ phone: '  0900000000  ' });
     expect(buildGhnShippingAddress(addr).split('|')[1]).toBe('0900000000');
+  });
+});
+
+describe('ghnLocationIds', () => {
+  it('returns both GHN ids from a saved address', () => {
+    expect(ghnLocationIds(makeAddress())).toEqual({
+      toDistrictId: 1442,
+      toWardCode: '20101',
+    });
+  });
+
+  it('keeps a leading-zero ward code as a string', () => {
+    // GHN codes like "13010" lose their zero through any numeric round-trip.
+    expect(ghnLocationIds(makeAddress({ wardCode: '013010' })).toWardCode).toBe('013010');
+  });
+
+  it('trims a padded ward code', () => {
+    expect(ghnLocationIds(makeAddress({ wardCode: '  20101  ' })).toWardCode).toBe('20101');
+  });
+
+  it.each([
+    ['a blank ward code', { wardCode: '   ' }],
+    ['a missing ward code', { wardCode: '' }],
+    ['a zero district id', { districtId: 0 }],
+    ['a negative district id', { districtId: -1 }],
+    ['a non-integer district id', { districtId: 14.42 }],
+  ])('sends neither id for %s', (_label, overrides: Partial<Address>) => {
+    // The pair is all-or-nothing server-side — half of it is ignored, so a
+    // partial pair must degrade to free-text resolution deliberately.
+    expect(ghnLocationIds(makeAddress(overrides))).toEqual({});
   });
 });
 

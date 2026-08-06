@@ -9,7 +9,7 @@ import type { SellerOrderDetail } from '@/types';
  * stays cheap.
  */
 export function useSellerOrderDetail(
-  id: number,
+  id: string,
   enabled: boolean,
 ): ReturnType<typeof useQuery<SellerOrderDetail>> {
   return useQuery({

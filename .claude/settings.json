@@ -3,7 +3,7 @@
     "allow": [
       "Read(**)",
       "Edit(src/**)",
-      "Edit(.claude/context/**)",
+      "Edit(.ai/**)",
       "Edit(.claude/commands/**)",
       "Edit(.claude/agents/**)",
       "Edit(.claude/*.md)",
@@ -41,6 +41,10 @@
       "Bash(bun *)",
       "Bash(git push*)",
       "Bash(git reset --hard*)",
+      "Bash(git checkout*)",
+      "Bash(git clean*)",
+      "Bash(curl *)",
+      "Bash(Invoke-WebRequest*)",
       "Edit(.claude/settings.json)",
       "Edit(.claude/settings.local.json)"
     ]
@@ -49,13 +53,8 @@
     "PostToolUse": [],
     "Stop": [
       {
-        "_comment": "Stop hooks are informational only — they do not block or gate anything. Command 1 (tsc) surfaces TypeScript errors for awareness after each agent turn; fix them manually if needed. Command 2 (notification) is Windows/PowerShell-specific and will fail silently on macOS/Linux.",
+        "_comment": "Stop hook is informational only — it does not block or gate anything. The tsc check that used to live here was removed 2026-08-04: `npm run build` now runs `tsc --noEmit` itself, so the gate covers it. This notification is Windows/PowerShell-specific and fails silently on macOS/Linux.",
         "hooks": [
-          {
-            "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && npx tsc --noEmit 2>&1 | tail -20",
-            "timeout": 30
-          },
           {
             "type": "command",
             "command": "[console]::beep(1000, 300); Add-Type -AssemblyName System.Windows.Forms; $n = New-Object System.Windows.Forms.NotifyIcon; $n.Icon = [System.Drawing.SystemIcons]::Information; $n.Visible = $true; $n.ShowBalloonTip(5000, 'Claude Code', 'Claude code xong rồi master', [System.Windows.Forms.ToolTipIcon]::Info); Start-Sleep 5; $n.Dispose()",

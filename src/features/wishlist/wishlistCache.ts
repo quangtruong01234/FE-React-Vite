@@ -1,12 +1,38 @@
-import type { WishlistItem } from '@/types';
+import type { PaginatedResponse, WishlistItem } from '@/types';
 
 /**
  * Build the membership `Set` of product ids from a wishlist page payload.
- * Coerces ids to `number` (backend bigint columns can serialize as strings) so
- * lookups from `product.id` (a `number`) always match.
+ * Opaque product ids are preserved exactly as returned by the backend.
  */
-export function wishlistIdSet(items: WishlistItem[]): Set<number> {
-  return new Set(items.map((item) => Number(item.id)));
+export function wishlistIdSet(items: WishlistItem[]): Set<string> {
+  return new Set(items.map((item) => item.id));
+}
+
+// Backend caps `limit` at 100 on `GET /products/wishlist` (over → 400), so the
+// membership set is collected one 100-item page at a time.
+export const WISHLIST_ID_PAGE_SIZE = 100;
+// Safety bound so a pathologically large wishlist can't fan out unboundedly.
+export const MAX_WISHLIST_ID_PAGES = 10;
+
+/**
+ * Collect the full membership `Set` of wishlisted product ids by paging through
+ * `/products/wishlist` until the server reports no more pages (or the page bound
+ * is hit). One page is enough for a typical wishlist; paging covers users with
+ * more than `WISHLIST_ID_PAGE_SIZE` favorites without ever exceeding the server's
+ * `limit` cap (the previous single `limit=200` request always 400'd).
+ */
+export async function collectWishlistIds(
+  fetchPage: (page: number, limit: number) => Promise<PaginatedResponse<WishlistItem>>,
+): Promise<Set<string>> {
+  const ids = new Set<string>();
+  for (let page = 1; page <= MAX_WISHLIST_ID_PAGES; page++) {
+    const res = await fetchPage(page, WISHLIST_ID_PAGE_SIZE);
+    for (const id of res.data) {
+      ids.add(id.id);
+    }
+    if (!res.hasNext) break;
+  }
+  return ids;
 }
 
 /**
@@ -15,10 +41,10 @@ export function wishlistIdSet(items: WishlistItem[]): Set<number> {
  * Never mutates the input set (React Query cached value must stay immutable).
  */
 export function toggleWishlistId(
-  ids: Set<number>,
-  productId: number,
+  ids: Set<string>,
+  productId: string,
   shouldBeWishlisted: boolean,
-): Set<number> {
+): Set<string> {
   const next = new Set(ids);
   if (shouldBeWishlisted) {
     next.add(productId);

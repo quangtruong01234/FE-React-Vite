@@ -3,7 +3,7 @@ import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import type { ProductReviewDto } from '@/types';
 
-export function useProductReviews(productId: number, page: number) {
+export function useProductReviews(productId: string, page: number) {
   return useQuery({
     // Page belongs in the key — with only `byProduct(productId)` a page change
     // never refetched. `byProduct` stays as the invalidation prefix.
@@ -13,7 +13,7 @@ export function useProductReviews(productId: number, page: number) {
   });
 }
 
-export function useCreateReview(productId: number) {
+export function useCreateReview(productId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: ProductReviewDto) => api.reviews.create(productId, data),
@@ -24,7 +24,7 @@ export function useCreateReview(productId: number) {
   });
 }
 
-export function useDeleteReview(productId: number) {
+export function useDeleteReview(productId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (reviewId: number) => api.reviews.delete(reviewId),

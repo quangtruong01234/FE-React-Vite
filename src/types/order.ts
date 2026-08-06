@@ -4,7 +4,7 @@ import type { PaymentMethod } from "./payment";
 
 export interface OrderItem {
   id: number;
-  productId: number;
+  productId: string | null;
   quantity: number;
   price: number;
   /** Product name, server-enriched on every order endpoint (no client hydration needed). */
@@ -51,10 +51,9 @@ export type ReturnRequestStatus = "pending_review" | "approved" | "rejected";
 export type RefundStatus = "refunded" | "manual_pending";
 
 export interface ReturnRequest {
-  id: number;
-  orderId: number;
-  /** bigint column — may arrive as a numeric string. */
-  userId: number | string;
+  id: string;
+  orderId: string;
+  userId: string;
   reason: string;
   status: ReturnRequestStatus;
   rejectReason: string | null;
@@ -62,15 +61,15 @@ export interface ReturnRequest {
   refundAmount: number | null;
   refundMethod: PaymentMethod | null;
   refundStatus: RefundStatus | null;
-  /** bigint column — may arrive as a numeric string. */
-  reviewedBy: number | string | null;
+  reviewedBy: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface Order {
-  id: number;
-  userId: number;
+  id: string;
+  userId: string;
+  sellerId?: string;
   total: string;
   status: OrderStatus;
   paymentMethod: PaymentMethod;
@@ -81,13 +80,17 @@ export interface Order {
   voucherCode?: string | null;
   /** Decimal column — may arrive as a string ("50000.00") on older responses. */
   discountAmount?: number | string | null;
+  /** Line subtotal (Σ item price×qty), server-computed as a number. Optional for legacy/multi-seller responses that predate the field. */
+  subtotal?: number;
+  /** Shipping fee, server-normalized to a non-null number (0 for legacy fee-less orders). Optional for legacy/multi-seller responses that predate the field. `total = subtotal − discountAmount + shippingFee`. */
+  shippingFee?: number;
   createdAt: string;
   items: OrderItem[];
 }
 
 export interface OrderWithBuyer extends Order {
   buyer: {
-    id: number;
+    id: string;
     username: string;
     email: string;
     name?: string;
@@ -96,7 +99,7 @@ export interface OrderWithBuyer extends Order {
 
 /** Item as returned by the seller order detail endpoint, enriched by the gateway. */
 export interface SellerOrderItemDetail extends OrderItem {
-  sellerId?: number;
+  sellerId?: string;
   skuTierIdx?: string | null;
   /** First product image, purchase-time snapshot (P2-02) — stable even if the product is later edited/deleted; null when the product had none. */
   image: string | null;
@@ -110,13 +113,29 @@ export interface SellerOrderDetail extends Order {
 }
 
 export interface CreateOrderItemDto {
-  productId: number;
+  productId: string;
   productName: string;
   quantity: number;
   skuId?: number;
 }
 
-export interface CreateOrderDto {
+/**
+ * GHN-ADDR-01: the exact GHN location, so the waybill and the fee resolve from
+ * real ids instead of GHN guessing them out of the free-text `shippingAddress`.
+ * All-or-nothing server-side — a half pair is ignored and silently falls back
+ * to free-text resolution. Build it with `ghnLocationIds()`.
+ */
+export interface GhnLocationDto {
+  /** GHN `DistrictID` (integer ≥ 1) from `GET /shipping/districts`. */
+  toDistrictId?: number;
+  /**
+   * GHN `WardCode` from `GET /shipping/wards`. Stays a string — codes can carry
+   * a leading zero ("13010") that a numeric round-trip would destroy.
+   */
+  toWardCode?: string;
+}
+
+export interface CreateOrderDto extends GhnLocationDto {
   paymentMethod: PaymentMethod;
   shippingAddress: string;
   items: CreateOrderItemDto[];
@@ -159,7 +178,7 @@ export interface ShippingFeeItemDto {
   weight?: number;
 }
 
-export interface ShippingFeeDto {
+export interface ShippingFeeDto extends GhnLocationDto {
   /** Pipe-delimited for GHN: "name|phone|address|ward|district|province" */
   shippingAddress: string;
   items: ShippingFeeItemDto[];
@@ -186,7 +205,7 @@ export interface RevenuePoint {
 }
 
 export interface TopProductStat {
-  productId: number;
+  productId: string;
   productName: string;
   quantitySold: number;
   revenue: number;

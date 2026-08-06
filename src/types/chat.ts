@@ -1,16 +1,16 @@
 // --- Chat ---
 
 export interface ConversationLastMessage {
-  id: number;
+  id: string;
   content: string;
-  senderId: number;
+  senderId: string;
   createdAt: string;
 }
 
 export interface Conversation {
-  id: number;
-  user1Id: number;
-  user2Id: number;
+  id: string;
+  user1Id: string;
+  user2Id: string;
   createdAt: string;
   user1LastReadAt: string | null;
   user2LastReadAt: string | null;
@@ -19,14 +19,14 @@ export interface Conversation {
 }
 
 export interface Message {
-  id: number;
-  conversationId: number;
-  senderId: number;
+  id: string;
+  conversationId: string;
+  senderId: string;
   content: string;
-  parentMessageId: number | null;
+  parentMessageId: string | null;
   createdAt: string;
 }
 
 export interface CreateConversationDto {
-  otherUserId: number;
+  otherUserId: string;
 }

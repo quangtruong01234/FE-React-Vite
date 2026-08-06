@@ -16,7 +16,7 @@ import { reportPostErrorMessage } from './reportPostError';
 const MAX_REASON = 500;
 
 interface ReportPostDialogProps {
-  postId: number;
+  postId: string;
   open: boolean;
   onClose: () => void;
 }

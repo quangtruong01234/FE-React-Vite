@@ -14,10 +14,10 @@ export function ShippingAddressBlock({
 }): ReactElement {
   const parsed = parseShippingAddress(raw);
   if (!parsed) {
-    return <div className={cn('text-sm text-white leading-relaxed', className)}>{raw}</div>;
+    return <div className={cn('text-sm text-ink-pri leading-relaxed', className)}>{raw}</div>;
   }
   return (
-    <div className={cn('text-sm text-white leading-relaxed', className)}>
+    <div className={cn('text-sm text-ink-pri leading-relaxed', className)}>
       <div className="flex flex-wrap items-baseline gap-x-2">
         <span className="font-semibold">{parsed.name}</span>
         {parsed.phone && <span className="font-mono text-xs text-ink-sec">{parsed.phone}</span>}

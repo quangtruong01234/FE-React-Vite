@@ -9,7 +9,7 @@ export interface Inventory {
 
 export interface InventoryRecord {
   id: number;
-  productId: number;
+  productId: string;
   sku: string;
   availableStock: number;
   reservedStock?: number;
@@ -21,8 +21,11 @@ export interface InventoryRecord {
 }
 
 export interface CreateInventoryDto {
-  productId: number;
-  sku: string;
+  productId: string;
+  /** Optional, mirroring `CreateProductDto.sku` — omit and the backend provisions
+   *  the `PROD-<productId>` fallback (verified 2026-07-22 with the sku-optional
+   *  create flow: blank SKU → `inventory.sku: "PROD-60"`). */
+  sku?: string;
   availableStock: number;
   minimumStock?: number;
   location?: string;
@@ -37,7 +40,7 @@ export interface UpdateInventoryDto {
 }
 
 export interface StockCheckRequest {
-  productId: number;
+  productId: string;
   quantity: number;
 }
 

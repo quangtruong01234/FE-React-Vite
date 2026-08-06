@@ -21,7 +21,7 @@ export default function FeedPage() {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const forYouQuery = useFeed();
-  const followingQuery = useFollowingFeed(currentUser?.id ?? 0, activeTab === 'following');
+  const followingQuery = useFollowingFeed(currentUser?.id ?? '', activeTab === 'following');
 
   const activeQuery = activeTab === 'following' ? followingQuery : forYouQuery;
   const { data, isLoading, isError, error, hasNextPage, fetchNextPage, isFetchingNextPage } = activeQuery;
@@ -119,8 +119,8 @@ export default function FeedPage() {
         {/* Post list */}
         {!isLoading && posts.length > 0 && (
           <div className="flex flex-col gap-4">
-            {posts.map((post) => (
-              <PostCard key={post.id} post={post} />
+            {posts.map((post, i) => (
+              <PostCard key={post.id} post={post} priority={i === 0} />
             ))}
           </div>
         )}

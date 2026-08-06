@@ -1,28 +1,32 @@
-import { useState, type ReactElement } from 'react';
+import { type ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, HeartOff } from 'lucide-react';
 import { useWishlistPage } from '@/hooks/data/useWishlist';
+import { usePageParam } from '@/hooks/ui/usePageParam';
 import { WishlistButton } from '@/components/shared/WishlistButton';
 import { Pagination } from '@/components/shared/Pagination';
+import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatPrice } from '@/lib/format/utils';
+import { cldImage } from '@/lib/http/cloudinaryUrl';
 import type { WishlistItem } from '@/types';
 
 const PAGE_SIZE = 12;
 
-function WishlistCard({ item }: { item: WishlistItem }): ReactElement {
+function WishlistCard({ item, priority = false }: { item: WishlistItem; priority?: boolean }): ReactElement {
   const cover = item.imageUrl ?? item.imageUrls?.[0] ?? '';
   return (
     <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden flex flex-col transition-all duration-300 hover:-translate-y-1 hover:border-accent-amber/30 hover:shadow-tb-card">
       <Link to={`/product/${item.id}`} className="relative block">
         {cover ? (
           <img
-            src={cover}
+            src={cldImage(cover, 600)}
             alt={item.name}
             width={400}
             height={400}
             className="w-full aspect-square object-cover"
-            loading="lazy"
+            loading={priority ? 'eager' : 'lazy'}
+            fetchPriority={priority ? 'high' : 'auto'}
           />
         ) : (
           <div className="w-full aspect-square bg-canvas-elevated grid place-items-center">
@@ -35,7 +39,7 @@ function WishlistCard({ item }: { item: WishlistItem }): ReactElement {
           </span>
         )}
         <WishlistButton
-          productId={Number(item.id)}
+          productId={item.id}
           iconSize={18}
           className="absolute top-2.5 right-2.5 size-9 rounded-full bg-black/50 backdrop-blur-sm hover:bg-black/60"
         />
@@ -69,8 +73,8 @@ function CardSkeleton(): ReactElement {
 }
 
 export default function WishlistPage(): ReactElement {
-  const [page, setPage] = useState(1);
-  const { data, isLoading, error } = useWishlistPage(page, PAGE_SIZE);
+  const [page, setPage] = usePageParam();
+  const { data, isLoading, isFetching, error } = useWishlistPage(page, PAGE_SIZE);
   const items = data?.data ?? [];
 
   return (
@@ -113,9 +117,12 @@ export default function WishlistPage(): ReactElement {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-            {items.map((item) => <WishlistCard key={item.id} item={item} />)}
-          </div>
+          <FetchingOverlay fetching={isFetching && !isLoading}>
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+              {/* First row (≤ 4 cols) is above the fold → eager, high priority. */}
+              {items.map((item, i) => <WishlistCard key={item.id} item={item} priority={i < 4} />)}
+            </div>
+          </FetchingOverlay>
         )}
 
         {!isLoading && items.length > 0 && (

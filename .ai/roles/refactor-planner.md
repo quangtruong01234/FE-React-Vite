@@ -21,9 +21,9 @@ For each file that will be touched:
 
 Build a table of affected locations:
 ```
-File                                Lines       Current pattern
-src/features/product/useProduct.ts  18,42       ['products']
-src/features/cart/CartSidebar.tsx   24          ['products', id]
+File                                 Lines       Current pattern
+src/features/product/useProducts.ts  18,42       ['products']
+src/features/cart/CartPage.tsx       24          ['products', id]
 ```
 
 ### Phase 3: Identify risks
@@ -31,7 +31,7 @@ src/features/cart/CartSidebar.tsx   24          ['products', id]
 - Will any type signature change?
 - Any public API (exported function) being renamed or moved?
 - Any circular import risk introduced?
-- Any test file that needs updating? (Project has no tests yet, but check.)
+- Which colocated `*.test.ts(x)` files need updating? (The project has ~84 test files — assume coverage exists and check.)
 - Any context file documentation that becomes stale after this refactor?
 
 ### Phase 4: Produce the plan
@@ -66,30 +66,31 @@ SCOPE
   Lines affected: ~M
 
 CURRENT STATE
-  File                                Lines    Pattern
-  src/features/product/useProduct.ts  18,42    ['products']
+  File                                 Lines    Pattern
+  src/features/product/useProducts.ts  18,42    ['products']
   ...
 
 PLAN
 
   Step 1: Add canonical key to queryKeys.ts (if not present)
-    Files: src/hooks/queryKeys.ts
+    Files: src/hooks/query/queryKeys.ts
     Change: ensure queryKeys.products.all exists
     Verify: tsc passes
 
-  Step 2: Replace inline keys in useProduct.ts
-    Files: src/features/product/useProduct.ts
+  Step 2: Replace inline keys in useProducts.ts
+    Files: src/features/product/useProducts.ts
     Change:
       L18: queryKey: ['products']      → queryKey: queryKeys.products.all
       L42: queryKey: ['products', id]  → queryKey: queryKeys.products.detail(id)
-    Verify: npm run build
+    Verify: npm run build && npm run test:run
 
   Step 3: ... etc
 
 RISKS
   - useQuery cache invalidation: existing data will be re-fetched once because
     cache keys change. Acceptable in dev; in prod this means one extra request.
-  - No test coverage; manual verification of product list + detail required.
+  - Tests to update: src/features/product/useProducts.test.tsx,
+    src/hooks/query/queryKeys.test.ts — both assert the key shape.
 
 TRADE-OFFS
   Better: single source of truth for query keys, prevents stale-cache bugs.

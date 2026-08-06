@@ -11,8 +11,8 @@ import type { Conversation, Message } from '@/types';
  */
 export function shouldPlayPresenceSound(
   message: Pick<Message, 'senderId' | 'conversationId'>,
-  viewerId: number | undefined,
-  activeConversationId: number | null,
+  viewerId: string | undefined,
+  activeConversationId: string | null,
 ): boolean {
   if (viewerId === undefined) return false;
   if (message.senderId === viewerId) return false;
@@ -22,7 +22,7 @@ export function shouldPlayPresenceSound(
 /** Conversation ids present in the list but not yet joined on the socket. */
 export function unjoinedConversationIds(
   convs: Pick<Conversation, 'id'>[],
-  joined: ReadonlySet<number>,
-): number[] {
+  joined: ReadonlySet<string>,
+): string[] {
   return convs.map((c) => c.id).filter((id) => !joined.has(id));
 }

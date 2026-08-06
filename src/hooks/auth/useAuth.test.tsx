@@ -17,7 +17,7 @@ vi.mock('@/lib/auth/authChannel', () => ({
 }));
 
 const testUser: User = {
-  id: 1,
+  id: 'usr_0000000000000001',
   username: 'tester',
   email: 'tester@test.com',
   role: { rol_id: 3, rol_name: 'user' } as Role,

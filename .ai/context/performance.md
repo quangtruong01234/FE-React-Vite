@@ -29,8 +29,8 @@
   const onPick = useCallback(() => pick(id), [id]);
 ```
 - `React.memo` only when a component (a) re-renders often, (b) usually with the same props, (c) is non-trivial to render. Don't blanket-wrap.
-- Stable `key` on lists — never array index for dynamic/reorderable lists; use the entity `id` (`number`).
-- Memoize Context value objects (`AuthContext`/`CartContext`) so a change in one field doesn't re-render every consumer.
+- Stable `key` on lists — never array index for dynamic/reorderable lists; use the entity `id` (opaque `string` for converted public-ID domains, otherwise the domain's numeric ID).
+- Memoize Context value objects (`AuthContext` — the only context in the app) so a change in one field doesn't re-render every consumer.
 - Large lists (> ~100 visible rows) → consider virtualization. Needs a lib (e.g. react-window) which is NOT installed — ASK before adding (core.md: no new deps without asking).
 
 ## Lazy-loading & bundle
@@ -43,7 +43,7 @@
 - Don't pull a big dependency for something small/native; new deps need approval anyway.
 
 ## Data (TanStack Query)
-- Caching + dedup is already handled (staleTime 60s in `lib/queryClient.ts`) — never hand-roll caching or refetch loops.
+- Caching + dedup is already handled (staleTime 60s in `lib/query/queryClient.ts`) — never hand-roll caching or refetch loops.
 - Use `select` to narrow what a component subscribes to when it needs only part of the response.
 - Paginated lists → `placeholderData: keepPreviousData` (v5) so the list doesn't flash empty between pages.
 - Prefetch on intent (hover / route-enter) via `queryClient.prefetchQuery` — only for known-hot navigations.
@@ -51,7 +51,12 @@
 
 ## Assets / layout
 - `<img>` needs explicit `width` + `height` (or `aspect-ratio`) to avoid layout shift (CLS).
-- Below-the-fold images → `loading="lazy"`.
+- **Never render a raw Cloudinary `secure_url`** — it is the multi-MB original. Wrap every image
+  src in `cldImage(url, width)` (`lib/http/cloudinaryUrl.ts`); `width` = max CSS width × DPR.
+  Non-Cloudinary URLs (Unsplash/picsum fallbacks, `blob:` previews, video) pass through untouched.
+- Below-the-fold images → `loading="lazy"`. The **LCP image is the exception**: the first grid row /
+  first feed post gets `loading="eager"` + `fetchPriority="high"` (see `ProductCard`/`PostCard`'s
+  `priority` prop). Lazy-loading the LCP image delays its request until after layout.
 - In hot paths, animate `transform`/`opacity`, not layout-affecting properties.
 
 ## When NOT to optimize

@@ -13,8 +13,8 @@ function makeGroup(overrides: {
 } = {}): ReportedPostGroup {
   return {
     post: {
-      id: 7,
-      userId: 3,
+      id: 'post_0000000000000007',
+      userId: 'usr_0000000000000003',
       content: 'spam spam',
       imageUrls: null,
       videoUrl: null,
@@ -24,7 +24,7 @@ function makeGroup(overrides: {
       likeCount: 0,
       commentCount: 0,
       isLiked: false,
-      author: { id: 3, username: 'spammer', avatar: null },
+      author: { id: 'usr_0000000000000003', username: 'spammer', avatar: null },
       isHidden: overrides.isHidden ?? false,
       hiddenAt: overrides.isHidden ? '2026-07-02T00:00:00.000Z' : null,
     },
@@ -32,7 +32,7 @@ function makeGroup(overrides: {
     pendingCount: overrides.pendingCount ?? 2,
     latestReportedAt: '2026-07-02T10:00:00.000Z',
     reports: [
-      { id: 1, reporterId: 9, reason: 'spam', status: 'pending', createdAt: '2026-07-02T10:00:00.000Z' },
+      { id: 1, reporterId: 'usr_0000000000000009', reason: 'spam', status: 'pending', createdAt: '2026-07-02T10:00:00.000Z' },
     ],
   };
 }
@@ -69,8 +69,8 @@ describe('reportStatusMeta', () => {
 
 describe('moderationSuccessMessage', () => {
   it('includes the action label and post id', () => {
-    expect(moderationSuccessMessage('hide', 7)).toBe('Đã ẩn bài viết #7.');
-    expect(moderationSuccessMessage('delete', 12)).toBe('Đã xoá vĩnh viễn bài viết #12.');
+    expect(moderationSuccessMessage('hide', 'post_0000000000000007')).toBe('Đã ẩn bài viết #post_0000000000000007.');
+    expect(moderationSuccessMessage('delete', 'post_0000000000000012')).toBe('Đã xoá vĩnh viễn bài viết #post_0000000000000012.');
   });
 });
 

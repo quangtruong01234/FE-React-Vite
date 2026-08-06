@@ -2,7 +2,7 @@ import type { ProductWithInventory, ShippingFeeItemDto } from '@/types';
 
 /** Minimal cart-line shape needed to price + size a shipping-fee item. */
 export interface ShippingFeeCartLine {
-  productId: number;
+  productId: string;
   skuId?: number | null;
   quantity: number;
 }
@@ -31,7 +31,7 @@ export function effectiveUnitPrice(
  */
 export function buildShippingFeeItems(
   lines: ShippingFeeCartLine[],
-  productMap: Map<number, ProductWithInventory>,
+  productMap: Map<string, ProductWithInventory>,
 ): ShippingFeeItemDto[] {
   return lines.map((line) => {
     const product = productMap.get(line.productId);

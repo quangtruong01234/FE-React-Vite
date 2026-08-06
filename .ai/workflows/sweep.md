@@ -31,8 +31,9 @@ the workflow each time.
 
 ## Backlog sources (read both, in this order)
 
-1. `.ai/agent-handoff/snapshot.md` — Active Tasks open items (`[ ]`, "Còn mở"),
-   Known issues, perf-scan flags.
+1. `.ai/agent-handoff/snapshot.md` — sections "Active Tasks — open / blocked"
+   (Chờ backend / Còn lại phía FE), "Perf — đo thật, phần còn mở", "Runtime
+   verification còn nợ".
 2. `../.agent-local/frontend-handoff.md` — **Open** entries (backend shipped,
    FE integration pending). Machine-local, outside the repo — never commit it.
 
@@ -55,7 +56,7 @@ the workflow each time.
    before touching code (styling task → `styling.md` + `tokens.md`, hook task →
    `data-fetching.md`, endpoint task → `api-reference.md`, …).
 4. Implement with minimal diff, following all core rules: UI lookup order
-   (`ui/` → `shared/` → feature → new), query keys from `hooks/queryKeys.ts`,
+   (`ui/` → `shared/` → feature → new), query keys from `hooks/query/queryKeys.ts`,
    `tb-*` tokens only, lodash per-method, no new dependencies.
 5. **Every fix/logic change ships a test** — extract testable logic into a pure
    helper and colocate `*.test.ts(x)` (see `.ai/testing.md`).
@@ -67,8 +68,12 @@ the workflow each time.
    runtime verification is pending instead of skipping silently.
 8. Close the loop (Definition of Done):
    - Remove the item's `⏳ in-progress:` marker.
-   - Remove/annotate the finished item in `snapshot.md` — keep it LEAN.
-   - Append the completed-work summary to `.ai/agent-handoff/CHANGELOG.md`.
+   - **Delete** the finished item from `snapshot.md` — do not leave a `~~struck~~
+     RESOLVED` paragraph behind. Snapshot is the live picture only; a strikethrough
+     trail is what grew it to 67 KB before the 2026-08-03 prune. Add one row to the
+     "Recent closes" table instead (drop the oldest row when it passes 5).
+   - Append the completed-work summary to `.ai/agent-handoff/CHANGELOG.md` — that is
+     the only place finished work is written up in full.
    - If the item came from `frontend-handoff.md`, move that entry to **Done**.
    - If a backend gap surfaced (missing data / wrong response / wrong request
      contract), append it to `../.agent-local/backend-handoff.md` per its template.
@@ -100,9 +105,10 @@ the workflow each time.
 
 ## Mode: propose (`/sweep propose`)
 
-1. Read `snapshot.md`, recent `.ai/agent-handoff/CHANGELOG.md` entries, and
-   `../.agent-local/frontend-handoff.md` to understand what already shipped and
-   what backend capabilities are unused by FE.
+1. Read `snapshot.md`, the **most recent ~10 entries** of
+   `.ai/agent-handoff/CHANGELOG.md` (it is append-only and large — read the top of
+   the file, never the whole thing), and `../.agent-local/frontend-handoff.md` to
+   understand what already shipped and what backend capabilities are unused by FE.
 2. Propose 3–5 net-new features ranked by value/effort, each with: one-line
    scope, affected routes/features, backend dependency yes/no (if yes, note it
    would need a `backend-handoff.md` request), test impact.

@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { cn } from '@/lib/format/utils';
@@ -155,6 +156,9 @@ export function AddressFormModal({
           <DialogTitle className="font-display text-lg text-ink-pri">
             {isEdit ? 'Chỉnh sửa địa chỉ' : 'Thêm địa chỉ mới'}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Nhập họ tên, số điện thoại và địa chỉ nhận hàng.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={(e) => void handleSubmit(onSubmit)(e)} className="flex flex-col gap-4 p-5 max-h-[70vh] overflow-y-auto">

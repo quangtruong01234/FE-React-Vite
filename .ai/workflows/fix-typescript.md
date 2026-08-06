@@ -16,20 +16,27 @@ Run `npm run build` (which includes `tsc --noEmit`), parse errors, fix them, rep
 ### Step 1 — Capture errors
 
 ```bash
-npx tsc --noEmit 2>&1 | tee /tmp/tsc-errors.log
+npx tsc --noEmit
 ```
 
 If output shows `Found 0 errors`, exit with `[✅ CLEAN] No TypeScript errors.`
+
+> Keep the errors in context — don't pipe them to a temp file. `tee`/`/tmp` do not exist on the
+> Windows shell this repo runs on.
 
 ### Step 2 — Group errors
 
 Parse by file. For each file, list its errors with line + TS error code (e.g. `TS2322`).
 
 ```
-src/features/product/ProductListPage.tsx
+src/features/product/MarketplacePage.tsx
   L42  TS2322  Type 'string' is not assignable to type 'number'.
   L88  TS2339  Property 'foo' does not exist on type 'Product'.
 ```
+
+> ⚠️ A `string`→`number` mismatch on an **ID** is usually the *consumer* being wrong, not the ID.
+> Converted public IDs (`usr_`, `prod_`, `ord_`, …) are opaque strings — widen the consumer, never
+> "fix" it with `Number(id)`.
 
 ### Step 3 — Fix Priority Order
 
@@ -71,7 +78,7 @@ Must pass before declaring done.
 ```
 ── Iteration 1 ──────────────────────────────
   Errors before : 12
-  Files touched : src/features/product/ProductListPage.tsx, src/hooks/useProduct.ts
+  Files touched : src/features/product/MarketplacePage.tsx, src/features/product/useProducts.ts
   Errors after  : 4
 ─────────────────────────────────────────────
 
@@ -86,12 +93,11 @@ Must pass before declaring done.
 
 If stuck:
 ```
-❌ Stuck at iteration N — see /tmp/tsc-errors.log
+❌ Stuck at iteration N
    Remaining errors require human input:
    - src/foo.ts:42 — needs decision on whether to widen the type or narrow the input
 ```
 
 ---
 
-**Model:** Sonnet 4.6 | **Effort:** Medium
-**Escalate to:** **Model:** Opus 4.8 | **Effort:** High — if the same file regresses 3+ times.
+**Escalate** to a higher reasoning effort if the same file regresses 3+ times.

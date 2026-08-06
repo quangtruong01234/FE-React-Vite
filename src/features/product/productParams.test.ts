@@ -9,6 +9,7 @@ const base: ProductQueryState = {
   search: '',
   categoryIds: [],
   brandIds: [],
+  provinceIds: [],
   minPrice: 0,
   maxPrice: DEFAULT_MAX_PRICE,
 };
@@ -34,6 +35,7 @@ describe('buildProductParams', () => {
     expect(params).not.toHaveProperty('search');
     expect(params).not.toHaveProperty('categoryIds');
     expect(params).not.toHaveProperty('brandIds');
+    expect(params).not.toHaveProperty('provinceIds');
   });
 
   it('includes active search and id filters', () => {
@@ -42,7 +44,8 @@ describe('buildProductParams', () => {
       search: 'tai nghe',
       categoryIds: [2, 3],
       brandIds: [28],
+      provinceIds: [201],
     });
-    expect(params).toMatchObject({ search: 'tai nghe', categoryIds: [2, 3], brandIds: [28] });
+    expect(params).toMatchObject({ search: 'tai nghe', categoryIds: [2, 3], brandIds: [28], provinceIds: [201] });
   });
 });

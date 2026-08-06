@@ -7,9 +7,9 @@ import {
 
 function msg(id: number, partial: Partial<Message> = {}): Message {
   return {
-    id,
-    conversationId: 1,
-    senderId: 2,
+    id: id < 0 ? `pending_${-id}` : `msg_${id}`,
+    conversationId: 'conv_1',
+    senderId: 'usr_2',
     content: `m${id}`,
     parentMessageId: null,
     createdAt: '2026-06-26T10:00:00.000Z',
@@ -38,10 +38,10 @@ describe('appendMessageToCache', () => {
   it('prepends the message to page 0 (newest-first) and bumps total', () => {
     const before = cache([page([msg(3), msg(2)]), page([msg(1)])]);
     const after = appendMessageToCache(before, msg(4));
-    expect(after?.pages[0].data.map((m) => m.id)).toEqual([4, 3, 2]);
+    expect(after?.pages[0].data.map((m) => m.id)).toEqual(['msg_4', 'msg_3', 'msg_2']);
     expect(after?.pages[0].total).toBe(3);
     // older page untouched
-    expect(after?.pages[1].data.map((m) => m.id)).toEqual([1]);
+    expect(after?.pages[1].data.map((m) => m.id)).toEqual(['msg_1']);
   });
 
   it('dedupes an id already present in any page (own send echo / re-delivery)', () => {
@@ -53,7 +53,7 @@ describe('appendMessageToCache', () => {
   it('does not mutate the input', () => {
     const before = cache([page([msg(2)])]);
     appendMessageToCache(before, msg(3));
-    expect(before.pages[0].data.map((m) => m.id)).toEqual([2]);
+    expect(before.pages[0].data.map((m) => m.id)).toEqual(['msg_2']);
   });
 });
 
@@ -65,12 +65,12 @@ describe('mergeMessages', () => {
 
   it('appends socket arrivals the history does not contain, in arrival order', () => {
     const merged = mergeMessages([msg(1), msg(2)], [msg(3), msg(4)]);
-    expect(merged.map((m) => m.id)).toEqual([1, 2, 3, 4]);
+    expect(merged.map((m) => m.id)).toEqual(['msg_1', 'msg_2', 'msg_3', 'msg_4']);
   });
 
   it('dedupes socket messages already in the history (post-refetch overlap)', () => {
     const merged = mergeMessages([msg(1), msg(2)], [msg(2), msg(3)]);
-    expect(merged.map((m) => m.id)).toEqual([1, 2, 3]);
+    expect(merged.map((m) => m.id)).toEqual(['msg_1', 'msg_2', 'msg_3']);
   });
 });
 
@@ -81,7 +81,7 @@ describe('resolvePendingMessage', () => {
   it('removes only the first sending entry matching the confirmed content', () => {
     const prev = [pending(-1, 'hi', 'sending'), pending(-2, 'hi', 'sending')];
     const next = resolvePendingMessage(prev, msg(9, { content: 'hi' }));
-    expect(next.map((p) => p.id)).toEqual([-2]);
+    expect(next.map((p) => p.id)).toEqual(['pending_2']);
   });
 
   it('ignores errored entries with the same content', () => {

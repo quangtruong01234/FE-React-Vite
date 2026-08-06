@@ -1,4 +1,4 @@
-import { useMutation, useQuery, type UseMutationResult, type UseQueryResult } from '@tanstack/react-query';
+import { useMutation, useQuery, keepPreviousData, type UseMutationResult, type UseQueryResult } from '@tanstack/react-query';
 import { api } from '@/api';
 import { invalidateOrderViews } from '@/lib/query/orderInvalidation';
 import { queryKeys } from '@/hooks/query/queryKeys';
@@ -13,6 +13,8 @@ export function useMyReturnRequests(
     queryKey: queryKeys.orders.returnMine(page, limit),
     queryFn: () => api.orders.getMyReturnRequests(page, limit),
     enabled,
+    // Keep the previous page rendered while the next one loads (no empty flash).
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -25,12 +27,13 @@ export function useReturnRequestQueue(
   return useQuery({
     queryKey: queryKeys.orders.returnQueue(page, limit, status),
     queryFn: () => api.orders.getReturnRequests(page, limit, status),
+    placeholderData: keepPreviousData,
   });
 }
 
 export function useRequestReturn(
-  orderId: number,
-  meId: number,
+  orderId: string,
+  meId: string,
 ): UseMutationResult<ReturnRequest, unknown, string> {
   return useMutation({
     mutationFn: (reason: string) => api.orders.requestReturn(orderId, reason),
@@ -43,8 +46,8 @@ export function useRequestReturn(
 }
 
 export type ReviewReturnVariables =
-  | { id: number; action: 'approve' }
-  | { id: number; action: 'reject'; reason: string };
+  | { id: string; action: 'approve' }
+  | { id: string; action: 'reject'; reason: string };
 
 /** Approve (order → refunded) or reject (order restored) a return request. */
 export function useReviewReturnRequest(): UseMutationResult<ReturnRequest, unknown, ReviewReturnVariables> {

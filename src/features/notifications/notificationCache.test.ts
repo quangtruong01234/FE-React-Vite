@@ -4,8 +4,8 @@ import { prependNotification, didInsert, type NotifCache } from './notificationC
 
 function notif(id: number, partial: Partial<Notification> = {}): Notification {
   return {
-    id,
-    userId: 1,
+    id: `ntf_${id}`,
+    userId: 'usr_1',
     type: 'order_placed',
     orderId: null,
     postId: null,
@@ -25,21 +25,21 @@ function cache(...items: Notification[]): NotifCache {
 describe('prependNotification', () => {
   it('prepends a new notification and bumps total', () => {
     const result = prependNotification(cache(notif(1)), notif(2));
-    expect(result?.data.map((n) => n.id)).toEqual([2, 1]);
+    expect(result?.data.map((n) => n.id)).toEqual(['ntf_2', 'ntf_1']);
     expect(result?.total).toBe(2);
   });
 
   it('dedupes by id so a duplicate socket event is ignored', () => {
     const start = cache(notif(1), notif(2));
     const result = prependNotification(start, notif(1));
-    expect(result?.data.map((n) => n.id)).toEqual([1, 2]);
+    expect(result?.data.map((n) => n.id)).toEqual(['ntf_1', 'ntf_2']);
     expect(result?.total).toBe(2);
     expect(result).toBe(start);
   });
 
   it('inserts into an empty cache', () => {
     const result = prependNotification(cache(), notif(5));
-    expect(result?.data.map((n) => n.id)).toEqual([5]);
+    expect(result?.data.map((n) => n.id)).toEqual(['ntf_5']);
     expect(result?.total).toBe(1);
   });
 

@@ -4,7 +4,7 @@ import { useProductReviews, useDeleteReview } from '@/hooks/data/useProductRevie
 import { StarRating } from '@/components/shared/StarRating';
 
 interface ProductReviewsProps {
-  productId: number;
+  productId: string;
 }
 
 export function ProductReviews({ productId }: ProductReviewsProps) {

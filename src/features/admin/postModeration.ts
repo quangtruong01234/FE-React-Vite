@@ -50,7 +50,7 @@ const ACTION_DONE_LABEL: Record<ModerationAction, string> = {
   delete:  'Đã xoá vĩnh viễn bài viết',
 };
 
-export function moderationSuccessMessage(action: ModerationAction, postId: number): string {
+export function moderationSuccessMessage(action: ModerationAction, postId: string): string {
   return `${ACTION_DONE_LABEL[action]} #${postId}.`;
 }
 

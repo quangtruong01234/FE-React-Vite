@@ -2,12 +2,16 @@ import { useState, type ReactElement } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, MapPin, Package, Truck, User, Wallet } from 'lucide-react';
 import { useSellerOrders } from './useSellerOrders';
+import { usePageParam } from '@/hooks/ui/usePageParam';
+import { useFilterParam } from '@/hooks/ui/useFilterParam';
+import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
 import { useConfirmOrder } from './useConfirmOrder';
 import { useReadyToShip } from './useReadyToShip';
 import { useSellerOrderDetail } from './useSellerOrderDetail';
 import { getSellerOrderAction, type SellerActionKind } from './sellerOrderActions';
 import { sellerOrderActionErrorMessage } from './sellerOrderActionError';
 import { ShippingAddressBlock } from './ShippingAddressBlock';
+import { InvoiceDownloadButton } from './InvoiceDownloadButton';
 import { PAYMENT_LABEL } from './orderConstants';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { IconButton } from '@/components/shared/IconButton';
@@ -37,6 +41,8 @@ const FILTER_OPTS: FilterOpt[] = [
   ...FILTER_STATUSES.map((s) => ({ id: s, label: ORDER_STATUS_META[s].label, status: s })),
 ];
 
+const FILTER_KEYS: readonly FilterKey[] = FILTER_OPTS.map(o => o.id);
+
 const LIMIT = 10;
 
 function OrderCard({
@@ -45,7 +51,7 @@ function OrderCard({
   actionPendingKind,
 }: {
   order: OrderWithBuyer;
-  onAction: (kind: SellerActionKind, id: number) => void;
+  onAction: (kind: SellerActionKind, id: string) => void;
   actionPendingKind: SellerActionKind | null;
 }): ReactElement {
   const [expanded, setExpanded] = useState(false);
@@ -72,7 +78,7 @@ function OrderCard({
         {/* Meta */}
         <div className="min-w-0">
           <div className="flex items-center gap-2.5 mb-1 flex-wrap">
-            <span className="font-mono font-bold text-[13px] text-white">#{order.id}</span>
+            <span className="font-mono font-bold text-[13px] text-ink-pri">#{order.id}</span>
             <span className="font-body text-xs text-ink-sec">{formatDateTime(order.createdAt)}</span>
             {order.buyer?.username && (
               <span className="font-body text-xs text-ink-muted">@{order.buyer.username}</span>
@@ -104,7 +110,7 @@ function OrderCard({
               disabled={actionPending}
               onClick={() => onAction(action.kind, order.id)}
               className={cn(
-                'px-4 py-2 rounded-tb-input font-body font-semibold text-sm text-white transition-colors whitespace-nowrap',
+                'px-4 py-2 rounded-tb-input font-body font-semibold text-sm text-ink-pri transition-colors whitespace-nowrap',
                 actionPending
                   ? 'bg-accent-amber/40 cursor-not-allowed'
                   : 'bg-tb-gradient hover:opacity-90 cursor-pointer',
@@ -132,7 +138,7 @@ function OrderCard({
             <span className="font-body text-[11px] font-semibold uppercase tracking-wide text-ink-muted inline-flex items-center gap-1.5">
               <User size={12} className="shrink-0" /> Người mua
             </span>
-            <span className="font-body text-sm text-white">{buyerLabel}</span>
+            <span className="font-body text-sm text-ink-pri">{buyerLabel}</span>
             {order.buyer?.email && (
               <span className="font-body text-xs text-ink-sec">{order.buyer.email}</span>
             )}
@@ -143,7 +149,7 @@ function OrderCard({
             <span className="font-body text-[11px] font-semibold uppercase tracking-wide text-ink-muted inline-flex items-center gap-1.5">
               <Wallet size={12} className="shrink-0" /> Thanh toán
             </span>
-            <span className="font-body text-sm text-white">
+            <span className="font-body text-sm text-ink-pri">
               {PAYMENT_LABEL[order.paymentMethod] ?? order.paymentMethod}
             </span>
             {order.codAmount != null && (
@@ -167,7 +173,7 @@ function OrderCard({
               <span className="font-body text-[11px] font-semibold uppercase tracking-wide text-ink-muted inline-flex items-center gap-1.5">
                 <Truck size={12} className="shrink-0" /> Mã vận đơn GHN
               </span>
-              <span className="font-mono text-sm text-white">{order.ghnOrderCode}</span>
+              <span className="font-mono text-sm text-ink-pri">{order.ghnOrderCode}</span>
             </div>
           )}
 
@@ -191,7 +197,7 @@ function OrderCard({
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
-                      <span className="font-body text-sm text-white truncate">
+                      <span className="font-body text-sm text-ink-pri truncate">
                         {item.productName?.trim() || `Sản phẩm #${item.productId}`}
                       </span>
                       <span className="font-mono text-xs text-ink-muted shrink-0">×{item.quantity}</span>
@@ -200,12 +206,17 @@ function OrderCard({
                       <span className="font-body text-xs text-ink-muted">{item.skuLabel}</span>
                     )}
                   </div>
-                  <span className="font-mono font-semibold text-sm text-white whitespace-nowrap">
+                  <span className="font-mono font-semibold text-sm text-ink-pri whitespace-nowrap">
                     {formatPrice(Number(item.price) * item.quantity)}
                   </span>
                 </div>
               ))
             )}
+          </div>
+
+          {/* Invoice — seller may pull the order's PDF (access widened 2026-07-15) */}
+          <div className="md:col-span-2 flex justify-end">
+            <InvoiceDownloadButton orderId={order.id} />
           </div>
         </div>
       )}
@@ -215,12 +226,12 @@ function OrderCard({
 
 export default function SellerOrdersPage(): ReactElement {
   const navigate = useNavigate();
-  const [filterTab, setFilterTab] = useState<FilterKey>('all');
-  const [page, setPage] = useState(1);
+  const [filterTab, setFilterTab] = useFilterParam<FilterKey>('status', FILTER_KEYS, 'all');
+  const [page, setPage] = usePageParam();
 
   const activeStatus = FILTER_OPTS.find(o => o.id === filterTab)?.status;
 
-  const { data, isLoading, error } = useSellerOrders(page, LIMIT, activeStatus);
+  const { data, isLoading, isFetching, error } = useSellerOrders(page, LIMIT, activeStatus);
   const confirmMutation = useConfirmOrder();
   const shipMutation = useReadyToShip();
 
@@ -236,23 +247,23 @@ export default function SellerOrdersPage(): ReactElement {
   // A seller action can now legitimately fail (e.g. ready-to-ship 400 when GHN
   // cannot resolve the shipping address — order stays `confirmed`). Surface the
   // failed order id + a friendly reason instead of silently swallowing it.
-  const actionError: { id: number; message: string } | null = shipMutation.isError
+  const actionError: { id: string; message: string } | null = shipMutation.isError
     ? { id: shipMutation.variables, message: sellerOrderActionErrorMessage(shipMutation.error, 'ready-to-ship') }
     : confirmMutation.isError
       ? { id: confirmMutation.variables, message: sellerOrderActionErrorMessage(confirmMutation.error, 'confirm') }
       : null;
 
+  // setFilterTab also drops ?page= in the same URL update (useFilterParam).
   const handleTabChange = (key: FilterKey): void => {
     setFilterTab(key);
-    setPage(1);
   };
 
-  const handleAction = (kind: SellerActionKind, id: number): void => {
+  const handleAction = (kind: SellerActionKind, id: string): void => {
     if (kind === 'confirm') confirmMutation.mutate(id);
     else if (kind === 'ready-to-ship') shipMutation.mutate(id);
   };
 
-  const pendingKindFor = (id: number): SellerActionKind | null => {
+  const pendingKindFor = (id: string): SellerActionKind | null => {
     if (confirmMutation.isPending && confirmMutation.variables === id) return 'confirm';
     if (shipMutation.isPending && shipMutation.variables === id) return 'ready-to-ship';
     return null;
@@ -274,7 +285,7 @@ export default function SellerOrdersPage(): ReactElement {
 
       <div>
         {/* Page title */}
-        <h1 className="font-display font-black text-[36px] leading-[1.05] tracking-[-0.02em] text-white m-0 mb-1">
+        <h1 className="font-display font-black text-[36px] leading-[1.05] tracking-[-0.02em] text-ink-pri m-0 mb-1">
           Đơn hàng cần xử lý
         </h1>
         <p className="font-body text-sm text-ink-sec mt-1 mb-7">
@@ -285,13 +296,13 @@ export default function SellerOrdersPage(): ReactElement {
         </p>
 
         {errorMsg && (
-          <div className="bg-red-950/30 border border-accent-red text-accent-red px-4 py-3 rounded-xl mb-6 text-sm font-body">
+          <div className="bg-tb-red/10 border border-accent-red text-accent-red px-4 py-3 rounded-xl mb-6 text-sm font-body">
             {errorMsg}
           </div>
         )}
 
         {actionError && (
-          <div className="bg-red-950/30 border border-accent-red text-accent-red px-4 py-3 rounded-xl mb-6 text-sm font-body">
+          <div className="bg-tb-red/10 border border-accent-red text-accent-red px-4 py-3 rounded-xl mb-6 text-sm font-body">
             <span className="font-mono font-bold">#{actionError.id}</span> · {actionError.message}
           </div>
         )}
@@ -306,7 +317,7 @@ export default function SellerOrdersPage(): ReactElement {
                 type="button"
                 onClick={() => handleTabChange(opt.id)}
                 className={cn(
-                  'flex-none px-[18px] py-[10px] rounded-full text-white font-body font-semibold text-[13px] cursor-pointer whitespace-nowrap border',
+                  'flex-none px-[18px] py-[10px] rounded-full text-ink-pri font-body font-semibold text-[13px] cursor-pointer whitespace-nowrap border',
                   active ? 'bg-tb-gradient border-transparent' : 'bg-tb-elevated border-tb-border',
                 )}
               >
@@ -344,16 +355,18 @@ export default function SellerOrdersPage(): ReactElement {
 
         {/* Order list */}
         {!isLoading && orders.length > 0 && (
-          <div className="flex flex-col gap-3">
-            {orders.map((order) => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                onAction={handleAction}
-                actionPendingKind={pendingKindFor(order.id)}
-              />
-            ))}
-          </div>
+          <FetchingOverlay fetching={isFetching && !isLoading}>
+            <div className="flex flex-col gap-3">
+              {orders.map((order) => (
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  onAction={handleAction}
+                  actionPendingKind={pendingKindFor(order.id)}
+                />
+              ))}
+            </div>
+          </FetchingOverlay>
         )}
 
         {/* Pagination */}

@@ -1,7 +1,7 @@
-import { useState, useEffect, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Pencil, MessageCircle, Mail, Shield, CheckCircle, Newspaper, Package, UserCheck } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GradientButton } from '@/components/shared/GradientButton';
@@ -14,7 +14,9 @@ import { useProducts } from '@/features/product/useProducts';
 import { useFollowers, useFollowing, useFollowUser, useUnfollowUser, useIsFollowing } from '@/features/social/useFollow';
 import { useAuthContext } from '@/context/AuthContext';
 import { queryKeys } from '@/hooks/query/queryKeys';
+import { usePageParam } from '@/hooks/ui/usePageParam';
 import { Pagination } from '@/components/shared/Pagination';
+import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
 import { api } from '@/api';
 import { cn } from '@/lib/format/utils';
 
@@ -24,26 +26,22 @@ type TabKey = 'posts' | 'products' | 'about' | 'following';
 
 export default function ProfilePage(): ReactElement {
   const { id } = useParams<{ id: string }>();
-  const userId = Number(id ?? 0);
+  const userId = id ?? '';
 
   const { currentUser } = useAuthContext();
-  const viewerId = currentUser?.id ?? 0;
-  const isMe = viewerId !== 0 && viewerId === userId;
+  const viewerId = currentUser?.id ?? '';
+  const isMe = viewerId.length > 0 && viewerId === userId;
 
   const navigate = useNavigate();
   const [tab, setTab] = useState<TabKey>('posts');
   const [editing, setEditing] = useState(false);
   const [postsLoaded, setPostsLoaded] = useState(false);
   const [productsLoaded, setProductsLoaded] = useState(false);
-  const [postsPageNum, setPostsPageNum] = useState(1);
-  const [productsPageNum, setProductsPageNum] = useState(1);
+  // Pages live in the URL; <Link> to another profile drops the query string,
+  // so pagination naturally resets when navigating between profiles.
+  const [postsPageNum, setPostsPageNum] = usePageParam('postsPage');
+  const [productsPageNum, setProductsPageNum] = usePageParam('productsPage');
   const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null);
-
-  // Reset pagination when navigating to a different profile
-  useEffect(() => {
-    setPostsPageNum(1);
-    setProductsPageNum(1);
-  }, [userId]);
 
   const { data: followersData } = useFollowers(userId);
   const { data: followingData } = useFollowing(userId);
@@ -58,25 +56,27 @@ export default function ProfilePage(): ReactElement {
   const { data: user, isLoading: userLoading, error: userError } = useQuery({
     queryKey: queryKeys.users.detail(userId),
     queryFn: () => api.users.getById(userId),
-    enabled: userId > 0,
+    enabled: userId.length > 0,
   });
 
   // email/role are private — only shown on your own profile, sourced from /user/me.
   const contactInfo = profileContactInfo(isMe, currentUser);
 
-  const { data: postsPage, isLoading: postsLoading } = useQuery({
+  const { data: postsPage, isLoading: postsLoading, isFetching: postsFetching } = useQuery({
     queryKey: queryKeys.social.postsByUser(userId, postsPageNum),
     queryFn: () => api.social.getPostsByUser(userId, postsPageNum, PAGE_SIZE),
-    enabled: postsLoaded && userId > 0,
+    enabled: postsLoaded && userId.length > 0,
+    // Keep the previous page rendered while the next one loads (no empty flash).
+    placeholderData: keepPreviousData,
   });
 
   const posts = postsPage?.data ?? [];
   const postsTotal = postsPage?.total ?? 0;
   const postsTotalPages = postsPage?.totalPages ?? 0;
 
-  const { data: productsPage, isLoading: productsLoading } = useProducts(
+  const { data: productsPage, isLoading: productsLoading, isFetching: productsFetching } = useProducts(
     { userId, page: productsPageNum, limit: PAGE_SIZE, isActive: true },
-    { enabled: productsLoaded && userId > 0 },
+    { enabled: productsLoaded && userId.length > 0 },
   );
   const products = productsPage?.data ?? [];
   const productsTotal = productsPage?.total ?? 0;
@@ -117,7 +117,7 @@ export default function ProfilePage(): ReactElement {
       : 'Không tìm thấy người dùng.';
     return (
       <div className="max-w-[680px] mx-auto">
-        <div className="bg-red-950/30 border border-accent-red text-accent-red px-4 py-3 rounded-xl text-sm">
+        <div className="bg-tb-red/10 border border-accent-red text-accent-red px-4 py-3 rounded-xl text-sm">
           {msg}
         </div>
       </div>
@@ -191,7 +191,7 @@ export default function ProfilePage(): ReactElement {
                   size="sm"
                   className="rounded-full"
                   onClick={() => follow()}
-                  disabled={isFollowPending || viewerId === 0}
+                  disabled={isFollowPending || viewerId.length === 0}
                 >
                   Theo dõi
                 </GradientButton>
@@ -246,9 +246,11 @@ export default function ProfilePage(): ReactElement {
               </div>
             )}
             {!postsLoading && posts.length > 0 && (
-              <div className="flex flex-col gap-4">
-                {posts.map((p) => <PostCard key={p.id} post={p} />)}
-              </div>
+              <FetchingOverlay fetching={postsFetching && !postsLoading}>
+                <div className="flex flex-col gap-4">
+                  {posts.map((p) => <PostCard key={p.id} post={p} />)}
+                </div>
+              </FetchingOverlay>
             )}
             {!postsLoading && (
               <Pagination
@@ -298,9 +300,11 @@ export default function ProfilePage(): ReactElement {
               </div>
             )}
             {!productsLoading && products.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {products.map((p) => <ProductCard key={p.id} product={p} />)}
-              </div>
+              <FetchingOverlay fetching={productsFetching && !productsLoading}>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {products.map((p) => <ProductCard key={p.id} product={p} />)}
+                </div>
+              </FetchingOverlay>
             )}
             {!productsLoading && (
               <Pagination

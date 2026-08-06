@@ -1,27 +1,27 @@
 import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, ShoppingCart } from 'lucide-react';
+import { ShoppingCart, MapPin } from 'lucide-react';
 import { Star } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
 import { formatPrice } from '@/lib/format/utils';
-import { useAddToCart } from '@/hooks/data/useCart';
-import { IconButton } from '@/components/shared/IconButton';
+import { cldImage } from '@/lib/http/cloudinaryUrl';
 import { WishlistButton } from '@/components/shared/WishlistButton';
 import type { ProductWithInventory } from '@/types';
 
 interface ProductCardProps {
   product: ProductWithInventory;
+  /**
+   * Above-the-fold card (first grid row): loads eagerly at high priority
+   * because its cover is the page's LCP candidate. Lazy-loading it would
+   * delay the request until after layout.
+   */
+  priority?: boolean;
 }
 
-export default function ProductCard({ product }: ProductCardProps): ReactElement {
-  const addToCart = useAddToCart();
+export default function ProductCard({ product, priority = false }: ProductCardProps): ReactElement {
   const stock = product.inventory?.availableStock ?? 0;
   const outOfStock = stock === 0;
   const coverImage = product.imageUrl ?? product.imageUrls?.[0] ?? '';
-
-  function handleAddToCart(): void {
-    addToCart.mutate({ productId: Number(product.id), quantity: 1 });
-  }
 
   return (
     <div className={cn(
@@ -31,12 +31,13 @@ export default function ProductCard({ product }: ProductCardProps): ReactElement
       <Link to={`/product/${product.id}`} className="relative block">
         {coverImage ? (
           <img
-            src={coverImage}
+            src={cldImage(coverImage, 600)}
             alt={product.name}
             width={400}
             height={400}
             className="w-full aspect-square object-cover"
-            loading="lazy"
+            loading={priority ? 'eager' : 'lazy'}
+            fetchPriority={priority ? 'high' : 'auto'}
           />
         ) : (
           <div className="w-full aspect-square bg-canvas-elevated flex items-center justify-center">
@@ -68,7 +69,7 @@ export default function ProductCard({ product }: ProductCardProps): ReactElement
           </div>
         )}
         <WishlistButton
-          productId={Number(product.id)}
+          productId={product.id}
           iconSize={16}
           className="absolute top-2.5 right-2.5 size-8 rounded-full bg-black/50 backdrop-blur-sm hover:bg-black/60 z-10"
         />
@@ -100,22 +101,19 @@ export default function ProductCard({ product }: ProductCardProps): ReactElement
           )}
         </div>
 
-        <div className="mt-auto flex items-center justify-between gap-2">
+        {product.sellerProvince && (
+          <span className="flex items-center gap-1 text-[11px] text-ink-muted min-w-0">
+            <MapPin size={11} className="shrink-0" />
+            <span className="truncate">{product.sellerProvince.name}</span>
+          </span>
+        )}
+
+        {/* No add-to-cart here: products can have SKU variations, so the
+            selection (and the correct SKU price/stock) lives on the detail page. */}
+        <div className="mt-auto flex items-center">
           <span className="font-mono text-accent-amber font-semibold text-base leading-none">
             {formatPrice(product.price)}
           </span>
-          <IconButton
-            disabled={outOfStock || addToCart.isPending}
-            onClick={handleAddToCart}
-            aria-label="Thêm vào giỏ"
-            className={cn(
-              'size-8 rounded-lg bg-tb-gradient text-ink-pri shadow-tb-cta flex-none',
-              'hover:opacity-90 active:scale-95 transition cursor-pointer',
-              'disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none',
-            )}
-          >
-            <Plus size={16} className="shrink-0" />
-          </IconButton>
         </div>
       </div>
     </div>

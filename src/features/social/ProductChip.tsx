@@ -14,7 +14,7 @@ export default function ProductChip({ product }: ProductChipProps) {
   const addToCart = useAddToCart();
 
   function handleAddToCart() {
-    addToCart.mutate({ productId: Number(product.id), quantity: 1 });
+    addToCart.mutate({ productId: product.id, quantity: 1 });
   }
 
   return (

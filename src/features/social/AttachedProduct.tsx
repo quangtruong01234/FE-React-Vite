@@ -2,7 +2,7 @@ import { useProductsByIds } from '@/hooks/data/useProductsByIds';
 import ProductChip from './ProductChip';
 
 interface AttachedProductProps {
-  productId: number;
+  productId: string;
 }
 
 /**

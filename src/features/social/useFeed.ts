@@ -20,7 +20,7 @@ export function useFeed() {
 function updateFeedLike(
   queryClient: ReturnType<typeof useQueryClient>,
   feedKey: ReturnType<typeof queryKeys.social.feed>,
-  postId: number,
+  postId: string,
   patch: Partial<Post>,
 ): void {
   queryClient.setQueryData<FeedCache>(feedKey, (old) => {
@@ -42,14 +42,14 @@ export function useLikePost() {
   const feedKey = queryKeys.social.feed(1);
 
   return useMutation({
-    mutationFn: (postId: number) => api.social.likePost(postId),
-    onMutate: async (postId: number) => {
+    mutationFn: (postId: string) => api.social.likePost(postId),
+    onMutate: async (postId: string) => {
       await queryClient.cancelQueries({ queryKey: feedKey });
       const snapshot = queryClient.getQueryData<FeedCache>(feedKey);
       updateFeedLike(queryClient, feedKey, postId, { isLiked: true, likeCount: (snapshot?.pages.flatMap((p) => p.data).find((p) => p.id === postId)?.likeCount ?? 0) + 1 });
       return { snapshot };
     },
-    onSuccess: (result: LikeResult, postId: number) => {
+    onSuccess: (result: LikeResult, postId: string) => {
       updateFeedLike(queryClient, feedKey, postId, { isLiked: true, likeCount: result.likeCount });
     },
     onError: (_err, _postId, context) => {
@@ -65,15 +65,15 @@ export function useUnlikePost() {
   const feedKey = queryKeys.social.feed(1);
 
   return useMutation({
-    mutationFn: (postId: number) => api.social.unlikePost(postId),
-    onMutate: async (postId: number) => {
+    mutationFn: (postId: string) => api.social.unlikePost(postId),
+    onMutate: async (postId: string) => {
       await queryClient.cancelQueries({ queryKey: feedKey });
       const snapshot = queryClient.getQueryData<FeedCache>(feedKey);
       const current = snapshot?.pages.flatMap((p) => p.data).find((p) => p.id === postId)?.likeCount ?? 0;
       updateFeedLike(queryClient, feedKey, postId, { isLiked: false, likeCount: Math.max(0, current - 1) });
       return { snapshot };
     },
-    onSuccess: (result: LikeResult, postId: number) => {
+    onSuccess: (result: LikeResult, postId: string) => {
       updateFeedLike(queryClient, feedKey, postId, { isLiked: false, likeCount: result.likeCount });
     },
     onError: (_err, _postId, context) => {
@@ -89,7 +89,7 @@ export function useUpdatePost() {
   const feedKey = queryKeys.social.feed(1);
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: UpdatePostDto }) =>
+    mutationFn: ({ id, data }: { id: string; data: UpdatePostDto }) =>
       api.social.updatePost(id, data),
     onSuccess: (updated: Post) => {
       // Patch the post in-place across the for-you feed cache…
@@ -107,8 +107,8 @@ export function useDeletePost() {
   const feedKey = queryKeys.social.feed(1);
 
   return useMutation({
-    mutationFn: (postId: number) => api.social.deletePost(postId),
-    onSuccess: (_result, postId: number) => {
+    mutationFn: (postId: string) => api.social.deletePost(postId),
+    onSuccess: (_result, postId: string) => {
       // Drop the post from the for-you feed cache immediately…
       queryClient.setQueryData<FeedCache>(feedKey, (old) => {
         if (!old) return old;

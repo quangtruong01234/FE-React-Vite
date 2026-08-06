@@ -15,9 +15,11 @@ import {
   RotateCcw,
   ArrowLeft,
   Home,
+  AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
 import { GradientButton } from '@/components/shared/GradientButton';
+import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
 import type { ApiError } from '@/types';
 
 interface ErrorConfig {
@@ -37,15 +39,35 @@ const ERROR_MAP: Record<number, ErrorConfig> = {
   409: { icon: GitMerge,    tone: 'amber', title: 'Xung đột dữ liệu',             sub: 'Dữ liệu đã thay đổi hoặc bị trùng.',tips: ['Tải lại để lấy dữ liệu mới nhất rồi thử lại.'] },
   422: { icon: ClipboardX,  tone: 'amber', title: 'Dữ liệu chưa hợp lệ',         sub: 'Một vài trường không qua được kiểm tra.',tips: ['Xem lại thông tin đã nhập và sửa theo gợi ý.'] },
   429: { icon: Hourglass,   tone: 'amber', title: 'Bạn thao tác quá nhanh',       sub: 'Hệ thống giới hạn số yêu cầu để chống spam. Hãy chờ một lát rồi thử lại.',tips: ['Đợi hết thời gian đếm ngược bên dưới.', 'Tránh bấm Thích / gửi liên tục nhiều lần.'], rateLimit: true },
+  500: { icon: AlertTriangle,tone: 'red',  title: 'Máy chủ gặp sự cố',            sub: 'Yêu cầu không được xử lý do lỗi phía máy chủ.', tips: ['Thử lại sau ít phút.', 'Nếu vẫn lỗi, hãy quay lại sau.'] },
   502: { icon: Unplug,      tone: 'red',   title: 'Máy chủ phản hồi lỗi',        sub: 'Cổng kết nối tới dịch vụ đang gặp sự cố.', tips: ['Thử lại sau ít phút.'] },
   503: { icon: Wrench,      tone: 'cyan',  title: 'Hệ thống đang bảo trì',        sub: 'Dịch vụ tạm thời không khả dụng.', tips: ['Vui lòng quay lại sau ít phút.'] },
   0:   { icon: WifiOff,     tone: 'red',   title: 'Mất kết nối mạng',             sub: 'Không thể kết nối tới máy chủ TryBuy.', tips: ['Kiểm tra kết nối Internet của bạn.', 'Thử lại sau khi mạng ổn định.'] },
 };
 
+const UNEXPECTED: ErrorConfig = {
+  icon: AlertTriangle, tone: 'red',
+  title: 'Đã xảy ra lỗi',
+  sub: 'Không tải được dữ liệu. Vui lòng thử lại.',
+  tips: ['Thử lại sau ít phút.', 'Nếu vẫn lỗi, hãy tải lại trang.'],
+};
+
+/**
+ * Always resolves to a config. Returning `undefined` for an unmapped status used
+ * to render *nothing* — a blank screen at the exact moment the user needs an
+ * explanation, and the reason a page delegating its error state here could go
+ * empty on a plain 500. Unknown 5xx degrade to the server-error panel, anything
+ * else (incl. a network `TypeError` with no `statusCode`) to a generic one.
+ */
+function resolveErrorConfig(status: number | undefined): ErrorConfig {
+  if (status == null) return UNEXPECTED;
+  return ERROR_MAP[status] ?? (status >= 500 ? ERROR_MAP[500] : UNEXPECTED);
+}
+
 const TONES = {
-  amber: { ring: 'border-amber-400/30 bg-amber-400/[0.04]', chip: 'bg-amber-400/10 text-accent-amber', dot: 'bg-amber-400' },
-  red:   { ring: 'border-red-500/30 bg-red-500/[0.04]',     chip: 'bg-red-500/10 text-red-300',       dot: 'bg-red-400' },
-  cyan:  { ring: 'border-cyan-500/30 bg-cyan-500/[0.04]',   chip: 'bg-cyan-500/10 text-cyan-300',     dot: 'bg-cyan-400' },
+  amber: { ring: 'border-tb-amber/30 bg-tb-amber/[0.04]', chip: 'bg-tb-amber/10 text-accent-amber', dot: 'bg-accent-amber' },
+  red:   { ring: 'border-tb-red/30 bg-tb-red/[0.04]',     chip: 'bg-tb-red/10 text-accent-red',     dot: 'bg-accent-red' },
+  cyan:  { ring: 'border-tb-cyan/30 bg-tb-cyan/[0.04]',   chip: 'bg-tb-cyan/10 text-accent-cyan',   dot: 'bg-accent-cyan' },
 };
 
 function parseRetrySeconds(msg?: string): number {
@@ -62,21 +84,19 @@ interface ApiErrorStateProps {
 
 export function ApiErrorState({ error = {} as ApiError, onRetry, embedded = false }: ApiErrorStateProps) {
   const navigate = useNavigate();
-  const cfg = error.statusCode != null ? ERROR_MAP[error.statusCode] : undefined;
+  const cfg = resolveErrorConfig(error.statusCode);
 
-  // Hooks must run unconditionally — derive from optional `cfg` and gate render below.
-  const seconds = cfg?.rateLimit ? parseRetrySeconds(error.message) : 0;
+  const seconds = cfg.rateLimit ? parseRetrySeconds(error.message) : 0;
   const [left, setLeft] = useState(seconds);
 
-  useEffect(() => { setLeft(seconds); }, [seconds]);
+  useResetOnChange(seconds, () => setLeft(seconds));
 
   useEffect(() => {
-    if (!cfg?.rateLimit || left <= 0) return;
+    if (!cfg.rateLimit || left <= 0) return;
     const t = setTimeout(() => setLeft(l => l - 1), 1000);
     return () => clearTimeout(t);
-  }, [cfg?.rateLimit, left]);
+  }, [cfg.rateLimit, left]);
 
-  if (!cfg) return null;
   const tone = TONES[cfg.tone];
   const canRetry = !cfg.rateLimit || left <= 0;
   const pct = seconds ? ((seconds - left) / seconds) * 100 : 100;

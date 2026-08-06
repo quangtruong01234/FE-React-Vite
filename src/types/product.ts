@@ -6,7 +6,7 @@ import type { Inventory } from './inventory';
 export type ProductCondition = 'new' | 'used' | 'refurbished';
 
 export interface Product {
-  id: number;
+  id: string;
   name: string;
   description: string;
   price: number;
@@ -19,12 +19,15 @@ export interface Product {
   categoryIds: number[];
   isActive?: boolean;
   approvalBlocked?: boolean;
-  userId: number;
+  userId: string;
   brand?: Brand;
   category?: Category;
   /** Full hydrated categories — every product read returns both this and `categoryIds`. */
   categories?: Category[];
-  user?: { name?: string; avatar?: string };
+  user?: { id: string; name?: string; avatar?: string };
+  /** Seller's province from their default GHN address; `null` when the seller
+   *  has no default address (BE handoff 2026-07-16). */
+  sellerProvince?: { id: number; name: string } | null;
   isFeatured: boolean;
   isTrending: boolean;
   rating: number;
@@ -73,7 +76,9 @@ export interface ProductParams {
   brandIds?: number[];
   minPrice?: number;
   maxPrice?: number;
-  userId?: number;
+  /** GHN ProvinceIDs — filters by the seller's default-address province. */
+  provinceIds?: number[];
+  userId?: string;
   skuSearch?: string;
 }
 
@@ -93,7 +98,9 @@ export interface CreateProductDto {
   description?: string;
   price: number;
   stockQuantity?: number;
-  sku: string;
+  /** Optional. Omit for base-price products and the backend provisions a
+   *  fallback SKU (`PROD-<productId>`); SKU-matrix products manage SKUs per row. */
+  sku?: string;
   brandId?: number | null;
   categoryIds: number[];
   isActive?: boolean;
@@ -117,9 +124,115 @@ export interface WishlistItem extends Product {
 
 /** Response of `POST /products/wishlist/:productId` (idempotent add). */
 export interface WishlistToggleResult {
-  productId: number;
+  productId: string;
   isWishlisted: boolean;
   createdAt: string;
+}
+
+// --- Admin product risk queue (AI-02) ---
+
+/** Advisory risk flags computed post-commit by the backend scorer — never
+ *  blocking, never auto-unlisting. Weights sum into `riskScore` (0..100). */
+export type ProductRiskFlag =
+  | { type: 'duplicate_image'; weight: number; matchedProductId: string; hammingDistance: number }
+  | { type: 'price_anomaly'; weight: number; productPrice: number; categoryMedian: number; ratio: number }
+  | { type: 'similar_name'; weight: number; matchedProductId: string; similarity: number };
+
+/** Durable scoring lifecycle (AI-02F1): `pending` = queued/awaiting the scorer,
+ *  `ready` = scored, `failed` = scorer errored (retry metadata below). */
+export type RiskScoringStatus = 'pending' | 'ready' | 'failed';
+
+/** Product row from `GET /products/admin/risk` — standard product shape plus
+ *  additive advisory scoring fields. Clean/unscored products return `0`/`[]`
+ *  (backend normalizes at the response boundary — never `null`). */
+export interface RiskProduct extends Product {
+  riskScore: number;
+  riskFlags: ProductRiskFlag[];
+  riskScoringStatus: RiskScoringStatus;
+  riskScoredAt: string | null;
+  riskScoringAttempts: number;
+  riskNextRetryAt: string | null;
+  riskLastError: string | null;
+}
+
+/** Response of `POST /products/admin/risk/:id/rescore`. */
+export interface ProductRescoreResult {
+  productId: string;
+  riskScore: number;
+  riskFlags: ProductRiskFlag[];
+}
+
+export interface ProductRiskParams {
+  /** Minimum risk score filter (0..100). Backend default is 1; 0 includes clean/unscored products. */
+  minScore?: number;
+  page?: number;
+  limit?: number;
+}
+
+/** Body of `POST /products/admin/risk/backfill` — cursor-resumable legacy
+ *  scoring. `cursor` is the numeric DB cursor from the previous response. */
+export interface RiskBackfillParams {
+  cursor?: number;
+  limit?: number;
+}
+
+/** `202` response of the backfill endpoint. */
+export interface RiskBackfillResult {
+  enqueued: number;
+  nextCursor: number | null;
+  hasMore: boolean;
+}
+
+/** Admin duplicate-review feedback (AI-02F4) — audit-only, never unlists. */
+export type RiskFeedbackDecision = 'confirmed_duplicate' | 'dismissed';
+
+export interface RiskFeedbackDto {
+  decision: RiskFeedbackDecision;
+  /** Optional moderator note, max 500 chars server-side. */
+  note?: string;
+}
+
+/** Audit record returned by `POST /products/admin/risk/:id/feedback` — FE only
+ *  needs the echo; fields kept optional to stay tolerant of the audit shape. */
+export interface RiskFeedbackRecord {
+  productId?: string;
+  decision: RiskFeedbackDecision;
+  note?: string | null;
+  createdAt?: string;
+}
+
+/** Response of `POST /products/risk/duplicate-check` (seller advisory, AI-02F3).
+ *  `match` is `null` when no likely duplicate was found. */
+export interface DuplicateCheckResult {
+  duplicateLikely: boolean;
+  match: {
+    productId: string;
+    name: string;
+    imageUrl: string;
+    hammingDistance: number;
+    evidenceCount: number;
+  } | null;
+}
+
+// --- Catalog price suggestion (AI-01) ---
+
+/** Advisory catalog price statistics from `GET /products/price-suggestion` —
+ *  integer VND. `sampleSize < 3` returns `sufficientData: false` with every
+ *  price field `null`. Never validates or changes the submitted price. */
+export interface PriceSuggestion {
+  sufficientData: boolean;
+  sampleSize: number;
+  median: number | null;
+  p25: number | null;
+  p75: number | null;
+  min: number | null;
+  max: number | null;
+}
+
+export interface PriceSuggestionParams {
+  categoryId: number;
+  brandId?: number;
+  condition?: ProductCondition;
 }
 
 // --- Product reviews ---
@@ -131,8 +244,8 @@ export interface ProductReviewDto {
 
 export interface Review {
   id: number;
-  productId: number;
-  userId: number;
+  productId: string;
+  userId: string;
   rating: number;
   comment: string | null;
   createdAt: string;

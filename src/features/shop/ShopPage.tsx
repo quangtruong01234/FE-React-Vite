@@ -253,6 +253,10 @@ export default function ShopPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { currentUser } = useAuthContext();
+  // `userId` is LOAD-BEARING, not a convenience filter (backend 2026-08-03):
+  // `GET /api/products` now defaults to active-only, and the `userId` branch is
+  // the sole exception that still returns every state. Drop it and the seller's
+  // own deactivated / risk-blocked products vanish from their dashboard.
   const shopParams = { limit: 50, userId: currentUser?.id };
   const { data, isLoading, isFetching } = useProducts(shopParams);
   const showSkeleton = isLoading || isFetching;
@@ -279,7 +283,7 @@ export default function ShopPage() {
   const [search, setSearch] = useState("");
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => api.products.delete(id),
+    mutationFn: (id: string) => api.products.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.products.all });
     },
@@ -291,7 +295,7 @@ export default function ShopPage() {
   const SHOP_QUERY_KEY = queryKeys.products.list(shopParams);
 
   const toggleActiveMutation = useMutation({
-    mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) =>
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       api.products.update(id, { isActive }),
     onMutate: async ({ id, isActive }) => {
       await queryClient.cancelQueries({ queryKey: SHOP_QUERY_KEY });
@@ -323,11 +327,11 @@ export default function ShopPage() {
     },
   });
 
-  function handleEdit(id: number): void {
+  function handleEdit(id: string): void {
     navigate(`/sell/${id}`);
   }
 
-  function handleDelete(id: number): void {
+  function handleDelete(id: string): void {
     if (!window.confirm("Xóa sản phẩm này?")) return;
     deleteMutation.mutate(id);
   }

@@ -1,6 +1,6 @@
 # Design Tokens — TryBuy
 
-Dark-theme design system. All tokens defined in `tailwind.config.ts`.
+Dark-theme design system. All tokens defined in `tailwind.config.js`.
 **Never hardcode hex/rgb values** — if a token doesn't exist, add it to the config first.
 
 ---
@@ -17,16 +17,15 @@ The project has **two complementary token layers**. They are not interchangeable
 > `accent-pri/sec/cyan/green/red/amber`, and `bdr` are plain `var()` strings without
 > `<alpha-value>`, so `border-accent-amber/50` silently generates nothing (rings fall
 > back to Tailwind's default blue). When you need `/50` or `/[0.08]`, use the
-> literal-hex token instead: `tb-amber/50`, `tb-red/10`, or `accent-violet`/`accent-blue`
-> (those two are literal hex). Verified live 2026-07-11.
+> literal-hex token instead: `tb-amber/50`, `tb-red/10`, `tb-cyan/30`, or
+> `accent-violet`/`accent-blue` (those two are literal hex). Verified live 2026-07-11.
 
-Three colors exist **only** as semantic aliases — there is no `tb-*` equivalent:
+`text-ink-pri` (`#FFFFFF`) exists **only** as a semantic alias — it is the only
+correct token for white/primary text; `text-white` should not be used.
 
-| Token | Hex | Notes |
-|---|---|---|
-| `text-ink-pri` | `#FFFFFF` | The only correct token for white/primary text — `text-white` should not be used |
-| `text-accent-cyan` | `#06b6d4` | Info highlights, chat, link accents |
-| `text-accent-green` | `#10b981` | Success, free shipping, positive states |
+Amber, red, green, and cyan each have a literal `tb-*` token (`tb-amber`, `tb-red`,
+`tb-green`, `tb-cyan`) for opacity modifiers such as `bg-tb-green/15` or `tb-cyan/30`;
+prefer the semantic alias (`text-accent-*`) when opacity is not needed.
 
 ### `tb-*` tokens — required for non-color tokens
 
@@ -60,8 +59,8 @@ Two alias pairs resolve to identical hex values but carry different intent:
 | Secondary / muted text | `text-ink-sec` / `text-ink-muted` |
 | Brand amber, CTAs, prices | `text-accent-amber` / `bg-accent-amber` |
 | Danger / destructive | `text-accent-red` |
-| Success, free shipping | `text-accent-green` ← alias-only, no `tb-*` |
-| Info / cyan highlights | `text-accent-cyan` ← alias-only, no `tb-*` |
+| Success, free shipping | `text-accent-green`; use `tb-green` when an opacity modifier is needed |
+| Info / cyan highlights | `text-accent-cyan`; use `tb-cyan` when an opacity modifier is needed |
 | Border-radius | `rounded-tb-*` ← `tb-*` only, no alias |
 | Gradient fills | `bg-tb-gradient` / `bg-tb-gradient-90` ← `tb-*` only |
 | Shadows | `shadow-tb-cta` / `shadow-tb-card` ← `tb-*` only |
@@ -79,7 +78,9 @@ Two alias pairs resolve to identical hex values but carry different intent:
 | `text-tb-muted` | `#52525B` | Placeholder, disabled text |
 | `text-tb-secondary` | `#A1A1AA` | Secondary text |
 | `text-tb-amber` | `#F59E0B` | Accent amber |
+| `text-tb-green` | `#10B981` | Success green when opacity modifiers are needed |
 | `text-tb-red` | `#EF4444` | Danger / accent red |
+| `text-tb-cyan` | `#06B6D4` | Info / cyan when opacity modifiers are needed |
 
 ## CSS-Variable Semantic Aliases
 
@@ -96,8 +97,8 @@ Two alias pairs resolve to identical hex values but carry different intent:
 | `text-accent-sec` | `#EF4444` | `text-tb-red` (same hex) |
 | `text-accent-amber` | `#F59E0B` | `text-tb-amber` (same hex) |
 | `text-accent-red` | `#EF4444` | `text-tb-red` (same hex) |
-| `text-accent-cyan` | `#06b6d4` | **none** — alias only |
-| `text-accent-green` | `#10b981` | **none** — alias only |
+| `text-accent-cyan` | `#06b6d4` | `text-tb-cyan` |
+| `text-accent-green` | `#10b981` | `text-tb-green` |
 | `text-accent-violet` | `#8b5cf6` | **none** — alias only (shipped badge) |
 | `text-accent-blue` | `#3b82f6` | **none** — alias only (delivering badge) |
 
@@ -166,10 +167,10 @@ Usage example (gradient text):
 
 ## Conditional classes — `cn()`
 
-`cn()` from `lib/utils.ts` wraps `clsx` + `tailwind-merge`. Always use for conditional classes.
+`cn()` from `lib/format/utils.ts` wraps `clsx` + `tailwind-merge`. Always use for conditional classes.
 
 ```tsx
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
 
 <div className={cn('rounded-tb-card p-4', isActive && 'border border-tb-border')} />
 ```
@@ -187,18 +188,15 @@ import { cn } from '@/lib/utils';
 Import: `import { Button } from '@/components/ui/button'`
 Install new: `npx shadcn add <name>` — never copy-paste source manually.
 
-## Known Violations — Do Not Repeat
+## Hardcoded hex — current state
 
-| File | Violation | Fix |
-|---|---|---|
-| `ProductListPage.tsx` | `text-[#52525B]` | `text-tb-muted` |
-| `ProductListPage.tsx` | `bg-[#1C1C1E]` | `bg-tb-elevated` |
-| `ProductListPage.tsx` | `border-[#27272A]` | `border-tb-border` |
-| `Avatar.tsx` | `style={{}}` with `--avatar-sz` / `--avatar-fs` | **DELIBERATE EXCEPTION** — dynamic sizing via CSS custom properties |
-
-(`LoginPage.tsx` `bg-[#0B0B0E]` fixed → `bg-tb-base`, 2026-07-11.)
+`src/` has **zero** hardcoded hex (`[#...]`) as of 2026-08-03. Any new one is a 🔴 violation —
+map it through the table above.
 
 ## Inline `style={{}}` — when allowed
 
-Only one exception: `Avatar.tsx` uses CSS custom properties for dynamic size scaling.
-Anywhere else, `style={{}}` is a violation flagged by `/check-tailwind`.
+Only for a value that genuinely cannot be a static utility class (runtime-computed size,
+percentage, or chart color). Preferred form is a CSS custom property + an arbitrary-value
+class, e.g. `style={{ '--p': \`${percent}%\` } as CSSProperties}` + `className="[width:var(--p)]"`.
+Everything else is a violation flagged by `/check-tailwind` — see that workflow's Check 1 for
+the current allow-list.

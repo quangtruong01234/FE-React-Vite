@@ -10,10 +10,10 @@ import {
 
 function notif(partial: Partial<Notification> = {}): Notification {
   return {
-    id: 1,
-    userId: 1,
+    id: 'ntf_0000000000000001',
+    userId: 'usr_0000000000000001',
     type: 'order_placed',
-    orderId: 42,
+    orderId: 'ord_0000000000000042',
     postId: null,
     actorId: null,
     preview: null,
@@ -25,19 +25,25 @@ function notif(partial: Partial<Notification> = {}): Notification {
 }
 
 describe('getNotificationContent', () => {
+  it('renders the order-created notification from its orderId', () => {
+    const content = getNotificationContent(notif({ type: 'order_created', orderId: 'ord_0000000000000118' }));
+    expect(content.title).toBe('Đặt hàng thành công');
+    expect(content.body).toBe('Đơn hàng #ord_0000000000000118 đã được đặt thành công.');
+  });
+
   it('builds Vietnamese title + body for order types from orderId', () => {
-    const content = getNotificationContent(notif({ type: 'payment_completed', orderId: 7 }));
+    const content = getNotificationContent(notif({ type: 'payment_completed', orderId: 'ord_0000000000000007' }));
     expect(content.title).toBe('Thanh toán thành công');
-    expect(content.body).toBe('Đơn hàng #7 đã được thanh toán thành công.');
+    expect(content.body).toBe('Đơn hàng #ord_0000000000000007 đã được thanh toán thành công.');
   });
 
   it('covers every return-flow type', () => {
     expect(getNotificationContent(notif({ type: 'order_return_requested' })).body)
-      .toBe('Đơn hàng #42 có yêu cầu trả hàng cần bạn duyệt.');
+      .toBe('Đơn hàng #ord_0000000000000042 có yêu cầu trả hàng cần bạn duyệt.');
     expect(getNotificationContent(notif({ type: 'order_return_approved' })).body)
-      .toBe('Yêu cầu trả hàng cho đơn #42 đã được duyệt và hoàn tiền.');
+      .toBe('Yêu cầu trả hàng cho đơn #ord_0000000000000042 đã được duyệt và hoàn tiền.');
     expect(getNotificationContent(notif({ type: 'order_return_rejected' })).body)
-      .toBe('Yêu cầu trả hàng cho đơn #42 đã bị từ chối.');
+      .toBe('Yêu cầu trả hàng cho đơn #ord_0000000000000042 đã bị từ chối.');
   });
 
   it('falls back to the raw message when an order type has no orderId', () => {
@@ -61,8 +67,8 @@ describe('getNotificationContent', () => {
   });
 
   it('renders order types with a bigint-string orderId', () => {
-    expect(getNotificationContent(notif({ type: 'payment_completed', orderId: '107' })).body)
-      .toBe('Đơn hàng #107 đã được thanh toán thành công.');
+    expect(getNotificationContent(notif({ type: 'payment_completed', orderId: 'ord_0000000000000107' })).body)
+      .toBe('Đơn hàng #ord_0000000000000107 đã được thanh toán thành công.');
   });
 
   it('extracts the brand name from the backend message', () => {
@@ -102,22 +108,23 @@ describe('getNotificationContent', () => {
 
 describe('getNotificationHref', () => {
   it('links order types to the order detail page', () => {
-    expect(getNotificationHref(notif({ type: 'order_shipped', orderId: 9 }))).toBe('/order/9');
-    expect(getNotificationHref(notif({ type: 'order_return_approved', orderId: 9 }))).toBe('/order/9');
+    expect(getNotificationHref(notif({ type: 'order_created', orderId: 'ord_0000000000000118' }))).toBe('/order/ord_0000000000000118');
+    expect(getNotificationHref(notif({ type: 'order_shipped', orderId: 'ord_0000000000000009' }))).toBe('/order/ord_0000000000000009');
+    expect(getNotificationHref(notif({ type: 'order_return_approved', orderId: 'ord_0000000000000009' }))).toBe('/order/ord_0000000000000009');
   });
 
   it('links order types with a bigint-string orderId', () => {
-    expect(getNotificationHref(notif({ type: 'order_shipped', orderId: '107' }))).toBe('/order/107');
+    expect(getNotificationHref(notif({ type: 'order_shipped', orderId: 'ord_0000000000000107' }))).toBe('/order/ord_0000000000000107');
   });
 
   it('links comment/reply to the post when postId is present', () => {
-    expect(getNotificationHref(notif({ type: 'comment', orderId: null, postId: 8 }))).toBe('/post/8');
-    expect(getNotificationHref(notif({ type: 'reply', orderId: null, postId: 8 }))).toBe('/post/8');
+    expect(getNotificationHref(notif({ type: 'comment', orderId: null, postId: 'post_0000000000000008' }))).toBe('/post/post_0000000000000008');
+    expect(getNotificationHref(notif({ type: 'reply', orderId: null, postId: 'post_0000000000000008' }))).toBe('/post/post_0000000000000008');
   });
 
   it('does not link legacy comment/reply rows without a postId', () => {
-    expect(getNotificationHref(notif({ type: 'comment', orderId: 123, postId: null }))).toBeNull();
-    expect(getNotificationHref(notif({ type: 'reply', orderId: 123, postId: null }))).toBeNull();
+    expect(getNotificationHref(notif({ type: 'comment', orderId: 'ord_0000000000000123', postId: null }))).toBeNull();
+    expect(getNotificationHref(notif({ type: 'reply', orderId: 'ord_0000000000000123', postId: null }))).toBeNull();
   });
 
   it('does not link order types missing an orderId or unknown types', () => {
@@ -129,7 +136,7 @@ describe('getNotificationHref', () => {
 describe('getNotificationMeta', () => {
   it('maps every backend type to a non-default icon', () => {
     const types = [
-      'payment_completed', 'order_placed', 'order_shipped', 'order_canceled',
+      'order_created', 'payment_completed', 'order_placed', 'order_shipped', 'order_canceled',
       'order_return_requested', 'order_return_approved', 'order_return_rejected',
       'comment', 'reply', 'brand_approved', 'brand_rejected',
       'category_approved', 'category_rejected',

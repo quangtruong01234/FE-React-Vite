@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { Avatar } from '@/components/shared/Avatar';
@@ -115,6 +116,9 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
       <DialogContent className="max-w-md bg-canvas-surface border-bdr text-ink-pri p-0 gap-0">
         <DialogHeader className="px-5 pt-5 pb-0">
           <DialogTitle className="font-display text-lg text-ink-pri">Chỉnh sửa hồ sơ</DialogTitle>
+          <DialogDescription className="sr-only">
+            Cập nhật ảnh đại diện và thông tin cá nhân của bạn.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={(e) => void handleSubmit(onSubmit)(e)} className="flex flex-col gap-4 p-5">

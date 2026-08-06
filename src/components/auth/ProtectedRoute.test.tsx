@@ -25,7 +25,7 @@ function stubMeUnauthenticated(): void {
 
 function makeUser(rolName: Role['rol_name']): User {
   return {
-    id: 1,
+    id: 'usr_0000000000000001',
     username: 'tester',
     email: 'tester@test.com',
     role: { rol_id: 3, rol_name: rolName } as Role,

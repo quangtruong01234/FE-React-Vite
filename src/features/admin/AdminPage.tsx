@@ -6,6 +6,7 @@ import { formatDate } from '@/lib/format/time';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { InvoiceDownloadButton } from '@/features/order/InvoiceDownloadButton';
 
 const USERS_PER_PAGE = 20;
 
@@ -66,7 +67,7 @@ export default function AdminPage(): ReactElement {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-bdr">
-                {['Mã đơn', 'Người mua', 'Tổng tiền', 'Trạng thái', 'Ngày tạo'].map(h => (
+                {['Mã đơn', 'Người mua', 'Tổng tiền', 'Trạng thái', 'Ngày tạo', 'Hóa đơn'].map(h => (
                   <th key={h} className="text-left px-4 py-3 font-body font-semibold text-ink-muted text-xs uppercase tracking-wide">
                     {h}
                   </th>
@@ -76,14 +77,14 @@ export default function AdminPage(): ReactElement {
             <tbody>
               {ordersLoading && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
+                  <td colSpan={6} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
                     Đang tải...
                   </td>
                 </tr>
               )}
               {!ordersLoading && !ordersData?.data.length && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
+                  <td colSpan={6} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
                     Không có đơn hàng nào.
                   </td>
                 </tr>
@@ -108,6 +109,9 @@ export default function AdminPage(): ReactElement {
                   </td>
                   <td className="px-4 py-3 font-body text-ink-sec text-sm">
                     {formatDate(order.createdAt)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <InvoiceDownloadButton orderId={order.id} iconOnly />
                   </td>
                 </tr>
               ))}
@@ -138,14 +142,14 @@ export default function AdminPage(): ReactElement {
             <tbody>
               {usersLoading && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
+                  <td colSpan={6} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
                     Đang tải...
                   </td>
                 </tr>
               )}
               {!usersLoading && !users.length && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
+                  <td colSpan={6} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
                     Không có người dùng nào.
                   </td>
                 </tr>

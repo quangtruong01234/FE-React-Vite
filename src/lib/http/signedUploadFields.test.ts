@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { signedUploadFields } from './signedUploadFields';
+import { buildChunkForm, signedUploadFields } from './signedUploadFields';
 import type { UploadSignature } from '@/types';
 
 const baseSig: UploadSignature = {
@@ -34,5 +34,28 @@ describe('signedUploadFields', () => {
 
   it('serializes timestamp as a string for FormData', () => {
     expect(signedUploadFields(baseSig).timestamp).toBe('1752200000');
+  });
+});
+
+describe('buildChunkForm', () => {
+  const chunk = new Blob(['chunk-bytes']);
+
+  it('carries the file plus exactly the signed fields — nothing unsigned (UP-05)', () => {
+    const form = buildChunkForm(chunk, { ...baseSig, allowed_formats: 'jpg,png,webp' });
+    expect([...form.keys()].sort()).toEqual([
+      'allowed_formats', 'api_key', 'file', 'folder', 'public_id', 'signature', 'timestamp',
+    ]);
+  });
+
+  it('never appends upload_id — an unsigned form param fails Cloudinary signature verification', () => {
+    const form = buildChunkForm(chunk, baseSig);
+    expect(form.has('upload_id')).toBe(false);
+  });
+
+  it('sends the chunk under the file key with the signed values verbatim', () => {
+    const form = buildChunkForm(chunk, baseSig);
+    expect(form.get('file')).toBeInstanceOf(Blob);
+    expect(form.get('signature')).toBe('abc123');
+    expect(form.get('public_id')).toBe('18_ab12cd');
   });
 });

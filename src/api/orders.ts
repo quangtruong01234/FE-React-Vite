@@ -50,7 +50,7 @@ export const ordersApi = {
     }),
 
   getByUser: (
-    userId: number,
+    userId: string,
     page = 1,
     limit = 10,
   ): Promise<PaginatedResponse<Order>> => {
@@ -58,11 +58,11 @@ export const ordersApi = {
     return request<PaginatedResponse<Order>>(`/order/user/${userId}${qs}`);
   },
 
-  getById: (id: number): Promise<Order> => request<Order>(`/order/${id}`),
+  getById: (id: string): Promise<Order> => request<Order>(`/order/${id}`),
 
   // P1-02: full-history per-status counts, so filter badges reflect the whole
   // history rather than only the pages loaded so far.
-  getStatusCounts: (userId: number): Promise<OrderStatusCounts> =>
+  getStatusCounts: (userId: string): Promise<OrderStatusCounts> =>
     request<OrderStatusCounts>(`/order/user/${userId}/status-counts`),
 
   getAdminOrders: (
@@ -75,10 +75,10 @@ export const ordersApi = {
     );
   },
 
-  cancel: (id: number): Promise<Order> =>
+  cancel: (id: string): Promise<Order> =>
     request<Order>(`/order/${id}/cancel`, { method: "PATCH" }),
 
-  getInvoice: (id: number): Promise<Blob> =>
+  getInvoice: (id: string): Promise<Blob> =>
     fetch(`${API_BASE}/order/${id}/invoice`, { credentials: "include" }).then(
       (res) => {
         if (!res.ok)
@@ -92,7 +92,7 @@ export const ordersApi = {
     ),
 
   getPaymentUrl: (
-    id: number,
+    id: string,
   ): Promise<{ orderUrl: string | null; status: string | null }> =>
     request<{ orderUrl: string | null; status: string | null }>(
       `/order/${id}/payment-url`,
@@ -107,30 +107,30 @@ export const ordersApi = {
     return request<PaginatedResponse<OrderWithBuyer>>(`/order/seller${qs}`);
   },
 
-  confirmOrder: (id: number): Promise<Order> =>
+  confirmOrder: (id: string): Promise<Order> =>
     request<Order>(`/order/${id}/confirm`, { method: "PATCH" }),
 
-  readyToShip: (id: number): Promise<Order> =>
+  readyToShip: (id: string): Promise<Order> =>
     request<Order>(`/order/${id}/ready-to-ship`, { method: "PATCH" }),
 
   // P1-01: seller order detail with items enriched (image + SKU label).
-  getSellerOrderDetail: (id: number): Promise<SellerOrderDetail> =>
+  getSellerOrderDetail: (id: string): Promise<SellerOrderDetail> =>
     request<SellerOrderDetail>(`/order/seller/${id}`),
 
   // P1-01: forward lifecycle transitions after `processing` (single-step).
-  ship: (id: number): Promise<Order> =>
+  ship: (id: string): Promise<Order> =>
     request<Order>(`/order/${id}/ship`, { method: "PATCH" }),
 
-  deliver: (id: number): Promise<Order> =>
+  deliver: (id: string): Promise<Order> =>
     request<Order>(`/order/${id}/deliver`, { method: "PATCH" }),
 
-  complete: (id: number): Promise<Order> =>
+  complete: (id: string): Promise<Order> =>
     request<Order>(`/order/${id}/complete`, { method: "PATCH" }),
 
   // F2: buyer-initiated return/refund. Eligible only on delivering/completed
   // orders without an active request (400 otherwise); flips the order to
   // `return_requested`.
-  requestReturn: (orderId: number, reason: string): Promise<ReturnRequest> =>
+  requestReturn: (orderId: string, reason: string): Promise<ReturnRequest> =>
     request<ReturnRequest>(`/order/${orderId}/return-request`, {
       method: "POST",
       body: JSON.stringify({ reason }),
@@ -159,13 +159,13 @@ export const ordersApi = {
   },
 
   // Approve records the (simulated) refund and moves the order to `refunded`.
-  approveReturnRequest: (id: number): Promise<ReturnRequest> =>
+  approveReturnRequest: (id: string): Promise<ReturnRequest> =>
     request<ReturnRequest>(`/order/return-requests/${id}/approve`, {
       method: "POST",
     }),
 
   // Reject restores the order to its previous status; reason is required.
-  rejectReturnRequest: (id: number, reason: string): Promise<ReturnRequest> =>
+  rejectReturnRequest: (id: string, reason: string): Promise<ReturnRequest> =>
     request<ReturnRequest>(`/order/return-requests/${id}/reject`, {
       method: "POST",
       body: JSON.stringify({ reason }),

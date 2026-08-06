@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, keepPreviousData } from '@tanstack/react-query';
 import { queryClient } from '@/lib/query/queryClient';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { api } from '@/api';
@@ -14,16 +14,19 @@ export function useNotifications(page = 1): {
   unreadCount: number;
   totalPages: number;
   isLoading: boolean;
-  markRead: (id: number) => void;
+  isFetching: boolean;
+  markRead: (id: string) => void;
   markAllRead: () => void;
 } {
   const listKey = queryKeys.notifications.list(page);
 
   const unreadKey = queryKeys.notifications.unreadCount;
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: listKey,
     queryFn: () => api.notifications.getList(page, PAGE_SIZE),
+    // Keep the previous page rendered while the next one loads (no empty flash).
+    placeholderData: keepPreviousData,
   });
 
   const notifications = data?.data ?? [];
@@ -38,8 +41,8 @@ export function useNotifications(page = 1): {
   const unreadCount = unreadData?.unreadCount ?? 0;
 
   const markReadMutation = useMutation({
-    mutationFn: (id: number) => api.notifications.markRead(id),
-    onMutate: async (id: number) => {
+    mutationFn: (id: string) => api.notifications.markRead(id),
+    onMutate: async (id: string) => {
       await queryClient.cancelQueries({ queryKey: listKey });
       await queryClient.cancelQueries({ queryKey: unreadKey });
       const snapshot = queryClient.getQueryData<NotifCache>(listKey);
@@ -69,7 +72,7 @@ export function useNotifications(page = 1): {
     },
   });
 
-  function markRead(id: number): void {
+  function markRead(id: string): void {
     markReadMutation.mutate(id);
   }
 
@@ -81,5 +84,5 @@ export function useNotifications(page = 1): {
   // consumers (bell + page) share one connection and never double-insert.
   useEffect(() => acquireNotificationSocket(), []);
 
-  return { notifications, unreadCount, totalPages, isLoading, markRead, markAllRead };
+  return { notifications, unreadCount, totalPages, isLoading, isFetching, markRead, markAllRead };
 }

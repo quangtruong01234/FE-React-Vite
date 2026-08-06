@@ -16,23 +16,18 @@ Example:
 
 ## Protocol
 
-### Step 0 — Verify test stack is installed
+### Step 0 — Reuse the existing infrastructure
 
-Check `package.json` devDependencies for: `vitest`, `@testing-library/react`, `@testing-library/jest-dom`, `msw`.
+Vitest + RTL + MSW are installed and configured. Before writing anything, know what already exists
+(details → `.ai/testing.md`):
 
-If ANY of these are missing:
-```
-[STOP] Test stack not installed.
+- `renderWithProviders(ui, { route })` from `@/test/renderWithProviders` — QueryClient + MemoryRouter
+- `server` from `@/test/msw/server` + `API_BASE` from `@/test/msw/handlers` for per-test `server.use(...)`
+- `onUnhandledRequest: 'error'` — every request the test makes needs a handler
 
-Run this first (requires approval — npm install is blocked by default):
-  npm install -D vitest @vitest/ui @testing-library/react @testing-library/jest-dom \
-    @testing-library/user-event jsdom msw
-
-Then set up vite.config.ts test block + src/test/setup.ts.
-Full guide: `.ai/testing.md`
-```
-
-Do not proceed. Do not generate a test file the user cannot run.
+Never mock `fetch` or `api/index.ts`. For **components** use `renderWithProviders` — never build
+your own provider wrapper. For **`renderHook`** a local per-test `QueryClientProvider` wrapper is
+the established pattern (`renderWithProviders` renders a component, it can't supply `wrapper`).
 
 ### Step 1 — Classify the target
 
@@ -60,43 +55,60 @@ Templates below — pick one based on Step 1.
 import { describe, it, expect } from 'vitest';
 import { formatPrice } from './utils';
 
+// Prices are VND — `1.000 đ`, abbreviated to `triệu đ` at ≥ 1,000,000.
 describe('formatPrice', () => {
-  it('formats integer prices with currency', () => {
-    expect(formatPrice(1000)).toBe('$1,000');
+  it('groups thousands with the vi-VN separator', () => {
+    expect(formatPrice(1000)).toBe('1.000 đ');
+  });
+
+  it('abbreviates millions', () => {
+    expect(formatPrice(1_500_000)).toBe('1.5 triệu đ');
+    expect(formatPrice(2_000_000)).toBe('2 triệu đ');
   });
 
   it('handles zero', () => {
-    expect(formatPrice(0)).toBe('$0');
+    expect(formatPrice(0)).toBe('0 đ');
   });
 
-  it('handles negative values', () => {
-    expect(formatPrice(-50)).toBe('-$50');
+  it('returns the em-dash placeholder for a non-numeric input', () => {
+    expect(formatPrice('abc')).toBe('—');
   });
 });
 ```
 
 #### Template B — React Query hook
 
-```ts
+```tsx
 import { describe, it, expect } from 'vitest';
+import type { ReactNode } from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { http, HttpResponse } from 'msw';
+import { server } from '@/test/msw/server';
+import { API_BASE } from '@/test/msw/handlers';
 import { useProduct } from './useProduct';
 
-function wrapper({ children }: { children: React.ReactNode }) {
+function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
 describe('useProduct', () => {
-  it('returns product data when id is valid', async () => {
-    const { result } = renderHook(() => useProduct(1), { wrapper });
+  it('returns product data when the id is present', async () => {
+    // onUnhandledRequest: 'error' — every request the hook makes needs a handler
+    server.use(
+      http.get(`${API_BASE}/products/prod_abc123`, () =>
+        HttpResponse.json({ data: { id: 'prod_abc123' } }),
+      ),
+    );
+    // public IDs are opaque strings — pass them through unchanged
+    const { result } = renderHook(() => useProduct('prod_abc123'), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.id).toBe(1);
+    expect(result.current.data?.id).toBe('prod_abc123');
   });
 
-  it('is disabled when id is 0', () => {
-    const { result } = renderHook(() => useProduct(0), { wrapper });
+  it('stays idle when the id is undefined', () => {
+    const { result } = renderHook(() => useProduct(undefined), { wrapper });
     expect(result.current.fetchStatus).toBe('idle');
   });
 });
@@ -106,25 +118,26 @@ describe('useProduct', () => {
 
 ```tsx
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { renderWithProviders } from '@/test/renderWithProviders';
 import { ProductCard } from './ProductCard';
 
 describe('ProductCard', () => {
-  const mockProduct = { id: 1, name: 'Test', price: 1000 };
+  const mockProduct = { id: 'prod_abc123', name: 'Test', price: 1000 };
 
   it('renders product name and price', () => {
-    render(<ProductCard product={mockProduct} onAddToCart={vi.fn()} />);
+    renderWithProviders(<ProductCard product={mockProduct} onAddToCart={vi.fn()} />);
     expect(screen.getByText('Test')).toBeInTheDocument();
-    expect(screen.getByText('$1,000')).toBeInTheDocument();
+    expect(screen.getByText('1.000 đ')).toBeInTheDocument();
   });
 
-  it('calls onAddToCart when button clicked', async () => {
+  it('calls onAddToCart when the button is clicked', async () => {
     const user = userEvent.setup();
     const onAddToCart = vi.fn();
-    render(<ProductCard product={mockProduct} onAddToCart={onAddToCart} />);
+    renderWithProviders(<ProductCard product={mockProduct} onAddToCart={onAddToCart} />);
     await user.click(screen.getByRole('button', { name: /add to cart/i }));
-    expect(onAddToCart).toHaveBeenCalledWith(1);
+    expect(onAddToCart).toHaveBeenCalledWith('prod_abc123');
   });
 });
 ```
@@ -158,11 +171,7 @@ If failing → debug the test, not the target (target was correct before). If st
 ── Test Generated ────────────────────────────────
   Target: src/features/product/useProduct.ts
   Test:   src/features/product/useProduct.test.ts
-  Cases:  3 (happy, disabled-when-zero, error)
+  Cases:  3 (happy, idle-when-no-id, error)
   Status: ✅ npm run test:run passed
 ──────────────────────────────────────────────────
 ```
-
----
-
-**Model:** Sonnet 4.6 | **Effort:** Medium

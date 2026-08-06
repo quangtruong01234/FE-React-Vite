@@ -8,7 +8,7 @@ For the full endpoint catalogue (paths, query params, all fields), see `.ai/cont
 
 - Native `fetch` only — no axios
 - `credentials: 'include'` is global in `request()` — never add it per-call
-- IDs are `number` everywhere — never `string`
+- Converted public IDs are opaque strings: `usr_`, `prod_`, `ord_`, `addr_`, `ntf_`, `rr_`, `post_`, `cmt_`, `conv_`, and `msg_`. Preserve them unchanged in routes, DTOs, caches, comparisons, and WebSocket payloads. Catalog/SKU/cart-row/inventory-row/GHN IDs remain numeric.
 - Errors thrown as `ApiError`: `{ status: number, message: string }`
 
 ## Response Envelope

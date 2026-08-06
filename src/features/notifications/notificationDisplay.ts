@@ -43,7 +43,7 @@ function reviewBody(n: Notification, subject: string, approved: boolean): string
   return reason ? `${label} đã bị từ chối. Lý do: ${reason}` : `${label} đã bị từ chối.`;
 }
 
-function orderBody(n: Notification, text: (orderId: number | string) => string): string | null {
+function orderBody(n: Notification, text: (orderId: string) => string): string | null {
   return n.orderId != null ? text(n.orderId) : null;
 }
 
@@ -53,6 +53,11 @@ function socialBody(n: Notification, generic: string, withPreview: (preview: str
 }
 
 const TYPE_CONFIG: Record<string, TypeConfig> = {
+  order_created: {
+    Icon: ShoppingBag, color: 'text-accent-amber bg-tb-amber/10',
+    title: 'Đặt hàng thành công',
+    body: (n) => orderBody(n, (id) => `Đơn hàng #${id} đã được đặt thành công.`),
+  },
   payment_completed: {
     Icon: CheckCircle, color: 'text-accent-green bg-accent-green/10',
     title: 'Thanh toán thành công',
@@ -139,7 +144,7 @@ export function getNotificationContent(n: Notification): NotificationContent {
 }
 
 const ORDER_TYPES = new Set([
-  'payment_completed', 'order_placed', 'order_shipped', 'order_canceled',
+  'order_created', 'payment_completed', 'order_placed', 'order_shipped', 'order_canceled',
   'order_return_requested', 'order_return_approved', 'order_return_rejected',
 ]);
 

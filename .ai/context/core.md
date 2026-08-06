@@ -30,7 +30,7 @@ React 19 · Vite · TypeScript strict · React Router DOM **v7** · TanStack Que
 - ❌ NO manual `loading`/`error` state for server data
 - Mutations use `isPending`, not `isLoading` (v5)
 - Query keys from `hooks/query/queryKeys.ts` factory — never inline `['products']`
-- IDs are `number` everywhere — never `string`
+- Public IDs are opaque strings for users, products, orders, addresses, notifications, return requests, posts, comments, conversations, and messages (`usr_`, `prod_`, `ord_`, `addr_`, `ntf_`, `rr_`, `post_`, `cmt_`, `conv_`, `msg_`). Preserve them unchanged; never coerce them with `Number()`/`parseInt`. Unconverted catalog/SKU/cart-row/inventory-row/GHN IDs remain numeric.
 - Details + examples → `.ai/context/data-fetching.md`
 
 ## Styling — hard rules
@@ -38,7 +38,7 @@ React 19 · Vite · TypeScript strict · React Router DOM **v7** · TanStack Que
 - Tailwind utility classes only. No inline `style={{}}` (sole exception: `Avatar.tsx`).
 - No separate `.css`/`.module.css` (only `index.css`).
 - No hardcoded hex (`[#...]`) and no raw palette (`text-gray-500`) — use `tb-*` tokens.
-- Conditional classes via `cn()` from `lib/utils.ts` — not template literals.
+- Conditional classes via `cn()` from `lib/format/utils.ts` (`@/lib/format/utils`) — not template literals.
 - **Icon buttons:** a sized icon-only `<button>` (`size-*`) MUST be `<IconButton>` (`components/shared/IconButton.tsx`), never a raw `<button>`. Raw `<button>` keeps UA default padding that nudges the box past `size-*` and knocks the icon off-center (the "icon lệch" bug). Every Lucide icon needs `shrink-0` + `size={n}` (number). Details → `.ai/context/styling.md`.
 - Tokens reference → `.ai/tokens.md` · styling guide → `.ai/context/styling.md`
 

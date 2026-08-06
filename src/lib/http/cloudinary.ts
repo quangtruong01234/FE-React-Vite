@@ -1,9 +1,8 @@
 import { api } from '@/api';
 import type { UploadSignature } from '@/types';
 import { outcomeFromError, outcomeFromResult, type DeleteMediaOutcome } from './deleteMediaOutcome';
-import { signedUploadFields } from './signedUploadFields';
-
-const CHUNK_SIZE = 6 * 1024 * 1024; // 6 MB
+import { buildChunkForm } from './signedUploadFields';
+import { buildUploadId, planUploadChunks } from './uploadChunkPlan';
 
 export type UploadProgressCallback = (percent: number) => void;
 
@@ -20,32 +19,22 @@ async function uploadChunked(
 ): Promise<UploadResult> {
   const url = `https://api.cloudinary.com/v1_1/${sig.cloud_name}/${resourceType}/upload`;
   const publicId = sig.public_id;
-  const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-  const uploadId = `${sig.timestamp}_${publicId}`;
+  const uploadId = buildUploadId(sig.timestamp, publicId);
 
   let secureUrl = '';
   let returnedPublicId = publicId;
 
-  for (let i = 0; i < totalChunks; i++) {
-    const start = i * CHUNK_SIZE;
-    const end = Math.min(start + CHUNK_SIZE, file.size);
+  for (const { start, end, contentRange, percent } of planUploadChunks(file.size)) {
     const chunk = file.slice(start, end);
 
-    const form = new FormData();
-    form.append('file', chunk);
-    for (const [key, value] of Object.entries(signedUploadFields(sig))) {
-      form.append(key, value);
-    }
-    if (totalChunks > 1) {
-      form.append('upload_id', uploadId);
-    }
+    const form = buildChunkForm(chunk, sig);
 
     const res = await fetch(url, {
       method: 'POST',
       body: form,
       headers: {
         'X-Unique-Upload-Id': uploadId,
-        'Content-Range': `bytes ${start}-${end - 1}/${file.size}`,
+        'Content-Range': contentRange,
       },
     });
 
@@ -58,7 +47,7 @@ async function uploadChunked(
     if (json.secure_url) secureUrl = json.secure_url;
     if (json.public_id) returnedPublicId = json.public_id;
 
-    onProgress?.(Math.round(((i + 1) / totalChunks) * 100));
+    onProgress?.(percent);
   }
 
   if (!secureUrl) throw new Error('Không nhận được URL sau khi upload');
@@ -69,47 +58,44 @@ const POSTS_FOLDER = 'trybuy/posts';
 const PRODUCTS_FOLDER = 'trybuy/products';
 const AVATARS_FOLDER = 'avatars';
 
-function makePublicId(userId: number): string {
-  return `${userId}_${Math.random().toString(36).slice(2, 9)}`;
-}
-
+// The signature endpoint derives the owner from the JWT cookie and returns an
+// owner-prefixed `public_id`, so FE sends neither `userId` nor `publicId`:
+// after the PUBID migration `user.id` is an opaque `usr_…` string, which the
+// endpoint rejects ("userId must be an integer number"). The `_userId` arg is
+// kept so call sites and their UP-06 login gate stay unchanged.
 export async function uploadImage(
   file: File,
-  userId: number,
+  _userId: string,
   onProgress?: UploadProgressCallback,
 ): Promise<UploadResult> {
-  const publicId = makePublicId(userId);
-  const sig = await api.upload.getSignature(POSTS_FOLDER, userId, publicId);
+  const sig = await api.upload.getSignature(POSTS_FOLDER);
   return uploadChunked(file, sig, 'image', onProgress);
 }
 
 export async function uploadVideo(
   file: File,
-  userId: number,
+  _userId: string,
   onProgress?: UploadProgressCallback,
 ): Promise<UploadResult> {
-  const publicId = makePublicId(userId);
-  const sig = await api.upload.getSignature(POSTS_FOLDER, userId, publicId);
+  const sig = await api.upload.getSignature(POSTS_FOLDER);
   return uploadChunked(file, sig, 'video', onProgress);
 }
 
 export async function uploadProductImage(
   file: File,
-  userId: number,
+  _userId: string,
   onProgress?: UploadProgressCallback,
 ): Promise<UploadResult> {
-  const publicId = makePublicId(userId);
-  const sig = await api.upload.getSignature(PRODUCTS_FOLDER, userId, publicId);
+  const sig = await api.upload.getSignature(PRODUCTS_FOLDER);
   return uploadChunked(file, sig, 'image', onProgress);
 }
 
 export async function uploadAvatar(
   file: File,
-  userId: number,
+  _userId: string,
   onProgress?: UploadProgressCallback,
 ): Promise<UploadResult> {
-  const publicId = makePublicId(userId);
-  const sig = await api.upload.getSignature(AVATARS_FOLDER, userId, publicId);
+  const sig = await api.upload.getSignature(AVATARS_FOLDER);
   return uploadChunked(file, sig, 'image', onProgress);
 }
 

@@ -2,7 +2,7 @@ import type { CreateOrderItemDto, ProductWithInventory } from '@/types';
 
 /** Minimal cart-line shape needed to build order items / check stock. */
 export interface CheckoutCartLine {
-  productId: number;
+  productId: string;
   skuId?: number | null;
   quantity: number;
 }
@@ -14,7 +14,7 @@ export interface CheckoutCartLine {
  */
 export function buildOrderItems(
   lines: CheckoutCartLine[],
-  productMap: Map<number, ProductWithInventory>,
+  productMap: Map<string, ProductWithInventory>,
 ): CreateOrderItemDto[] {
   return lines.map((line) => {
     const product = productMap.get(line.productId);
@@ -37,11 +37,11 @@ export function buildOrderItems(
 export function findStockShortages(
   lines: CheckoutCartLine[],
   products: ProductWithInventory[],
-): Record<number, string> {
-  const byId = new Map<number, ProductWithInventory>();
-  for (const p of products) byId.set(Number(p.id), p);
+): Record<string, string> {
+  const byId = new Map<string, ProductWithInventory>();
+  for (const product of products) byId.set(product.id, product);
 
-  const shortages: Record<number, string> = {};
+  const shortages: Record<string, string> = {};
   for (const line of lines) {
     const product = byId.get(line.productId);
     let available = 0;

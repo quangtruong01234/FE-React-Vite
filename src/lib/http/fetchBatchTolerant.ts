@@ -18,10 +18,10 @@ function isNotFound(error: unknown): boolean {
  * Non-404 errors propagate so React Query can surface/retry them. The happy path
  * stays a single batch request — the fan-out only happens on a 404.
  */
-export async function fetchBatchTolerant<T>(
-  ids: number[],
-  fetchBatch: (ids: number[]) => Promise<T[]>,
-  fetchOne: (id: number) => Promise<T>,
+export async function fetchBatchTolerant<T, TId = number>(
+  ids: TId[],
+  fetchBatch: (ids: TId[]) => Promise<T[]>,
+  fetchOne: (id: TId) => Promise<T>,
 ): Promise<T[]> {
   if (ids.length === 0) return [];
   try {
@@ -29,8 +29,8 @@ export async function fetchBatchTolerant<T>(
   } catch (error) {
     if (!isNotFound(error)) throw error;
     const settled = await Promise.allSettled(ids.map(fetchOne));
-    return settled
-      .filter((r): r is PromiseFulfilledResult<T> => r.status === 'fulfilled')
-      .map((r) => r.value);
+    return settled.flatMap((result) =>
+      result.status === 'fulfilled' ? [result.value] : [],
+    );
   }
 }

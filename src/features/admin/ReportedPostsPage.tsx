@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Eye, EyeOff, FlagOff, Trash2, ShieldCheck, ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
 import { formatDateTime } from '@/lib/format/time';
@@ -8,6 +8,9 @@ import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { Avatar } from '@/components/shared/Avatar';
 import { Pagination } from '@/components/shared/Pagination';
+import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
+import { usePageParam } from '@/hooks/ui/usePageParam';
+import { useFilterParam } from '@/hooks/ui/useFilterParam';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   moderationActionsFor,
@@ -23,6 +26,8 @@ const FILTER_OPTS: { id: PostReportStatus; label: string }[] = [
   { id: 'resolved',  label: 'Đã xử lý' },
   { id: 'dismissed', label: 'Đã bỏ qua' },
 ];
+
+const FILTER_KEYS: readonly PostReportStatus[] = FILTER_OPTS.map(o => o.id);
 
 const LIMIT = 20;
 
@@ -49,7 +54,7 @@ function ReportedPostCard({
 }: {
   group: ReportedPostGroup;
   pendingAction: ModerationAction | null;
-  onAction: (id: number, action: ModerationAction) => void;
+  onAction: (id: string, action: ModerationAction) => void;
 }): ReactElement {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { post } = group;
@@ -186,13 +191,15 @@ function ReportedPostCard({
 
 export default function ReportedPostsPage(): ReactElement {
   const queryClient = useQueryClient();
-  const [filterTab, setFilterTab] = useState<PostReportStatus>('pending');
-  const [page, setPage] = useState(1);
+  const [filterTab, setFilterTab] = useFilterParam<PostReportStatus>('status', FILTER_KEYS, 'pending');
+  const [page, setPage] = usePageParam();
   const [toast, setToast] = useState<string | null>(null);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     queryKey: queryKeys.social.adminReportsList(filterTab, page),
     queryFn: () => api.social.getReportedPosts(filterTab, page, LIMIT),
+    // Keep the previous page rendered while the next one loads (no empty flash).
+    placeholderData: keepPreviousData,
   });
 
   function showToast(msg: string): void {
@@ -200,8 +207,8 @@ export default function ReportedPostsPage(): ReactElement {
     setTimeout(() => setToast(null), 3000);
   }
 
-  const moderate = useMutation({
-    mutationFn: ({ id, action }: { id: number; action: ModerationAction }) => {
+  const moderate = useMutation<unknown, unknown, { id: string; action: ModerationAction }>({
+    mutationFn: ({ id, action }: { id: string; action: ModerationAction }) => {
       switch (action) {
         case 'hide':    return api.social.hidePost(id);
         case 'unhide':  return api.social.unhidePost(id);
@@ -223,12 +230,12 @@ export default function ReportedPostsPage(): ReactElement {
     ? moderationErrorMessage(moderate.error, moderate.variables.action)
     : null;
 
+  // setFilterTab also drops ?page= in the same URL update (useFilterParam).
   const handleTabChange = (status: PostReportStatus): void => {
     setFilterTab(status);
-    setPage(1);
   };
 
-  const pendingActionFor = (postId: number): ModerationAction | null => {
+  const pendingActionFor = (postId: string): ModerationAction | null => {
     if (!moderate.isPending || moderate.variables?.id !== postId) return null;
     return moderate.variables.action;
   };
@@ -298,16 +305,18 @@ export default function ReportedPostsPage(): ReactElement {
       )}
 
       {!isLoading && groups.length > 0 && (
-        <div className="flex flex-col gap-3">
-          {groups.map(group => (
-            <ReportedPostCard
-              key={group.post.id}
-              group={group}
-              pendingAction={pendingActionFor(group.post.id)}
-              onAction={(id, action) => moderate.mutate({ id, action })}
-            />
-          ))}
-        </div>
+        <FetchingOverlay fetching={isFetching && !isLoading}>
+          <div className="flex flex-col gap-3">
+            {groups.map(group => (
+              <ReportedPostCard
+                key={group.post.id}
+                group={group}
+                pendingAction={pendingActionFor(group.post.id)}
+                onAction={(id, action) => moderate.mutate({ id, action })}
+              />
+            ))}
+          </div>
+        </FetchingOverlay>
       )}
 
       {!isLoading && (

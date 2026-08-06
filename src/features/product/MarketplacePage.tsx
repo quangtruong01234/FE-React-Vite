@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, type ReactElement } from 'react';
+import { useState, useMemo, useCallback, useEffect, type ReactElement } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { SlidersHorizontal, PackageX, ChevronDown, ChevronUp, Check, Search, X } from 'lucide-react';
@@ -6,14 +6,22 @@ import { cn, formatVnd } from '@/lib/format/utils';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { useProducts } from './useProducts';
+import { useProvinces } from '@/features/address/useShippingLocations';
 import { useDebouncedValue } from '@/hooks/ui/useDebouncedValue';
+import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
 import { Pagination } from '@/components/shared/Pagination';
+import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
 import { buildProductParams, DEFAULT_MAX_PRICE } from './productParams';
+import {
+  parseMarketplaceFilters,
+  serializeMarketplaceFilters,
+  settledFilterPatch,
+  type MarketplaceFilters,
+  type SortKey,
+} from './marketplaceUrl';
 import ProductCard from './ProductCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ProductParams } from '@/types';
-
-type SortKey = 'newest' | 'price_asc' | 'price_desc' | 'popular';
 
 const SORT_OPTS: { id: SortKey; label: string }[] = [
   { id: 'newest', label: 'Mới nhất' },
@@ -142,41 +150,78 @@ function SelectFilter({ label, items, selected, onChange }: SelectFilterProps): 
 }
 
 export default function MarketplacePage(): ReactElement {
-  const [searchParams] = useSearchParams();
-  const [search, setSearch] = useState(searchParams.get('search') ?? '');
+  // The URL query string is the single source of truth for every filter —
+  // reload, share, and back/forward all restore the exact same result set.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = useMemo(() => parseMarketplaceFilters(searchParams), [searchParams]);
 
-  useEffect(() => {
-    const param = searchParams.get('search') ?? '';
-    setSearch(param);
-    setPage(1);
-  }, [searchParams]);
-
-  const [categoryIds, setCategoryIds] = useState<number[]>([]);
-  const [brandIds, setBrandIds] = useState<number[]>([]);
-  const [minPrice, setMinPrice] = useState<number>(0);
-  const [maxPrice, setMaxPrice] = useState<number>(DEFAULT_MAX_PRICE);
-  const [sort, setSort] = useState<SortKey>('newest');
-  const [page, setPage] = useState(1);
+  // Live input state for fast-changing fields (typing, slider drags); settled
+  // values are committed to the URL by the effect below.
+  const [search, setSearch] = useState(filters.search);
+  const [minPrice, setMinPrice] = useState<number>(filters.minPrice);
+  const [maxPrice, setMaxPrice] = useState<number>(filters.maxPrice);
   const [filterOpen, setFilterOpen] = useState(true);
 
-  // Debounce price so dragging the slider doesn't fire a request on every tick.
+  const updateFilters = useCallback(
+    (patch: Partial<MarketplaceFilters>, opts?: { replace?: boolean }) => {
+      setSearchParams((prev) => {
+        const cur = parseMarketplaceFilters(prev);
+        // Any filter change jumps back to page 1 — unless the patch IS a page change.
+        return serializeMarketplaceFilters({ ...cur, ...patch, page: patch.page ?? 1 });
+      }, opts);
+    },
+    [setSearchParams],
+  );
+
+  // External URL changes (header search, back/forward) sync down into the live
+  // inputs — during render, so no stale-value flash. The guard keeps the user's
+  // own commits from echoing back into an input they are still editing.
+  useResetOnChange(filters.search, () => {
+    if (filters.search !== search) setSearch(filters.search);
+  });
+  useResetOnChange(filters.minPrice, () => {
+    if (filters.minPrice !== minPrice) setMinPrice(filters.minPrice);
+  });
+  useResetOnChange(filters.maxPrice, () => {
+    if (filters.maxPrice !== maxPrice) setMaxPrice(filters.maxPrice);
+  });
+
+  // Debounce typing/slider drags so the URL (and the request) only updates once
+  // the value settles — committed with `replace` to avoid history spam.
+  const debouncedSearch = useDebouncedValue(search, 400);
   const debouncedMinPrice = useDebouncedValue(minPrice, 400);
   const debouncedMaxPrice = useDebouncedValue(maxPrice, 400);
 
+  useEffect(() => {
+    const patch = settledFilterPatch(
+      { search, minPrice, maxPrice },
+      { search: debouncedSearch, minPrice: debouncedMinPrice, maxPrice: debouncedMaxPrice },
+      { search: filters.search, minPrice: filters.minPrice, maxPrice: filters.maxPrice },
+    );
+    if (Object.keys(patch).length > 0) updateFilters(patch, { replace: true });
+  }, [
+    search, minPrice, maxPrice,
+    debouncedSearch, debouncedMinPrice, debouncedMaxPrice,
+    filters.search, filters.minPrice, filters.maxPrice,
+    updateFilters,
+  ]);
+
+  const { categoryIds, brandIds, provinceIds, sort, page } = filters;
   const sortParams = sortToParams(sort);
   const params: ProductParams = buildProductParams({
     page,
     limit: 12,
     sortBy: sortParams.sortBy ?? 'createdAt',
     sortOrder: sortParams.sortOrder ?? 'DESC',
-    search,
+    search: filters.search,
     categoryIds,
     brandIds,
-    minPrice: debouncedMinPrice,
-    maxPrice: debouncedMaxPrice,
+    provinceIds,
+    minPrice: filters.minPrice,
+    maxPrice: filters.maxPrice,
   });
 
-  const { data, isLoading, error } = useProducts(params);
+  const { data, isLoading, isFetching, error } = useProducts(params);
   const products = data?.data ?? [];
   const hasNext = data?.hasNext ?? false;
   const totalPages = data?.totalPages ?? 0;
@@ -191,47 +236,46 @@ export default function MarketplacePage(): ReactElement {
     queryFn: () => api.products.getBrands(),
   });
 
+  const { data: provinces = [] } = useProvinces();
+
   function handleSortChange(newSort: SortKey): void {
-    setSort(newSort);
-    setPage(1);
+    updateFilters({ sort: newSort });
   }
 
   function handleCategoryChange(ids: number[]): void {
-    setCategoryIds(ids);
-    setPage(1);
+    updateFilters({ categoryIds: ids });
   }
 
   function handleBrandChange(ids: number[]): void {
-    setBrandIds(ids);
-    setPage(1);
+    updateFilters({ brandIds: ids });
   }
 
+  function handleProvinceChange(ids: number[]): void {
+    updateFilters({ provinceIds: ids });
+  }
+
+  // Price inputs only touch live state — the settle effect commits to the URL.
   function handleMinPriceChange(value: number): void {
     setMinPrice(value);
-    setPage(1);
   }
 
   function handleMaxPriceChange(value: number): void {
     setMaxPrice(value);
-    setPage(1);
   }
 
   function handleSearchSubmit(e: React.FormEvent): void {
     e.preventDefault();
-    setPage(1);
+    updateFilters({ search });
   }
 
   function clearFilters(): void {
     setSearch('');
-    setCategoryIds([]);
-    setBrandIds([]);
     setMinPrice(0);
     setMaxPrice(DEFAULT_MAX_PRICE);
-    setSort('newest');
-    setPage(1);
+    setSearchParams(new URLSearchParams());
   }
 
-  const hasActiveFilters = categoryIds.length > 0 || brandIds.length > 0 || minPrice > 0 || maxPrice < DEFAULT_MAX_PRICE || !!search;
+  const hasActiveFilters = categoryIds.length > 0 || brandIds.length > 0 || provinceIds.length > 0 || minPrice > 0 || maxPrice < DEFAULT_MAX_PRICE || !!search;
 
   return (
     <div className="min-h-screen bg-canvas-base">
@@ -295,7 +339,7 @@ export default function MarketplacePage(): ReactElement {
                   Bộ lọc
                   {hasActiveFilters && (
                     <span className="size-4 rounded-full bg-tb-gradient text-ink-pri text-[9px] font-black grid place-items-center">
-                      {categoryIds.length + brandIds.length + (minPrice > 0 || maxPrice < DEFAULT_MAX_PRICE ? 1 : 0) + (search ? 1 : 0)}
+                      {categoryIds.length + brandIds.length + provinceIds.length + (minPrice > 0 || maxPrice < DEFAULT_MAX_PRICE ? 1 : 0) + (search ? 1 : 0)}
                     </span>
                   )}
                 </span>
@@ -341,6 +385,16 @@ export default function MarketplacePage(): ReactElement {
 
                   <div className="border-t border-bdr mb-4" />
 
+                  {/* Seller province select (GHN provinces; matches seller default address) */}
+                  <SelectFilter
+                    label="Tỉnh/Thành"
+                    items={provinces}
+                    selected={provinceIds}
+                    onChange={handleProvinceChange}
+                  />
+
+                  <div className="border-t border-bdr mb-4" />
+
                   {/* Price range */}
                   <div>
                     <div className="text-xs font-body font-semibold text-ink-sec uppercase tracking-wide mb-2">
@@ -376,7 +430,7 @@ export default function MarketplacePage(): ReactElement {
                       step={500_000}
                       value={maxPrice}
                       onChange={(e) => handleMaxPriceChange(Math.max(Number(e.target.value), minPrice))}
-                      className="w-full accent-amber-500"
+                      className="w-full accent-tb-amber"
                     />
                     <div className="flex justify-between text-[10px] text-ink-muted font-mono mt-1">
                       <span>{formatVnd(minPrice)}</span>
@@ -431,9 +485,12 @@ export default function MarketplacePage(): ReactElement {
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                {products.map(p => <ProductCard key={p.id} product={p} />)}
-              </div>
+              <FetchingOverlay fetching={isFetching && !isLoading}>
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {/* First row (≤ 4 cols) is above the fold → eager, high priority. */}
+                  {products.map((p, i) => <ProductCard key={p.id} product={p} priority={i < 4} />)}
+                </div>
+              </FetchingOverlay>
             )}
 
             {/* Pagination */}
@@ -442,7 +499,7 @@ export default function MarketplacePage(): ReactElement {
                 page={page}
                 totalPages={totalPages}
                 hasNext={hasNext}
-                onPageChange={setPage}
+                onPageChange={(p) => updateFilters({ page: p })}
                 className="mt-6 pt-4 border-t border-bdr"
               />
             )}

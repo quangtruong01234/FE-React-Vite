@@ -3,34 +3,34 @@ import { queryKeys } from '@/hooks/query/queryKeys';
 import { api } from '@/api';
 import type { FollowingItem, PaginatedResponse } from '@/types';
 
-export function useFollowers(userId: number) {
+export function useFollowers(userId: string) {
   return useQuery({
     queryKey: queryKeys.social.followers(userId),
     queryFn: () => api.social.getFollowers(userId),
-    enabled: userId > 0,
+    enabled: userId.length > 0,
   });
 }
 
-export function useFollowing(userId: number) {
+export function useFollowing(userId: string) {
   return useQuery({
     queryKey: queryKeys.social.following(userId),
     queryFn: () => api.social.getFollowing(userId),
-    enabled: userId > 0,
+    enabled: userId.length > 0,
   });
 }
 
-export function useFollowingFeed(userId: number, active = false) {
+export function useFollowingFeed(userId: string, active = false) {
   return useInfiniteQuery({
     queryKey: queryKeys.social.followingFeed(userId),
     queryFn: ({ pageParam }) => api.social.getFollowingFeed(userId, pageParam as number, 10),
     initialPageParam: 1,
     getNextPageParam: (lastPage, _allPages, lastPageParam) =>
       lastPage.hasNext ? (lastPageParam as number) + 1 : undefined,
-    enabled: userId > 0 && active,
+    enabled: userId.length > 0 && active,
   });
 }
 
-export function useFollowUser(targetId: number, viewerId: number) {
+export function useFollowUser(targetId: string, viewerId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -43,7 +43,7 @@ export function useFollowUser(targetId: number, viewerId: number) {
   });
 }
 
-export function useUnfollowUser(targetId: number, viewerId: number) {
+export function useUnfollowUser(targetId: string, viewerId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -57,14 +57,14 @@ export function useUnfollowUser(targetId: number, viewerId: number) {
 }
 
 // Derive isFollowing from the cached following list
-export function useIsFollowing(viewerId: number, targetId: number): { isFollowing: boolean; isLoading: boolean } {
+export function useIsFollowing(viewerId: string, targetId: string): { isFollowing: boolean; isLoading: boolean } {
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.social.following(viewerId),
     queryFn: () => api.social.getFollowing(viewerId),
-    enabled: viewerId > 0 && targetId > 0,
+    enabled: viewerId.length > 0 && targetId.length > 0,
   });
   const isFollowing = (data as PaginatedResponse<FollowingItem> | undefined)?.data.some(
     (f) => f.user.id === targetId,
   ) ?? false;
-  return { isFollowing, isLoading: viewerId > 0 && isLoading };
+  return { isFollowing, isLoading: viewerId.length > 0 && isLoading };
 }

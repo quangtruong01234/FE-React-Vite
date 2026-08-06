@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Minus, Plus, Trash2, ShoppingCart, ArrowLeft } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -12,6 +12,7 @@ import { ProductThumb } from '@/components/shared/ProductThumb';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ProductWithInventory } from '@/types';
 import { effectiveUnitPrice } from './shippingFee';
+import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
 
 export default function CartPage(): ReactElement {
   const navigate = useNavigate();
@@ -22,13 +23,17 @@ export default function CartPage(): ReactElement {
 
   const items = cart?.items ?? [];
 
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(
+    () => new Set(items.map(i => i.id)),
+  );
 
-  useEffect(() => {
+  // Select everything when a (different) cart arrives — adjust-state-during-render,
+  // keyed on the cart id so refetches of the same cart keep the user's selection.
+  useResetOnChange(cart?.id, () => {
     setSelectedIds(new Set(items.map(i => i.id)));
-  }, [cart?.id]);
+  });
 
-  const productIds = [...new Set(items.map(i => i.productId))].sort((a, b) => a - b);
+  const productIds = [...new Set(items.map(i => i.productId))].sort();
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
     queryKey: queryKeys.products.cartItems(productIds),
@@ -36,8 +41,8 @@ export default function CartPage(): ReactElement {
     enabled: productIds.length > 0,
   });
 
-  const productMap = new Map<number, ProductWithInventory>();
-  productsData?.forEach(p => productMap.set(Number(p.id), p));
+  const productMap = new Map<string, ProductWithInventory>();
+  productsData?.forEach(product => productMap.set(product.id, product));
 
   const isMutating = updateItem.isPending || removeItem.isPending || clearCart.isPending;
   const isLoading = cartLoading || productsLoading;
@@ -133,7 +138,7 @@ export default function CartPage(): ReactElement {
                     checked={allChecked}
                     ref={el => { if (el) el.indeterminate = someChecked; }}
                     onChange={toggleAll}
-                    className="w-4 h-4 rounded accent-amber-400 cursor-pointer"
+                    className="w-4 h-4 rounded accent-tb-amber cursor-pointer"
                   />
                   <span className="font-body text-sm text-ink-pri">
                     Chọn tất cả ({items.length})
@@ -177,7 +182,7 @@ export default function CartPage(): ReactElement {
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleItem(item.id)}
-                        className="w-4 h-4 rounded accent-amber-400 cursor-pointer shrink-0"
+                        className="w-4 h-4 rounded accent-tb-amber cursor-pointer shrink-0"
                       />
                     </div>
 

@@ -11,9 +11,16 @@ import { useRole } from '@/hooks/auth/useRole';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/format/utils';
 import type { ApiError, CreateProductDto } from '@/types';
-import { useProductForm } from './product-form/useProductForm';
+import { useProductForm, DEFAULT_FIELDS, buildProductPayload } from './product-form/useProductForm';
 import { makeVarGroup, type ImageItem, type SkuRowState, type VarGroup } from './product-form/useProductForm';
+import { dirtyProductPatch } from './product-form/productPatch';
+import { productSubmitError } from './product-form/productSubmitError';
 import { BasicInfoSection } from './product-form/BasicInfoSection';
+import { PriceSuggestionHint } from './product-form/PriceSuggestionHint';
+import { usePriceSuggestion } from './product-form/usePriceSuggestion';
+import { DuplicateWarningHint } from './product-form/DuplicateWarningHint';
+import { duplicateWarningView } from './product-form/duplicateCheck';
+import { missingFields } from './product-form/productReadiness';
 import { VariationBuilder } from './product-form/VariationBuilder';
 import { SkuMatrix } from './product-form/SkuMatrix';
 import { ShippingMiscSection } from './product-form/ShippingMiscSection';
@@ -38,8 +45,8 @@ const inputCls = cn(
  * "created successfully".
  */
 async function persistSimpleStock(
-  productId: number,
-  sku: string,
+  productId: string,
+  sku: string | undefined,
   availableStock: number,
 ): Promise<void> {
   try {
@@ -51,6 +58,11 @@ async function persistSimpleStock(
     await api.inventory.update(existing.id, { sku, availableStock });
   }
 }
+
+/** Create sends the full DTO; edit sends only the fields that changed. */
+type SubmitVars =
+  | { kind: 'create'; dto: CreateProductDto }
+  | { kind: 'edit'; patch: Partial<CreateProductDto> };
 
 function SectionHeader({
   num,
@@ -77,7 +89,7 @@ function SectionHeader({
 
 export default function CreateProductPage(): ReactElement {
   const { id } = useParams<{ id?: string }>();
-  const productId = id ? Number(id) : undefined;
+  const productId = id || undefined;
   const navigate = useNavigate();
   const { currentUser } = useAuthContext();
   const roleState = useRole();
@@ -91,8 +103,8 @@ export default function CreateProductPage(): ReactElement {
   const isEditMode = !!productId;
 
   const { data: existingProduct, isLoading: productLoading } = useQuery({
-    queryKey: queryKeys.products.withInventory(productId ?? 0),
-    queryFn: () => api.products.getWithInventory(productId ?? 0),
+    queryKey: queryKeys.products.withInventory(productId ?? ''),
+    queryFn: () => api.products.getWithInventory(productId ?? ''),
     enabled: isEditMode,
     staleTime: 0,
   });
@@ -158,6 +170,43 @@ export default function CreateProductPage(): ReactElement {
 
   const form = useProductForm(initialFields, initialImages);
 
+  // The payload the saved product would produce — the reference edit mode diffs
+  // against so a save touches only the fields the seller actually changed.
+  const baselinePayload = useMemo(() => {
+    if (!isEditMode || !initialFields) return undefined;
+    return buildProductPayload(
+      { ...DEFAULT_FIELDS, ...initialFields },
+      (initialImages ?? []).map(img => img.url),
+    );
+  }, [isEditMode, initialFields, initialImages]);
+
+  // Advisory duplicate-image check on new listings (AI-02F3). Runs on the first
+  // image of each uploaded batch (rate-limited endpoint), create mode only.
+  // Errors stay silent — the check must never get in the seller's way.
+  const [dupDismissed, setDupDismissed] = useState(false);
+  const [dupCheckedUrl, setDupCheckedUrl] = useState<string | null>(null);
+  const dupCheck = useMutation({
+    mutationFn: (imageUrl: string) => api.products.checkRiskDuplicate(imageUrl),
+  });
+
+  const handleAddImages = async (files: File[], userId: string): Promise<ImageItem[]> => {
+    const uploaded = await form.addImages(files, userId);
+    if (!isEditMode && uploaded.length > 0) {
+      setDupDismissed(false);
+      setDupCheckedUrl(uploaded[0].url);
+      dupCheck.mutate(uploaded[0].url);
+    }
+    return uploaded;
+  };
+
+  // Advisory catalog price hint (AI-01) — null until a category is picked and
+  // the catalog has enough samples.
+  const priceSuggestion = usePriceSuggestion(
+    form.fields.categoryIds,
+    form.fields.brandId,
+    form.fields.condition,
+  );
+
   // SKU combinations that exist on the saved product — used to warn before a
   // destructive edit removes any of them (they may be referenced by orders/carts).
   const originalTierIdx = useMemo(
@@ -166,7 +215,9 @@ export default function CreateProductPage(): ReactElement {
   );
 
   const clearImagesRef = useRef(form.clearImages);
-  clearImagesRef.current = form.clearImages;
+  useEffect(() => {
+    clearImagesRef.current = form.clearImages;
+  }, [form.clearImages]);
 
   // Delete orphaned Cloudinary images if user leaves without submitting
   useEffect(() => {
@@ -180,16 +231,17 @@ export default function CreateProductPage(): ReactElement {
   }, []);
 
   const { mutateAsync, isPending } = useMutation({
-    mutationFn: async (dto: CreateProductDto) => {
-      if (isEditMode && productId) {
-        return api.products.update(productId, dto);
+    mutationFn: async (vars: SubmitVars) => {
+      if (vars.kind === 'edit') {
+        return api.products.update(productId ?? '', vars.patch);
       }
+      const dto = vars.dto;
       const created = await api.products.create(dto);
       // Simple products get no inventory row from the backend, so they'd hit
       // "Insufficient stock" on purchase. Seed one from the form's stock value.
       const isVariation = (dto.variations?.length ?? 0) > 0;
       if (!isVariation && (dto.stockQuantity ?? 0) > 0) {
-        await persistSimpleStock(Number(created.id), dto.sku, dto.stockQuantity ?? 0);
+        await persistSimpleStock(created.id, dto.sku, dto.stockQuantity ?? 0);
       }
       return created;
     },
@@ -197,28 +249,27 @@ export default function CreateProductPage(): ReactElement {
       void queryClient.invalidateQueries({ queryKey: queryKeys.products.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.inventory.byProduct(Number(p.id)),
+        queryKey: queryKeys.inventory.byProduct(p.id),
       });
       // Edit mode: make the detail/with-inventory views reflect the changes.
-      void queryClient.invalidateQueries({ queryKey: queryKeys.products.detail(Number(p.id)) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.products.detail(p.id) });
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.products.withInventory(Number(p.id)),
+        queryKey: queryKeys.products.withInventory(p.id),
       });
       setSubmitSuccess(true);
       timerRef.current = setTimeout(() => navigate(`/product/${p.id}`), 1200);
     },
     onError: (e: unknown) => {
-      const err = e as ApiError;
-      // Product create rejects with 409 only for a duplicate SKU.
-      if (!isEditMode && err.status === 409) {
-        form.setFieldError('sku', 'SKU đã tồn tại');
+      // A duplicate-SKU 409 belongs on the SKU field in BOTH modes — edit mode
+      // used to fall through to the stock message, which named the wrong field.
+      const { field, message } = productSubmitError(e, isEditMode ? 'edit' : 'create');
+      if (field === 'sku') {
+        form.setFieldError('sku', message);
         return;
       }
       // Any other failure (notably stock persistence) means the listing is not
       // reliably saved — surface it instead of reporting a false success.
-      setSubmitError(
-        'Không thể lưu tồn kho cho sản phẩm. Vui lòng thử lại hoặc cập nhật số lượng kho sau.',
-      );
+      setSubmitError(message);
     },
   });
 
@@ -245,24 +296,25 @@ export default function CreateProductPage(): ReactElement {
 
     const payload = form.buildPayload();
     if (draftMode) payload.isActive = false;
-    await mutateAsync(payload);
+
+    if (isEditMode && baselinePayload) {
+      // PATCH only what moved (backend 2026-08-02): sending the whole form is
+      // what lets a second tab's save revert an unrelated field back to the
+      // value its form was hydrated with.
+      const patch = dirtyProductPatch(baselinePayload, payload);
+      if (Object.keys(patch).length === 0) {
+        void navigate(`/product/${productId}`);
+        return;
+      }
+      await mutateAsync({ kind: 'edit', patch });
+      return;
+    }
+
+    await mutateAsync({ kind: 'create', dto: payload });
   }
 
-  const isReady =
-    form.fields.name.trim() !== '' &&
-    form.fields.sku.trim() !== '' &&
-    form.fields.categoryIds.length > 0 &&
-    (form.fields.hasVariations ||
-      (!!form.fields.singlePrice && Number(form.fields.singlePrice) > 0));
-
-  const missingItems = [
-    !form.fields.name.trim() && 'tên',
-    form.fields.categoryIds.length === 0 && 'danh mục',
-    !form.fields.sku.trim() && 'SKU',
-    !form.fields.hasVariations &&
-      (!form.fields.singlePrice || Number(form.fields.singlePrice) <= 0) &&
-      'giá',
-  ].filter((x): x is string => typeof x === 'string');
+  const missingItems = missingFields(form.fields);
+  const isReady = missingItems.length === 0;
 
   if (isEditMode && (productLoading || !existingProduct)) {
     return (
@@ -301,9 +353,9 @@ export default function CreateProductPage(): ReactElement {
           <BasicInfoSection
             images={form.images}
             uploadState={form.uploadState}
-            onAddImages={form.addImages}
+            onAddImages={handleAddImages}
             onRemoveImage={form.removeImage}
-            userId={currentUser?.id ?? 0}
+            userId={currentUser?.id ?? ''}
             name={form.fields.name}
             description={form.fields.description}
             sku={form.fields.sku}
@@ -331,6 +383,16 @@ export default function CreateProductPage(): ReactElement {
             onConditionChange={v => form.setField('condition', v)}
           />
 
+          <DuplicateWarningHint
+            warning={duplicateWarningView(
+              dupCheck.data,
+              dupCheckedUrl,
+              form.images.map(img => img.url),
+              dupDismissed,
+            )}
+            onDismiss={() => setDupDismissed(true)}
+          />
+
           {/* Section 03: Sales */}
           <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
             <SectionHeader
@@ -349,6 +411,14 @@ export default function CreateProductPage(): ReactElement {
             />
 
             <div className="p-6 flex flex-col gap-5">
+              <PriceSuggestionHint
+                suggestion={priceSuggestion}
+                onApply={median =>
+                  form.fields.hasVariations
+                    ? form.applyAllRows('price', String(median))
+                    : form.setField('singlePrice', String(median))
+                }
+              />
               {!form.fields.hasVariations ? (
                 <div className="grid sm:grid-cols-2 gap-5">
                   <div className="flex flex-col gap-1.5">

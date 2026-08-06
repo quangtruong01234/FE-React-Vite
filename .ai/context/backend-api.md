@@ -2,9 +2,18 @@
 
 > **Frontend dev**: use `.ai/api-reference.md` for the FE `api` object contract. This file documents raw backend endpoints, query params, and shapes — read it when you need the full endpoint detail that isn't exposed via the `api` object yet.
 
+> **Scope rule (2026-08-04, D2) — read before adding to this file.** Depth goes into
+> **[Common Types](#common-types)**, which pays off across all ~60 endpoints. Per-endpoint sections
+> stay at the level they are: path, params, shape, notable status codes. Do **not** add prose,
+> rationale, or FE usage examples per endpoint — that is what makes this file unreadable, and it
+> belongs in `.ai/api-reference.md` (FE `api` contract) or `.ai/context/domain.md` (business rules).
+> If you are about to paste the same caveat under three endpoints, it is a Common Types entry.
+
+> **PUBID override (2026-07-17):** numeric ID examples below are historical for converted domains. User, product, order, address, notification, return-request, post, comment/reply, conversation, and message IDs—and their converted-domain foreign keys—are opaque prefixed strings (`usr_`, `prod_`, `ord_`, `addr_`, `ntf_`, `rr_`, `post_`, `cmt_`, `conv_`, `msg_`). Converted routes/DTOs reject numeric forms. Catalog, SKU, cart-row, inventory-row, and GHN IDs remain numeric.
+
 ## Contents
 
-- [Base](#base) · [Common Types](#common-types) (envelope · `PaginatedResponse<T>` · errors · enums)
+- [Base](#base) · [Common Types](#common-types) (envelope · `PaginatedResponse<T>` · **errors + status taxonomy** · **pagination caps** · **what "optional" means** · enums)
 - [1. Auth & User](#1-auth--user) — register · login · logout · `/user/me` · `/user/:id` · PATCH · `/user/all`
 - [2. Product](#2-product) — CRUD · search · brands · categories · SKU · with-inventory · stock-check
 - [3. Order](#3-order) — create · admin list · by id · by user · status-counts · cancel · invoice · payment-url
@@ -76,12 +85,100 @@ For paginated endpoints, the `ResponseInterceptor` envelope wraps the entire `Pa
 }
 ```
 
+#### What FE actually receives — `ApiError`, not the body above
+
+`request()` (`src/api/client.ts:33-36`) does **not** hand you that body. It builds:
+
+```ts
+{ statusCode: res.status, status: res.status, message: err.message ?? res.statusText }
+```
+
+Two traps follow, both real:
+
+- **`status` is a `number` in FE, a `string` in the wire body.** `ApiError.status` is `res.status`
+  (e.g. `404`); the raw body's `status` is the literal `"error"`. Never write
+  `if (err.status === 'error')`.
+- **`message` is typed `string` but is not always one.** NestJS `ValidationPipe` returns
+  `message: string[]` for validation failures, and `request()` assigns it through unchecked.
+  Callers already defend against this by hand — `postModeration.ts:74` and `productRisk.ts:69`
+  both guard `typeof err?.message === 'string'`, `AddressFormModal.tsx:250` wraps in `String(...)`.
+  **Do the same in new code**; rendering the raw value puts `[object Object]` or a comma-joined
+  blob in front of the user.
+
+Everything else in the wire body (`error`, `path`, `method`, `timestamp`) is **discarded** — if you
+need it, you must change `request()`, not read it off the thrown error.
+
+#### Status taxonomy as this app uses it
+
+`ApiErrorState` (`src/components/shared/ApiErrorState.tsx:34-44`) maps these and only these:
+
+| Status | Meaning here | FE behaviour |
+|---|---|---|
+| `0` | Network failure / server unreachable | Offline state — not a server response |
+| `401` | Session expired | `request()` auto-redirects to `/login` unless `skipUnauthorizedRedirect` |
+| `403` | Authenticated but wrong role | No redirect — role gates are route-level |
+| `404` | Missing or deleted | — |
+| `409` | Conflict / duplicate | Idempotent checkout, duplicate brand/category proposals |
+| `422` | Validation failed | The `message: string[]` case above |
+| `429` | Rate limited | Countdown parsed **out of the message text** (`parseRetrySeconds`), not a header |
+| `502` | Gateway → upstream service failed | e.g. Cloudinary auth/quota on `DELETE /upload/media` |
+| `503` | Load-shed (SCALE-05) | `request()` **auto-retries once** after `Retry-After` (capped 5s, default 2s) |
+
+A status outside this table renders the generic error card with no tips. `400` in particular is
+**not** mapped — it is the most common failure here (`limit > 100`, oversized batch, malformed
+DTO) and it surfaces bare, so prefer preventing it client-side.
+
+### Pagination — conventions and hard caps
+
+Every paginated endpoint returns `PaginatedResponse<T>` (above). Beyond the shape:
+
+- **`page` is 1-indexed.** There is no page 0.
+- **`limit` is capped at 100.** `limit=200` returns **`400`**, it does not silently clamp — this
+  burned the wishlist membership fetch once. Need more than 100 rows? Loop pages; see
+  `src/features/wishlist/wishlistCache.ts` (`WISHLIST_ID_PAGE_SIZE = 100`).
+- **Batch-by-id endpoints cap at 50 ids** (`POST /products/with-inventory/multiple`), also `400`
+  over the limit. `src/api/products.ts` dedupes + `chunk()`s at `MAX_BATCH_PRODUCT_IDS = 50`.
+- **Trust `totalPages` / `hasNext`**, don't recompute from `total` — the backend already applies
+  the `|| 1` floor for empty result sets.
+- **Empty params are dropped, not sent.** `toQuery()` (`src/api/client.ts:47-51`) filters out
+  `undefined`, `null` **and `''`**. Clearing a filter therefore works by design; sending an
+  intentional empty-string value is impossible.
+- **Status counts are not page-scoped.** `GET /order/user/:id/status-counts` counts full history,
+  so it will not agree with the length of the current page. That is correct **for the badge** —
+  but it is a trap for the list next to it: `GET /order/user/:id` takes **no `status` param**
+  (unlike the seller list), so any per-status filtering happens client-side over the loaded pages
+  only. Badge says "(1)", list says "không có đơn nào". Either hold the full history before
+  filtering (`src/features/order/orderHistoryPaging.ts`) or don't show a count you can't back up.
+
+### Reading "optional" in this file
+
+Three different things get written as optional; they are not interchangeable:
+
+| In a **request** DTO | Meaning |
+|---|---|
+| Field absent | Backend applies its default — e.g. omitting `sku` on product/inventory create provisions `PROD-<productId>` |
+| Field `null` | Explicit clear (where the column is nullable) |
+| Unknown field | **Silently stripped.** The gateway runs `ValidationPipe({ whitelist: true })`, so a typo'd param vanishes and the call still returns `200` with an unfiltered result. Verify new params against a network log, never against the UI |
+
+| In a **response** | Meaning |
+|---|---|
+| `T \| null` | Field exists, value genuinely absent (`ghnOrderCode`, `codAmount`, `productId` on a deleted product) |
+| Field missing entirely | Older record or an endpoint variant — narrow before use, `strict` will not save you because the type claims it is there |
+| `DECIMAL` columns | May arrive as **strings** (`"50000.00"`). `Number()` them at the boundary before any arithmetic or comparison |
+
 ### Enums
 
-**OrderStatus**
+**OrderStatus** — 9 values (verified against `src/types/order.ts:20-29`, 2026-08-04)
 ```
-pending | processing | shipped | delivering | completed | canceled
+pending | confirmed | processing | shipped | delivering | completed | canceled
+| return_requested | refunded
 ```
+
+> ⚠️ This list previously showed only 6 — `confirmed`, `return_requested` and `refunded` were
+> missing, so any agent trusting it would have written a non-exhaustive `switch`. Per-status
+> labels/badges/grouping live in **`src/lib/domain/orderStatus.ts`** (`ORDER_STATUS_META`) — that
+> file is the FE source of truth; **don't hardcode a status list anywhere else.**
+> Who may drive each transition → `.ai/context/domain.md`.
 
 **PaymentMethod**
 ```
@@ -539,6 +636,10 @@ Params: `id` (string, user ID) [required]
 Query:
 - `page` (number, default 1) [optional]
 - `limit` (number, 1–100, default 10) [optional]
+- **Không có `status`.** `GetOrdersByUserQueryDto` chỉ khai báo 2 param trên; gửi `status=` sẽ bị
+  `ValidationPipe({ whitelist: true })` nuốt im lặng và vẫn trả 200 với list **chưa lọc**. Danh
+  sách seller (`GET /order/seller/orders`) thì có — đừng suy từ bên kia sang. Đã ghi vào
+  `backend-handoff.md` (Open 2026-08-04).
 
 Response 200: `PaginatedResponse<Order>`
 

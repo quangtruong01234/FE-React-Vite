@@ -1,13 +1,13 @@
 # /check-perf — Static Performance Anti-Pattern Scan
 
-Scan `frontend/src/` for high-confidence performance smells. Report only — NEVER auto-fix (perf fixes are easy to over-apply; the developer decides). Mirrors `/check-tailwind`.
+Scan `src/` for high-confidence performance smells. Report only — NEVER auto-fix (perf fixes are easy to over-apply; the developer decides). Mirrors `/check-tailwind`.
 
 > Rule source: `.ai/context/performance.md`. This command catches only what is grep-detectable. Real performance must be MEASURED — see "What this cannot catch" at the end.
 
 ## How to invoke
 
 ```
-/check-perf                  # scan all of frontend/src/
+/check-perf                  # scan all of src/
 /check-perf <file-or-folder> # scan a specific path
 ```
 
@@ -19,7 +19,7 @@ Whole-lib import kills tree-shaking. Must be per-method.
 
 ```
 Pattern: import\s+(\*\s+as\s+)?_\s+from\s+['"]lodash['"]
-Scope: frontend/src/**/*.{ts,tsx}
+Scope: src/**/*.{ts,tsx}
 Fix: import debounce from 'lodash/debounce'
 ```
 
@@ -29,7 +29,7 @@ A new value object every render re-renders every consumer.
 
 ```
 Pattern: value=\{\{
-Scope: frontend/src/context/**/*.tsx
+Scope: src/context/**/*.tsx
 Note: flag if the object literal is not wrapped in useMemo. Manual confirm.
 ```
 
@@ -39,7 +39,7 @@ Unstable for dynamic/reorderable lists. OK for static lists — confirm manually
 
 ```
 Pattern: key=\{(i|idx|index)\}
-Scope: frontend/src/**/*.tsx
+Scope: src/**/*.tsx
 ```
 
 ### Check 4 — nested search inside .map (🟡 yellow)
@@ -48,7 +48,7 @@ O(n\*m) — build a Map/Set lookup once instead.
 
 ```
 Pattern: \.map\([^)]*\).*\.(find|filter|findIndex|some)\(
-Scope: frontend/src/**/*.tsx
+Scope: src/**/*.tsx
 Limitation: only catches single-line cases. Multi-line .map blocks are missed — eyeball list-rendering hooks manually.
 ```
 
@@ -58,7 +58,7 @@ Missing width/height causes layout shift (CLS).
 
 ```
 Pattern: <img\s   (flag lines that do NOT contain both width= and height=, or an aspect-ratio class)
-Scope: frontend/src/**/*.tsx
+Scope: src/**/*.tsx
 ```
 
 ### Check 6 — route-level page not lazy-loaded (ℹ️ info)
@@ -66,7 +66,7 @@ Scope: frontend/src/**/*.tsx
 In router.tsx, page components imported statically instead of via React.lazy.
 
 ```
-Scope: frontend/src/router.tsx
+Scope: src/router.tsx
 Note: info only — small apps may intentionally skip lazy-loading. Flag, don't pressure.
 ```
 
@@ -74,7 +74,7 @@ Note: info only — small apps may intentionally skip lazy-loading. Flag, don't 
 
 ```
 [🔴 VIOLATION] src/utils/foo.ts:3 — whole-lib lodash import (use lodash/<method>)
-[🟡 WARN]      src/context/CartContext.tsx:22 — value={{...}} not memoized
+[🟡 WARN]      src/context/AuthContext.tsx:22 — value={{...}} not memoized
 [🟡 WARN]      src/features/order/OrderList.tsx:40 — key={index} on dynamic list
 [ℹ️ INFO]      src/router.tsx:8 — OrderHistoryPage imported statically (consider React.lazy)
 ```
@@ -82,7 +82,7 @@ Note: info only — small apps may intentionally skip lazy-loading. Flag, don't 
 If clean:
 
 ```
-[✅ CLEAN] No static performance anti-patterns found in frontend/src/
+[✅ CLEAN] No static performance anti-patterns found in src/
 ```
 
 ## Summary (always end with this)
@@ -108,7 +108,3 @@ If clean:
 - **O(n²) that only bites at scale** → reason about real data size; grep can't see runtime n.
 
 > Do NOT recommend useMemo/useCallback/React.memo from this scan alone. Recommend them only after a Profiler trace shows a real re-render cost. Otherwise you violate the "don't optimize speculatively" rule in `.ai/context/performance.md`.
-
----
-
-**Model:** Sonnet 4.6 | **Effort:** Low

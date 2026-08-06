@@ -1,4 +1,4 @@
-import type { ProductSku } from '@/types';
+import type { ProductSku, Variation } from '@/types';
 
 /**
  * A SKU is structurally valid only when its tier count matches the number of
@@ -39,6 +39,29 @@ export function findMatchingSku(
  * option (the combination does not exist → the option must be disabled before
  * the user can click it).
  */
+/**
+ * Initial tier selection for a product detail view: per tier, the first option
+ * offered by at least one valid, in-stock SKU. A tier with no in-stock option
+ * stays unselected, so malformed products (no valid SKU) return an empty
+ * selection and nothing is preselected.
+ */
+export function defaultTierSelection(
+  variations: Variation[] | undefined,
+  skus: ProductSku[] | undefined,
+): Record<number, number> {
+  const tiers = variations ?? [];
+  if (!tiers.length) return {};
+  const valid = getValidSkus(skus, tiers.length);
+  const defaults: Record<number, number> = {};
+  tiers.forEach((variation, tier) => {
+    const firstAvailable = variation.options.findIndex((_, optIdx) =>
+      valid.some((s) => s.tierIdx[tier] === optIdx && s.stockQuantity > 0),
+    );
+    if (firstAvailable >= 0) defaults[tier] = firstAvailable;
+  });
+  return defaults;
+}
+
 export function getOptionStock(
   validSkus: ProductSku[],
   tier: number,

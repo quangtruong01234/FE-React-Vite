@@ -15,13 +15,13 @@ describe('normalizeVoucherCode', () => {
 
 describe('distinctSellerCount', () => {
   it('counts distinct seller ids', () => {
-    expect(distinctSellerCount([1, 1, 2])).toBe(2);
-    expect(distinctSellerCount([7, 7])).toBe(1);
+    expect(distinctSellerCount(['usr_1', 'usr_1', 'usr_2'])).toBe(2);
+    expect(distinctSellerCount(['usr_7', 'usr_7'])).toBe(1);
     expect(distinctSellerCount([])).toBe(0);
   });
 
   it('ignores items whose product has not loaded yet', () => {
-    expect(distinctSellerCount([1, undefined, 1])).toBe(1);
+    expect(distinctSellerCount(['usr_1', undefined, 'usr_1'])).toBe(1);
     expect(distinctSellerCount([undefined])).toBe(0);
   });
 });

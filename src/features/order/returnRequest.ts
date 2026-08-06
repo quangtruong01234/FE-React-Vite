@@ -31,7 +31,7 @@ export function hasReturnActivity(status: OrderStatus): boolean {
  */
 export function findReturnRequestForOrder(
   requests: ReturnRequest[],
-  orderId: number,
+  orderId: string,
 ): ReturnRequest | null {
   return requests.find((r) => r.orderId === orderId) ?? null;
 }

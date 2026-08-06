@@ -127,7 +127,7 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
 
         <div className="tb-enter tb-stagger flex flex-col gap-[14px]">
           {apiError && (
-            <div className="bg-red-950/40 border border-tb-red/40 rounded-tb-input text-tb-red text-[13px] px-[14px] py-[10px] text-center">
+            <div className="bg-tb-red/10 border border-tb-red/40 rounded-tb-input text-tb-red text-[13px] px-[14px] py-[10px] text-center">
               {apiError}
             </div>
           )}

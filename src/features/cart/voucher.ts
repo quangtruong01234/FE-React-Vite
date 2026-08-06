@@ -18,8 +18,8 @@ export function normalizeVoucherCode(raw: string): string {
  * Distinct sellers in the basket, ignoring items whose product hasn't loaded
  * yet (unknown seller must not flip the single-seller guard on/off mid-load).
  */
-export function distinctSellerCount(sellerIds: Array<number | undefined>): number {
-  return new Set(sellerIds.filter((id): id is number => id != null)).size;
+export function distinctSellerCount(sellerIds: Array<string | undefined>): number {
+  return new Set(sellerIds.filter((id): id is string => id != null)).size;
 }
 
 /** Backend computes `total = itemsTotal - discount + shippingFee`; mirror it for the preview. */

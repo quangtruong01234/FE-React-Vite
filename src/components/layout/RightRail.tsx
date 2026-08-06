@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Store, TrendingUp, BadgeCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/format/utils';
+import { cldImage } from '@/lib/http/cloudinaryUrl';
 import { Avatar } from '@/components/shared/Avatar';
 import { PriceText } from '@/components/shared/PriceText';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -102,7 +103,7 @@ export function RightRail(): ReactElement {
               className="flex items-center gap-3 px-2 py-2 rounded-[10px] hover:bg-canvas-elevated transition-colors"
             >
               <img
-                src={p.imageUrl ?? 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&q=80&w=100'}
+                src={cldImage(p.imageUrl ?? 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&q=80&w=100', 96)}
                 alt={p.name}
                 width={44}
                 height={44}

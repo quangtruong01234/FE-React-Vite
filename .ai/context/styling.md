@@ -13,12 +13,12 @@
 - No arbitrary spacing/sizing (`w-[437px]`) — use the Tailwind scale
 - Fonts: `font-display` / `font-body` / `font-mono` — never bare `font-sans`
 - Border-radius: `rounded-tb-*` tokens
-- Conditional classes: `cn()` from `lib/utils.ts`
+- Conditional classes: `cn()` from `lib/format/utils.ts`
 
 ## cn() helper
 
 ```tsx
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/format/utils';
 
 // ✅
 <div className={cn('rounded-tb-card p-4', isActive && 'border border-tb-border')} />
@@ -76,8 +76,28 @@ Nút icon `<button>` sized (`size-*`) **BẮT BUỘC** dùng `<IconButton>` (`sr
 - Single-line trong khối có height: dùng `flex items-center` / `grid place-items-center` — KHÔNG hack `leading-*` cho vừa khít.
 - Icon + text trong 1 hàng: `inline-flex items-center gap-*`, icon thêm `shrink-0`.
 
+## Icon container — bảng quyết định
+
+| Element | Pattern | Ví dụ |
+|---|---|---|
+| `<button>` sized icon-only | `<IconButton className="size-* …">` (tự có `p-0 grid place-items-center type="button"`) | `<IconButton className="size-8 rounded-full hover:bg-canvas-elevated text-ink-sec transition-colors shrink-0">` |
+| `<button>` padded nav (Header, NotificationBell) — KHÔNG `size-*` | raw `<button className="p-* grid place-items-center">` | `<button className="p-2.5 rounded-[10px] grid place-items-center">` |
+| `<span>` / `<Link>` icon container (LeftRail, notification item) | `size-* grid place-items-center` (không cần `p-0`) | `<span className="size-9 grid place-items-center rounded-tb-ghost">` |
+
+- ❌ NEVER `w-* h-*` + `flex items-center justify-center` trên **bất kỳ** icon container nào.
+- ✅ ALWAYS `shrink-0` trên **mọi** Lucide icon — button, span, link, dropdown, tất cả.
+- ✅ ALWAYS `size={n}` dạng **number**, không bao giờ `size="n"` dạng string.
+- Reuse icon container pattern có sẵn — không tự chế pattern mới.
+
 ### Trước khi đóng task UI (self-check)
 
+- Sized icon `<button>` dùng `<IconButton className="size-* …">` — không phải raw `<button>` + `p-0 grid`
+- Padded nav `<button>` (Header) dùng raw `<button className="p-* grid place-items-center">`
+- `<span>` / `<Link>` icon container dùng `size-* grid place-items-center`
+- Không còn `w-* h-* flex items-center justify-center` trên icon container nào
+- Mọi Lucide icon có `shrink-0` + `size={n}` (number)
+- Dùng design token có sẵn, reuse component pattern có sẵn (thứ tự tra cứu `ui/` → `shared/` → feature → tạo mới, xem core.md)
+- Không thêm tổ hợp Tailwind tự chế không cần thiết
 - Mở element thật bằng MCP, đọc box model: nút icon tròn phải `width === height`.
 - So `git diff` để chắc không thêm border / ring / padding ngoài scope.
 
@@ -110,4 +130,9 @@ Available: `button`, `badge`, `card`, `dialog`, `input`, `label`, `select`, `sep
 
 ## Known violations — do not repeat
 
-See `.ai/tokens.md` → "Known Violations" table. Summary: `ProductListPage.tsx` and `LoginPage.tsx` have hardcoded hex that should be tokens; `Avatar.tsx` `style={{}}` is a deliberate exception.
+`src/` currently has **zero** hardcoded hex (`[#...]`) — keep it that way.
+
+The only sanctioned `style={{}}` usages are dynamic values that cannot be expressed as a
+static utility class (`Avatar.tsx` sizing, progress-bar widths, chart colors). See
+`.ai/workflows/check-tailwind.md` Check 1 for the exact allow-list and the preferred
+CSS-custom-property form.

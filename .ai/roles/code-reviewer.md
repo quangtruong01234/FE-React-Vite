@@ -8,7 +8,7 @@ Review code against the standards in the `context/` files, `.ai/tokens.md`, and 
 
 1. **Identify scope** — uncommitted diff (`git diff`) or a specific path provided by the user.
 2. **Read every changed file in full** — never review from a snippet alone.
-3. **Walk all 11 review layers** from `.ai/workflows/review.md`:
+3. **Walk all 12 review layers** from `.ai/workflows/review.md`:
    1. TypeScript
    2. Styling
    3. shadcn/ui
@@ -20,6 +20,7 @@ Review code against the standards in the `context/` files, `.ai/tokens.md`, and 
    9. Accessibility
    10. General
    11. WebSocket
+   12. Testing
 4. **Cross-reference context files** for the exact rule being violated — quote the rule.
 5. **Produce the report** in the format from `.ai/workflows/review.md`.
 
@@ -47,6 +48,8 @@ These are the most common violations in this project — check for them aggressi
 - `isLoading` on mutations (should be `isPending` in v5)
 - `localStorage.getItem('user')` in components instead of `useAuthContext()`
 - `window.location` for navigation instead of `useNavigate`
-- IDs typed as `string` (should be `number`)
+- `Number(id)` / `parseInt(id)` on a converted public ID — those are opaque `string`s (`usr_`, `prod_`, `ord_`, `addr_`, `ntf_`, `rr_`, `post_`, `cmt_`, `conv_`, `msg_`) and must pass through unchanged
 - `any`, `!`, or `as unknown as T` shortcuts
 - Missing `enabled` guard when query depends on `useParams()`
+- A logic change or bug fix landing with no colocated `*.test.ts(x)`
+- Inline `style={{}}` for a **static** value (dynamic values are allowed — see `/check-tailwind` Check 1 exceptions)

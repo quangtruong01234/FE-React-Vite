@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Search } from 'lucide-react';
 import { useAuthContext } from '@/context/AuthContext';
@@ -6,6 +6,7 @@ import { useOrdersByUser } from './useOrdersByUser';
 import { useOrderStatusCounts } from './useOrderStatusCounts';
 import { orderItemsSummary, orderCoverImage } from './orderSummary';
 import { orderFilterCounts, type OrderFilterKey } from './orderFilterCounts';
+import { narrowsHistory, isHistoryIncomplete } from './orderHistoryPaging';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ProductThumb } from '@/components/shared/ProductThumb';
 import type { Order } from '@/types';
@@ -27,7 +28,7 @@ export default function OrderHistoryPage(): ReactElement {
   const { currentUser } = useAuthContext();
   // Hooks must run unconditionally — derive a safe id and gate the render below.
   // `useOrdersByUser` no-ops while `userId <= 0` (its `enabled` guard).
-  const userId = currentUser?.id ?? 0;
+  const userId = currentUser?.id ?? '';
 
   const [filterTab, setFilterTab] = useState<OrderFilterKey>('all');
   const [search, setSearch] = useState('');
@@ -54,6 +55,16 @@ export default function OrderHistoryPage(): ReactElement {
     : null;
 
   const counts = orderFilterCounts(statusCounts);
+
+  // Tab badges count the full history server-side; the list below filters only
+  // the pages loaded so far. Any narrowed view must therefore pull the rest of
+  // the history before its result set means anything — see `orderHistoryPaging`.
+  const narrowed = narrowsHistory(filterTab, search);
+  const incomplete = isHistoryIncomplete(filterTab, search, hasNextPage);
+
+  useEffect(() => {
+    if (incomplete && !isFetchingNextPage) void fetchNextPage();
+  }, [incomplete, isFetchingNextPage, fetchNextPage]);
 
   const filteredOrders = (() => {
     const byTab =
@@ -84,7 +95,7 @@ export default function OrderHistoryPage(): ReactElement {
 
       <div className="max-w-[900px] mx-auto px-8 pt-8 pb-10">
         {/* Page title */}
-        <h1 className="font-display font-black text-[36px] leading-[1.05] tracking-[-0.02em] text-white m-0 mb-1">
+        <h1 className="font-display font-black text-[36px] leading-[1.05] tracking-[-0.02em] text-ink-pri m-0 mb-1">
           Đơn hàng của tôi
         </h1>
         <p className="font-body text-sm text-ink-sec mt-0 mb-7">
@@ -95,7 +106,7 @@ export default function OrderHistoryPage(): ReactElement {
         </p>
 
         {errorMsg && (
-          <div className="bg-red-950/30 border border-accent-red text-accent-red px-4 py-3 rounded-xl mb-6 text-sm">
+          <div className="bg-tb-red/10 border border-accent-red text-accent-red px-4 py-3 rounded-xl mb-6 text-sm">
             {errorMsg}
           </div>
         )}
@@ -111,7 +122,7 @@ export default function OrderHistoryPage(): ReactElement {
                   type="button"
                   onClick={() => setFilterTab(opt.id)}
                   className={cn(
-                    'flex-none px-[18px] py-[10px] rounded-full text-white font-body font-semibold text-[13px] cursor-pointer whitespace-nowrap border',
+                    'flex-none px-[18px] py-[10px] rounded-full text-ink-pri font-body font-semibold text-[13px] cursor-pointer whitespace-nowrap border',
                     active ? 'bg-tb-gradient border-transparent' : 'bg-tb-elevated border-tb-border',
                   )}
                 >
@@ -127,7 +138,7 @@ export default function OrderHistoryPage(): ReactElement {
               placeholder="Tìm theo mã đơn…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-tb-elevated border border-tb-border rounded-[10px] py-[10px] pl-[40px] pr-[14px] text-white font-body text-[13px] placeholder:text-tb-muted outline-none focus:border-amber-400/50 transition-colors"
+              className="w-full bg-tb-elevated border border-tb-border rounded-[10px] py-[10px] pl-[40px] pr-[14px] text-ink-pri font-body text-[13px] placeholder:text-tb-muted outline-none focus:border-tb-amber/50 transition-colors"
             />
           </div>
         </div>
@@ -150,8 +161,15 @@ export default function OrderHistoryPage(): ReactElement {
           </div>
         )}
 
+        {/* Still pulling pages that could match — an empty list would be a lie */}
+        {!loading && !errorMsg && filteredOrders.length === 0 && incomplete && (
+          <div className="bg-canvas-surface border border-bdr rounded-xl py-[60px] px-6 text-center">
+            <p className="font-body text-sm text-ink-sec m-0">Đang tải thêm đơn hàng…</p>
+          </div>
+        )}
+
         {/* Empty state */}
-        {!loading && !errorMsg && filteredOrders.length === 0 && (
+        {!loading && !errorMsg && filteredOrders.length === 0 && !incomplete && (
           <div className="bg-canvas-surface border border-bdr rounded-xl py-[60px] px-6 text-center">
             <p className="font-body text-sm text-ink-sec m-0">
               {filterTab === 'all' ? 'Bạn chưa có đơn hàng nào' : 'Không có đơn hàng nào trong mục này'}
@@ -176,7 +194,7 @@ export default function OrderHistoryPage(): ReactElement {
               <Link
                 key={order.id}
                 to={`/order/${order.id}`}
-                className="bg-canvas-surface border border-bdr rounded-xl overflow-hidden hover:border-amber-400/30 hover:bg-canvas-elevated/40 transition-colors block"
+                className="bg-canvas-surface border border-bdr rounded-xl overflow-hidden hover:border-tb-amber/30 hover:bg-canvas-elevated/40 transition-colors block"
               >
                 <div className="p-5 grid grid-cols-[72px_1fr_auto_auto] gap-6 items-center">
                   {/* Thumbnail */}
@@ -190,7 +208,7 @@ export default function OrderHistoryPage(): ReactElement {
                   {/* Title + meta */}
                   <div className="min-w-0">
                     <div className="flex items-center gap-2.5 mb-1">
-                      <span className="font-mono font-bold text-[13px] text-white">#{order.id}</span>
+                      <span className="font-mono font-bold text-[13px] text-ink-pri">#{order.id}</span>
                       <span className="font-body text-xs text-ink-sec">{formatDateTime(order.createdAt)}</span>
                     </div>
                     <div className="font-body text-sm text-ink-sec truncate">
@@ -210,8 +228,8 @@ export default function OrderHistoryPage(): ReactElement {
               );
             })}
 
-            {/* Load more — server-paginated history */}
-            {hasNextPage && !search.trim() && filterTab === 'all' && (
+            {/* Load more — only on the unfiltered list; a narrowed view auto-pulls above */}
+            {hasNextPage && !narrowed && (
               <button
                 type="button"
                 onClick={() => { void fetchNextPage(); }}

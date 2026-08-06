@@ -1,6 +1,7 @@
 import { type ReactElement } from 'react';
 import type React from 'react';
 import { cn } from '@/lib/format/utils';
+import { cldImage } from '@/lib/http/cloudinaryUrl';
 import { LiveBadge } from './LiveBadge';
 
 interface AvatarProps {
@@ -28,7 +29,11 @@ export function Avatar({
       <div className="rounded-full p-[2px] w-[var(--avatar-sz)] h-[var(--avatar-sz)] bg-tb-gradient">
         <div className="rounded-full p-[2px] w-full h-full bg-tb-base">
           {src ? (
-            <img src={src} alt={alt} className="w-full h-full rounded-full object-cover block" />
+            <img
+              src={cldImage(src, size * 2)}
+              alt={alt}
+              className="w-full h-full rounded-full object-cover block"
+            />
           ) : (
             <div className="w-full h-full rounded-full flex items-center justify-center font-display font-black text-white uppercase bg-canvas-elevated text-[var(--avatar-fs)]">
               {initials ?? alt.charAt(0)}
