@@ -62,7 +62,7 @@ jobs:
 
     steps:
       - name: Checkout the commit CI validated
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # workflow_run checks out the DEFAULT BRANCH HEAD unless told
           # otherwise. Without this ref a deploy would ship whatever landed on
@@ -71,7 +71,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
