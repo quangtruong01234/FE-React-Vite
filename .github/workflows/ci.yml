@@ -58,3 +58,4 @@ jobs:
         # a PR from a fork must never see them. The fallbacks in
         # src/api/client.ts keep this build valid.
         run: npm run build
+
