@@ -1,5 +1,5 @@
 import isEqual from 'lodash/isEqual';
-import type { CreateProductDto } from '@/types';
+import type { ClearableProductField, CreateProductDto, UpdateProductDto } from '@/types';
 
 /**
  * The backend validates `skuList` against the `variations` of the *same*
@@ -10,6 +10,24 @@ import type { CreateProductDto } from '@/types';
 const VARIATION_PAIR = ['variations', 'skuList'] as const;
 
 /**
+ * The only fields `PATCH /products/:id` accepts `null` for (backend 2026-08-07).
+ * Sending `null` for anything else is a hard 400, so an emptied non-clearable
+ * field stays omitted — "leave unchanged" is all the endpoint offers there.
+ */
+const CLEARABLE_FIELDS = new Set<ClearableProductField>([
+  'description',
+  'sku',
+  'brandId',
+  'sellerNotes',
+  'weight',
+  'imageUrls',
+]);
+
+function isClearable(key: keyof CreateProductDto): key is ClearableProductField {
+  return CLEARABLE_FIELDS.has(key as ClearableProductField);
+}
+
+/**
  * Reduces a full product payload to only the fields that differ from the saved
  * product.
  *
@@ -18,20 +36,25 @@ const VARIATION_PAIR = ['variations', 'skuList'] as const;
  * tab's unrelated change back to the value its form was hydrated with. Sending
  * only dirty fields removes it without any locking.
  *
- * Keys whose next value is `undefined` are dropped rather than sent: `JSON`
- * omits them anyway, and PATCH treats an absent key as "leave unchanged" — so
- * clearing an optional field is not expressible through this endpoint today.
+ * A key whose next value is `undefined` means the seller emptied the input.
+ * PATCH reads an absent key as "leave unchanged", so emptying is only
+ * expressible for the six clearable fields, which take an explicit `null`
+ * (backend 2026-08-07). Anything else emptied stays omitted.
  */
 export function dirtyProductPatch(
   baseline: CreateProductDto,
   next: CreateProductDto,
-): Partial<CreateProductDto> {
+): UpdateProductDto {
   const patch: Record<string, unknown> = {};
 
   const keys = new Set([...Object.keys(baseline), ...Object.keys(next)] as (keyof CreateProductDto)[]);
   for (const key of keys) {
     const nextValue = next[key];
-    if (nextValue === undefined) continue;
+    if (nextValue === undefined) {
+      // Only worth clearing if the saved product actually holds a value.
+      if (isClearable(key) && baseline[key] != null) patch[key] = null;
+      continue;
+    }
     if (!isEqual(baseline[key], nextValue)) {
       patch[key] = nextValue;
     }
@@ -46,5 +69,5 @@ export function dirtyProductPatch(
     }
   }
 
-  return patch as Partial<CreateProductDto>;
+  return patch as UpdateProductDto;
 }

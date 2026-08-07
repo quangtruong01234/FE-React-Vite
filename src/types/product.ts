@@ -114,6 +114,27 @@ export interface CreateProductDto {
   skuList?: ProductSkuTier[];
 }
 
+/**
+ * The six product columns `PATCH /products/:id` accepts an explicit `null` for,
+ * meaning "clear this column" (backend 2026-08-07). Every other field REJECTS
+ * `null` with a 400 — omit the key to leave it unchanged.
+ */
+export type ClearableProductField =
+  | 'description'
+  | 'sku'
+  | 'brandId'
+  | 'sellerNotes'
+  | 'weight'
+  | 'imageUrls';
+
+/**
+ * Edit payload for `PATCH /products/:id`: every field optional, and only the
+ * clearable ones may carry `null`. Built by `dirtyProductPatch`.
+ */
+export type UpdateProductDto = Omit<Partial<CreateProductDto>, ClearableProductField> & {
+  [K in ClearableProductField]?: CreateProductDto[K] | null;
+};
+
 // --- Wishlist / favorites (F6) ---
 
 /** A product row returned by `GET /products/wishlist` — the standard product

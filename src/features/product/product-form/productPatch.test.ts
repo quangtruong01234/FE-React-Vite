@@ -67,14 +67,48 @@ describe('dirtyProductPatch', () => {
     expect(patch.variations).toEqual(base.variations);
   });
 
-  it('drops keys whose next value is undefined (PATCH cannot clear a field)', () => {
-    const patch = dirtyProductPatch(saved, { ...saved, description: undefined });
-
-    expect(patch).not.toHaveProperty('description');
-    expect(patch).toEqual({});
-  });
-
   it('picks up a newly added optional field', () => {
     expect(dirtyProductPatch(saved, { ...saved, weight: 850 })).toEqual({ weight: 850 });
+  });
+
+  // Backend 2026-08-07: `null` means "clear this column" — but only for the six
+  // nullable ones. Every other field 400s on `null`.
+  describe('clearing a field the seller emptied', () => {
+    it('sends null for each of the six clearable fields', () => {
+      const base: CreateProductDto = { ...saved, sellerNotes: 'Bảo hành 12 tháng', weight: 850 };
+
+      expect(dirtyProductPatch(base, { ...base, description: undefined })).toEqual({ description: null });
+      expect(dirtyProductPatch(base, { ...base, sku: undefined })).toEqual({ sku: null });
+      expect(dirtyProductPatch(base, { ...base, brandId: null })).toEqual({ brandId: null });
+      expect(dirtyProductPatch(base, { ...base, sellerNotes: undefined })).toEqual({ sellerNotes: null });
+      expect(dirtyProductPatch(base, { ...base, weight: undefined })).toEqual({ weight: null });
+      expect(dirtyProductPatch(base, { ...base, imageUrls: undefined })).toEqual({ imageUrls: null });
+    });
+
+    it('omits a non-clearable field instead of sending null (which would 400)', () => {
+      // `condition` and `stockQuantity` reject null server-side; an emptied one
+      // must stay absent so the save is not rejected outright.
+      const patch = dirtyProductPatch(saved, {
+        ...saved,
+        condition: undefined,
+        stockQuantity: undefined,
+      });
+
+      expect(patch).toEqual({});
+    });
+
+    it('does not clear a field that was already empty on the saved product', () => {
+      const base: CreateProductDto = { ...saved, description: undefined, brandId: null };
+
+      expect(dirtyProductPatch(base, { ...base })).toEqual({});
+    });
+
+    it('still sends nothing when an untouched form is re-submitted', () => {
+      // The empty-patch shortcut in CreateProductPage relies on this: a clear
+      // must never be emitted for a field the seller did not touch.
+      const base: CreateProductDto = { ...saved, sellerNotes: 'Bảo hành 12 tháng', weight: 850 };
+
+      expect(dirtyProductPatch(base, { ...base })).toEqual({});
+    });
   });
 });

@@ -10,7 +10,7 @@ import { useAuthContext } from '@/context/AuthContext';
 import { useRole } from '@/hooks/auth/useRole';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/format/utils';
-import type { ApiError, CreateProductDto } from '@/types';
+import type { ApiError, CreateProductDto, UpdateProductDto } from '@/types';
 import { useProductForm, DEFAULT_FIELDS, buildProductPayload } from './product-form/useProductForm';
 import { makeVarGroup, type ImageItem, type SkuRowState, type VarGroup } from './product-form/useProductForm';
 import { dirtyProductPatch } from './product-form/productPatch';
@@ -62,7 +62,7 @@ async function persistSimpleStock(
 /** Create sends the full DTO; edit sends only the fields that changed. */
 type SubmitVars =
   | { kind: 'create'; dto: CreateProductDto }
-  | { kind: 'edit'; patch: Partial<CreateProductDto> };
+  | { kind: 'edit'; patch: UpdateProductDto };
 
 function SectionHeader({
   num,
@@ -149,6 +149,10 @@ export default function CreateProductPage(): ReactElement {
       isActive: existingProduct.isActive ?? true,
       categoryIds: (existingProduct.categoryIds ?? []).map(Number),
       sellerNotes: existingProduct.sellerNotes ?? '',
+      // Was missing: the input rendered blank on a product that has a weight, so
+      // the seller could neither see nor clear it (an empty box already reads as
+      // "unchanged" to the diff).
+      weight: existingProduct.weight != null ? String(existingProduct.weight) : '',
       hasVariations,
       ...(hasVariations && groups.length > 0 ? { groups } : {}),
       rows,

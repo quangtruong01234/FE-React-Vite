@@ -9,6 +9,7 @@ import type {
   ReviewDto,
   ProductParams,
   CreateProductDto,
+  UpdateProductDto,
   CreateBrandDto,
   CreateCategoryDto,
   WishlistItem,
@@ -101,7 +102,7 @@ export const productsApi = {
   getCategories: (): Promise<Category[]> =>
     request<Category[]>('/products/categories'),
 
-  update: (id: string, data: Partial<CreateProductDto>): Promise<Product> =>
+  update: (id: string, data: UpdateProductDto): Promise<Product> =>
     request<Product>(`/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   delete: (id: string): Promise<void> =>
