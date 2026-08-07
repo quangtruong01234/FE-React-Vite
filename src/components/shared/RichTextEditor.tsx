@@ -3,7 +3,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import CharacterCount from '@tiptap/extension-character-count';
 import { Bold, Italic, List, ListOrdered, ImagePlus, Heading2, Minus } from 'lucide-react';
-import { useRef, useState, type ReactElement, type ChangeEvent } from 'react';
+import { useRef, useState, useEffect, type ReactElement, type ChangeEvent } from 'react';
 import { IconButton } from '@/components/shared/IconButton';
 import { deleteMedia } from '@/lib/http/cloudinary';
 import { cldImage } from '@/lib/http/cloudinaryUrl';
@@ -78,6 +78,19 @@ export function RichTextEditor({ value, onChange, placeholder, userId, onUploadI
       },
     },
   });
+
+  // `content` above only seeds on mount. In edit mode the product query resolves
+  // *after* that, so the editor stayed empty while the form field already held
+  // the saved description — a seller who then touched the editor overwrote the
+  // real text with whatever they typed into the blank box. Re-seed when a value
+  // the editor doesn't already hold arrives; `emitUpdate: false` keeps hydration
+  // from registering as a seller edit (which would dirty the PATCH).
+  useEffect(() => {
+    if (!editor) return;
+    const current = editor.isEmpty ? '' : editor.getHTML();
+    if (value === current) return;
+    editor.commands.setContent(value || '', { emitUpdate: false });
+  }, [editor, value]);
 
   async function handleImageFile(e: ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = e.target.files?.[0];
