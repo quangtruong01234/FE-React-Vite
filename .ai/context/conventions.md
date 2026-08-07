@@ -6,7 +6,7 @@
 - Avoid vague names (`a`, `b`, `data`, `result`, `temp`, `value`, `obj`, `arr`, `list`) unless the scope is very small and the meaning is obvious.
   - **Exception — TanStack Query destructure:** `const { data, isLoading } = useQuery(...)` is the idiomatic v5 shape; the bare `data` is allowed at the call site. Alias it (`data: products`) when passed further down or when multiple queries coexist.
 - `camelCase` for variables and functions; `PascalCase` for React components and TS types/interfaces; `UPPER_SNAKE_CASE` only for module-level constants.
-  - **Exception — backend/external mirror:** keep `snake_case` for type fields that mirror a backend or external-API response verbatim (`created_at`, `public_id`, `rol_name`) — see `core.md`. Do NOT rename these.
+  - **Exception — backend/external mirror:** keep `snake_case` for type fields that mirror a backend or external-API response verbatim (`created_at`, `public_id`) — see `core.md`. Do NOT rename these.
 - Boolean variables must start with `is`, `has`, `can`, `should`, `will`, or `needs`.
 - Arrays use plural names (`orders`, `shipments`, `selectedItems`).
 - Map/record objects include the key relationship (`orderById`, `statusLabelMap`, `permissionsByRole`).

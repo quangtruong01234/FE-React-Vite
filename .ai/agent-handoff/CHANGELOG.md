@@ -7,6 +7,79 @@
 
 ## Maintenance
 
+### BE handoff inbox · null-clear PATCH + `role` reshape + 409 duplicate credential (2026-08-07) — DONE
+
+`/sweep` fix-mode, 2 entry `## Open` của `../.agent-local/frontend-handoff.md`. Gate cuối:
+build ✓ · lint 0 error / 3 warning cũ · **627 test / 91 file ✓** (trước: 614/89). Verify runtime
+bằng Chrome DevTools MCP trên gateway local (`techstore_demo` + `testadmin`), test data khôi
+phục nguyên trạng sau khi đo.
+
+**1 · `PATCH /api/products/:id` — `null` = "xoá field này".** BE mở đúng **6 field**:
+`description`, `sku`, `brandId`, `sellerNotes`, `weight`, `imageUrls`. Mọi field khác gửi `null`
+là **400 cứng**, và vắng key vẫn là "giữ nguyên".
+
+- `dirtyProductPatch` (`features/product/product-form/productPatch.ts`) giờ emit `null` thay vì
+  bỏ key — **nhưng chỉ khi baseline thật sự có giá trị** (`isClearable(key) && baseline[key] != null`).
+  Xoá một field vốn đã rỗng vẫn không gửi gì, nên save no-op vẫn là no-op (patch rỗng → không
+  request). Danh sách clearable là một `Set` + type guard `isClearable()`, không phải quy ước
+  rải rác.
+- **Chặn ở compile-time, không đợi 400 runtime:** `UpdateProductDto = Omit<Partial<CreateProductDto>,
+  ClearableProductField> & { [K in ClearableProductField]?: … | null }` (`types/product.ts`).
+  Gán `null` cho `name`/`price`/`skuList`… giờ là lỗi `tsc`.
+- Bullet 2 của entry (`GET /api/products` đổi sang envelope phân trang) là **no-op với repo này**
+  — FE không hề gọi `GET /api/products` trần; marketplace lẫn dashboard đều dùng
+  `/products/with-inventory/all` (vốn đã phân trang). Ghi lại để lần sau khỏi đi tìm nhánh
+  "array hay object" không tồn tại.
+
+**⚠️ 2 bug hydration lộ ra lúc verify — cả hai đều có sẵn từ trước, và ngữ nghĩa null-clear mới
+biến chúng thành mất dữ liệu.** Đây là lý do runtime-verify không bỏ qua được:
+
+- `CreateProductPage.initialFields` **quên hydrate `weight`** → sản phẩm có `weight: 28` render ô
+  trống. Seller không thấy, cũng không xoá được (ô trống vốn = "không đổi" với diff).
+- `RichTextEditor` truyền `content` vào `useEditor()` — TipTap **chỉ seed lúc mount**. Ở edit mode
+  product query resolve *sau* mount, nên editor trống trong khi `fields.description` đã giữ text
+  thật. Trước đây vô hại (editor rỗng chỉ làm rơi key). **Sau null-clear thì thành
+  `description: null` → xoá trắng cột.** Sửa bằng re-seed có kiểm soát:
+  `editor.commands.setContent(value || '', { emitUpdate: false })` — `emitUpdate:false` để lần
+  hydrate không bị tính là seller sửa (nếu tính, PATCH sẽ mang theo field seller không đụng vào).
+  Test `RichTextEditor.test.tsx` (+3) khoá đúng ba điều đó.
+
+Verify (MCP, `prod_ffc7fd3181d211f1`): xoá ô weight → body PATCH đúng **`{"weight":null}` 15 byte
+→ 200**, `description`/`sku`/`brandId`/`imageUrls` nguyên vẹn, version 32→33. Trả lại `weight: 28`
+(version 34). Ghi chú công cụ: `fill(uid, "")` của MCP **không kích hoạt** React onChange — phải
+dùng native setter + `dispatchEvent(new Event('input',{bubbles:true}))`, nếu không sẽ tưởng nhầm
+là code không gửi patch.
+
+**2 · `role` reshape `{id,name,slug}` — đây là gãy thật, không phải dọn dẹp.** BE bỏ entity thô
+`rol_*` (kèm `rol_grants` — permission không nên tới browser). Trước khi sửa,
+`me.role.rol_name` là `undefined` → `roleSatisfies` so sánh `undefined` → **tài khoản `shop` bị
+đá khỏi `/sell/:id`** (verify được: route redirect về `/`). Sửa `types/user.ts` (`Role` mới,
+xoá `RoleGrant`), `useRole.ts`, `ProtectedRoute.tsx:25`, `profileAbout.ts:19`,
+`AdminPage.tsx:171-175` + 4 fixture test. Doc còn sót `rol_name` cũng đã sửa
+(`.ai/context/domain.md`, `.ai/context/conventions.md`).
+
+**3 · 409 duplicate username/email về đúng field.** Trước đây cả hai là `500 "Database operation
+failed"` nên form không biết chỉ vào đâu. `credentialConflictError(error, fallback)`
+(`lib/domain/credentialConflict.ts`, +7 test) trả `{field: 'username'|'email'|null, message}`;
+dùng chung ở `RegisterForm` (`features/auth/LoginPage.tsx`) và `EditProfileModal` — đặt ở `lib/`
+vì 2 feature folder cần (DRY rule), theo tiền lệ `paymentUrl.ts`.
+
+- Match trên **`statusCode` + `message`**, *không* trên `error` — envelope BE vẫn ghi
+  `"HttpException"` chứ không phải `"Conflict"` (known issue #5 của BE).
+- Chỉ đọc `message` khi **có HTTP status thật**. Nhờ vậy `TypeError("Failed to fetch")` (lỗi
+  mạng) không rò chữ tiếng Anh vào form, và `500 "Database operation failed"` **không bao giờ**
+  làm sáng ô email — cả hai đều có test khoá.
+- `EditProfileModal` bỏ luôn đoạn stringify `updateUser.error` thành một dòng chung chung.
+
+Verify (MCP): username trùng → "Tên đăng nhập này đã có người dùng…" ngay dưới ô username, không
+có banner trên đầu; email trùng → câu tương ứng dưới EMAIL; **không tạo account nào**. Modal Sửa
+hồ sơ với email của người khác: dialog ở nguyên, message dưới EMAIL, `/api/user/me` không đổi.
+`/admin` (`testadmin`) load được và cột VAI TRÒ hiện tên thật (`user`, `logistics_operator`,
+`shipping_manager`, `shop`) — xác nhận `AdminPage` đọc `user.role.name` đúng.
+
+**Không có entry mới cho `backend-handoff.md`:** mọi endpoint đụng tới đều hành xử **đúng như
+contract BE mô tả**; hai bug tìm được đều thuần FE (hydration). Không có API gap để báo ngược.
+
 ### BE handoff inbox · 7 entry integrate một lượt (2026-08-06) — DONE
 
 `/sweep` chạy fix-mode trên toàn bộ mục `## Open` của `../.agent-local/frontend-handoff.md`.

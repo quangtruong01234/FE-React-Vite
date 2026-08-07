@@ -183,7 +183,8 @@ Sở hữu: `src/features/cart/shippingFee.ts` · DTO ở `src/types/order.ts`.
 Sở hữu: `src/lib/auth/roleAccess.ts` · guard ở `src/components/auth/ProtectedRoute.tsx` ·
 bảng route ở `src/router.tsx`.
 
-**Role là single-valued** (`me.role.rol_name`). Chỉ có hai capability:
+**Role là single-valued** (`me.role.name` — backend 2026-08-06 reshape `role` thành
+`{ id, name, slug }`). Chỉ có hai capability:
 
 - `canSell(role)` → **chỉ** `'shop'`
 - `canAdminister(role)` → **chỉ** `'admin'`

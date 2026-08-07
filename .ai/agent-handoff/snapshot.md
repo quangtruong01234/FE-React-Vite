@@ -1,6 +1,6 @@
 # Snapshot — TryBuy Frontend Current State
 
-> Cập nhật: 2026-08-06 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
+> Cập nhật: 2026-08-07 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
 > Keep this LEAN: chỉ giữ bức tranh sống (overview, việc còn mở/bị chặn, known issues).
 > Việc đã xong nằm ở `CHANGELOG.md` (cùng thư mục, không auto-load) — **đừng chép lại vào đây**.
 > Convention/rule nằm ở `.ai/context/` — cũng không duplicate vào đây.
@@ -12,8 +12,8 @@ order, seller, social, admin, chat, wishlist, sổ địa chỉ. **Toàn bộ P0
 riêng P0-03 vẫn là FE mitigation chờ backend transaction. Public-ID migration (PUBID-01–07) đã
 xong — storefront id là opaque string end-to-end.
 
-**Gates (chạy lại + verify 2026-08-06):** `npm run build` ✓ · `npm run lint` 0 error /
-3 warning advisory · `npm run test:run` 614 test / 89 file, all pass. Không đóng item nào khi 3
+**Gates (chạy lại + verify 2026-08-07):** `npm run build` ✓ · `npm run lint` 0 error /
+3 warning advisory · `npm run test:run` 627 test / 91 file, all pass. Không đóng item nào khi 3
 lệnh này chưa xanh.
 
 > ⚠️ `npm run build` **mới** thực sự typecheck từ 2026-08-04. Trước đó script chỉ là `vite build`
@@ -28,11 +28,11 @@ login → product → cart → checkout → payment/order.
 
 | Ngày | Item |
 |---|---|
+| 2026-08-07 | `PATCH /products/:id` null-clear (`dirtyProductPatch` gửi `null` cho 6 field clearable, `UpdateProductDto` chặn `null` sai chỗ ở compile-time) · **2 bug hydration** lộ ra khi verify: `weight` không hydrate + `RichTextEditor` chỉ seed lúc mount (sẽ thành `description: null` = mất dữ liệu) · `role` reshape `{id,name,slug}` (role gating đang **gãy thật**: shop bị đá khỏi `/sell/:id`) · 409 duplicate username/email về đúng field (`credentialConflictError`) |
 | 2026-08-06 | BE handoff inbox batch (7 entry → Done): dirty-field PATCH sản phẩm (`dirtyProductPatch`, hết lost-update) · 409 duplicate SKU về đúng field `sku` · order detail phân biệt 404 vs 403/5xx (`orderLoadError` + `ApiErrorState`) · message thật từ `/payment/url` (`paymentUrlErrorMessage`) · `ApiErrorState` hết render `null` (blank screen) |
 | 2026-08-05 | GHN-ADDR-01 checkout gửi `toDistrictId`+`toWardCode` (vận đơn thật, hết `ghnOrderCode: null`) · socket.io release grace (hết warning "WebSocket is closed before…") · 4 dialog thiếu `DialogDescription` · xoá `CartDrawer` (dead) |
 | 2026-07-23 | raw-palette drain (STY pass 4 + token `tb-cyan`) · chunked-upload chunk-math test cover |
 | 2026-07-22 | sku-optional base-product create · SCALE-01b socket websocket-only · SCALE-05 `request()` retry 503 · react-router production alias · `redirectToPaymentGateway` · `routerLayouts.tsx` · xoá `ApiErrorContext` (dead code) |
-| 2026-07-17 | UP-05 + UP-08 upload signature · AI-02 F1–F4 risk queue · PUBID-01–07 · Marketplace province filter |
 
 ## Active Tasks — open / blocked
 
@@ -52,10 +52,11 @@ login → product → cart → checkout → payment/order.
 
 ### Chờ backend (FE đã ship mitigation, chỉ backend mới đóng được)
 
-- **`GET /order/user/:id` thiếu param `status`** (`../.agent-local/backend-handoff.md`,
-  Open 2026-08-04). Tab lọc của buyer phải kéo **hết** lịch sử về client mới lọc đúng
-  (`features/order/orderHistoryPaging.ts`) — 65 đơn = 7 request. `SellerOrdersQueryDto` đã có
-  `status`, chỉ cần mirror sang DTO buyer là FE xoá được mitigation.
+- ✅ **BE ĐÃ SHIP (2026-08-07) — giờ là việc của FE, chưa làm.** `GET /order/user/:id?status=`
+  đã có (repeated key hoặc comma-list; 9 giá trị `OrderStatus`, **không có `delivered`**, và là
+  `canceled` một chữ `l`). Entry đầy đủ ở `../.agent-local/frontend-handoff.md` mục **Open**.
+  Việc FE: xoá mitigation `features/order/orderHistoryPaging.ts` (đang kéo **hết** lịch sử về
+  client mới lọc — 65 đơn = 7 request) và gửi status list theo tab.
 - **Payment return URL trả order id nội bộ dạng số** (`../.agent-local/backend-handoff.md`,
   Open 2026-08-04). Verify live 2026-08-04: `buildFrontendPaymentResultUrl()` gửi
   `?order=111` — cùng biến sau đó đi qua `Number(orderId)` — trong khi `/api/order/111` **400**
@@ -66,10 +67,10 @@ login → product → cart → checkout → payment/order.
   `/orders`. Guard theo shape nên BE đổi contract là deep-link tự sống lại, FE không sửa gì.
   Kèm theo: `.env.example` của payments trỏ return URL về endpoint JSON của gateway —
   chi tiết trong handoff.
-- **`PATCH /products/:id` không xoá được optional field** (`../.agent-local/backend-handoff.md`,
-  Open 2026-08-06). PATCH coi key vắng mặt là "giữ nguyên", mà JSON thì bỏ luôn key `undefined`
-  → không có cách nào clear `description`/`brand`… Không phải regression (PATCH full-form trước
-  đây cũng vậy), nhưng `dirtyProductPatch` làm nó lộ rõ. Cần BE xác nhận `null` = clear.
+  ✅ **BE ĐÃ FIX (2026-08-07):** redirect giờ mang `order=ord_<16>`, deep-link tự sống lại,
+  FE **không phải sửa gì**. Nhưng **giữ nguyên `resolveResultOrderId()`** — payment row tạo
+  *trước* thay đổi này vẫn giữ URL cũ có `?order=<số>` (chữ ký VNPay phủ `vnp_ReturnUrl` nên
+  không rewrite server-side được). Chỉ bỏ guard khi đám pending cũ đã hết hạn.
 - **P0-03 · Product create/update inventory không atomic.** FE mitigation đang giữ; chỉ BE
   transaction mới đóng thật.
 - **Orphan cleanup server-side cho persisted media** (`../.agent-local/backend-handoff.md`,

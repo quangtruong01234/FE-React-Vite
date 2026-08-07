@@ -188,6 +188,51 @@ reset. Nó reset **trong lúc render**, không có frame rác và không cascade
 
 ---
 
+## 14 · Controlled editor chỉ seed lúc mount → hydrate xong vẫn trống
+
+**Triệu chứng:** ở edit mode, ô rich-text trống trơn dù `GET` đã trả về `description` và form
+field đã giữ đúng text. Seller gõ vào đó là **đè mất** nội dung cũ.
+
+**Nguyên nhân:** `useEditor({ content })` của TipTap coi `content` là **giá trị khởi tạo**, không
+phải prop controlled. Query resolve *sau* mount → editor không bao giờ nhận text.
+
+**Luật:** với editor bọc controlled (`value`/`onChange`), phải re-seed bằng effect:
+
+```ts
+useEffect(() => {
+  if (!editor) return;
+  const current = editor.isEmpty ? '' : editor.getHTML();
+  if (value === current) return;                                  // tránh vòng lặp
+  editor.commands.setContent(value || '', { emitUpdate: false }); // KHÔNG được emit
+}, [editor, value]);
+```
+
+`emitUpdate: false` là bắt buộc: nếu emit, lần hydrate bị tính là **user sửa** → dirty-diff
+(`dirtyProductPatch`) sẽ gửi kèm field mà seller chưa hề đụng tới. Xem
+`components/shared/RichTextEditor.tsx` + test cùng tên.
+
+---
+
+## 15 · `fill(uid, "")` của Chrome DevTools MCP không kích hoạt onChange của React
+
+**Triệu chứng:** script MCP "xoá" một input rồi save, nhưng không có request nào bay đi (hoặc
+patch thiếu field) — dễ kết luận nhầm là code FE hỏng.
+
+**Nguyên nhân:** React gắn listener trên value setter của prototype; set `.value` kiểu thường
+không sinh event React nghe được.
+
+**Luật:** clear/gõ input qua MCP bằng native setter + event bubble:
+
+```js
+const d = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+d.set.call(el, '');
+el.dispatchEvent(new Event('input', { bubbles: true }));
+```
+
+Trước khi kết luận "FE không gửi patch", hãy xác nhận form state **thật sự** đã đổi.
+
+---
+
 ## Khi phát hiện bẫy mới
 
 Thêm vào đây **chỉ khi** nó thoả 2 điều kiện ở đầu file. Trạng thái công việc → `snapshot.md`.
