@@ -12,6 +12,7 @@ import { api } from '@/api';
 import { useAuthContext } from '@/context/AuthContext';
 import type { User } from '@/types';
 import { cn } from '@/lib/format/utils';
+import { credentialConflictError } from '@/lib/domain/credentialConflict';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { TextField } from '@/components/shared/TextField';
 // ─── Ghost button (social login) ──────────────────────────────────────────────
@@ -124,10 +125,10 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
       const user = await loginAfterRegister({ username: data.username, password: data.password });
       onRegisterSuccess(user);
     } catch (err: unknown) {
-      const msg = err && typeof err === 'object' && 'message' in err
-        ? String((err as { message: unknown }).message)
-        : 'Đăng ký thất bại. Vui lòng thử lại.';
-      setError('root', { message: msg });
+      // A duplicate username/email is a 409 that names the field (backend
+      // 2026-08-06) — put it on that input instead of the generic banner.
+      const { field, message } = credentialConflictError(err, 'Đăng ký thất bại. Vui lòng thử lại.');
+      setError(field ?? 'root', { message });
     }
   }
 

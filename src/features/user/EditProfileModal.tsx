@@ -19,6 +19,7 @@ import { api } from '@/api';
 import { uploadAvatar, deleteMedia } from '@/lib/http/cloudinary';
 import { validateUploadFile, MAX_IMAGE_BYTES } from '@/lib/http/uploadValidation';
 import { cn } from '@/lib/format/utils';
+import { credentialConflictError } from '@/lib/domain/credentialConflict';
 import { replacePendingAvatar, discardedAvatarOrphan, type PendingAvatar } from './avatarUpload';
 import type { User } from '@/types';
 
@@ -43,7 +44,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, setError, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
     values: {
       name: user.name ?? user.username,
@@ -106,7 +107,14 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
   }
 
   async function onSubmit(data: FormData): Promise<void> {
-    await updateUser.mutateAsync(data);
+    try {
+      await updateUser.mutateAsync(data);
+    } catch (err: unknown) {
+      // An email already registered to someone else is a 409 (backend
+      // 2026-08-06) — show it on the email input, not as a generic failure.
+      const { field, message } = credentialConflictError(err, 'Cập nhật thất bại');
+      setError(field === 'email' ? 'email' : 'root', { message });
+    }
   }
 
   const displayAvatar = pendingAvatar?.url ?? user.avatar ?? undefined;
@@ -180,14 +188,8 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
             {errors.email && <p className="text-xs text-accent-red">{errors.email.message}</p>}
           </div>
 
-          {/* Server error */}
-          {updateUser.error && (
-            <p className="text-sm text-accent-red">
-              {typeof updateUser.error === 'object' && 'message' in updateUser.error
-                ? String((updateUser.error as { message: unknown }).message)
-                : 'Cập nhật thất bại'}
-            </p>
-          )}
+          {/* Server error that belongs to no single field */}
+          {errors.root && <p className="text-sm text-accent-red">{errors.root.message}</p>}
 
           {/* Actions */}
           <div className="flex gap-3 pt-1">
