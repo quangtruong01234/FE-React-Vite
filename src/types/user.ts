@@ -1,23 +1,15 @@
 // --- User & Role ---
 
-export interface RoleGrant {
-  actions: string[];
-  attributes: string;
-  conditions: string;
-  resourceId: number;
-}
-
+/**
+ * Backend 2026-08-06: the raw `rol_*` entity (audit columns + `rol_grants`
+ * permission rows) no longer reaches the browser. Every user-bearing response
+ * now carries exactly these three fields; `name` is the gating value that was
+ * `rol_name`.
+ */
 export interface Role {
-  rol_id: number;
-  rol_name: string;
-  rol_slug: string;
-  rol_status: string;
-  rol_description: string;
-  rol_created_by: string;
-  rol_updated_by: string;
-  rol_grants: RoleGrant[];
-  createdAt: string;
-  updatedAt: string;
+  id: number;
+  name: string;
+  slug: string;
 }
 
 /**

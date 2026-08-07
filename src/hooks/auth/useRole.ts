@@ -20,7 +20,7 @@ export function useRole(): RoleState | undefined {
 
   if (!me) return undefined;
 
-  const roleName = me.role.rol_name;
+  const roleName = me.role.name;
 
   return {
     me,

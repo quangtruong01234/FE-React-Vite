@@ -168,11 +168,11 @@ export default function AdminPage(): ReactElement {
                   <td className="px-4 py-3">
                     <span className={cn(
                       'inline-flex items-center px-2 py-0.5 rounded-tb-pill font-body font-medium text-xs',
-                      user.role.rol_name === 'admin' && 'bg-accent-red/15 text-accent-red',
-                      user.role.rol_name === 'shop'  && 'bg-accent-amber/15 text-accent-amber',
-                      user.role.rol_name !== 'admin' && user.role.rol_name !== 'shop' && 'bg-canvas-elevated text-ink-sec',
+                      user.role.name === 'admin' && 'bg-accent-red/15 text-accent-red',
+                      user.role.name === 'shop'  && 'bg-accent-amber/15 text-accent-amber',
+                      user.role.name !== 'admin' && user.role.name !== 'shop' && 'bg-canvas-elevated text-ink-sec',
                     )}>
-                      {user.role.rol_name}
+                      {user.role.name}
                     </span>
                   </td>
                   <td className="px-4 py-3 font-body text-ink-sec text-sm">

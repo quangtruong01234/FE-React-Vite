@@ -16,5 +16,5 @@ export function profileContactInfo(
   currentUser: Pick<User, 'email' | 'role'> | null,
 ): ProfileContactInfo | null {
   if (!isMe || !currentUser) return null;
-  return { email: currentUser.email, roleName: currentUser.role.rol_name };
+  return { email: currentUser.email, roleName: currentUser.role.name };
 }

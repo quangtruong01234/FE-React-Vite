@@ -1,7 +1,7 @@
 /**
  * Single source of truth for role-based capabilities (P2-04).
  *
- * Roles are single-valued (`rol_name`): `admin`, `shop`, or a plain user role.
+ * Roles are single-valued (`role.name`): `admin`, `shop`, or a plain user role.
  * "Seller capability" means owning a shop — i.e. the `shop` role. An **admin is
  * a platform operator, not a seller**, so admin tooling and seller tooling are
  * distinct: an admin must NOT see seller navigation unless the role itself has

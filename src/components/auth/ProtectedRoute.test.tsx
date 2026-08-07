@@ -23,12 +23,12 @@ function stubMeUnauthenticated(): void {
   );
 }
 
-function makeUser(rolName: Role['rol_name']): User {
+function makeUser(roleName: Role['name']): User {
   return {
     id: 'usr_0000000000000001',
     username: 'tester',
     email: 'tester@test.com',
-    role: { rol_id: 3, rol_name: rolName } as Role,
+    role: { id: 3, name: roleName, slug: `${roleName}-001` },
     isActive: true,
   };
 }

@@ -22,7 +22,7 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps):
 
   if (!me || isError) return <Navigate to="/login" replace />;
 
-  if (!roleSatisfies(me.role.rol_name, requiredRole)) return <Navigate to="/" replace />;
+  if (!roleSatisfies(me.role.name, requiredRole)) return <Navigate to="/" replace />;
 
   return <>{children}</>;
 }

@@ -9,7 +9,7 @@ import { useAuth } from './useAuth';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { postAuthEvent, subscribeAuthEvents } from '@/lib/auth/authChannel';
 import type { AuthChannelEvent } from '@/lib/auth/authChannel';
-import type { User, Role } from '@/types';
+import type { User } from '@/types';
 
 vi.mock('@/lib/auth/authChannel', () => ({
   postAuthEvent: vi.fn(),
@@ -20,7 +20,7 @@ const testUser: User = {
   id: 'usr_0000000000000001',
   username: 'tester',
   email: 'tester@test.com',
-  role: { rol_id: 3, rol_name: 'user' } as Role,
+  role: { id: 3, name: 'user', slug: 'user-001' },
   isActive: true,
 };
 

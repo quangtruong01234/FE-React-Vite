@@ -5,7 +5,7 @@ import { http, HttpResponse, delay } from 'msw';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { server } from '@/test/msw/server';
 import { API_BASE } from '@/test/msw/handlers';
-import type { Conversation, User, Role } from '@/types';
+import type { Conversation, User } from '@/types';
 
 vi.mock('./ChatThread', () => ({
   ChatThread: (): ReactElement => <div>thread-mock</div>,
@@ -18,7 +18,7 @@ const otherUser: User = {
   id: 'usr_0000000000000002',
   username: 'seller',
   email: 'seller@test.com',
-  role: { rol_id: 3, rol_name: 'user' } as Role,
+  role: { id: 3, name: 'user', slug: 'user-001' },
   isActive: true,
 };
 

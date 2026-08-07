@@ -4,7 +4,7 @@ import { profileContactInfo } from './profileAbout';
 
 const me = {
   email: 'me@trybuy.test',
-  role: { rol_name: 'shop' } as User['role'],
+  role: { id: 2, name: 'shop', slug: 'shop-001' },
 } satisfies Pick<User, 'email' | 'role'>;
 
 describe('profileContactInfo', () => {
