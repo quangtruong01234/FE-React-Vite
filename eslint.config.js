@@ -6,7 +6,9 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'design_handoff_trybuy_ui']),
+  // .wrangler holds the bundle `wrangler dev` hands to workerd — generated code
+  // that fails these rules and is not ours to fix.
+  globalIgnores(['dist', '.wrangler', 'design_handoff_trybuy_ui']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [

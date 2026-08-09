@@ -1,8 +1,9 @@
-# Cloudflare Workers static-assets config (CD-FE-01).
+# Cloudflare Workers static-assets config (CD-FE-01) + /api reverse proxy (CD-FE-02).
 #
-# This is an assets-ONLY Worker: no `main`, no script, no runtime code. Cloudflare
-# just serves dist/ from the edge. Requests to static assets are not metered, so
-# this stays on the free plan regardless of traffic.
+# Static assets are served straight from the edge and are NOT metered. The script
+# below only runs for the paths in `run_worker_first`, so adding it did not turn
+# asset traffic into billable invocations — only API calls count (100k/day free),
+# and subrequests to the gateway are never billed.
 #
 # Deployed from GitHub Actions (.github/workflows/deploy.yml), NOT from
 # Cloudflare's Git integration — see DEPLOYMENT.md for why running both is a
@@ -14,9 +15,26 @@
 name = "fe-react-vite"
 compatibility_date = "2026-08-06"
 
+# Reverse-proxies /api/* to the gateway so the bundle can ship VITE_API_URL=/api
+# and the auth cookie stays same-site. See worker/index.ts for the full rationale.
+main = "worker/index.ts"
+
 [assets]
 # Must stay in sync with vite's build.outDir.
 directory = "./dist"
+
+# Lets the Worker hand non-/api requests back to the static assets. Only needed
+# as a safety net — run_worker_first below means they should never reach it.
+binding = "ASSETS"
+
+# THE line that keeps this free. Default routing is asset-first: a request that
+# matches a built file is served without invoking the script at all. Listing only
+# /api/* here means JS, CSS and images stay unmetered asset hits, and the script
+# runs solely for API calls.
+#
+# Boolean `true` would run the Worker on EVERY request — every page load would
+# then burn invocations from the 100k/day free quota for nothing.
+run_worker_first = ["/api/*"]
 
 # React Router owns every path in this app. Without this, a hard refresh on
 # /product/prod_x (or any deep link a user pastes) asks Cloudflare for a file
@@ -27,3 +45,10 @@ directory = "./dist"
 # does not match a built file — the browser keeps the original URL, which is what
 # React Router reads on boot.
 not_found_handling = "single-page-application"
+
+# GATEWAY_ORIGIN is deliberately NOT declared here. The gateway hostname is kept
+# out of the repo, so deploy.yml injects it:
+#   npx wrangler@4 deploy --var GATEWAY_ORIGIN:"$GATEWAY_ORIGIN"
+# Origin only, no trailing slash and no /api — worker/proxy.ts appends the path.
+# Missing it does not fail the deploy: the Worker answers 500 with an explicit
+# message on the first API call.

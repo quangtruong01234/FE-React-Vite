@@ -8,6 +8,8 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 .vite/
+# wrangler dev's local state + the esbuild bundle it writes for workerd.
+.wrangler/
 coverage/
 design_handoff_trybuy_ui
 *.tsbuildinfo

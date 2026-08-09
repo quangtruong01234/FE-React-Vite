@@ -12,7 +12,7 @@ versa.
 | Live URL | https://fe-react-vite.quangtruong01234.workers.dev |
 | Build | GitHub Actions runner: `npm run build` → `dist/` |
 | Release trigger | CI green on `main` → `.github/workflows/deploy.yml` |
-| Config | `wrangler.toml` (assets-only Worker, no script) |
+| Config | `wrangler.toml` (static assets + `/api/*` proxy script) |
 | Rollback | dashboard → the Worker → Deployments → roll back |
 
 ## Why this shape
@@ -70,9 +70,15 @@ there is no project to pre-create and no dashboard form to fill in.
 
 | Variable | Value |
 |---|---|
-| `VITE_API_URL` | `https://api.<domain>/api` |
+| `VITE_API_URL` | `/api` — relative; `worker/index.ts` proxies it |
 | `VITE_CHAT_URL` | `https://api.<domain>` |
 | `VITE_WS_NOTIFICATION_URL` | `https://api.<domain>` |
+| `GATEWAY_ORIGIN` | `https://api.<domain>` — origin only, no `/api`, no trailing slash |
+
+`GATEWAY_ORIGIN` is the only one that never reaches the bundle: `deploy.yml`
+passes it to `wrangler deploy --var`, so it configures the Worker rather than the
+client. The deploy fails fast if it is unset, because the Worker would answer
+every API call with a 500.
 
 Variables rather than secrets on purpose: all three end up readable in the
 shipped bundle anyway, and masking them only turns the build log into `***`.
@@ -129,12 +135,13 @@ Both were verified in both directions: a build with the production values has no
 bundle: changing an Environment variable requires a **redeploy**
 (`workflow_dispatch` on Deploy), not a restart.
 
-**`VITE_API_URL=/api` is a dev-only value.** It resolves against the Vite dev
-server, which proxies to `VITE_API_TARGET`. Deployed, that same path resolves
-against the Worker's own origin, where no `/api` route exists — so
-`not_found_handling` answers **every API call with `index.html` and a 200**. The
-app then fails with JSON parse errors rather than anything that looks like a
-routing problem.
+**`VITE_API_URL=/api` only works while the proxy exists.** In dev it resolves
+against the Vite dev server, which forwards to `VITE_API_TARGET`; in production
+it resolves against the Worker, which forwards to `GATEWAY_ORIGIN`. Remove
+`main` or `run_worker_first` from `wrangler.toml` without also restoring the
+absolute `VITE_API_URL` and `not_found_handling` answers **every API call with
+`index.html` and a 200** — the app then fails with JSON parse errors rather than
+anything that looks like a routing problem.
 
 **Never track a `.env` with production URLs.** Vite's `loadEnv` prefers inline
 `process.env.VITE_*` over `.env` files, so the workflow's values win in CI — but
@@ -152,14 +159,41 @@ favicon, `_headers`) would be missing from the deploy with no error anywhere,
 since CI builds from a fresh clone. It now ignores only the design screenshots
 (`public/*.png|jpg|jpeg`).
 
-## If the API ever moves same-origin
+## The `/api/*` reverse proxy (CD-FE-02)
 
-Routing `/api/*` through the Worker would make the cookie same-site and let
-`AUTH_COOKIE_SAME_SITE` go back to `lax`. That means giving this Worker a real
-`main` script that proxies to the gateway — at which point requests stop being
-free static-asset hits and start counting against the Workers quota. It also
-would not cover Socket.IO: `VITE_CHAT_URL` / `VITE_WS_NOTIFICATION_URL` still
-need the absolute gateway origin.
+`worker/index.ts` proxies `/api/*` to `GATEWAY_ORIGIN`, so the bundle ships
+`VITE_API_URL=/api` and the browser never talks to the gateway directly.
+
+**What it buys:** the auth cookie is same-site (the gateway sets it host-only,
+with no `Domain`, so the browser files it under the Worker's domain), and CORS
+stops being in the request path at all.
+
+**What it costs — less than it looks.** `run_worker_first = ["/api/*"]` keeps the
+default asset-first routing for everything else, so JS/CSS/images are still
+served without invoking the script and stay free and unmetered. Only API calls
+count, against 100k/day on the free plan; subrequests to the gateway are never
+billed, and a proxy hop is ~0ms CPU against the 10ms limit. Past 100k/day
+Cloudflare does **not** auto-upgrade — the API starts erroring until 00:00 UTC.
+Workers Paid is $5/mo for 10M requests.
+
+Setting `run_worker_first = true` (boolean) instead would run the script on every
+page load and burn the quota on requests that are otherwise free.
+
+**It does not hide the backend.** `VITE_CHAT_URL` / `VITE_WS_NOTIFICATION_URL`
+still hold the absolute gateway origin, because a Worker cannot proxy a WebSocket
+upgrade to an external origin as a free asset hit. The gateway hostname is
+visible in DevTools' WS tab either way — treat the proxy as an auth/CORS
+simplification, not as concealment.
+
+**No backend change is needed to switch over.** Verified against the live gateway
+through a local `wrangler dev`: same-origin requests succeed regardless of
+`FRONTEND_URL`, and `AUTH_COOKIE_SAME_SITE=none` keeps working (`None`+`Secure`
+is valid same-site). Relaxing it to `lax` is a separate, revertible step.
+
+**Rollback** is the wrangler.toml pair plus one variable: drop `main` +
+`run_worker_first`, and set the `VITE_API_URL` production variable back to the
+absolute `https://api.<domain>/api`. Both must move together — see the trap
+below.
 
 ## Not covered by CI
 
