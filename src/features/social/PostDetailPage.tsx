@@ -7,7 +7,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
-import { cldImage } from '@/lib/http/cloudinaryUrl';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthContext } from '@/context/AuthContext';
@@ -18,6 +17,7 @@ import { useSharePost } from './useSharePost';
 import { ShareToast } from './ShareToast';
 import { PostActionMenu } from './PostActionMenu';
 import { AttachedProduct } from './AttachedProduct';
+import { PostImage } from './PostImage';
 import { openEditPost } from './composerEvents';
 import { cn } from '@/lib/format/utils';
 import { relativeTimeShort } from '@/lib/format/time';
@@ -163,19 +163,19 @@ export default function PostDetailPage(): ReactElement {
         {/* Images */}
         {post.imageUrls && post.imageUrls.length > 0 && (
           post.imageUrls.length === 1 ? (
-            <img
-              src={cldImage(post.imageUrls[0], 1200)}
-              alt=""
+            <PostImage
+              src={post.imageUrls[0]}
+              width={1200}
               className="w-full max-h-[520px] object-cover aspect-[3/2]"
               fetchPriority="high"
             />
           ) : (
             <div className="grid grid-cols-2 gap-0.5">
               {post.imageUrls.slice(0, 2).map((url, i) => (
-                <img
+                <PostImage
                   key={i}
-                  src={cldImage(url, 800)}
-                  alt=""
+                  src={url}
+                  width={800}
                   className="w-full aspect-square object-cover"
                   fetchPriority={i === 0 ? 'high' : 'auto'}
                 />

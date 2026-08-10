@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom';
 import { Store, TrendingUp, BadgeCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/format/utils';
-import { cldImage } from '@/lib/http/cloudinaryUrl';
 import { Avatar } from '@/components/shared/Avatar';
 import { PriceText } from '@/components/shared/PriceText';
+import { ProductThumb } from '@/components/shared/ProductThumb';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
@@ -102,16 +102,12 @@ export function RightRail(): ReactElement {
               to={`/product/${p.id}`}
               className="flex items-center gap-3 px-2 py-2 rounded-[10px] hover:bg-canvas-elevated transition-colors"
             >
-              <img
-                src={cldImage(p.imageUrl ?? 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&q=80&w=100', 96)}
+              <ProductThumb
+                src={p.imageUrl}
                 alt={p.name}
-                width={44}
-                height={44}
-                className="w-11 h-11 rounded-lg flex-none object-cover"
-                loading="lazy"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&q=80&w=100';
-                }}
+                className="w-11 h-11 rounded-lg"
+                iconSize={18}
+                width={96}
               />
               <div className="min-w-0 flex-1">
                 <div className="text-[13px] font-medium text-ink-pri truncate">{p.name}</div>

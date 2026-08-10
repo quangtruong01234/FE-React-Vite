@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { Package } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
@@ -24,9 +24,15 @@ interface ProductThumbProps {
 }
 
 /**
- * Product image thumbnail with a guaranteed fallback — never emits `<img src="">`.
+ * Product image thumbnail with a guaranteed fallback — never emits `<img src="">`,
+ * and falls back to the same placeholder when the URL itself fails to load.
  * Shared across cart, checkout, order and social product rows so the empty-image
  * placeholder stays consistent (P2-02).
+ *
+ * The load-failure path is not hypothetical: deleting a product destroys its
+ * Cloudinary assets server-side (SEC-M7), while historical orders keep the
+ * purchase-time URL in `order_items.product_image` (P2-02) — so a past order can
+ * legitimately point at an asset that no longer exists.
  */
 export function ProductThumb({
   src,
@@ -37,15 +43,20 @@ export function ProductThumb({
   to,
   width = 160,
 }: ProductThumbProps): ReactElement {
+  // Keyed by the URL that failed, not a boolean: a row that recycles into a new
+  // product must retry the new image instead of inheriting the old one's failure.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+
   const containerCls = cn(
     'bg-canvas-elevated grid place-items-center overflow-hidden shrink-0',
     className,
   );
-  const content = src ? (
+  const content = src && src !== failedSrc ? (
     <img
       src={cldImage(src, width)}
       alt={alt}
       loading={loading}
+      onError={() => setFailedSrc(src)}
       className="w-full h-full object-cover"
     />
   ) : (

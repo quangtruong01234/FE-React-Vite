@@ -15,6 +15,7 @@ import { useSharePost } from './useSharePost';
 import { ShareToast } from './ShareToast';
 import { PostActionMenu } from './PostActionMenu';
 import { AttachedProduct } from './AttachedProduct';
+import { PostImage } from './PostImage';
 import { openEditPost } from './composerEvents';
 import { relativeTimeShort } from '@/lib/format/time';
 import type { Post } from '@/types';
@@ -180,9 +181,9 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
             className="w-full bg-black flex items-center justify-center aspect-[4/3] max-h-[520px] overflow-hidden border-0 p-0 cursor-pointer"
           >
             {/* Fixed aspect reserves the slot before the image loads → no feed CLS. */}
-            <img
-              src={cldImage(images[0], 1200)}
-              alt=""
+            <PostImage
+              src={images[0]}
+              width={1200}
               className="max-w-full max-h-full object-contain"
               loading={priority ? 'eager' : 'lazy'}
               fetchPriority={priority ? 'high' : 'auto'}
@@ -196,9 +197,9 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
               onMouseEnter={() => warmLightbox(0)}
               className="bg-black row-span-2 overflow-hidden border-0 p-0 cursor-pointer"
             >
-              <img
-                src={cldImage(images[0], 800)}
-                alt=""
+              <PostImage
+                src={images[0]}
+                width={800}
                 className="w-full h-full object-cover"
                 loading={priority ? 'eager' : 'lazy'}
                 fetchPriority={priority ? 'high' : 'auto'}
@@ -212,7 +213,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
                 onMouseEnter={() => warmLightbox(i + 1)}
                 className="bg-black aspect-square overflow-hidden border-0 p-0 cursor-pointer"
               >
-                <img src={cldImage(url, 600)} alt="" className="w-full h-full object-cover" loading="lazy" />
+                <PostImage src={url} width={600} className="w-full h-full object-cover" loading="lazy" />
               </button>
             ))}
           </div>
@@ -226,9 +227,9 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
                 onMouseEnter={() => warmLightbox(i)}
                 className="bg-black aspect-square overflow-hidden border-0 p-0 cursor-pointer"
               >
-                <img
-                  src={cldImage(url, 600)}
-                  alt=""
+                <PostImage
+                  src={url}
+                  width={600}
                   className="w-full h-full object-cover"
                   loading={priority && i === 0 ? 'eager' : 'lazy'}
                   fetchPriority={priority && i === 0 ? 'high' : 'auto'}
@@ -262,9 +263,9 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
           )}
 
           {/* Image */}
-          <img
-            src={cldImage(images[lightboxIndex], 1600)}
-            alt=""
+          <PostImage
+            src={images[lightboxIndex]}
+            width={1600}
             className="max-w-[90vw] max-h-[90vh] object-contain select-none cursor-default"
             onClick={(e) => e.stopPropagation()}
           />
