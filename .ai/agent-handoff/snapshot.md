@@ -1,6 +1,6 @@
 # Snapshot — TryBuy Frontend Current State
 
-> Cập nhật: 2026-08-07 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
+> Cập nhật: 2026-08-09 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
 > Keep this LEAN: chỉ giữ bức tranh sống (overview, việc còn mở/bị chặn, known issues).
 > Việc đã xong nằm ở `CHANGELOG.md` (cùng thư mục, không auto-load) — **đừng chép lại vào đây**.
 > Convention/rule nằm ở `.ai/context/` — cũng không duplicate vào đây.
@@ -12,8 +12,8 @@ order, seller, social, admin, chat, wishlist, sổ địa chỉ. **Toàn bộ P0
 riêng P0-03 vẫn là FE mitigation chờ backend transaction. Public-ID migration (PUBID-01–07) đã
 xong — storefront id là opaque string end-to-end.
 
-**Gates (chạy lại + verify 2026-08-07):** `npm run build` ✓ · `npm run lint` 0 error /
-3 warning advisory · `npm run test:run` 627 test / 91 file, all pass. Không đóng item nào khi 3
+**Gates (chạy lại + verify 2026-08-09):** `npm run build` ✓ · `npm run lint` 0 error /
+3 warning advisory · `npm run test:run` 645 test / 93 file, all pass. Không đóng item nào khi 3
 lệnh này chưa xanh.
 
 > ⚠️ `npm run build` **mới** thực sự typecheck từ 2026-08-04. Trước đó script chỉ là `vite build`
@@ -28,11 +28,11 @@ login → product → cart → checkout → payment/order.
 
 | Ngày | Item |
 |---|---|
+| 2026-08-09 | **RIGHTRAIL-IMG + cache URL đã fail** — hai thứ tìm được khi verify `PostImage` bằng MCP. (1) `RightRail` bỏ hẳn URL Unsplash hardcode (vừa là default khi `imageUrl` null, vừa là đích của `onError` — tự gán lại `e.target.src` nên có thể **lặp request**); thay bằng `<ProductThumb>`, hết request bên thứ ba trên trang chủ. (2) `failedPostImages.ts` — set URL đã 404 dùng chung, vì feed tile và lightbox là 2 mount khác nhau của cùng ảnh nên trước đó click ảnh hỏng bắn thêm một 404 nữa ở `w_1600`. Verify live: request Unsplash **biến mất**, 404 còn **1** thay vì 2 |
+| 2026-08-08 | **`PostImage`** — ảnh post 404 giờ ra placeholder `ImageOff` thay vì ảnh vỡ. Gom **7 chỗ `<img>`** rải ở 4 nhánh layout của `PostCard` + 2 nhánh của `PostDetailPage` (kể cả lightbox) về một component `features/social/PostImage.tsx`, cùng contract `onError` như `ProductThumb`: state keyed theo URL fail (slot feed tái sử dụng cho post khác vẫn thử lại ảnh mới), placeholder giữ nguyên class của slot nên **không layout shift**. **Verify runtime 2026-08-09 (Chrome DevTools MCP)**: feed + lightbox + `PostDetailPage` đều ra placeholder, click nền vẫn đóng lightbox. Nguyên nhân gốc (seed row trỏ asset không tồn tại) vẫn là việc của BE |
+| 2026-08-07 | **Drain BE handoff inbox**: 13 entry `## Open` → `## Done` sau khi verify từng cái với code thật (payment return URL giữ guard có chủ đích · GHN `shippingFee: 0` không chèn sàn client · post `productId` + SEC-L1 đã bị PUBID thay thế · media cap/ownership/upload signature/socket upgrade/status-counts/money fields: không còn việc). Inbox giờ còn **1 entry** — cái FE→BE xin per-user room cho chat · `ProductThumb` thêm `onError` fallback (SEC-M7 xoá ảnh của product đã xoá → đơn cũ đang render ảnh vỡ) · xoá folder chết `src/features/inventory/` |
+| 2026-08-07 | **ORD-STATUS-FILTER** — tab đơn mua lọc **server-side** (`buildUserOrdersQuery` gửi repeated singular `status`, `?status=` rỗng bị bỏ hẳn key) · hết fetch-all (65 đơn = 7 request → **1 request/tab**, verify live 5/5 tab đều 200) · `orderHistoryPaging` thu hẹp còn đúng ô search mã đơn (BE chưa có param search) |
 | 2026-08-07 | `PATCH /products/:id` null-clear (`dirtyProductPatch` gửi `null` cho 6 field clearable, `UpdateProductDto` chặn `null` sai chỗ ở compile-time) · **2 bug hydration** lộ ra khi verify: `weight` không hydrate + `RichTextEditor` chỉ seed lúc mount (sẽ thành `description: null` = mất dữ liệu) · `role` reshape `{id,name,slug}` (role gating đang **gãy thật**: shop bị đá khỏi `/sell/:id`) · 409 duplicate username/email về đúng field (`credentialConflictError`) |
-| 2026-08-06 | BE handoff inbox batch (7 entry → Done): dirty-field PATCH sản phẩm (`dirtyProductPatch`, hết lost-update) · 409 duplicate SKU về đúng field `sku` · order detail phân biệt 404 vs 403/5xx (`orderLoadError` + `ApiErrorState`) · message thật từ `/payment/url` (`paymentUrlErrorMessage`) · `ApiErrorState` hết render `null` (blank screen) |
-| 2026-08-05 | GHN-ADDR-01 checkout gửi `toDistrictId`+`toWardCode` (vận đơn thật, hết `ghnOrderCode: null`) · socket.io release grace (hết warning "WebSocket is closed before…") · 4 dialog thiếu `DialogDescription` · xoá `CartDrawer` (dead) |
-| 2026-07-23 | raw-palette drain (STY pass 4 + token `tb-cyan`) · chunked-upload chunk-math test cover |
-| 2026-07-22 | sku-optional base-product create · SCALE-01b socket websocket-only · SCALE-05 `request()` retry 503 · react-router production alias · `redirectToPaymentGateway` · `routerLayouts.tsx` · xoá `ApiErrorContext` (dead code) |
 
 ## Active Tasks — open / blocked
 
@@ -52,13 +52,14 @@ login → product → cart → checkout → payment/order.
 
 ### Chờ backend (FE đã ship mitigation, chỉ backend mới đóng được)
 
-- ✅ **BE ĐÃ SHIP (2026-08-07) — giờ là việc của FE, chưa làm.** `GET /order/user/:id?status=`
-  đã có (repeated key hoặc comma-list; 9 giá trị `OrderStatus`, **không có `delivered`**, và là
-  `canceled` một chữ `l`). Entry đầy đủ ở `../.agent-local/frontend-handoff.md` mục **Open**.
-  Việc FE: xoá mitigation `features/order/orderHistoryPaging.ts` (đang kéo **hết** lịch sử về
-  client mới lọc — 65 đơn = 7 request) và gửi status list theo tab.
+- **`GET /order/user/:id` chưa có param search theo mã đơn** (`../.agent-local/backend-handoff.md`,
+  Open 2026-08-07). Tab status đã lọc server-side xong (ORD-STATUS-FILTER, Recent closes), nhưng ô
+  **"Tìm theo mã đơn…"** vẫn lọc client-side trên các page đã tải → một đơn khớp nằm ở page chưa
+  fetch sẽ hiện "không có kết quả". FE mitigation: `features/order/orderHistoryPaging.ts` giờ chỉ
+  còn phục vụ đúng ô search này (`narrowsHistory`/`isHistoryIncomplete` — vừa search vừa auto kéo
+  nốt page, chặn empty-state nói dối). Có `?q=`/`?orderId=` phía BE là **xoá được cả module**.
 - **Payment return URL trả order id nội bộ dạng số** (`../.agent-local/backend-handoff.md`,
-  Open 2026-08-04). Verify live 2026-08-04: `buildFrontendPaymentResultUrl()` gửi
+  **Done** 2026-08-07 — không còn chờ BE, chỉ chờ đám pending cũ hết hạn). Verify live 2026-08-04: `buildFrontendPaymentResultUrl()` gửi
   `?order=111` — cùng biến sau đó đi qua `Number(orderId)` — trong khi `/api/order/111` **400**
   `"Invalid id — expected format ord_<16 alphanumeric characters>"`. Trước đây snapshot ghi
   ngược ("regex số không khớp `ord_`"): thật ra regex **nhận** id số rồi dựng `/order/111`, tức
@@ -73,16 +74,37 @@ login → product → cart → checkout → payment/order.
   không rewrite server-side được). Chỉ bỏ guard khi đám pending cũ đã hết hạn.
 - **P0-03 · Product create/update inventory không atomic.** FE mitigation đang giữ; chỉ BE
   transaction mới đóng thật.
-- **Orphan cleanup server-side cho persisted media** (`../.agent-local/backend-handoff.md`,
-  Open 2026-07-07). Chặn 2 mảnh còn hở: (a) UP-02(c) — xóa avatar CŨ đã persist khi save (FE
-  không giữ `publicId` của nó); (b) UP-03(i) — ảnh RichTextEditor đã nằm trong HTML đã lưu
-  (unmount cleanup sẽ phá ảnh của bản save thành công).
-- **`DELETE /upload/media` có verify ownership `public_id` không** (cùng entry handoff). Phần
-  "ký kèm ràng buộc upload" đã đóng một nửa qua SEC-M8 (`allowed_formats` vào chữ ký); max-size
-  vẫn chưa ký.
-- **4× Cloudinary 404 ảnh post cũ** — URL trong DB lặp folder (`trybuy/posts/trybuy/posts/…`)
-  hoặc public_id prefix `undefined_`. Data cũ; flow upload hiện tại không sinh được URL kiểu
-  này → cần BE/DB cleanup. Đây là console error **trên happy path của feed**.
+- **Orphan cleanup cho ảnh trong HTML đã lưu (UP-03(i))** — mảnh **cuối** còn hở. SEC-M7
+  (2026-07-11) đã đóng phần còn lại: BE diff media URL trước/sau commit rồi destroy asset bị bỏ,
+  gồm cả **avatar cũ khi save** → UP-02(c) **đóng**. Nhưng SEC-M7 diff các *field* media
+  (`imageUrls`/`videoUrl`/`avatar`), **không** parse ảnh nhúng trong HTML `description`, nên ảnh
+  RichTextEditor đã nằm trong bản lưu vẫn thành orphan (và FE không được cleanup lúc unmount —
+  làm vậy là phá ảnh của bản save thành công).
+  ⚠️ Snapshot cũ trỏ item này tới "`backend-handoff.md` Open 2026-07-07" — **entry đó không tồn
+  tại** trong file; nội dung nằm ở `frontend-handoff.md` (SEC-M7, giờ ở **Done**).
+- **Max-size chưa nằm trong chữ ký upload.** Ownership thì đã xong hẳn: `DELETE /upload/media`
+  verify `public_id` theo prefix chủ sở hữu (`403` với id của người khác, `400` với folder ngoài
+  allowlist) — verify runtime 2026-07-08. SEC-M8 đã ký `allowed_formats`; còn max-size.
+- **2× Cloudinary 404 ảnh post cũ** (HEAD check live 2026-08-09 lên cloud `shopdev1234`: **2/3 ảnh
+  của feed page 1** trả 404 — con số cũ "1×" ghi 2026-08-07 là đếm thiếu, ảnh thứ hai nằm ở post
+  không lọt vào 10 post đầu). Hai pattern legacy (`trybuy/posts/trybuy/posts/…` và prefix
+  `undefined_`) **đã hết** — BE sanitize ở read path, grep `src/` không có workaround nào để xoá.
+  Hai cái còn lại qua cả sanitizer lẫn validator (URL đúng chuẩn) nhưng là **hai nguyên nhân khác
+  nhau** — đọc ra từ chính URL, ghi gộp ở bản 2026-08-08 là sai:
+  - `…/upload/**v1**/trybuy/posts/**17_mine**.jpg` — version `v1` placeholder + public id viết tay
+    ⇒ **chưa từng upload**, row seed viết thẳng vào DB. Seed cleanup.
+  - `…/upload/**v1780516926**/trybuy/posts/**dvh93r029vpy5rssldcc**.png`
+    (`post_5732da0c81d811f1`) — version là timestamp thật, khớp `createdAt` của post, public id đúng
+    dạng 20 ký tự Cloudinary tự sinh ⇒ **đã upload thật rồi bị xoá sau đó**, row DB còn trỏ tới.
+    Nghi SEC-M7 orphan cleanup destroy asset mà post vẫn reference — nếu đúng thì đây là **bug sống**,
+    còn đẻ thêm 404 mới, không phải rác seed. Bỏ version cũng 404 ⇒ không phải lệch version.
+
+  Upload **không hỏng**: `20_4u4glh7.png` (post 2026-07-08) và avatar `23_opyhl5h.png` đều 200.
+  Cần DB/seed cleanup + điều tra orphan cleanup (`../.agent-local/backend-handoff.md`,
+  Open 2026-08-08, cập nhật 2026-08-09) — **chỉ BE đóng được**.
+  Phần FE **đã xong 2026-08-08**: `PostImage` (Recent closes) che ảnh hỏng ở cả `PostCard` lẫn
+  `PostDetailPage`, verify runtime 2026-08-09. Che ≠ hết: request vẫn fail và console vẫn có error
+  **trên happy path của feed** cho tới khi row được dọn.
 
 ### Còn lại phía FE
 
@@ -93,8 +115,6 @@ login → product → cart → checkout → payment/order.
   write-protected, không extract `cva` variants được) và `context/AuthContext.tsx:19`
   (`useAuthContext` nhiều importer → churn rộng cho một warning dev-only). Đã từ 23 → 3 qua các
   sweep 2026-07-09 → 07-22; 3 cái còn lại đúng bằng danh sách này, không phát sinh thêm.
-- **`src/features/inventory/` vẫn là folder RỖNG (dead).** `ls` xác nhận không có file nào bên
-  trong. Xoá hoặc điền — đừng để agent tưởng có feature ở đó.
 - **Arbitrary sizing/radius rải rác** — 269 occurrence / 60 file (`rounded-[10px]` ở
   `LeftRail`/`Header`/`ProfileMenu`, `LoginPage` `px-[64px]`/`text-[64px]`/`gap-[22px]`…).
   Chỉ là scale-consistency, không chặn runtime.

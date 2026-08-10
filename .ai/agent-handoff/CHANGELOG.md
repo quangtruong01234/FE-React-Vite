@@ -7,6 +7,195 @@
 
 ## Maintenance
 
+### RIGHTRAIL-IMG + cache URL ảnh đã fail — hai bug tìm được *nhờ* đi verify (2026-08-09) — DONE
+
+Gate cuối: build ✓ · lint 0 error / **3** warning cũ · **645 test / 93 file ✓**.
+
+Không phải sweep item. Cả hai lộ ra khi đọc network log lúc verify `PostImage` bằng MCP — đây là
+lý do bước verify runtime đáng làm kể cả khi unit test đã xanh: log nói những thứ test không nói.
+
+**1. `RightRail` fallback ảnh trending trỏ ra Unsplash.** Network log của trang chủ có một request
+đi `images.unsplash.com`. Truy ra `RightRail.tsx:106` + `:113`: cùng một URL Unsplash hardcode vừa
+làm **default** khi `p.imageUrl` null, vừa làm đích của `onError`. Ba vấn đề, giảm dần:
+
+- `onError` gán thẳng `(e.target as HTMLImageElement).src`. Nếu chính URL fallback fail thì
+  `onError` bắn lại với **cùng** src → **vòng lặp request**. Đây đúng là cái bẫy mà `ProductThumb`
+  (2026-08-07) rồi `PostImage` (2026-08-08) né bằng state keyed theo URL đã fail; `RightRail` là
+  chỗ thứ ba của cùng pattern và là chỗ duy nhất còn làm sai. Sửa DOM ngoài React cũng là lý do
+  phụ — React không biết gì về lần gán đó.
+- Request **bên thứ ba** nằm trong happy path của landing route.
+- Trùng việc với `ProductThumb` → sai thứ tự lookup UI của `core.md`.
+
+Sửa bằng cách xoá cả block `<img>` → `<ProductThumb src={p.imageUrl} …>` (`w-11 h-11 rounded-lg`,
+`width={96}` giữ nguyên derivative cũ, `iconSize={18}` cho ô 44px). URL Unsplash biến mất khỏi
+`src/` — chỉ còn đúng một lần trong `cloudinaryUrl.test.ts` làm fixture "URL không phải Cloudinary",
+chỗ đó là cố ý. Không thêm test mới: hành vi (src null → placeholder, `onError` → placeholder,
+retry khi đổi src) đã là 6 test sẵn có của `ProductThumb`; change này **xoá** code chứ không thêm.
+
+**2. `failedPostImages.ts` — set URL đã fail dùng chung.** Log cho thấy click vào ảnh hỏng bắn
+**thêm một 404 nữa**: reqid 148 (`w_1200`, feed tile) rồi reqid 152 (`w_1600`, lightbox). Đúng
+thiết kế cũ — lightbox là mount khác, không biết gì về lần fail của tile, mà derivative khác width
+thì là URL khác thật. Giờ có set module-scope keyed theo **`src` gốc** (không phải derivative) nên
+một lần fail phủ mọi width. State local vẫn còn, chỉ để re-render instance hiện tại; set mới là chỗ
+quyết định, nên một slot mount thẳng vào URL đã biết hỏng cũng không bắn request.
+
+Trade-off ghi rõ trong file: fail tạm thời sẽ dính hết session (reload là hết). Chấp nhận được vì
+thứ đang chặn là asset bị xoá/chưa upload — retry không làm nó sống lại. Set nằm ở **module riêng**
+chứ không cạnh component: export nó từ `PostImage.tsx` làm lint đẻ ra warning
+`react-refresh/only-export-components` thứ 4, mà snapshot chốt đúng 3 cái được miễn. +2 test
+(instance thứ hai không request lại URL đã fail; URL khác vẫn request bình thường) + `beforeEach`
+reset — set module-scope thì rò giữa các case.
+
+**Verify live sau khi sửa** (cùng session MCP): request `images.unsplash.com` **biến mất**; mở
+lightbox vào ảnh hỏng thì overlay vẫn ra placeholder nhưng **không** có request thứ hai — network
+còn đúng **1** lần 404 thay vì 2, console còn **1** error thay vì 2.
+
+**Đã ghi cho BE** (`../.agent-local/backend-handoff.md`, Open 2026-08-09): `GET /api/social/posts`
+502 chập chờn (2 lần, 2 ngày — lần này 502 rồi 200 ngay ở retry, reqid 139 → 144; FE **không** xây
+retry riêng, mặc định của TanStack Query đang che đủ), và `POST /products/with-inventory/multiple`
+trả `201` cho một read (cosmetic, FE không branch theo status).
+
+### `PostImage` — ảnh post 404 hết render ảnh vỡ trên happy path của feed (2026-08-08) — DONE
+
+`/sweep` fix-mode, 1 item. Gate cuối: build ✓ · lint 0 error / 3 warning cũ ·
+**643 test / 93 file ✓**.
+
+**Vấn đề.** Snapshot mang một item "1× Cloudinary 404 ảnh post cũ" từ 2026-08-07: một row post seed
+trỏ vào `…/v1/trybuy/posts/17_mine.jpg`, URL **đúng chuẩn** (đúng folder, đúng prefix `<userId>_`)
+nên qua cả sanitizer lẫn validator của BE — asset chỉ đơn giản là chưa từng được upload. Nguyên
+nhân gốc là data, chỉ BE dọn được. Nhưng hệ quả FE thì FE tự chịu: `/` là landing route, nên
+**mọi** người vào app đều thấy một ảnh vỡ + console error ngay lần load đầu, và
+"không console error trong happy path" nằm trong Definition of production-ready.
+
+**Tại sao item này từng bị hoãn.** Snapshot ghi *"Sửa được nhưng là diff rộng cho một ảnh hỏng"* —
+`PostCard` render ảnh qua 5 chỗ `<img>` ở 4 nhánh layout (1 ảnh / 3 ảnh / 2–4 ảnh / lightbox), cộng
+2 chỗ nữa ở `PostDetailPage`: rắc `onError` + `useState` vào từng chỗ là 7 bản sao của cùng một
+logic. Cách thoát là **rút gọn diff bằng cách gom lại**, không phải nhân bản: một component
+`features/social/PostImage.tsx` (đặt ở feature folder, không phải `shared/` — đúng ngưỡng DRY của
+`core.md`: cả 2 consumer đều nằm trong `features/social/`). Ròng: 7 chỗ `<img>` → 7 chỗ
+`<PostImage>`, logic fallback tồn tại đúng **một** lần.
+
+- **Cùng contract với `ProductThumb`** (2026-08-07), khác phần post-shaped: state key theo **URL đã
+  fail** chứ không phải boolean — slot feed bị recycle sang post khác phải thử lại ảnh mới thay vì
+  thừa hưởng lỗi của ảnh cũ; `alt=""` (ảnh post là trang trí, không phải nội dung); caller giữ
+  quyền quyết định class của box.
+- **Placeholder dùng lại đúng `className` của slot**, chỉ thêm `bg-canvas-elevated grid
+  place-items-center p-6` + icon `ImageOff` → **không layout shift** (feed hiện đang CLS 0, đừng
+  phá). Nhưng *cách* nó không shift khác nhau theo nhánh, đã đo bằng MCP: nhánh có class fill
+  (`w-full h-full` ở grid tile, `w-full aspect-[3/2]` ở `PostDetailPage`) thì placeholder **lấp
+  đầy ô** (đo được 638×425 ở detail page); nhánh `object-contain` (`max-w-full max-h-full` ở ảnh
+  đơn + lightbox) thì `div` co lại quanh icon → **80×80** căn giữa, và ô vẫn không đổi kích thước
+  vì **parent** `<button>` mới là chỗ giữ chỗ (`aspect-[4/3] max-h-[520px]`, đo được 948×520).
+  Cả hai đều đúng, chỉ đừng đọc "placeholder dùng lại class slot" thành "placeholder luôn lấp đầy".
+- **`onClick` đi xuyên qua cả hai nhánh** — lightbox đóng bằng click nền, nếu placeholder nuốt mất
+  handler thì ảnh hỏng trong lightbox sẽ thành cái bẫy không thoát ra được. Có test riêng cho nhánh
+  này.
+- **Không nuốt mất perf attribute:** `loading` / `fetchPriority` vẫn do caller truyền, giữ nguyên
+  `priority`-first-post của feed (ảnh LCP candidate vẫn `eager` + `fetchPriority="high"`).
+- Test `PostImage.test.tsx` (+6): render derivative đúng `w_<n>`, fallback khi `onError`,
+  placeholder giữ class slot, retry khi đổi `src`, `onClick` sống trên placeholder, pass-through
+  `loading`/`fetchPriority`.
+
+**Che ≠ hết — đã ghi cho BE.** Component chỉ giấu ảnh vỡ; request vẫn fail và console vẫn có error.
+Đã thêm entry vào `../.agent-local/backend-handoff.md` (**Open** 2026-08-08) nói rõ đây **không**
+thuộc lớp legacy-URL mà BE đã sanitize ở read path, và chỉ DB/seed cleanup mới đóng được. FE giữ
+`PostImage` kể cả sau khi BE dọn — nó là hành vi đúng cho mọi asset bị xoá về sau.
+
+**Runtime verify: DONE (2026-08-09, Chrome DevTools MCP).** Lúc sweep chạy thì social service trả
+**502** nên phải ghi PENDING; hôm sau service sống lại, verify đủ 3 nhánh, login `canceltest1779978329`:
+
+- **Feed `/`** — post `ownership test - own image` cho `imgs: []`, `placeholders: 1`, ô 948×520 giữ
+  nguyên; post ngay trên nó vẫn load ảnh thật (`natural 1200×659`), tức fallback **không** lan sang
+  ảnh lành.
+- **Lightbox** — click vào slot hỏng mở overlay `fixed inset-0 z-[200] bg-black/90`, trong đó
+  **không có `<img>`**, chỉ placeholder mang đúng class lightbox. Click vào placeholder **không**
+  đóng (`stopPropagation` còn sống), click nền **đóng** → đúng cái bẫy đã lo ở bullet `onClick`.
+- **`PostDetailPage`** — `/post/post_5732da0c81d811f1` render placeholder lấp đầy 638×425, 0 ảnh vỡ.
+
+**Đếm lại: 2, không phải 1.** Snapshot 2026-08-07 ghi "1× Cloudinary 404" là đếm thiếu — HEAD check
+trực tiếp lên cloud `shopdev1234` cho thấy **2/3 ảnh của feed page 1 trả 404**: `17_mine.jpg` *và*
+`dvh93r029vpy5rssldcc.png` (post `post_5732da0c81d811f1`, không nằm trong 10 post đầu nên lần trước
+không thấy). Đã sửa cả snapshot lẫn backend-handoff. Không đổi kết luận, chỉ đổi quy mô — và củng cố
+lý do gom component thay vì vá một chỗ.
+
+**Che ≠ hết, đã xác nhận bằng số:** request derivative của `17_mine.jpg` vẫn là **404** (reqid 148)
+và console vẫn có error — đúng như đã ghi cho BE. Component chỉ chặn phần người dùng nhìn thấy.
+
+Ngoài lề, không do change này: `GET /api/social/posts?page=1&limit=10` trả **502** (reqid 139) rồi
+**200** ở retry của React Query (reqid 144) — social service chập chờn, retry của TanStack Query đỡ
+được nên user không thấy gì.
+
+### Drain BE handoff inbox · 13 entry → Done, `ProductThumb` onError, xoá folder chết (2026-08-07) — DONE
+
+`/sweep` fix-mode, cùng batch với ORD-STATUS-FILTER. Gate cuối: build ✓ · lint 0 error /
+3 warning cũ · **637 test / 92 file ✓**.
+
+**Nguyên tắc: không entry nào được "đóng" bằng cách đọc entry.** Mỗi cái phải verify lại bằng
+code thật, vì `FE action needed: none` do BE viết chỉ là *phỏng đoán* của BE về FE. Đúng một cái
+sai — và nó là bug thật (xem `ProductThumb` bên dưới).
+
+- **`ProductThumb` thêm `onError` fallback.** Entry SEC-M7 ghi *"add an onError placeholder on
+  order-item images (likely already exists)"* — **không hề có**. Component chỉ guard `src=""`.
+  Nghĩa là: seller xoá sản phẩm → BE destroy asset Cloudinary (SEC-M7) → đơn hàng cũ vẫn giữ URL
+  chụp lúc mua (`order_items.product_image`, P2-02) → hàng đơn cũ render **ảnh vỡ**. Giờ fallback
+  về đúng placeholder `Package`. State key theo **URL đã fail**, không phải boolean — một row bị
+  recycle sang sản phẩm khác phải thử lại ảnh mới, không thừa hưởng lỗi của ảnh cũ. +2 test.
+- **12 entry còn lại không cần code**, nhưng lý do thì đáng ghi vì hai cái là *cố tình không làm*:
+  `Number(price)` **giữ nguyên** (order item vẫn serialize `price` dạng chuỗi decimal —
+  `orderSummary.ts:51`, `SellerOrdersPage.tsx:210`, `shippingFee.ts:21`; bỏ hàng loạt là sai tổng
+  tiền), và **`429` backoff không xây** (limit 60 req/60s, batch FE tối đa 10 file — client đúng
+  chuẩn không chạm tới). Hai entry khác (post `productId` dạng chuỗi, SEC-L1 id số) đã bị **PUBID
+  thay thế** hoàn toàn — ghi rõ để lần sau khỏi đi tìm nhánh id số không còn tồn tại.
+- **Drift lộ ra khi verify:** snapshot trỏ orphan-cleanup tới "`backend-handoff.md` Open
+  2026-07-07" — **entry đó không tồn tại**; nội dung nằm ở `frontend-handoff.md` (SEC-M7). Và
+  UP-02(c) (avatar cũ) thực ra **đã đóng** bởi SEC-M7; chỉ còn UP-03(i) (ảnh nhúng trong HTML đã
+  lưu — SEC-M7 diff *field* media, không parse HTML `description`). Đã sửa cả hai chỗ.
+- **Feed 404 đo lại:** 4× → **1×**, và **khác nguyên nhân**. Hai pattern legacy đã sạch (BE
+  sanitize; grep `src/` không có workaround nào để gỡ). Cái còn lại — `…/v1/trybuy/posts/
+  17_mine.jpg` — đúng chuẩn folder + prefix owner nên qua cả sanitizer lẫn validator, asset chỉ
+  đơn giản là không tồn tại (data seed). Cần DB cleanup; `PostCard` có 5 chỗ `<img>` ở 4 nhánh
+  layout, thêm `onError` cả 5 là diff rộng cho một ảnh hỏng → để lại trong snapshot.
+- **`src/features/inventory/` (folder rỗng) đã xoá.** Không file nào tham chiếu; build sạch.
+
+Inbox `../.agent-local/frontend-handoff.md` giờ còn **đúng 1 entry Open** — cái FE→BE xin per-user
+room cho chat (đã re-check: `chatPresenceSocket.ts` vẫn chạy vòng join-all, nên ask còn nguyên).
+
+### ORD-STATUS-FILTER · tab đơn mua lọc server-side, bỏ mitigation fetch-all (2026-08-07) — DONE
+
+`/sweep` fix-mode. Gate cuối: build ✓ · lint 0 error / 3 warning cũ · **635 test / 92 file ✓**
+(trước: 627/91). Verify runtime bằng Chrome DevTools MCP trên gateway local (`techstore_demo`).
+
+**Vấn đề.** `GET /order/user/:id` trước đây không lọc được, nên FE kéo **toàn bộ** lịch sử về
+rồi mới lọc theo tab ở client (`orderHistoryPaging` auto-`fetchNextPage` tới khi hết page — 65
+đơn = 7 request), và `total`/`hasNext` mô tả lịch sử đầy đủ chứ không phải tập đang hiển thị.
+BE ship param `status` ngày 2026-08-07 → FE chuyển tab thành filter server-side.
+
+- **`buildUserOrdersQuery(page, limit, statuses)`** (`api/orders.ts`, export riêng để test được)
+  là chỗ duy nhất đóng đinh contract query string. Gateway parse query kiểu Express **simple**:
+  repeated key số ít chạy (`?status=a&status=b`), cú pháp `status[]=` bị strip → **400**. Cùng
+  cái bẫy đã ghi cho `provinceId`/`categoryIds` ở `buildProductListQuery`. List rỗng phải **không
+  emit key nào** — `?status=` là *giá trị sai*, không phải "không lọc".
+- **`filterTabStatuses(tab)`** (`features/order/orderFilterCounts.ts`) là một định nghĩa duy nhất
+  cho ánh xạ tab↔status, giờ badge đếm và filter server dùng chung — trước đó grouping bị chép
+  hai nơi, lệch một status là badge nói một đằng list một nẻo. Có test khoá riêng chuyện
+  **không có `delivered`** và `canceled` một chữ `l` (gõ sai là 400 cả tab).
+- **Query key** `orders.byUserList(userId, statuses)` = `["orders","user",id,"list",…]` — vẫn nằm
+  **dưới prefix `byUser`**, nên `invalidateOrderViews({ buyerId })` sẵn có refresh cả 5 tab lẫn
+  badge, không phải sửa chỗ invalidate nào.
+- **`orderHistoryPaging.ts` bị thu hẹp chứ không xoá** (handoff bảo xoá). Ô **"Tìm theo mã đơn…"**
+  không có param server tương ứng, nên nó vẫn lọc trên các page đã tải — đúng cái lời nói dối cũ
+  ở quy mô nhỏ. Invariant "còn page chưa tải thì chưa được render empty-state" giữ nguyên nhưng
+  **scope lại đúng lúc đang search**; tab status thì `total === 0` là tin được. Đã ghi backend gap
+  (`?q=`/`?orderId=`) vào `../.agent-local/backend-handoff.md`; có param đó là xoá cả module.
+
+Verify (MCP, 5/5 tab đều **200**, mỗi tab đúng **1 request**, không còn vòng fetch-all): "Tất cả"
+→ `?page=1&limit=10` (**không** có key `status`) · "Đang xử lý" →
+`&status=pending&status=confirmed&status=processing&status=shipped&status=delivering` ·
+"Trả hàng/Hoàn tiền" → `&status=return_requested&status=refunded` · "Hoàn thành" →
+`&status=completed` (body `{"data":[],"total":0,"hasNext":false}` — envelope mô tả **tập đã lọc**,
+và UI render đúng empty-state "Không có đơn hàng nào trong mục này" chứ không phải spinner) ·
+"Đã hủy" → `&status=canceled`.
+
 ### BE handoff inbox · null-clear PATCH + `role` reshape + 409 duplicate credential (2026-08-07) — DONE
 
 `/sweep` fix-mode, 2 entry `## Open` của `../.agent-local/frontend-handoff.md`. Gate cuối:
