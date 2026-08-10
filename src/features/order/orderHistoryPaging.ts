@@ -1,37 +1,28 @@
-import type { OrderFilterKey } from './orderFilterCounts';
-
 /**
- * The buyer order list filters **client-side** over whatever pages the infinite
- * query has loaded, while the tab badges come from a **full-history server
- * count** (`GET /order/user/:id/status-counts`). The two therefore disagree the
- * moment a match lives past the loaded pages.
+ * The buyer order list now asks the server for one status group at a time
+ * (`GET /order/user/:id?status=`, handoff 2026-08-07), so a filter tab paginates
+ * on its own and its empty state can trust `total === 0`.
  *
- * Verified live 2026-08-04 on a 65-order account: `status-counts` returned
- * `refunded: 1`, so the tab read "Trả hàng/Hoàn tiền (1)", but the only refunded
- * order sat at index 18 — page 2 — while only page 1 (10 rows) was in memory.
- * The tab rendered "Không có đơn hàng nào trong mục này", and the "Tải thêm"
- * button was itself gated to the `all` tab, so there was no way out.
+ * What is still client-side is the **"Tìm theo mã đơn…" box**: the endpoint has
+ * no order-id search param, so the match is computed over whatever pages the
+ * infinite query holds. That reintroduces the original lie in miniature — a
+ * matching order sitting on an unloaded page would render "no results" — so a
+ * search must keep pulling the rest of the (already status-narrowed) history
+ * before its result set means anything.
  *
- * Mitigation only. `GET /order/user/:id` accepts nothing but `page` + `limit`
- * (`GetOrdersByUserQueryDto`), unlike the seller list which already takes
- * `status` — so FE cannot ask the server for one status and has to hold the
- * whole history to filter honestly. Delete this module once the buyer endpoint
- * takes `?status=` too (see `backend-handoff.md`).
+ * Recorded as a backend gap in `../.agent-local/backend-handoff.md`; delete this
+ * module once the endpoint can search by order id server-side.
  */
-export function narrowsHistory(filterTab: OrderFilterKey, search: string): boolean {
-  return filterTab !== 'all' || search.trim().length > 0;
+export function narrowsHistory(search: string): boolean {
+  return search.trim().length > 0;
 }
 
 /**
- * True while a narrowed view is still missing pages that could hold matches —
+ * True while a searched view is still missing pages that could hold matches —
  * i.e. an empty result set is not yet meaningful. Callers must keep fetching and
  * must NOT render the "nothing here" state, or they claim a result they have not
  * finished computing.
  */
-export function isHistoryIncomplete(
-  filterTab: OrderFilterKey,
-  search: string,
-  hasNextPage: boolean,
-): boolean {
-  return hasNextPage && narrowsHistory(filterTab, search);
+export function isHistoryIncomplete(search: string, hasNextPage: boolean): boolean {
+  return hasNextPage && narrowsHistory(search);
 }

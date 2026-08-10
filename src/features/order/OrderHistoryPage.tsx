@@ -5,14 +5,13 @@ import { useAuthContext } from '@/context/AuthContext';
 import { useOrdersByUser } from './useOrdersByUser';
 import { useOrderStatusCounts } from './useOrderStatusCounts';
 import { orderItemsSummary, orderCoverImage } from './orderSummary';
-import { orderFilterCounts, type OrderFilterKey } from './orderFilterCounts';
+import { orderFilterCounts, filterTabStatuses, type OrderFilterKey } from './orderFilterCounts';
 import { narrowsHistory, isHistoryIncomplete } from './orderHistoryPaging';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ProductThumb } from '@/components/shared/ProductThumb';
 import type { Order } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatVnd } from '@/lib/format/utils';
-import { isActiveStatus, isReturnStatus } from '@/lib/domain/orderStatus';
 import { formatDateTime } from '@/lib/format/time';
 
 const FILTER_OPTS: { id: OrderFilterKey; label: string }[] = [
@@ -33,6 +32,8 @@ export default function OrderHistoryPage(): ReactElement {
   const [filterTab, setFilterTab] = useState<OrderFilterKey>('all');
   const [search, setSearch] = useState('');
 
+  // The tab is a server-side filter now — one request per page of that status
+  // group, instead of pulling the whole history to filter it client-side.
   const {
     data,
     isLoading: loading,
@@ -40,7 +41,7 @@ export default function OrderHistoryPage(): ReactElement {
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
-  } = useOrdersByUser(userId);
+  } = useOrdersByUser(userId, filterTabStatuses(filterTab));
 
   const orders: Order[] = data?.pages.flatMap((p) => p.data) ?? [];
 
@@ -56,28 +57,19 @@ export default function OrderHistoryPage(): ReactElement {
 
   const counts = orderFilterCounts(statusCounts);
 
-  // Tab badges count the full history server-side; the list below filters only
-  // the pages loaded so far. Any narrowed view must therefore pull the rest of
-  // the history before its result set means anything — see `orderHistoryPaging`.
-  const narrowed = narrowsHistory(filterTab, search);
-  const incomplete = isHistoryIncomplete(filterTab, search, hasNextPage);
+  // The status tab is served filtered; only the order-id search still narrows
+  // client-side, so only a search has to pull the rest of the pages before its
+  // result set means anything — see `orderHistoryPaging`.
+  const narrowed = narrowsHistory(search);
+  const incomplete = isHistoryIncomplete(search, hasNextPage);
 
   useEffect(() => {
     if (incomplete && !isFetchingNextPage) void fetchNextPage();
   }, [incomplete, isFetchingNextPage, fetchNextPage]);
 
-  const filteredOrders = (() => {
-    const byTab =
-      filterTab === 'all'
-        ? orders
-        : filterTab === 'pending'
-          ? orders.filter(o => isActiveStatus(o.status))
-          : filterTab === 'return'
-            ? orders.filter(o => isReturnStatus(o.status))
-            : orders.filter(o => o.status === filterTab);
-    if (!search.trim()) return byTab;
-    return byTab.filter(o => String(o.id).includes(search.trim()));
-  })();
+  const filteredOrders = search.trim()
+    ? orders.filter(o => o.id.includes(search.trim()))
+    : orders;
 
   if (!currentUser) return <></>;
 

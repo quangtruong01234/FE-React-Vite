@@ -1,6 +1,7 @@
 import type {
   Order,
   OrderWithBuyer,
+  OrderStatus,
   OrderStatusCounts,
   SellerOrderDetail,
   CreateOrderDto,
@@ -17,6 +18,21 @@ import type {
   ApiError,
 } from "@/types";
 import { request, toQuery, API_BASE } from "./client";
+
+// `GET /order/user/:id?status=` (handoff 2026-08-07) takes the filter as REPEATED
+// singular `status` keys — `?status=return_requested&status=refunded`. Bracket
+// syntax `status[]=` is stripped by the Express simple query parser and yields
+// `400`, same trap as `provinceId` on the product list. An empty list must emit
+// no key at all: `?status=` is not "unfiltered", it is an invalid value.
+export function buildUserOrdersQuery(
+  page: number,
+  limit: number,
+  statuses: readonly OrderStatus[] = [],
+): string {
+  const sp = new URLSearchParams({ page: String(page), limit: String(limit) });
+  for (const status of statuses) sp.append("status", status);
+  return `?${sp.toString()}`;
+}
 
 export const ordersApi = {
   // P0-04: an optional Idempotency-Key lets the backend single-flight a
@@ -53,10 +69,11 @@ export const ordersApi = {
     userId: string,
     page = 1,
     limit = 10,
-  ): Promise<PaginatedResponse<Order>> => {
-    const qs = toQuery({ page, limit });
-    return request<PaginatedResponse<Order>>(`/order/user/${userId}${qs}`);
-  },
+    statuses: readonly OrderStatus[] = [],
+  ): Promise<PaginatedResponse<Order>> =>
+    request<PaginatedResponse<Order>>(
+      `/order/user/${userId}${buildUserOrdersQuery(page, limit, statuses)}`,
+    ),
 
   getById: (id: string): Promise<Order> => request<Order>(`/order/${id}`),
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { OrderStatusCounts } from '@/types';
-import { orderFilterCounts } from './orderFilterCounts';
+import { orderFilterCounts, filterTabStatuses } from './orderFilterCounts';
 
 const counts: OrderStatusCounts = {
   all: 21,
@@ -42,5 +42,41 @@ describe('orderFilterCounts', () => {
 
   it('treats missing return-status counts as zero (endpoint not yet updated)', () => {
     expect(orderFilterCounts(counts).return).toBe(0);
+  });
+});
+
+describe('filterTabStatuses', () => {
+  it('sends NOTHING for the all tab — an empty status key is not "unfiltered"', () => {
+    expect(filterTabStatuses('all')).toEqual([]);
+  });
+
+  it('expands the pending tab to every in-flight status', () => {
+    expect(filterTabStatuses('pending')).toEqual([
+      'pending',
+      'confirmed',
+      'processing',
+      'shipped',
+      'delivering',
+    ]);
+  });
+
+  it('expands the return tab to both F2 statuses', () => {
+    expect(filterTabStatuses('return')).toEqual(['return_requested', 'refunded']);
+  });
+
+  it('maps the single-status tabs to themselves', () => {
+    expect(filterTabStatuses('completed')).toEqual(['completed']);
+    expect(filterTabStatuses('canceled')).toEqual(['canceled']);
+  });
+
+  it('never emits a status the backend rejects with 400', () => {
+    // The endpoint knows nine values: there is no `delivered`, and cancellation
+    // is spelled `canceled` with one l. Either typo 400s the whole tab.
+    const emitted: string[] = (
+      ['all', 'pending', 'completed', 'return', 'canceled'] as const
+    ).flatMap((tab) => [...filterTabStatuses(tab)]);
+    expect(emitted).not.toContain('delivered');
+    expect(emitted).not.toContain('cancelled');
+    expect(emitted).toContain('canceled');
   });
 });
