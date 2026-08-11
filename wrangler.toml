@@ -29,12 +29,18 @@ binding = "ASSETS"
 
 # THE line that keeps this free. Default routing is asset-first: a request that
 # matches a built file is served without invoking the script at all. Listing only
-# /api/* here means JS, CSS and images stay unmetered asset hits, and the script
-# runs solely for API calls.
+# these prefixes means JS, CSS and images stay unmetered asset hits, and the
+# script runs solely for API calls and Socket.IO handshakes.
+#
+# /socket.io is listed with and without the trailing wildcard: socket.io requests
+# `/socket.io/?EIO=4&transport=websocket`, and a pattern is matched against the
+# path only, so `/socket.io/*` alone would rely on `*` matching an empty segment.
+# A proxied socket costs one request for the upgrade, not one per frame — see
+# worker/index.ts.
 #
 # Boolean `true` would run the Worker on EVERY request — every page load would
 # then burn invocations from the 100k/day free quota for nothing.
-run_worker_first = ["/api/*"]
+run_worker_first = ["/api/*", "/socket.io", "/socket.io/*"]
 
 # React Router owns every path in this app. Without this, a hard refresh on
 # /product/prod_x (or any deep link a user pastes) asks Cloudflare for a file

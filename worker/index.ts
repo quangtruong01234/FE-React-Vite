@@ -7,16 +7,21 @@
 // see apps/gateway/src/common/auth-cookie.ts), so the browser attributes it to
 // this Worker's domain.
 //
-// Billing: `run_worker_first = ["/api/*"]` in wrangler.toml means static assets
-// are still served without invoking this script — those stay free and unmetered.
-// Only API calls count against the Workers request quota (100k/day on free), and
-// subrequests to the gateway are not billed.
+// Socket.IO (`/socket.io/*`) is proxied for exactly the same reason (CD-FE-03).
+// Pointing the sockets at the gateway origin instead makes the handshake
+// cross-site, where the host-only cookie is never sent: the transport connects,
+// the server answers `41/notifications,` (namespace disconnect) because the
+// handshake is unauthenticated, and realtime silently dies while REST still
+// works. Proxying puts the handshake back on this origin, cookie included.
 //
-// NOT covered: Socket.IO. VITE_CHAT_URL / VITE_WS_NOTIFICATION_URL still point at
-// the gateway origin directly, because Workers cannot proxy a WebSocket upgrade
-// to an external origin without holding the connection open (which is metered
-// duration, not a free asset hit).
-import { buildUpstreamHeaders, methodAllowsBody, resolveUpstreamUrl } from './proxy';
+// Billing: `run_worker_first` in wrangler.toml lists only these two prefixes, so
+// static assets are still served without invoking this script — those stay free
+// and unmetered. Only API calls and socket handshakes count against the Workers
+// request quota (100k/day on free), and subrequests to the gateway are not
+// billed. A proxied WebSocket costs ONE request: the Worker returns the upstream
+// 101 and Cloudflare splices the two sockets together, so frames flow without
+// re-invoking this script and an idle connection bills nothing.
+import { buildUpstreamHeaders, isWebSocketUpgrade, methodAllowsBody, resolveUpstreamUrl } from './proxy';
 
 interface Env {
   /** Gateway origin, origin-only, no trailing path. Injected at deploy time — never committed. */
@@ -40,9 +45,19 @@ export default {
     }
 
     const upstreamUrl = resolveUpstreamUrl(request.url, env.GATEWAY_ORIGIN);
-    // run_worker_first routes only /api/* here. Anything else arriving means the
-    // config drifted, so fall back to the assets instead of proxying it.
+    // run_worker_first routes only the proxied prefixes here. Anything else
+    // arriving means the config drifted, so fall back to the assets.
     if (upstreamUrl === null) return env.ASSETS.fetch(request);
+
+    // A WebSocket upgrade is forwarded by handing the original Request to
+    // fetch() as the init. That form is what preserves the upgrade — rebuilding
+    // the request from a plain Headers object drops `Upgrade`/`Connection` (they
+    // are hop-by-hop, which is exactly what buildUpstreamHeaders strips) and the
+    // gateway answers a normal 200 instead of a 101. The response is returned
+    // untouched so its attached WebSocket survives; Cloudflare then pipes the
+    // frames itself. Client IP still reaches the gateway as CF-Connecting-IP,
+    // which rides along with the forwarded headers.
+    if (isWebSocketUpgrade(request.headers)) return fetch(upstreamUrl, request);
 
     const init: ProxyRequestInit = {
       method: request.method,

@@ -2,7 +2,13 @@
 // Worker code runs on workerd, not in a DOM. Node 22 supplies the same
 // Headers/URL globals workerd does; jsdom does not implement Headers at all.
 import { describe, it, expect } from 'vitest';
-import { buildUpstreamHeaders, isProxiedPath, methodAllowsBody, resolveUpstreamUrl } from './proxy';
+import {
+  buildUpstreamHeaders,
+  isProxiedPath,
+  isWebSocketUpgrade,
+  methodAllowsBody,
+  resolveUpstreamUrl,
+} from './proxy';
 
 const GATEWAY = 'https://gateway.example.com';
 const WORKER = 'https://fe.example.workers.dev';
@@ -13,10 +19,29 @@ describe('isProxiedPath', () => {
     expect(isProxiedPath('/api/user/me')).toBe(true);
   });
 
+  it('matches the socket.io handshake path', () => {
+    expect(isProxiedPath('/socket.io')).toBe(true);
+    // What socket.io-client actually requests (query string excluded).
+    expect(isProxiedPath('/socket.io/')).toBe(true);
+  });
+
   it('does not match app routes that merely start with the same letters', () => {
     expect(isProxiedPath('/apifoo')).toBe(false);
+    expect(isProxiedPath('/socket.iofoo')).toBe(false);
     expect(isProxiedPath('/')).toBe(false);
     expect(isProxiedPath('/product/prod_x')).toBe(false);
+  });
+});
+
+describe('isWebSocketUpgrade', () => {
+  it('detects the upgrade regardless of case', () => {
+    expect(isWebSocketUpgrade(new Headers({ upgrade: 'websocket' }))).toBe(true);
+    expect(isWebSocketUpgrade(new Headers({ Upgrade: 'WebSocket' }))).toBe(true);
+  });
+
+  it('is false for a plain request, so it takes the normal proxy path', () => {
+    expect(isWebSocketUpgrade(new Headers())).toBe(false);
+    expect(isWebSocketUpgrade(new Headers({ upgrade: 'h2c' }))).toBe(false);
   });
 });
 
@@ -37,7 +62,13 @@ describe('resolveUpstreamUrl', () => {
     );
   });
 
-  it('returns null for non-API paths so the caller can serve the SPA', () => {
+  it('swaps the origin for the socket.io handshake, query intact', () => {
+    expect(resolveUpstreamUrl(`${WORKER}/socket.io/?EIO=4&transport=websocket`, GATEWAY)).toBe(
+      `${GATEWAY}/socket.io/?EIO=4&transport=websocket`,
+    );
+  });
+
+  it('returns null for non-proxied paths so the caller can serve the SPA', () => {
     expect(resolveUpstreamUrl(`${WORKER}/product/prod_x`, GATEWAY)).toBeNull();
     expect(resolveUpstreamUrl(`${WORKER}/`, GATEWAY)).toBeNull();
   });

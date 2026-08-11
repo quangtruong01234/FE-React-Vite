@@ -71,8 +71,8 @@ there is no project to pre-create and no dashboard form to fill in.
 | Variable | Value |
 |---|---|
 | `VITE_API_URL` | `/api` — relative; `worker/index.ts` proxies it |
-| `VITE_CHAT_URL` | `https://api.<domain>` |
-| `VITE_WS_NOTIFICATION_URL` | `https://api.<domain>` |
+| `VITE_CHAT_URL` | `/` — same-origin; `worker/index.ts` proxies `/socket.io` |
+| `VITE_WS_NOTIFICATION_URL` | `/` |
 | `GATEWAY_ORIGIN` | `https://api.<domain>` — origin only, no `/api`, no trailing slash |
 
 `GATEWAY_ORIGIN` is the only one that never reaches the bundle: `deploy.yml`
@@ -83,8 +83,10 @@ every API call with a 500.
 Variables rather than secrets on purpose: all three end up readable in the
 shipped bundle anyway, and masking them only turns the build log into `***`.
 
-`socket.io-client` upgrades an `https://` origin to `wss://` on its own — do not
-write `wss://` here, it breaks the initial polling handshake.
+Never write `wss://` in the socket variables. With the relative `/` they are not
+origins at all — `socket.io-client` reads a leading-slash value as "this origin,
+that namespace" and picks the scheme itself. If you ever point them back at an
+absolute origin, `https://` is still the right prefix.
 
 ### 4. Backend (the `api` repo's env on the box)
 
@@ -168,32 +170,42 @@ since CI builds from a fresh clone. It now ignores only the design screenshots
 with no `Domain`, so the browser files it under the Worker's domain), and CORS
 stops being in the request path at all.
 
-**What it costs — less than it looks.** `run_worker_first = ["/api/*"]` keeps the
-default asset-first routing for everything else, so JS/CSS/images are still
-served without invoking the script and stay free and unmetered. Only API calls
-count, against 100k/day on the free plan; subrequests to the gateway are never
-billed, and a proxy hop is ~0ms CPU against the 10ms limit. Past 100k/day
+**Socket.IO goes through it too (CD-FE-03).** `/socket.io/*` is proxied for the
+same reason as `/api`. Pointed at the gateway origin instead, the handshake is
+cross-site and the host-only cookie never rides along: the transport connects,
+the server answers `41/notifications,` — a namespace disconnect — and chat plus
+realtime notifications are dead while every REST call still works, so nothing
+looks broken. Symptom to recognise: the unread badge only moves on a page
+reload.
+
+**What it costs — less than it looks.** `run_worker_first` lists only `/api/*`
+and `/socket.io`, so JS/CSS/images keep the default asset-first routing and stay
+free and unmetered. Only API calls and socket handshakes count, against 100k/day
+on the free plan; subrequests to the gateway are never billed, and a proxy hop is
+~0ms CPU against the 10ms limit. A proxied WebSocket is **one** request, not one
+per frame: the Worker returns the upstream 101 and Cloudflare splices the two
+sockets, so it is never re-invoked for traffic on that connection. Past 100k/day
 Cloudflare does **not** auto-upgrade — the API starts erroring until 00:00 UTC.
 Workers Paid is $5/mo for 10M requests.
 
 Setting `run_worker_first = true` (boolean) instead would run the script on every
 page load and burn the quota on requests that are otherwise free.
 
-**It does not hide the backend.** `VITE_CHAT_URL` / `VITE_WS_NOTIFICATION_URL`
-still hold the absolute gateway origin, because a Worker cannot proxy a WebSocket
-upgrade to an external origin as a free asset hit. The gateway hostname is
-visible in DevTools' WS tab either way — treat the proxy as an auth/CORS
-simplification, not as concealment.
+**It does not hide the backend.** `GATEWAY_ORIGIN` is only hidden from the
+repo, not from the wire — treat the proxy as an auth/CORS simplification, not as
+concealment.
 
 **No backend change is needed to switch over.** Verified against the live gateway
 through a local `wrangler dev`: same-origin requests succeed regardless of
 `FRONTEND_URL`, and `AUTH_COOKIE_SAME_SITE=none` keeps working (`None`+`Secure`
 is valid same-site). Relaxing it to `lax` is a separate, revertible step.
 
-**Rollback** is the wrangler.toml pair plus one variable: drop `main` +
-`run_worker_first`, and set the `VITE_API_URL` production variable back to the
-absolute `https://api.<domain>/api`. Both must move together — see the trap
-below.
+**Rollback** is the wrangler.toml pair plus the variables: drop `main` +
+`run_worker_first`, and set `VITE_API_URL` back to the absolute
+`https://api.<domain>/api` and `VITE_CHAT_URL` / `VITE_WS_NOTIFICATION_URL` back
+to `https://api.<domain>`. They must all move together — see the trap below —
+and reverting the socket ones re-breaks realtime unless the gateway's cookie
+becomes cross-site again (`SameSite=None`, and readable from that origin).
 
 ## Not covered by CI
 

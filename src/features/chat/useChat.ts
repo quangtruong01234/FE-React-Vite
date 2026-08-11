@@ -12,13 +12,14 @@ import {
 } from './chatMessages';
 import { acquireChatPresenceSocket, setActiveConversation } from './chatPresenceSocket';
 import { SOCKET_CONNECT_OPTIONS } from '@/lib/realtime/socket';
+import { resolveSocketUrl } from '@/lib/realtime/socketUrl';
 import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
 import type { ChatConnectionStatus } from './chatConnection';
 import type { Conversation, Message, PaginatedResponse } from '@/types';
 
 export type { ChatMessage };
 
-const CHAT_URL = (import.meta.env.VITE_CHAT_URL as string | undefined) ?? 'http://localhost:3000';
+const CHAT_SOCKET_URL = resolveSocketUrl(import.meta.env.VITE_CHAT_URL as string | undefined, '/chat');
 
 type ChatSocket = Socket<
   { new_message: (msg: Message) => void; error: (err: string) => void },
@@ -118,7 +119,7 @@ export function useChat(conversationId: string, currentUserId?: string): {
   useEffect(() => {
     if (!conversationId) return;
 
-    const socket: ChatSocket = io(`${CHAT_URL}/chat`, SOCKET_CONNECT_OPTIONS);
+    const socket: ChatSocket = io(CHAT_SOCKET_URL, SOCKET_CONNECT_OPTIONS);
     socketRef.current = socket;
 
     socket.on('connect', () => {

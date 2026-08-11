@@ -24,13 +24,15 @@ name: Deploy
 # are variables, not secrets: every one of them is readable in the shipped bundle
 # anyway, and marking them secret only makes the build log harder to read.
 #   VITE_API_URL               /api            <- relative: the Worker proxies it
-#   VITE_CHAT_URL              https://api.<domain>
-#   VITE_WS_NOTIFICATION_URL   https://api.<domain>
+#   VITE_CHAT_URL              /               <- same-origin: the Worker proxies /socket.io
+#   VITE_WS_NOTIFICATION_URL   /
 #   GATEWAY_ORIGIN             https://api.<domain>   (Worker-side, not baked into the bundle)
 #
-# VITE_API_URL is `/api` because worker/index.ts reverse-proxies that prefix to
-# GATEWAY_ORIGIN. The two socket URLs stay absolute: a Worker cannot proxy a
-# WebSocket upgrade to an external origin as a free asset hit.
+# All three VITE_* values are relative because worker/index.ts reverse-proxies
+# `/api/*` and `/socket.io/*` to GATEWAY_ORIGIN. Setting the socket ones back to
+# the absolute gateway origin makes the handshake cross-site, and the gateway's
+# host-only auth cookie is not sent — the socket connects and is immediately
+# disconnected at the namespace level, killing chat and notifications.
 #
 # No backend env change is required to switch over. The browser request is now
 # same-origin, so CORS never gates it — verified against the live gateway through

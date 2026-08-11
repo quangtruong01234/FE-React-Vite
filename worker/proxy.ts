@@ -1,8 +1,15 @@
 // Pure request-shaping helpers for the /api reverse proxy (see worker/index.ts).
 // Kept separate so they can be unit-tested without a Workers runtime.
 
-/** Path prefix the Worker proxies. Must stay in sync with `run_worker_first` in wrangler.toml. */
-export const PROXY_PREFIX = '/api';
+/**
+ * Path prefixes the Worker proxies. Must stay in sync with `run_worker_first` in
+ * wrangler.toml.
+ *
+ * `/socket.io` is here for the same reason as `/api`: the gateway sets a
+ * host-only auth cookie, so a socket that dials the gateway origin directly
+ * handshakes with no cookie at all and the server drops the namespace.
+ */
+export const PROXY_PREFIXES = ['/api', '/socket.io'] as const;
 
 // Connection-scoped headers describe the browser→Worker hop only. Forwarding
 // them verbatim to nginx is meaningless at best and breaks framing at worst
@@ -19,13 +26,21 @@ const HOP_BY_HOP_HEADERS = [
 ];
 
 export function isProxiedPath(pathname: string): boolean {
-  return pathname === PROXY_PREFIX || pathname.startsWith(`${PROXY_PREFIX}/`);
+  return PROXY_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
 /**
- * Maps a browser-facing URL onto the gateway. The `/api` prefix is preserved —
- * the gateway serves its routes under `/api` too, so this is a pure origin swap.
- * Returns null for anything outside `/api`, which the caller hands to the assets.
+ * True for a request the browser wants switched to the WebSocket protocol.
+ * Those take a different path through the Worker — see worker/index.ts.
+ */
+export function isWebSocketUpgrade(headers: Headers): boolean {
+  return headers.get('upgrade')?.toLowerCase() === 'websocket';
+}
+
+/**
+ * Maps a browser-facing URL onto the gateway. The path is preserved — the
+ * gateway serves its routes under the same prefixes, so this is a pure origin
+ * swap. Returns null for anything unproxied, which the caller hands to the assets.
  *
  * `gatewayOrigin` must be origin-only (`https://host`); a trailing path on it is
  * dropped, because the incoming pathname replaces it wholesale.

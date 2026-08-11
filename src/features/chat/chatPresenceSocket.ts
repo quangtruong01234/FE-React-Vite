@@ -3,13 +3,14 @@ import { queryClient } from '@/lib/query/queryClient';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { api } from '@/api';
 import { createRefCountedSocket } from '@/lib/realtime/socket';
+import { resolveSocketUrl } from '@/lib/realtime/socketUrl';
 import { playMessageReceived } from '@/lib/realtime/chatSound';
 import { applyIncomingMessage } from './chatConversations';
 import { appendMessageToCache, type MessagesInfiniteData } from './chatMessages';
 import { shouldPlayPresenceSound, unjoinedConversationIds } from './chatPresence';
 import type { Conversation, Message } from '@/types';
 
-const CHAT_URL = (import.meta.env.VITE_CHAT_URL as string | undefined) ?? 'http://localhost:3000';
+const CHAT_SOCKET_URL = resolveSocketUrl(import.meta.env.VITE_CHAT_URL as string | undefined, '/chat');
 
 type PresenceSocket = Socket<
   { new_message: (msg: Message) => void },
@@ -53,7 +54,7 @@ function joinAll(convs: Conversation[]): void {
  * conversation the viewer has, and re-join whenever the conversation list cache
  * grows (e.g. a new thread is started while online).
  */
-const presenceSocket = createRefCountedSocket<PresenceSocket>(`${CHAT_URL}/chat`, {
+const presenceSocket = createRefCountedSocket<PresenceSocket>(CHAT_SOCKET_URL, {
   onCreate: (socket) => {
     socket.on('connect', () => {
       const cached = queryClient.getQueryData<Conversation[]>(queryKeys.conversations.all);

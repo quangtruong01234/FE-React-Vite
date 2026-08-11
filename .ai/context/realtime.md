@@ -23,12 +23,22 @@ described a mock placeholder — that is no longer accurate).
 | Notifications | `ws://localhost:3000/notifications` | `/notifications` | `notification` | none — server-push only |
 | Chat | `ws://localhost:3000/chat` | `/chat` | `new_message`, `error` | `join`, `leave`, `send_message` |
 
-Origins come from env (fallback `http://localhost:3000`):
+Origins come from env (fallback `http://localhost:3000`), resolved through
+`resolveSocketUrl()` in `src/lib/realtime/socketUrl.ts` — never concatenate them
+by hand:
 - Chat → `VITE_CHAT_URL`
 - Notifications → `VITE_WS_NOTIFICATION_URL`
 
+A **relative** value (`/`, or empty) means same-origin and is what production
+uses: the Cloudflare Worker reverse-proxies `/socket.io/*` to the gateway. Dev
+keeps the absolute `http://localhost:3000`.
+
 Auth: both gateways read the `access_token` HttpOnly cookie automatically when
-`withCredentials: true`. No token passing in handshake options.
+`withCredentials: true`. No token passing in handshake options. **This is why the
+origin matters** — the gateway sets the cookie host-only (no `Domain`), so a
+handshake sent to any other origin carries no cookie. The failure is quiet: the
+transport connects, the server replies `41/<namespace>,` (namespace disconnect),
+and every REST call keeps working, so only the missing live updates give it away.
 
 Transport: every socket connects with `transports: ['websocket']` (skip the polling
 handshake). The gateway can run as N clustered workers with no sticky sessions, so a
