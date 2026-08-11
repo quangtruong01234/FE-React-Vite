@@ -51,13 +51,11 @@ login → product → cart → checkout → payment/order.
   `FRONTEND_URL` + `AUTH_COOKIE_SAME_SITE=none` cho gateway trên EC2 — thiếu thì login "thành
   công" nhưng mọi request sau đó 401. Chi tiết → `DEPLOYMENT.md`.
 
-- **CD-FE-03 · đổi 2 variable rồi deploy lại — chat + notification prod đang chết.** Code đã
-  xong và verify live (Recent closes 2026-08-11), nhưng Vite inline env lúc **build**, nên bundle
-  đang chạy vẫn mang origin gateway tuyệt đối. Trên GitHub → Settings → Environments →
-  `production`, đổi `VITE_CHAT_URL` và `VITE_WS_NOTIFICATION_URL` thành `/` (giữ nguyên
-  `VITE_API_URL=/api` và `GATEWAY_ORIGIN`), rồi chạy `workflow_dispatch` trên workflow **Deploy**
-  — không commit nào đi kèm nên phải bấm tay. Kiểm chứng sau deploy: DevTools → Network → WS,
-  frame phải là `40/notifications,` chứ không phải `41/notifications,`.
+  ✅ **CD-FE-03 đã xong hẳn 2026-08-11:** hai variable socket đổi sang `/`, push `ffa42a0` →
+  CI → Deploy tự chạy, bundle live `index-BRya1NEn.js` không còn origin gateway. Verify trên
+  **prod thật**: socket đi `wss://fe-react-vite…workers.dev/socket.io/`, `40/notifications,` +
+  `40/chat,`, 0 close, và tin nhắn từ tài khoản thứ hai về tới nơi (`42/chat,["new_message",…]`)
+  không cần reload.
 
 ### Chờ backend (FE đã ship mitigation, chỉ backend mới đóng được)
 
