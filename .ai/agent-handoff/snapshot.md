@@ -1,6 +1,6 @@
 # Snapshot — TryBuy Frontend Current State
 
-> Cập nhật: 2026-08-09 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
+> Cập nhật: 2026-08-11 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
 > Keep this LEAN: chỉ giữ bức tranh sống (overview, việc còn mở/bị chặn, known issues).
 > Việc đã xong nằm ở `CHANGELOG.md` (cùng thư mục, không auto-load) — **đừng chép lại vào đây**.
 > Convention/rule nằm ở `.ai/context/` — cũng không duplicate vào đây.
@@ -12,8 +12,8 @@ order, seller, social, admin, chat, wishlist, sổ địa chỉ. **Toàn bộ P0
 riêng P0-03 vẫn là FE mitigation chờ backend transaction. Public-ID migration (PUBID-01–07) đã
 xong — storefront id là opaque string end-to-end.
 
-**Gates (chạy lại + verify 2026-08-09):** `npm run build` ✓ · `npm run lint` 0 error /
-3 warning advisory · `npm run test:run` 645 test / 93 file, all pass. Không đóng item nào khi 3
+**Gates (chạy lại + verify 2026-08-11):** `npm run build` ✓ · `npm run lint` 0 error /
+3 warning advisory · `npm run test:run` 667 test / 95 file, all pass. Không đóng item nào khi 3
 lệnh này chưa xanh.
 
 > ⚠️ `npm run build` **mới** thực sự typecheck từ 2026-08-04. Trước đó script chỉ là `vite build`
@@ -28,6 +28,7 @@ login → product → cart → checkout → payment/order.
 
 | Ngày | Item |
 |---|---|
+| 2026-08-11 | **CD-FE-03 · Socket.IO qua Worker proxy** — realtime chết im trên prod: cookie `access_token` là host-only nên từ khi REST đi qua proxy (CD-FE-02), socket quay số thẳng origin gateway thành cross-site → gateway trả `41/notifications,` (namespace disconnect), badge chỉ đổi khi reload, console sạch. Worker giờ proxy cả `/socket.io/*` (nhánh upgrade phải là `fetch(url, request)` — dựng lại từ `Headers` là mất `Upgrade` vì hop-by-hop bị strip); `resolveSocketUrl()` mới cho 3 call site, env prod cả ba đều tương đối. **Verify live** qua `wrangler dev` đánh gateway thật: `40/notifications,` + `40/chat,` connect và ở lại, tin nhắn thật về tới tab kia (`42/chat,["new_message",…]`). ⚠️ **Chưa live** cho tới khi 2 variable được đổi — xem "Chờ thao tác của người dùng" |
 | 2026-08-09 | **RIGHTRAIL-IMG + cache URL đã fail** — hai thứ tìm được khi verify `PostImage` bằng MCP. (1) `RightRail` bỏ hẳn URL Unsplash hardcode (vừa là default khi `imageUrl` null, vừa là đích của `onError` — tự gán lại `e.target.src` nên có thể **lặp request**); thay bằng `<ProductThumb>`, hết request bên thứ ba trên trang chủ. (2) `failedPostImages.ts` — set URL đã 404 dùng chung, vì feed tile và lightbox là 2 mount khác nhau của cùng ảnh nên trước đó click ảnh hỏng bắn thêm một 404 nữa ở `w_1600`. Verify live: request Unsplash **biến mất**, 404 còn **1** thay vì 2 |
 | 2026-08-08 | **`PostImage`** — ảnh post 404 giờ ra placeholder `ImageOff` thay vì ảnh vỡ. Gom **7 chỗ `<img>`** rải ở 4 nhánh layout của `PostCard` + 2 nhánh của `PostDetailPage` (kể cả lightbox) về một component `features/social/PostImage.tsx`, cùng contract `onError` như `ProductThumb`: state keyed theo URL fail (slot feed tái sử dụng cho post khác vẫn thử lại ảnh mới), placeholder giữ nguyên class của slot nên **không layout shift**. **Verify runtime 2026-08-09 (Chrome DevTools MCP)**: feed + lightbox + `PostDetailPage` đều ra placeholder, click nền vẫn đóng lightbox. Nguyên nhân gốc (seed row trỏ asset không tồn tại) vẫn là việc của BE |
 | 2026-08-07 | **Drain BE handoff inbox**: 13 entry `## Open` → `## Done` sau khi verify từng cái với code thật (payment return URL giữ guard có chủ đích · GHN `shippingFee: 0` không chèn sàn client · post `productId` + SEC-L1 đã bị PUBID thay thế · media cap/ownership/upload signature/socket upgrade/status-counts/money fields: không còn việc). Inbox giờ còn **1 entry** — cái FE→BE xin per-user room cho chat · `ProductThumb` thêm `onError` fallback (SEC-M7 xoá ảnh của product đã xoá → đơn cũ đang render ảnh vỡ) · xoá folder chết `src/features/inventory/` |
@@ -49,6 +50,14 @@ login → product → cart → checkout → payment/order.
   (2) tạo Environment `production` với 3 **variable** `VITE_*`; (3) sau lần deploy đầu, đặt
   `FRONTEND_URL` + `AUTH_COOKIE_SAME_SITE=none` cho gateway trên EC2 — thiếu thì login "thành
   công" nhưng mọi request sau đó 401. Chi tiết → `DEPLOYMENT.md`.
+
+- **CD-FE-03 · đổi 2 variable rồi deploy lại — chat + notification prod đang chết.** Code đã
+  xong và verify live (Recent closes 2026-08-11), nhưng Vite inline env lúc **build**, nên bundle
+  đang chạy vẫn mang origin gateway tuyệt đối. Trên GitHub → Settings → Environments →
+  `production`, đổi `VITE_CHAT_URL` và `VITE_WS_NOTIFICATION_URL` thành `/` (giữ nguyên
+  `VITE_API_URL=/api` và `GATEWAY_ORIGIN`), rồi chạy `workflow_dispatch` trên workflow **Deploy**
+  — không commit nào đi kèm nên phải bấm tay. Kiểm chứng sau deploy: DevTools → Network → WS,
+  frame phải là `40/notifications,` chứ không phải `41/notifications,`.
 
 ### Chờ backend (FE đã ship mitigation, chỉ backend mới đóng được)
 

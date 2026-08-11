@@ -7,6 +7,50 @@
 
 ## Maintenance
 
+### CD-FE-03 · Socket.IO đi qua Worker proxy — realtime chết im trên prod (2026-08-11) — DONE
+
+Gate cuối: build ✓ · lint 0 error / **3** warning cũ · **667 test / 95 file ✓**.
+
+Tìm được khi test end-to-end toàn bộ API prod bằng Chrome DevTools MCP: mọi REST call 200, nhưng
+badge thông báo chỉ nhúc nhích khi **reload trang**, và chat không nhận tin mới. Không có lỗi nào
+trong console — đây là kiểu hỏng tệ nhất: nhìn từ UI thì app vẫn "chạy".
+
+**Nguyên nhân.** Gateway set `access_token` **host-only** (không có `Domain`). Từ `df47a1f`
+(CD-FE-02) REST đi qua Worker proxy nên cookie được lưu dưới tên miền `…workers.dev` — nhưng hai
+socket vẫn quay số thẳng tới origin của gateway (`VITE_CHAT_URL` / `VITE_WS_NOTIFICATION_URL` là
+URL tuyệt đối). Handshake thành cross-site, không mang cookie, gateway đá namespace ra. Bắt được
+tận frame bằng cách chèn `initScript` bọc `window.WebSocket` trước khi app boot:
+transport `open` → `0{"sid":…}` → **`41/notifications,`** (namespace DISCONNECT), rồi `41/chat,`.
+
+**Cách sửa — đúng một lựa chọn FE tự ship được.** Ba hướng: (a) cho FE + gateway chung một domain
+cha để cookie đi cross-subdomain, (b) đổi handshake sang token, (c) proxy `/socket.io/*` qua chính
+Worker. (a) và (b) đều cần backend đổi; (c) không. Chọn (c) — cùng lý do và cùng cơ chế với
+`/api/*`, socket lúc này là same-origin nên cookie tự đi kèm.
+
+- `worker/index.ts` — nhánh upgrade phải trả `fetch(upstreamUrl, request)` (Request làm init).
+  Dựng lại request từ `Headers` là hỏng: `Upgrade`/`Connection` là hop-by-hop và
+  `buildUpstreamHeaders` strip đúng chúng → gateway trả 200 thay vì 101. Response trả **nguyên
+  vẹn** để WebSocket đính kèm sống sót; Cloudflare tự nối hai socket.
+- `wrangler.toml` — `run_worker_first` liệt kê `/socket.io` **cả có và không có** wildcard, vì
+  socket.io gọi `/socket.io/?EIO=4&transport=websocket`. Asset tĩnh vẫn đi đường asset-first
+  (miễn phí, không tính quota). Một WebSocket proxy tính **1 request**, không phải 1/frame.
+- `src/lib/realtime/socketUrl.ts` (mới) — `resolveSocketUrl(origin, namespace)`. Chỉ `''` và `'/'`
+  nghĩa là same-origin; `undefined` vẫn fallback `http://localhost:3000` y như cũ. Ba call site
+  (`notificationSocket`, `chatPresenceSocket`, `useChat`) hết tự nối chuỗi.
+- Env prod: cả ba `VITE_*` giờ đều tương đối — `/api`, `/`, `/`.
+
+**Verify live** qua `wrangler dev --var GATEWAY_ORIGIN:<prod>` đánh thẳng gateway thật (đúng cách
+đã dùng để chốt CD-FE-02): login `POST /api/user/login` 201 + `GET /api/user/me` 200 (cookie
+host-only `Secure` được nhận trên `http://127.0.0.1:8787`), rồi sau khi login bằng **form UI**:
+`40/notifications,` + `40/chat,` — **CONNECT cả hai, không có `41`, không close** (đo lại sau 20s:
+0 close / 7 frame). Đẩy tiếp một tin thật từ tài khoản seller ở context thứ hai:
+`42/chat,["new_message",{…}]` về tới tab buyer — realtime sống end-to-end qua proxy.
+
+**Bẫy chỉ có ở máy Windows:** build trong Git Bash biến `VITE_API_URL=/api` thành
+`C:/Program Files/Git/api` (MSYS path conversion) → bundle nạp `file:///…/user/login`, UI báo
+"Failed to fetch". Dùng `MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'` khi build tay. CI ubuntu
+không dính.
+
 ### RIGHTRAIL-IMG + cache URL ảnh đã fail — hai bug tìm được *nhờ* đi verify (2026-08-09) — DONE
 
 Gate cuối: build ✓ · lint 0 error / **3** warning cũ · **645 test / 93 file ✓**.
