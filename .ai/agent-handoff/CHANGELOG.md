@@ -7,6 +7,81 @@
 
 ## Maintenance
 
+### BATCH-0811 · tích hợp 8 entry handoff của BE trong một lượt (2026-08-12) — DONE (⚠️ CHƯA PUSH — class C)
+
+Gate cuối: build ✓ · lint 0 error / **3** warning cũ · **687 test / 96 file ✓** (+20 test, +5 file).
+12 file source đổi, 2 file tạo, **2 file xoá**.
+
+`/sweep làm task BATCH-0811`. BE ship một loạt 11 item ngày 2026-08-11 và nằm chờ trong working
+tree của `api/`; release-gate xếp cả cây là **class C** nên `api/` không push được cho tới khi FE
+xong phần của mình. BATCH-0812 (console GHN, cả hai ô đã ✅) dùng chung working tree đó nên **cũng
+đang bị chặn bởi entry này** — làm xong là mở khoá hai batch.
+
+**Vì sao class C, cụ thể ở đâu.** Đúng một thay đổi khiến FE mới **không chạy được** với BE cũ:
+INV-CONTRACT-01 xoá `persistSimpleStock()`, nên nếu FE này lên trước thì `POST /products` với BE
+cũ tạo product **không có inventory row**. Mọi thứ còn lại đều degrade an toàn theo cả hai chiều —
+xem phần `=== null` bên dưới.
+
+**INV-CONTRACT-01 — luồng đăng bán còn đúng 1 request.** Trước: `POST /products` xong bắn thêm
+`POST /inventory` (luôn 409 vì BE đã tạo row), `GET /inventory/product/:id`, rồi `PUT /inventory`
+(400 vì DTO không nhận `sku`) — seller thấy "tạo thành công" kèm một vệt lỗi đỏ. BE xác nhận
+`POST /products` tự seed inventory **và rollback product nếu bước đó hỏng**, tức `201` = row chắc
+chắn tồn tại. Xoá cả helper. Đây cũng là nửa create của **P0-03** (atomicity), đóng BE-side; nhánh
+`PATCH /products/:id { stockQuantity }` chưa được BE khẳng định là atomic nên snapshot vẫn để mở.
+
+**FE-INBOX-0811 #4 — search mã đơn thành server-side, xoá được cả một module.** `?q=` (ANDed với
+`status`, cap 32 ký tự, quá thì 400) cho phép bỏ hẳn `orderHistoryPaging.ts` + test của nó —
+đúng như docblock của chính module đó đã hẹn từ 2026-08-07. Trước đây ô search lọc client-side
+trên các page **đã tải**, nên một đơn khớp nằm ở page chưa fetch sẽ hiện "không tìm thấy"; module
+mitigation phải vừa search vừa tự kéo nốt các page còn lại. Giờ: `buildUserOrdersQuery` gửi `q`
+(trim; blank/whitespace bỏ hẳn key — `?q=` là "khớp chuỗi rỗng", không phải "không lọc"),
+`queryKeys.orders.byUserList` nhận `q` nên mỗi từ khoá cache và phân trang riêng, ô input debounce
+400ms + `maxLength={ORDER_SEARCH_MAX}` để không bao giờ chạm ngưỡng 400 của BE. `hasNext` giờ mô
+tả đúng tập đã tìm nên nút "Tải thêm" phân trang được cả kết quả search. Ba item còn lại của entry
+(#1 wishlist ids, #2 batch read 200, #3 review `userId`) kiểm lại code thật: FE **không có** chỗ
+nào phải đổi — không tồn tại map `publicId` phía wishlist, `fetchBatchTolerant` vốn đã gửi
+`productIds`, và trong `src/` không có check `=== 201` nào.
+
+**ORD-GUARD-01 + `=== null`, không phải nullish — quyết định quan trọng nhất của batch.** BE thêm
+`paidAt` và chặn confirm đơn online chưa trả tiền. FE thêm 2 helper thuần có test:
+`getSellerOrderActionState()` thay nút bằng dòng "Khách chưa thanh toán — chưa thể xử lý đơn"
+(trước đây nút hiện ra rồi ăn 400), và `isAwaitingPayment()` thay heuristic theo status ở
+`OrderDetailPage`. Cả hai so **`=== null`**: `null` = "chưa thu tiền" (tín hiệu thật), `undefined`
+= "response chưa có field này" (BE cũ) — hai thứ khác nhau. Nếu dùng `== null` gộp cả hai thì với
+BE cũ **mọi seller bị khoá cứng** mọi hành động và **mọi đơn** hiện nút "Thanh toán". Với `===`,
+field vắng ⇒ degrade về hành vi cũ. Cũng vì thế `paidAt` khai báo `?: string | null`. Lưu ý ngữ
+nghĩa khác nhau theo phương thức: COD giữ `null` tới lúc giao, nên `null` ở COD nghĩa là "chưa
+giao" chứ không phải "chưa trả tiền" — COD không bao giờ bị chặn.
+
+**RESIL-01 — GHN 400 chặn checkout, 503 thì không.** BE tách lỗi GHN: `400` = địa chỉ GHN từ chối,
+`503` = GHN không với tới được/circuit mở. `shippingFeeFailure()` (mới, có test) map ra 3 kind và
+strip prefix `GHN … error:` — prefix đó gọi tên hệ thống của mình, không phải thứ người mua sửa
+được. **Có một mâu thuẫn phải chọn**: handoff bảo 400 thì chặn và bắt chọn lại địa chỉ, trong khi
+một comment cũ trong `CheckoutPage` ghi "never block checkout". Theo handoff — vì từ GHN-ADDR-01
+FE đã gửi district/ward id chính xác, nên 400 bây giờ là "địa chỉ này giao không tới" thật, không
+còn là nhiễu do resolve tên. Cho đơn đi tiếp chỉ để nó chết ở bước tạo waybill thì tệ hơn. 503 giữ
+nguyên tinh thần cũ: phí hiện "Tính khi giao hàng", checkout đi tiếp.
+
+**Ba cái còn lại.** `ORDER-SHAPE-01`: thêm type `SellerOrderListRow extends OrderWithBuyer` và
+luồng qua `getSellerOrders` → `useSellerOrders` → `SellerOrdersPage`; card seller render thẳng
+name/image/quantity từ list, bỏ nhánh flatten `items: []`. Không sửa `OrderWithBuyer` vì
+`getAdminOrders` dùng chung và chưa chắc được decorate. `NOTIF-LIFECYCLE-01`: 5 `TYPE_CONFIG` mới
+(`new_order`, `order_confirmed`, `order_processing`, `order_delivering`, `order_completed`) —
+trước đó rơi xuống fallback "Thông báo" + message tiếng Anh thô; `new_order` là row **của seller**
+nên link `/sell/orders`, không phải `/order/:id` (buyer view, seller mở sẽ 403).
+`RETURN-STOCK-01`: duyệt trả hàng cộng lại `availableStock` nên `useReviewReturnRequest` invalidate
+thêm `inventory.all` + `products.all` — chỉ ở nhánh `approve`, vì `reject` không đụng tồn kho.
+`STOCK-SYNC-01`: đường ghi vốn đã đúng (form sửa vẫn gửi `stockQuantity` qua `PATCH`, ô stock đơn
+đã ẩn sẵn cho SP có variation); chỉ thêm invalidate ở nhánh `onError` để baseline diff của form
+được refetch thay vì giữ giá trị stale sau một lần save hỏng — an toàn vì `useProductForm` seed
+đúng **một lần** (`initializedRef`), refetch không xoá thứ seller đang gõ.
+
+**⚠️ Runtime verification còn nợ nguyên batch.** BE chưa deploy nên không môi trường nào phục vụ
+contract mới; verify trên prod hiện tại chỉ chạy nhánh fallback, và riêng INV-CONTRACT-01 thì
+verify trên BE cũ sẽ **tạo ra product không có inventory row** — rác thật, không phải test. Chrome
+DevTools MCP cũng không connect trong session này. Checklist 6 bước để chạy ngay sau khi hai repo
+lên `main` nằm ở `snapshot.md` mục "Runtime verification còn nợ".
+
 ### CD-FE-03 · Socket.IO đi qua Worker proxy — realtime chết im trên prod (2026-08-11) — DONE
 
 Gate cuối: build ✓ · lint 0 error / **3** warning cũ · **667 test / 95 file ✓**.

@@ -1,6 +1,6 @@
 # Snapshot — TryBuy Frontend Current State
 
-> Cập nhật: 2026-08-11 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
+> Cập nhật: 2026-08-12 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
 > Keep this LEAN: chỉ giữ bức tranh sống (overview, việc còn mở/bị chặn, known issues).
 > Việc đã xong nằm ở `CHANGELOG.md` (cùng thư mục, không auto-load) — **đừng chép lại vào đây**.
 > Convention/rule nằm ở `.ai/context/` — cũng không duplicate vào đây.
@@ -9,11 +9,12 @@
 
 React 19 + Vite FE cho marketplace microservices. Khung đầy đủ: marketplace, cart, checkout,
 order, seller, social, admin, chat, wishlist, sổ địa chỉ. **Toàn bộ P0/P1/P2 đã đóng phía FE**;
-riêng P0-03 vẫn là FE mitigation chờ backend transaction. Public-ID migration (PUBID-01–07) đã
+riêng P0-03 còn hở đúng nhánh update (create đã atomic BE-side từ INV-CONTRACT-01, chưa deploy).
+Public-ID migration (PUBID-01–07) đã
 xong — storefront id là opaque string end-to-end.
 
-**Gates (chạy lại + verify 2026-08-11):** `npm run build` ✓ · `npm run lint` 0 error /
-3 warning advisory · `npm run test:run` 667 test / 95 file, all pass. Không đóng item nào khi 3
+**Gates (chạy lại + verify 2026-08-12):** `npm run build` ✓ · `npm run lint` 0 error /
+3 warning advisory · `npm run test:run` 687 test / 96 file, all pass. Không đóng item nào khi 3
 lệnh này chưa xanh.
 
 > ⚠️ `npm run build` **mới** thực sự typecheck từ 2026-08-04. Trước đó script chỉ là `vite build`
@@ -28,12 +29,11 @@ login → product → cart → checkout → payment/order.
 
 | Ngày | Item |
 |---|---|
+| 2026-08-12 | **BATCH-0811 · tích hợp 8 entry BE trong một lượt** (⚠️ **class C — chưa push**, xem `../.agent-local/release-gate.md`). `INV-CONTRACT-01`: xoá `persistSimpleStock()`, luồng đăng bán còn đúng **1** request `POST /products` (BE tự seed inventory + rollback nếu hỏng) · `FE-INBOX-0811 #4`: search mã đơn thành **server-side** `?q=` (debounce 400ms, cap 32 ký tự) ⇒ **xoá được cả module `orderHistoryPaging.ts`**, hết fetch-all và hết empty-state nói dối · `ORD-GUARD-01`: field mới `paidAt` + 2 helper thuần `getSellerOrderActionState()`/`isAwaitingPayment()` — đơn online chưa trả tiền hiện lý do thay vì cái nút chắc chắn 400; cả hai so `=== null` để BE cũ (field vắng) degrade chứ không khoá cứng · `ORDER-SHAPE-01`: type `SellerOrderListRow`, card seller render thẳng từ list · `NOTIF-LIFECYCLE-01`: 5 type mới, `new_order` link `/sell/orders` (buyer view sẽ 403) · `RESIL-01`: `shippingFeeFailure()` — GHN **400 chặn** đặt hàng (địa chỉ giao không tới), **503 không chặn** (phí tính khi giao) · `RETURN-STOCK-01`: duyệt trả hàng invalidate thêm `inventory.all`+`products.all` · `STOCK-SYNC-01`: invalidate ở nhánh `onError` của form sửa. 12 file, +5 test file, 687 test xanh. **Runtime verify còn nợ** — BE của batch chưa deploy |
 | 2026-08-11 | **CD-FE-03 · Socket.IO qua Worker proxy** — realtime chết im trên prod: cookie `access_token` là host-only nên từ khi REST đi qua proxy (CD-FE-02), socket quay số thẳng origin gateway thành cross-site → gateway trả `41/notifications,` (namespace disconnect), badge chỉ đổi khi reload, console sạch. Worker giờ proxy cả `/socket.io/*` (nhánh upgrade phải là `fetch(url, request)` — dựng lại từ `Headers` là mất `Upgrade` vì hop-by-hop bị strip); `resolveSocketUrl()` mới cho 3 call site, env prod cả ba đều tương đối. **Verify live** qua `wrangler dev` đánh gateway thật: `40/notifications,` + `40/chat,` connect và ở lại, tin nhắn thật về tới tab kia (`42/chat,["new_message",…]`). ⚠️ **Chưa live** cho tới khi 2 variable được đổi — xem "Chờ thao tác của người dùng" |
 | 2026-08-09 | **RIGHTRAIL-IMG + cache URL đã fail** — hai thứ tìm được khi verify `PostImage` bằng MCP. (1) `RightRail` bỏ hẳn URL Unsplash hardcode (vừa là default khi `imageUrl` null, vừa là đích của `onError` — tự gán lại `e.target.src` nên có thể **lặp request**); thay bằng `<ProductThumb>`, hết request bên thứ ba trên trang chủ. (2) `failedPostImages.ts` — set URL đã 404 dùng chung, vì feed tile và lightbox là 2 mount khác nhau của cùng ảnh nên trước đó click ảnh hỏng bắn thêm một 404 nữa ở `w_1600`. Verify live: request Unsplash **biến mất**, 404 còn **1** thay vì 2 |
 | 2026-08-08 | **`PostImage`** — ảnh post 404 giờ ra placeholder `ImageOff` thay vì ảnh vỡ. Gom **7 chỗ `<img>`** rải ở 4 nhánh layout của `PostCard` + 2 nhánh của `PostDetailPage` (kể cả lightbox) về một component `features/social/PostImage.tsx`, cùng contract `onError` như `ProductThumb`: state keyed theo URL fail (slot feed tái sử dụng cho post khác vẫn thử lại ảnh mới), placeholder giữ nguyên class của slot nên **không layout shift**. **Verify runtime 2026-08-09 (Chrome DevTools MCP)**: feed + lightbox + `PostDetailPage` đều ra placeholder, click nền vẫn đóng lightbox. Nguyên nhân gốc (seed row trỏ asset không tồn tại) vẫn là việc của BE |
 | 2026-08-07 | **Drain BE handoff inbox**: 13 entry `## Open` → `## Done` sau khi verify từng cái với code thật (payment return URL giữ guard có chủ đích · GHN `shippingFee: 0` không chèn sàn client · post `productId` + SEC-L1 đã bị PUBID thay thế · media cap/ownership/upload signature/socket upgrade/status-counts/money fields: không còn việc). Inbox giờ còn **1 entry** — cái FE→BE xin per-user room cho chat · `ProductThumb` thêm `onError` fallback (SEC-M7 xoá ảnh của product đã xoá → đơn cũ đang render ảnh vỡ) · xoá folder chết `src/features/inventory/` |
-| 2026-08-07 | **ORD-STATUS-FILTER** — tab đơn mua lọc **server-side** (`buildUserOrdersQuery` gửi repeated singular `status`, `?status=` rỗng bị bỏ hẳn key) · hết fetch-all (65 đơn = 7 request → **1 request/tab**, verify live 5/5 tab đều 200) · `orderHistoryPaging` thu hẹp còn đúng ô search mã đơn (BE chưa có param search) |
-| 2026-08-07 | `PATCH /products/:id` null-clear (`dirtyProductPatch` gửi `null` cho 6 field clearable, `UpdateProductDto` chặn `null` sai chỗ ở compile-time) · **2 bug hydration** lộ ra khi verify: `weight` không hydrate + `RichTextEditor` chỉ seed lúc mount (sẽ thành `description: null` = mất dữ liệu) · `role` reshape `{id,name,slug}` (role gating đang **gãy thật**: shop bị đá khỏi `/sell/:id`) · 409 duplicate username/email về đúng field (`credentialConflictError`) |
 
 ## Active Tasks — open / blocked
 
@@ -59,12 +59,6 @@ login → product → cart → checkout → payment/order.
 
 ### Chờ backend (FE đã ship mitigation, chỉ backend mới đóng được)
 
-- **`GET /order/user/:id` chưa có param search theo mã đơn** (`../.agent-local/backend-handoff.md`,
-  Open 2026-08-07). Tab status đã lọc server-side xong (ORD-STATUS-FILTER, Recent closes), nhưng ô
-  **"Tìm theo mã đơn…"** vẫn lọc client-side trên các page đã tải → một đơn khớp nằm ở page chưa
-  fetch sẽ hiện "không có kết quả". FE mitigation: `features/order/orderHistoryPaging.ts` giờ chỉ
-  còn phục vụ đúng ô search này (`narrowsHistory`/`isHistoryIncomplete` — vừa search vừa auto kéo
-  nốt page, chặn empty-state nói dối). Có `?q=`/`?orderId=` phía BE là **xoá được cả module**.
 - **Payment return URL trả order id nội bộ dạng số** (`../.agent-local/backend-handoff.md`,
   **Done** 2026-08-07 — không còn chờ BE, chỉ chờ đám pending cũ hết hạn). Verify live 2026-08-04: `buildFrontendPaymentResultUrl()` gửi
   `?order=111` — cùng biến sau đó đi qua `Number(orderId)` — trong khi `/api/order/111` **400**
@@ -79,8 +73,12 @@ login → product → cart → checkout → payment/order.
   FE **không phải sửa gì**. Nhưng **giữ nguyên `resolveResultOrderId()`** — payment row tạo
   *trước* thay đổi này vẫn giữ URL cũ có `?order=<số>` (chữ ký VNPay phủ `vnp_ReturnUrl` nên
   không rewrite server-side được). Chỉ bỏ guard khi đám pending cũ đã hết hạn.
-- **P0-03 · Product create/update inventory không atomic.** FE mitigation đang giữ; chỉ BE
-  transaction mới đóng thật.
+- **P0-03 · Product create/update inventory không atomic — nhánh CREATE đã đóng, còn nhánh
+  UPDATE.** INV-CONTRACT-01 (2026-08-11, chưa deploy): `POST /products` tự tạo inventory row và
+  **rollback product nếu bước đó hỏng**, nên `201` = row chắc chắn tồn tại. FE đã xoá
+  `persistSimpleStock()` — hết cảnh "201 xong vẫn in lỗi đỏ". Còn mở: `PATCH /products/:id
+  { stockQuantity }` (STOCK-SYNC-01) có ghi vào inventory nhưng **BE chưa nói là atomic**; giả
+  định nó không, cho tới khi có xác nhận. FE không mitigate được nhánh này.
 - **Orphan cleanup cho ảnh trong HTML đã lưu (UP-03(i))** — mảnh **cuối** còn hở. SEC-M7
   (2026-07-11) đã đóng phần còn lại: BE diff media URL trước/sau commit rồi destroy asset bị bỏ,
   gồm cả **avatar cũ khi save** → UP-02(c) **đóng**. Nhưng SEC-M7 diff các *field* media
@@ -103,12 +101,17 @@ login → product → cart → checkout → payment/order.
   - `…/upload/**v1780516926**/trybuy/posts/**dvh93r029vpy5rssldcc**.png`
     (`post_5732da0c81d811f1`) — version là timestamp thật, khớp `createdAt` của post, public id đúng
     dạng 20 ký tự Cloudinary tự sinh ⇒ **đã upload thật rồi bị xoá sau đó**, row DB còn trỏ tới.
-    Nghi SEC-M7 orphan cleanup destroy asset mà post vẫn reference — nếu đúng thì đây là **bug sống**,
-    còn đẻ thêm 404 mới, không phải rác seed. Bỏ version cũng 404 ⇒ không phải lệch version.
+    ✅ **BE trả lời 2026-08-11 (MEDIA-ORPHAN-01): KHÔNG phải SEC-M7.** Đường destroy duy nhất chỉ
+    nhận URL mà row vừa save/delete **không còn mang nữa**, trong khi cả 5 URL chết vẫn đang được
+    chính post của nó trỏ tới. Cloud dev từng bị xoá sạch một lần — `trybuy/posts` chỉ còn đúng 1
+    asset. Vậy đây **không** phải bug sống, không đẻ thêm 404 mới.
 
   Upload **không hỏng**: `20_4u4glh7.png` (post 2026-07-08) và avatar `23_opyhl5h.png` đều 200.
-  Cần DB/seed cleanup + điều tra orphan cleanup (`../.agent-local/backend-handoff.md`,
-  Open 2026-08-08, cập nhật 2026-08-09) — **chỉ BE đóng được**.
+  ✅ **DEV đã sạch 2026-08-11:** BE set `imageUrls = null` cho 5 URL chết trên 4 post; feed dev còn
+  đúng 1 ảnh Cloudinary và nó trả 200, không còn request 404 nào. **Prod chưa quét** (EC2 trong
+  khung giờ tắt lúc BE fix) — nếu còn thấy 404 trên prod thì đó là data prod, **chỉ BE đóng được**.
+  Kèm theo, cleanup media giờ **đếm tham chiếu**: một URL gắn trên nhiều post chỉ bị destroy khi
+  post cuối cùng trỏ tới nó biến mất (trước đây sửa 1 post là hỏng ảnh của các post còn lại).
   Phần FE **đã xong 2026-08-08**: `PostImage` (Recent closes) che ảnh hỏng ở cả `PostCard` lẫn
   `PostDetailPage`, verify runtime 2026-08-09. Che ≠ hết: request vẫn fail và console vẫn có error
   **trên happy path của feed** cho tới khi row được dọn.
@@ -172,6 +175,16 @@ npx -y lighthouse http://localhost:4173/login --only-categories=performance \
 
 Cần full-stack live (FE↔BE) và/hoặc 2 tài khoản; không repro được qua UI thường:
 
+- **🔴 BATCH-0811 (2026-08-12) — nợ nguyên batch.** BE của batch còn nằm trong working tree của
+  `api/`, chưa deploy, nên **không môi trường nào phục vụ contract mới**: verify trên prod hiện
+  tại chỉ chạy đúng nhánh fallback, và riêng INV-CONTRACT-01 thì **verify trên BE cũ sẽ tạo ra
+  product không có inventory row** (rác thật, không phải test). Chrome DevTools MCP cũng không
+  connect trong session này. Verify ngay sau khi cả hai repo lên `main`: (1) đăng bán 1 SP thường
+  → stock đúng, form không in lỗi đỏ; (2) `/orders` gõ mã đơn → đúng 1 request có `?q=`, sang
+  page 2 của kết quả tìm; (3) đơn vnpay chưa trả tiền ở `/sell/orders` → hiện lý do thay vì nút;
+  (4) chuông thông báo qua đủ 5 type mới, `new_order` mở `/sell/orders`; (5) checkout địa chỉ
+  GHN không giao tới → nút đặt hàng **disabled** + banner đỏ; (6) duyệt trả hàng → tồn kho tăng
+  lại ngay không cần reload.
 - P0-03 / P0-04 / P0-05 — endpoint self-test happy-path + 409/idempotency.
 - P1-06 / chat — E2E 2 tài khoản (open → send → receive → reconnect).
 - F2 return/refund — E2E 2 tài khoản. F3 voucher — cần admin tạo voucher thật trước.
