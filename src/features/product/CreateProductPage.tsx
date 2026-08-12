@@ -10,7 +10,7 @@ import { useAuthContext } from '@/context/AuthContext';
 import { useRole } from '@/hooks/auth/useRole';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/format/utils';
-import type { ApiError, CreateProductDto, UpdateProductDto } from '@/types';
+import type { CreateProductDto, UpdateProductDto } from '@/types';
 import { useProductForm, DEFAULT_FIELDS, buildProductPayload } from './product-form/useProductForm';
 import { makeVarGroup, type ImageItem, type SkuRowState, type VarGroup } from './product-form/useProductForm';
 import { dirtyProductPatch } from './product-form/productPatch';
@@ -31,33 +31,6 @@ const inputCls = cn(
   'outline-none transition-colors',
   'focus:border-accent-amber/50 focus:ring-2 focus:ring-accent-amber/20',
 );
-
-/**
- * Persist stock for a freshly-created simple product.
- *
- * The backend does not create an inventory row on product create, so we seed
- * one. But a stale/orphan inventory row can already exist for a reused product
- * ID (returns 409). In that case we must update the existing row with the new
- * product's SKU + stock instead of ignoring the conflict — otherwise the new
- * product inherits the old row's stale stock (often 0 / "hết hàng").
- *
- * Throws if stock cannot be persisted, so the caller does not report a false
- * "created successfully".
- */
-async function persistSimpleStock(
-  productId: string,
-  sku: string | undefined,
-  availableStock: number,
-): Promise<void> {
-  try {
-    await api.inventory.create({ productId, sku, availableStock });
-  } catch (err: unknown) {
-    if ((err as ApiError).status !== 409) throw err;
-    // Row already exists for this product ID — reconcile it to the new product.
-    const existing = await api.inventory.getByProduct(productId);
-    await api.inventory.update(existing.id, { sku, availableStock });
-  }
-}
 
 /** Create sends the full DTO; edit sends only the fields that changed. */
 type SubmitVars =
@@ -239,15 +212,10 @@ export default function CreateProductPage(): ReactElement {
       if (vars.kind === 'edit') {
         return api.products.update(productId ?? '', vars.patch);
       }
-      const dto = vars.dto;
-      const created = await api.products.create(dto);
-      // Simple products get no inventory row from the backend, so they'd hit
-      // "Insufficient stock" on purchase. Seed one from the form's stock value.
-      const isVariation = (dto.variations?.length ?? 0) > 0;
-      if (!isVariation && (dto.stockQuantity ?? 0) > 0) {
-        await persistSimpleStock(created.id, dto.sku, dto.stockQuantity ?? 0);
-      }
-      return created;
+      // `POST /products` now seeds the inventory row itself (INV-CONTRACT-01) —
+      // no follow-up POST/GET/PUT on /inventory. Stock edits go through
+      // `PATCH /products/:id { stockQuantity }`, which writes inventory too.
+      return api.products.create(vars.dto);
     },
     onSuccess: p => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.products.all });
@@ -264,6 +232,15 @@ export default function CreateProductPage(): ReactElement {
       timerRef.current = setTimeout(() => navigate(`/product/${p.id}`), 1200);
     },
     onError: (e: unknown) => {
+      // A failed edit can still be half-applied: catalog and inventory live in
+      // separate service DBs with no shared transaction, so PATCH may have saved
+      // some fields before the inventory write failed. Refetch instead of
+      // trusting the pre-submit view — the form keeps the seller's input (it
+      // seeds once), only the diff baseline is refreshed.
+      if (isEditMode && productId) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.products.detail(productId) });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.products.withInventory(productId) });
+      }
       // A duplicate-SKU 409 belongs on the SKU field in BOTH modes — edit mode
       // used to fall through to the stock message, which named the wrong field.
       const { field, message } = productSubmitError(e, isEditMode ? 'edit' : 'create');
