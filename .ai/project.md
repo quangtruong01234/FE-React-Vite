@@ -41,6 +41,8 @@ Read `.ai/context/core.md` before repository work.
 | Adding/editing components, hooks, lists, or hot-path render/compute — keeping the UI smooth | `.ai/context/performance.md`           |
 | Running Chrome DevTools MCP (`/verify-ui`), logging in to test the UI                      | `../.agent-local/test-accounts.md`   |
 | Deploy / CI-CD, Cloudflare Workers, env vars ở production, CORS + cookie cross-origin      | `DEPLOYMENT.md` (repo root)        |
+| **Sắp push code** — phân lớp A/B/C, chờ repo nào, mẫu báo user (BẮT BUỘC đọc trước mỗi lần push) | `../.agent-local/release-gate.md`  |
+| Bug nằm ở repo khác (`api/`, `web-flow-GHN/`) — ghi vào đâu, được sửa không                | `.ai/context/core.md` §Cross-repo boundary |
 
 ## Slash Commands
 

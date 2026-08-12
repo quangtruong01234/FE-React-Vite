@@ -18,7 +18,8 @@ These rules translate this repository's Claude Code permissions into durable Cod
 - Do not edit `.env`, `.env.local`, `.env.production`, or any real secret file.
 - Do not edit `src/components/ui/**` without explicit user approval.
 - Do not run `npm install`, `npm uninstall`, `yarn`, `pnpm`, `bun`, or other package-manager changes without explicit user approval.
-- Do not run `git push`, `git reset --hard`, `rm -rf`, or destructive delete commands.
+- Do not run `git push`, `git reset --hard`, `rm -rf`, or destructive delete commands. Before telling the user a change is ready to push, run the release gate — see `.ai/context/core.md` §Before pushing.
+- Do not edit any file outside this repo (`api/`, `web-flow-GHN/`) — record the finding in the matching `../.agent-local/` inbox instead. See `.ai/context/core.md` §Cross-repo boundary.
 - Do not modify `.claude/settings.json` or `.claude/settings.local.json`.
 - Do not remove or overwrite Claude settings, local account data, or other tool-specific configuration.
 - Never use `danger-full-access`, `--yolo`, or approval-bypass modes for this repository.

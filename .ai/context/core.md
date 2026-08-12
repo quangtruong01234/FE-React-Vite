@@ -17,6 +17,36 @@ These are the non-negotiable rules. Violating any of these breaks the build or t
 - **DRY — UI:** If the same UI pattern appears in 2+ places, stop and propose extracting it to `src/components/shared/` before continuing.
 - **DRY — Logic:** If the same hook/util logic appears in 2+ feature folders, propose extracting it to `src/hooks/` or `src/lib/` before continuing.
 
+## Cross-repo boundary — hard rule
+
+The `MCR/` workspace holds three repos: `api/` (backend), `frontend/` (this one, the TryBuy storefront), and `web-flow-GHN/` (the GHN shipping console). **You only write code in `frontend/`.**
+
+- **Never edit, create, or delete a file inside another repo** — not source, not tests, not docs, not its `.ai/`, `AGENTS.md`, or `handoff/CHANGELOG.md`. This holds even when the fix is obvious, one line, and you have just proven it on prod. That repo has its own agent, its own conventions, and its own release gate; a change you make there lands outside its review and outside its CD checks.
+- **Reading another repo is fine** — and often necessary to prove where a bug actually lives. Read, then write the finding down. Do not follow the read with an edit.
+- **Record the finding in the matching `../.agent-local/` inbox instead** (machine-local, outside every repo, never committed):
+
+  | Bug lives in | Write to |
+  |---|---|
+  | `api/` (backend contract: missing data, wrong response, wrong request contract) | `../.agent-local/backend-handoff.md` |
+  | `web-flow-GHN/` (GHN console UI/logic) | `../.agent-local/frontend-handoff-ghn.md` |
+  | `frontend/` (this repo) | fix it here — no inbox needed |
+
+- Note the **non-bugs** too, in the same entry: something you investigated and found to be by design, or a false alarm from a test-tool artifact. It stops the next agent re-deriving it.
+- The **only** exception is an explicit, in-session instruction from the user to change that specific repo. Approval for one repo never carries to another, and never carries to the next session.
+
+## Before pushing — read the release gate
+
+Every push (any repo) goes through `../.agent-local/release-gate.md` — **read it before you push, every time**, including for changes that look small or obviously safe. All three repos auto-deploy on merge to `main`, so shipping one side of a contract change ahead of the other breaks prod for real users.
+
+The gate owns the full procedure; the short version:
+
+1. Open the gate and read **Holding** first — check whether this repo is locked by an entry.
+2. Classify the **whole working tree** (not per file) as **A** (invisible to FE — push freely), **B** (additive, old FE still correct — push alone, log it), or **C** (old FE breaks, or new FE needs BE — **HOLD**). Mixed tree ⇒ take the highest class.
+3. For a shared task, every repo cell in that entry must read `✅ ready`. One missing cell ⇒ do not push, even if your side is green.
+4. **Report to the user using the gate's template and wait** — never push on your own initiative, and never assume the other side is done without a `✅` written in the gate.
+
+After finishing this repo's part of a Holding entry, flip the `frontend` cell to `✅ ready`; if every cell is `✅`, move the entry to **Ready to release** and tell the user it is unlocked. If the contract turns out not to match what the handoff described, do **not** flip it — open a new entry in `backend-handoff.md`.
+
 ## Stack (versions matter)
 
 React 19 · Vite · TypeScript strict · React Router DOM **v7** · TanStack Query **v5** · Tailwind **v3** · shadcn/ui · Lodash.

@@ -100,7 +100,7 @@ git add <files in group>
 git commit -m "<type>(<scope>): <subject>"
 ```
 
-Do **not** push. After all commits, report:
+Do **not** push — see Step 7. After all commits, report:
 
 ```
 ── Committed ────────────────────────────────────
@@ -118,3 +118,32 @@ Do **not** push. After all commits, report:
 - [ ] No `console.log` or bare `// TODO` added (warn if found)
 - [ ] No `.env` / secrets in diff (REFUSE TO PROCEED if found)
 - [ ] No `../.agent-local/` file staged — handoff/test-account files live outside the repo and must never be committed
+- [ ] No file outside this repo touched — see the cross-repo boundary rule in `.ai/context/core.md`
+
+### Step 7 — Release gate (before any push)
+
+Committing is local and always allowed. **Pushing is gated**: `git push` is denied in
+`.claude/settings.json`, and the user runs it themselves — so your job is to hand them a
+correct decision, not to push.
+
+Before saying "ready to push", run the mandatory checklist in
+`../.agent-local/release-gate.md` (read the file — this is a pointer, not a summary):
+
+1. Read the gate's **Holding** section; check whether `frontend` is locked by an entry.
+2. Classify the whole working tree **A / B / C** (mixed ⇒ highest class wins).
+3. Shared task ⇒ every repo cell in that entry must be `✅ ready`. One `⏳` ⇒ **HOLD**.
+4. Report using the gate's template and wait for the user:
+
+```
+Định push: frontend — <tên item / batch>
+Lớp: <A | B | C> — <lý do một câu>
+Trạng thái các repo liên quan:
+  api            : ✅ ready | ⏳ chờ | n/a
+  frontend       : ✅ ready | ⏳ chờ | n/a
+  web-flow-GHN   : ✅ ready | ⏳ chờ | n/a
+Kết luận: PUSH ĐƯỢC / HOLD (chờ <repo> ...)
+```
+
+Never infer that another repo is done from its git log or from a handoff entry — only a
+`✅` written in the gate counts. After the push is verified on prod, move the entry to
+**Released** with the date.
