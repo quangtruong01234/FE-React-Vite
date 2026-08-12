@@ -8,7 +8,7 @@ import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
 import { useConfirmOrder } from './useConfirmOrder';
 import { useReadyToShip } from './useReadyToShip';
 import { useSellerOrderDetail } from './useSellerOrderDetail';
-import { getSellerOrderAction, type SellerActionKind } from './sellerOrderActions';
+import { getSellerOrderActionState, type SellerActionKind } from './sellerOrderActions';
 import { sellerOrderActionErrorMessage } from './sellerOrderActionError';
 import { ShippingAddressBlock } from './ShippingAddressBlock';
 import { InvoiceDownloadButton } from './InvoiceDownloadButton';
@@ -17,7 +17,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { IconButton } from '@/components/shared/IconButton';
 import { ProductThumb } from '@/components/shared/ProductThumb';
 import { Pagination } from '@/components/shared/Pagination';
-import type { OrderStatus, OrderWithBuyer, SellerOrderItemDetail } from '@/types';
+import type { OrderStatus, SellerOrderListRow, SellerOrderItemDetail } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatPrice } from '@/lib/format/utils';
 import { ORDER_STATUS_META } from '@/lib/domain/orderStatus';
@@ -50,22 +50,20 @@ function OrderCard({
   onAction,
   actionPendingKind,
 }: {
-  order: OrderWithBuyer;
+  order: SellerOrderListRow;
   onAction: (kind: SellerActionKind, id: string) => void;
   actionPendingKind: SellerActionKind | null;
 }): ReactElement {
   const [expanded, setExpanded] = useState(false);
-  const action = getSellerOrderAction(order.status);
+  const { action, blockedReason } = getSellerOrderActionState(order);
   const actionPending = actionPendingKind !== null;
   const buyerLabel = order.buyer?.name?.trim() || order.buyer?.username || `#${order.userId}`;
-  // Enriched items (image + SKU label + name) load lazily on expand; fall back
-  // to the list's bare items (normalized to the same shape) until it resolves.
+  // The list now ships decorated items (ORDER-SHAPE-01) — image and skuLabel
+  // included — so the card renders from `order.items` directly. The detail call
+  // still runs on expand for the fields only it carries (address, buyer notes).
   const { data: detail, isLoading: detailLoading } = useSellerOrderDetail(order.id, expanded);
   const items: SellerOrderItemDetail[] =
-    detail?.items ??
-    (Array.isArray(order.items)
-      ? order.items.map((i) => ({ ...i, image: null, skuLabel: null }))
-      : []);
+    detail?.items ?? (Array.isArray(order.items) ? order.items : []);
 
   return (
     <div className="bg-canvas-surface border border-bdr rounded-xl overflow-hidden">
@@ -104,7 +102,14 @@ function OrderCard({
 
         {/* Action */}
         <div className="flex items-center gap-2 flex-none">
-          {action && (
+          {/* An unpaid online order is refused by the backend (400) — say why
+              instead of offering a button that cannot work. */}
+          {action && blockedReason && (
+            <span className="max-w-[160px] font-body text-xs text-ink-muted text-right">
+              {blockedReason}
+            </span>
+          )}
+          {action && !blockedReason && (
             <button
               type="button"
               disabled={actionPending}
@@ -235,7 +240,7 @@ export default function SellerOrdersPage(): ReactElement {
   const confirmMutation = useConfirmOrder();
   const shipMutation = useReadyToShip();
 
-  const orders: OrderWithBuyer[] = data?.data ?? [];
+  const orders: SellerOrderListRow[] = data?.data ?? [];
   const totalPages = data?.totalPages ?? 1;
 
   const errorMsg = error

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, keepPreviousData, type UseMutationResult, type UseQueryResult } from '@tanstack/react-query';
 import { api } from '@/api';
 import { invalidateOrderViews } from '@/lib/query/orderInvalidation';
+import { queryClient } from '@/lib/query/queryClient';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import type { PaginatedResponse, ReturnRequest, ReturnRequestStatus } from '@/types';
 
@@ -56,11 +57,17 @@ export function useReviewReturnRequest(): UseMutationResult<ReturnRequest, unkno
       vars.action === 'approve'
         ? api.orders.approveReturnRequest(vars.id)
         : api.orders.rejectReturnRequest(vars.id, vars.reason),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       // The decision also mutates the underlying order's status (refunded or
       // restored) — sweep the whole orders prefix to cover seller lists,
       // buyer history and order details.
       invalidateOrderViews({ all: true });
+      // RETURN-STOCK-01: an approval credits `availableStock` back, so every
+      // cached stock read (product detail, with-inventory, low-stock) is stale.
+      if (vars.action === 'approve') {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.products.all });
+      }
     },
   });
 }

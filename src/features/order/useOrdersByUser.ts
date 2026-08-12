@@ -11,14 +11,21 @@ const PAGE_SIZE = 10;
  * `total`/`hasNext` then describe the filtered set, so each tab paginates on its
  * own instead of the client holding the whole history to filter it.
  *
+ * `q` is the order-code search, also server-side (FE-INBOX-0811) and ANDed with
+ * the status list, so `total`/`hasNext` describe the searched set too.
+ *
  * The key stays under the `orders.byUser` prefix so `invalidateOrderViews`
  * refreshes every tab after a cancel/return with the invalidation it already does.
  */
-export function useOrdersByUser(userId: string, statuses: readonly OrderStatus[] = []) {
+export function useOrdersByUser(
+  userId: string,
+  statuses: readonly OrderStatus[] = [],
+  q = '',
+) {
   return useInfiniteQuery({
-    queryKey: queryKeys.orders.byUserList(userId, statuses),
+    queryKey: queryKeys.orders.byUserList(userId, statuses, q),
     queryFn: ({ pageParam }) =>
-      api.orders.getByUser(userId, pageParam as number, PAGE_SIZE, statuses),
+      api.orders.getByUser(userId, pageParam as number, PAGE_SIZE, statuses, q),
     initialPageParam: 1,
     getNextPageParam: (lastPage, _allPages, lastPageParam) =>
       lastPage.hasNext ? (lastPageParam as number) + 1 : undefined,

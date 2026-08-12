@@ -16,6 +16,7 @@ import {
 import { useRole } from '@/hooks/auth/useRole';
 import { ShippingAddressBlock } from './ShippingAddressBlock';
 import { orderPriceBreakdown } from './orderSummary';
+import { isAwaitingPayment } from './orderPayment';
 import { ApiErrorState } from '@/components/shared/ApiErrorState';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ProductThumb } from '@/components/shared/ProductThumb';
@@ -143,8 +144,9 @@ export default function OrderDetailPage(): ReactElement {
   const isCanceled = order.status === 'canceled';
   const curStep = TIMELINE.indexOf(order.status);
   const canCancel = order.status === 'pending' || order.status === 'confirmed' || order.status === 'processing';
-  // Online orders stay unpaid through 'confirmed' — payment completion is what moves them to 'processing'
-  const needsPayment = (order.status === 'pending' || order.status === 'confirmed') && order.paymentMethod !== 'cod';
+  // `paidAt` is the authoritative unpaid signal now (ORD-GUARD-01) — the status
+  // heuristic only survives as a fallback for responses that predate the field.
+  const needsPayment = isAwaitingPayment(order);
   const progressPct = curStep >= 0 ? (curStep / (TIMELINE.length - 1)) * 100 : 0;
   const returnRequest = findReturnRequestForOrder(myReturns?.data ?? [], order.id);
   // A rejected request restores the order to delivering/completed — the buyer may re-request.

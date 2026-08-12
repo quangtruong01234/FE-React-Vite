@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Search } from 'lucide-react';
 import { useAuthContext } from '@/context/AuthContext';
@@ -6,7 +6,8 @@ import { useOrdersByUser } from './useOrdersByUser';
 import { useOrderStatusCounts } from './useOrderStatusCounts';
 import { orderItemsSummary, orderCoverImage } from './orderSummary';
 import { orderFilterCounts, filterTabStatuses, type OrderFilterKey } from './orderFilterCounts';
-import { narrowsHistory, isHistoryIncomplete } from './orderHistoryPaging';
+import { useDebouncedValue } from '@/hooks/ui/useDebouncedValue';
+import { ORDER_SEARCH_MAX } from '@/api/orders';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ProductThumb } from '@/components/shared/ProductThumb';
 import type { Order } from '@/types';
@@ -32,8 +33,10 @@ export default function OrderHistoryPage(): ReactElement {
   const [filterTab, setFilterTab] = useState<OrderFilterKey>('all');
   const [search, setSearch] = useState('');
 
-  // The tab is a server-side filter now — one request per page of that status
-  // group, instead of pulling the whole history to filter it client-side.
+  // Both the tab and the order-code search are server-side filters now — one
+  // request per page of the narrowed set, instead of pulling the whole history
+  // to filter it client-side. Debounced so typing is one request, not one per key.
+  const debouncedSearch = useDebouncedValue(search.trim(), 400);
   const {
     data,
     isLoading: loading,
@@ -41,7 +44,7 @@ export default function OrderHistoryPage(): ReactElement {
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
-  } = useOrdersByUser(userId, filterTabStatuses(filterTab));
+  } = useOrdersByUser(userId, filterTabStatuses(filterTab), debouncedSearch);
 
   const orders: Order[] = data?.pages.flatMap((p) => p.data) ?? [];
 
@@ -57,19 +60,9 @@ export default function OrderHistoryPage(): ReactElement {
 
   const counts = orderFilterCounts(statusCounts);
 
-  // The status tab is served filtered; only the order-id search still narrows
-  // client-side, so only a search has to pull the rest of the pages before its
-  // result set means anything — see `orderHistoryPaging`.
-  const narrowed = narrowsHistory(search);
-  const incomplete = isHistoryIncomplete(search, hasNextPage);
-
-  useEffect(() => {
-    if (incomplete && !isFetchingNextPage) void fetchNextPage();
-  }, [incomplete, isFetchingNextPage, fetchNextPage]);
-
-  const filteredOrders = search.trim()
-    ? orders.filter(o => o.id.includes(search.trim()))
-    : orders;
+  // The search box lags the typed value by the debounce — say so instead of
+  // flashing "no orders" against the previous term's result set.
+  const searchPending = search.trim() !== debouncedSearch;
 
   if (!currentUser) return <></>;
 
@@ -129,6 +122,8 @@ export default function OrderHistoryPage(): ReactElement {
               type="text"
               placeholder="Tìm theo mã đơn…"
               value={search}
+              // The backend answers 400 past 32 chars — cap the box, not the request.
+              maxLength={ORDER_SEARCH_MAX}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full bg-tb-elevated border border-tb-border rounded-[10px] py-[10px] pl-[40px] pr-[14px] text-ink-pri font-body text-[13px] placeholder:text-tb-muted outline-none focus:border-tb-amber/50 transition-colors"
             />
@@ -153,20 +148,19 @@ export default function OrderHistoryPage(): ReactElement {
           </div>
         )}
 
-        {/* Still pulling pages that could match — an empty list would be a lie */}
-        {!loading && !errorMsg && filteredOrders.length === 0 && incomplete && (
-          <div className="bg-canvas-surface border border-bdr rounded-xl py-[60px] px-6 text-center">
-            <p className="font-body text-sm text-ink-sec m-0">Đang tải thêm đơn hàng…</p>
-          </div>
-        )}
-
         {/* Empty state */}
-        {!loading && !errorMsg && filteredOrders.length === 0 && !incomplete && (
+        {!loading && !errorMsg && orders.length === 0 && (
           <div className="bg-canvas-surface border border-bdr rounded-xl py-[60px] px-6 text-center">
             <p className="font-body text-sm text-ink-sec m-0">
-              {filterTab === 'all' ? 'Bạn chưa có đơn hàng nào' : 'Không có đơn hàng nào trong mục này'}
+              {searchPending
+                ? 'Đang tìm…'
+                : debouncedSearch
+                  ? `Không tìm thấy đơn hàng nào khớp “${debouncedSearch}”`
+                  : filterTab === 'all'
+                    ? 'Bạn chưa có đơn hàng nào'
+                    : 'Không có đơn hàng nào trong mục này'}
             </p>
-            {filterTab === 'all' && (
+            {filterTab === 'all' && !debouncedSearch && !searchPending && (
               <button
                 onClick={() => navigate('/')}
                 className="mt-4 px-4 py-2 rounded-lg border border-bdr text-ink-pri text-sm hover:border-accent-amber transition-colors cursor-pointer">
@@ -177,9 +171,9 @@ export default function OrderHistoryPage(): ReactElement {
         )}
 
         {/* Order list */}
-        {!loading && filteredOrders.length > 0 && (
+        {!loading && orders.length > 0 && (
           <div className="flex flex-col gap-3">
-            {filteredOrders.map((order) => {
+            {orders.map((order) => {
               const cover = orderCoverImage(order.items);
               const summary = orderItemsSummary(order.items);
               return (
@@ -220,8 +214,8 @@ export default function OrderHistoryPage(): ReactElement {
               );
             })}
 
-            {/* Load more — only on the unfiltered list; a narrowed view auto-pulls above */}
-            {hasNextPage && !narrowed && (
+            {/* `hasNext` describes the searched set too, so the same button paginates it */}
+            {hasNextPage && (
               <button
                 type="button"
                 onClick={() => { void fetchNextPage(); }}
