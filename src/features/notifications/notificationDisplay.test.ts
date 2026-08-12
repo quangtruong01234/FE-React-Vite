@@ -46,6 +46,22 @@ describe('getNotificationContent', () => {
       .toBe('Yêu cầu trả hàng cho đơn #ord_0000000000000042 đã bị từ chối.');
   });
 
+  it('renders every lifecycle type the backend now emits (NOTIF-LIFECYCLE-01)', () => {
+    // Before this batch these fell through to "Thông báo" + the raw English message.
+    const cases: Array<[string, string, string]> = [
+      ['new_order', 'Đơn hàng mới', 'Bạn có đơn hàng mới #ord_0000000000000042 cần xác nhận.'],
+      ['order_confirmed', 'Đơn hàng đã xác nhận', 'Đơn hàng #ord_0000000000000042 đã được người bán xác nhận.'],
+      ['order_processing', 'Đang chuẩn bị hàng', 'Đơn hàng #ord_0000000000000042 đang được chuẩn bị để giao.'],
+      ['order_delivering', 'Đang giao đến bạn', 'Đơn hàng #ord_0000000000000042 đang trên đường giao đến bạn.'],
+      ['order_completed', 'Giao hàng thành công', 'Đơn hàng #ord_0000000000000042 đã giao thành công.'],
+    ];
+    for (const [type, title, body] of cases) {
+      const content = getNotificationContent(notif({ type }));
+      expect(content.title, type).toBe(title);
+      expect(content.body, type).toBe(body);
+    }
+  });
+
   it('falls back to the raw message when an order type has no orderId', () => {
     const content = getNotificationContent(notif({ type: 'order_canceled', orderId: null }));
     expect(content.title).toBe('Đơn hàng đã hủy');
@@ -117,6 +133,18 @@ describe('getNotificationHref', () => {
     expect(getNotificationHref(notif({ type: 'order_shipped', orderId: 'ord_0000000000000107' }))).toBe('/order/ord_0000000000000107');
   });
 
+  it('links the new buyer lifecycle types to the order detail page', () => {
+    for (const type of ['order_confirmed', 'order_processing', 'order_delivering', 'order_completed']) {
+      expect(getNotificationHref(notif({ type })), type).toBe('/order/ord_0000000000000042');
+    }
+  });
+
+  it('sends the seller new-order row to the seller queue, not the buyer detail', () => {
+    // `/order/:id` is the buyer's view — a seller opening it gets a 403.
+    expect(getNotificationHref(notif({ type: 'new_order' }))).toBe('/sell/orders');
+    expect(getNotificationHref(notif({ type: 'new_order', orderId: null }))).toBe('/sell/orders');
+  });
+
   it('links comment/reply to the post when postId is present', () => {
     expect(getNotificationHref(notif({ type: 'comment', orderId: null, postId: 'post_0000000000000008' }))).toBe('/post/post_0000000000000008');
     expect(getNotificationHref(notif({ type: 'reply', orderId: null, postId: 'post_0000000000000008' }))).toBe('/post/post_0000000000000008');
@@ -137,6 +165,7 @@ describe('getNotificationMeta', () => {
   it('maps every backend type to a non-default icon', () => {
     const types = [
       'order_created', 'payment_completed', 'order_placed', 'order_shipped', 'order_canceled',
+      'new_order', 'order_confirmed', 'order_processing', 'order_delivering', 'order_completed',
       'order_return_requested', 'order_return_approved', 'order_return_rejected',
       'comment', 'reply', 'brand_approved', 'brand_rejected',
       'category_approved', 'category_rejected',
