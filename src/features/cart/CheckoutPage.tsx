@@ -23,6 +23,7 @@ import { usePaymentOptions } from "./usePaymentOptions";
 import { setPendingCheckout } from "./pendingCheckout";
 import { buildCheckoutSignature, resolveIdempotencyKey } from "./idempotency";
 import { effectiveUnitPrice, buildShippingFeeItems } from "./shippingFee";
+import { shippingFeeFailure } from "./shippingFeeError";
 import { buildOrderItems, findStockShortages } from "./checkoutItems";
 import {
   normalizeVoucherCode,
@@ -133,14 +134,16 @@ export default function CheckoutPage(): ReactElement {
 
   const loading = mutationPending || isSubmitting;
 
-  // P1-C: best-effort GHN shipping-fee preview. GHN often rejects free-text
-  // addresses (502) in this environment, so failure must degrade gracefully —
-  // never block checkout.
+  // P1-C: GHN shipping-fee preview. RESIL-01 split the failure modes: a `400`
+  // means GHN refuses this address (the buyer must pick another one — retrying
+  // will not help), a `503` means GHN is down and the fee is simply unknown.
+  // Only the address case blocks checkout; an outage still degrades gracefully.
   const {
     mutate: calcShipping,
     data: shippingResult,
     isPending: shippingPending,
     isError: shippingFailed,
+    error: shippingError,
     reset: resetShipping,
   } = useMutation({
     mutationFn: (address: Address) =>
@@ -154,6 +157,10 @@ export default function CheckoutPage(): ReactElement {
   });
 
   const shippingFee = shippingResult?.shippingFee ?? 0;
+  const shippingFailure = shippingFailed ? shippingFeeFailure(shippingError) : null;
+  // A rejected address cannot be shipped at all — let the buyer fix it instead
+  // of placing an order GHN will refuse to carry.
+  const addressRejected = shippingFailure?.kind === 'address';
 
   // F3: voucher preview. Codes only apply to single-seller baskets, so the
   // input is hidden (and no code is sent) when items span multiple sellers.
@@ -619,8 +626,15 @@ export default function CheckoutPage(): ReactElement {
                   ) : (
                     <span className="font-mono">{formatVnd(shippingFee)}</span>
                   )
-                ) : shippingFailed ? (
-                  <span className="text-ink-muted">Tính khi giao hàng</span>
+                ) : shippingFailure ? (
+                  <span
+                    className={cn(
+                      'text-right text-xs',
+                      addressRejected ? 'text-accent-red' : 'text-ink-muted',
+                    )}
+                  >
+                    {addressRejected ? 'Không giao được' : 'Tính khi giao hàng'}
+                  </span>
                 ) : (
                   <span className="text-ink-muted">
                     {selectedAddress ? "Đang tính…" : "Chọn địa chỉ giao hàng"}
@@ -698,9 +712,28 @@ export default function CheckoutPage(): ReactElement {
               </div>
             </div>
 
+            {shippingFailure && (
+              <div
+                className={cn(
+                  'rounded-xl border px-4 py-3 font-body text-xs leading-relaxed',
+                  addressRejected
+                    ? 'border-accent-red bg-tb-red/10 text-accent-red'
+                    : 'border-bdr bg-canvas-surface text-ink-sec',
+                )}
+              >
+                {shippingFailure.message}
+              </div>
+            )}
+
             <GradientButton
               type="submit"
-              disabled={loading || productsError || !selectedAddress || Object.keys(stockError).length > 0}
+              disabled={
+                loading ||
+                productsError ||
+                !selectedAddress ||
+                addressRejected ||
+                Object.keys(stockError).length > 0
+              }
               className="w-full py-4 text-lg font-bold rounded-xl"
             >
               {loading ? "Đang đặt hàng..." : "XÁC NHẬN ĐẶT HÀNG →"}
