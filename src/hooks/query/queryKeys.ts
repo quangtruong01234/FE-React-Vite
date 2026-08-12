@@ -47,8 +47,10 @@ export const queryKeys = {
     // One cache entry per filter tab, since the server now returns the filtered
     // page. Stays under the `byUser` prefix so `invalidateOrderViews` refreshes
     // every tab (and the badge counts) with the one invalidation it already does.
-    byUserList: (userId: string, statuses: readonly string[]) =>
-      ["orders", "user", userId, "list", statuses.join(",")] as const,
+    // `q` is the server-side order-code search — part of the key so each search
+    // term caches (and paginates) separately from the unfiltered tab.
+    byUserList: (userId: string, statuses: readonly string[], q = "") =>
+      ["orders", "user", userId, "list", statuses.join(","), q.trim()] as const,
     statusCounts: (userId: string) =>
       ["orders", "user", userId, "status-counts"] as const,
     detail: (id: string) => ["orders", id] as const,

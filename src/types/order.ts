@@ -84,6 +84,14 @@ export interface Order {
   subtotal?: number;
   /** Shipping fee, server-normalized to a non-null number (0 for legacy fee-less orders). Optional for legacy/multi-seller responses that predate the field. `total = subtotal − discountAmount + shippingFee`. */
   shippingFee?: number;
+  /**
+   * ISO-8601 timestamp of when money was actually collected, `null` when none
+   * has been. Semantics differ by method: on vnpay/zalopay `null` means the
+   * buyer never completed checkout; on COD it stays null until delivery, so it
+   * means "chưa giao", not "chưa trả tiền". Optional so a response that predates
+   * the field (ORD-GUARD-01) still type-checks.
+   */
+  paidAt?: string | null;
   createdAt: string;
   items: OrderItem[];
 }
@@ -109,6 +117,15 @@ export interface SellerOrderItemDetail extends OrderItem {
 
 /** `GET /api/order/seller/:id` — the order plus per-item product image + SKU label. */
 export interface SellerOrderDetail extends Order {
+  items: SellerOrderItemDetail[];
+}
+
+/**
+ * `GET /api/order/seller` — list rows carry decorated items too (ORDER-SHAPE-01;
+ * they used to be `[]` on every row because the query did not join). The card
+ * renders name/image/quantity straight from the list, no per-order detail call.
+ */
+export interface SellerOrderListRow extends OrderWithBuyer {
   items: SellerOrderItemDetail[];
 }
 

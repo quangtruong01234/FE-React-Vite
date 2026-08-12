@@ -4,6 +4,7 @@ import type {
   OrderStatus,
   OrderStatusCounts,
   SellerOrderDetail,
+  SellerOrderListRow,
   CreateOrderDto,
   CreateOrderResponse,
   ReturnRequest,
@@ -24,13 +25,23 @@ import { request, toQuery, API_BASE } from "./client";
 // syntax `status[]=` is stripped by the Express simple query parser and yields
 // `400`, same trap as `provinceId` on the product list. An empty list must emit
 // no key at all: `?status=` is not "unfiltered", it is an invalid value.
+//
+// `q` (FE-INBOX-0811) is a case-insensitive substring match on the order public
+// id, ANDed with `status`. A blank/whitespace-only value is not "match nothing"
+// — it must be omitted entirely, and the backend rejects anything over 32 chars
+// with a 400, so the box is capped before the value ever reaches the URL.
+export const ORDER_SEARCH_MAX = 32;
+
 export function buildUserOrdersQuery(
   page: number,
   limit: number,
   statuses: readonly OrderStatus[] = [],
+  q = "",
 ): string {
   const sp = new URLSearchParams({ page: String(page), limit: String(limit) });
   for (const status of statuses) sp.append("status", status);
+  const term = q.trim().slice(0, ORDER_SEARCH_MAX);
+  if (term) sp.append("q", term);
   return `?${sp.toString()}`;
 }
 
@@ -70,9 +81,10 @@ export const ordersApi = {
     page = 1,
     limit = 10,
     statuses: readonly OrderStatus[] = [],
+    q = "",
   ): Promise<PaginatedResponse<Order>> =>
     request<PaginatedResponse<Order>>(
-      `/order/user/${userId}${buildUserOrdersQuery(page, limit, statuses)}`,
+      `/order/user/${userId}${buildUserOrdersQuery(page, limit, statuses, q)}`,
     ),
 
   getById: (id: string): Promise<Order> => request<Order>(`/order/${id}`),
@@ -119,9 +131,9 @@ export const ordersApi = {
     page = 1,
     limit = 20,
     status?: string,
-  ): Promise<PaginatedResponse<OrderWithBuyer>> => {
+  ): Promise<PaginatedResponse<SellerOrderListRow>> => {
     const qs = toQuery({ page, limit, status });
-    return request<PaginatedResponse<OrderWithBuyer>>(`/order/seller${qs}`);
+    return request<PaginatedResponse<SellerOrderListRow>>(`/order/seller${qs}`);
   },
 
   confirmOrder: (id: string): Promise<Order> =>
