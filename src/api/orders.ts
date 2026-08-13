@@ -146,15 +146,11 @@ export const ordersApi = {
   getSellerOrderDetail: (id: string): Promise<SellerOrderDetail> =>
     request<SellerOrderDetail>(`/order/seller/${id}`),
 
-  // P1-01: forward lifecycle transitions after `processing` (single-step).
-  ship: (id: string): Promise<Order> =>
-    request<Order>(`/order/${id}/ship`, { method: "PATCH" }),
-
-  deliver: (id: string): Promise<Order> =>
-    request<Order>(`/order/${id}/deliver`, { method: "PATCH" }),
-
-  complete: (id: string): Promise<Order> =>
-    request<Order>(`/order/${id}/complete`, { method: "PATCH" }),
+  // The seller lifecycle ends at `ready-to-ship`. `PATCH /order/:id/{ship,
+  // deliver,complete}` are admin-only since ORD-RBAC-01 — role `shop` gets 403
+  // before the order is even loaded — so no storefront wrapper exists for them.
+  // Shipping status after ready-to-ship is reported by the carrier; a future
+  // "advance manually" screen belongs in the admin / GHN console, not here.
 
   // F2: buyer-initiated return/refund. Eligible only on delivering/completed
   // orders without an active request (400 otherwise); flips the order to
