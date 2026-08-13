@@ -24,6 +24,7 @@ import { setPendingCheckout } from "./pendingCheckout";
 import { buildCheckoutSignature, resolveIdempotencyKey } from "./idempotency";
 import { effectiveUnitPrice, buildShippingFeeItems } from "./shippingFee";
 import { shippingFeeFailure } from "./shippingFeeError";
+import { checkoutSubmitErrorMessage } from "./checkoutSubmitError";
 import { buildOrderItems, findStockShortages } from "./checkoutItems";
 import {
   normalizeVoucherCode,
@@ -313,11 +314,9 @@ export default function CheckoutPage(): ReactElement {
         }
       }
     } catch (err: unknown) {
-      const msg =
-        typeof err === "object" && err !== null && "message" in err
-          ? String((err as { message: unknown }).message)
-          : "Đặt hàng thất bại. Vui lòng thử lại.";
-      setError("root", { message: msg });
+      // GHN-CREATE-01: create can now answer 400 for an undeliverable address —
+      // show the buyer the same wording as the fee banner, not GHN's raw English.
+      setError("root", { message: checkoutSubmitErrorMessage(err) });
     }
   }
 

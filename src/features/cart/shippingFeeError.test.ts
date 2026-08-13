@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shippingFeeFailure } from './shippingFeeError';
+import { isGhnAddressRefusal, shippingFeeFailure } from './shippingFeeError';
 
 describe('shippingFeeFailure', () => {
   it('treats a 400 as an address the buyer must change', () => {
@@ -19,6 +19,15 @@ describe('shippingFeeFailure', () => {
       expect(shippingFeeFailure({ statusCode: 400, message }).message).not.toMatch(/GHN/i);
       expect(shippingFeeFailure({ statusCode: 400, message }).message).toContain('bad ward');
     }
+  });
+
+  it('strips the "call this endpoint instead" tail — that instruction is for us (GHN-DIST-01)', () => {
+    const failure = shippingFeeFailure({
+      statusCode: 400,
+      message: 'GHN does not know district 999999 — pick a district from GET /api/shipping/districts',
+    });
+    expect(failure.message).toContain('district 999999');
+    expect(failure.message).not.toMatch(/GET|\/api\//);
   });
 
   it('still names the address when the 400 carries no reason', () => {
@@ -43,5 +52,36 @@ describe('shippingFeeFailure', () => {
     expect(shippingFeeFailure({ statusCode: 500 }).message).toBe(
       'Chưa tính được phí vận chuyển. Phí sẽ được tính khi giao hàng.',
     );
+  });
+});
+
+describe('isGhnAddressRefusal', () => {
+  it('recognises the three refusals GHN-CREATE-01 can raise on order create', () => {
+    for (const message of [
+      'GHN does not know district 999999 — pick a district from GET /api/shipping/districts',
+      'Ward 20308 does not belong to GHN district 1442 — pick a ward from GET /api/shipping/wards',
+      'Cannot resolve province "Hà Nộii" to a GHN province',
+    ]) {
+      expect(isGhnAddressRefusal({ statusCode: 400, message })).toBe(true);
+    }
+  });
+
+  it('leaves the other checkout 400s alone', () => {
+    // These must keep their own backend text — telling the buyer to change the
+    // delivery address would send them to fix the wrong thing.
+    for (const message of [
+      'Insufficient stock for product prod_ffc802c681d211f1',
+      'Voucher code EXPIRED10 is no longer valid',
+      'items should not be empty',
+    ]) {
+      expect(isGhnAddressRefusal({ statusCode: 400, message })).toBe(false);
+    }
+  });
+
+  it('is false for anything that is not a 400', () => {
+    // A GHN outage is a 503 and never blocks create — only a refusal is a 400.
+    expect(isGhnAddressRefusal({ statusCode: 503, message: 'GHN unavailable' })).toBe(false);
+    expect(isGhnAddressRefusal({ message: 'GHN district missing' })).toBe(false);
+    expect(isGhnAddressRefusal(null)).toBe(false);
   });
 });

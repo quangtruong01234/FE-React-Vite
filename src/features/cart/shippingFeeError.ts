@@ -10,7 +10,10 @@
  *            right now, so checkout degrades to "tính khi giao hàng".
  *
  * Messages arrive prefixed (`"GHN preview error: <reason>"`) — the prefix names
- * our integration, not anything the buyer can act on, so it is stripped.
+ * our integration, not anything the buyer can act on, so it is stripped. Since
+ * GHN-DIST-01 the reason can also carry a developer-facing tail naming the
+ * endpoint to call instead (`"— pick a district from GET /api/shipping/districts"`);
+ * that is stripped too, for the same reason.
  */
 export type ShippingFeeFailureKind = 'address' | 'outage' | 'unknown';
 
@@ -21,13 +24,30 @@ export interface ShippingFeeFailure {
 }
 
 const GHN_PREFIX = /^GHN [\w\s]*error:\s*/i;
+/** `"… — pick a district from GET /api/shipping/districts"` — an instruction for us, not the buyer. */
+const ENDPOINT_HINT = /\s*[—–-]\s*pick an? \w+ from GET\s+\S+\s*$/i;
 
 function rawMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'message' in error) {
     const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string') return message.replace(GHN_PREFIX, '').trim();
+    if (typeof message === 'string') {
+      return message.replace(GHN_PREFIX, '').replace(ENDPOINT_HINT, '').trim();
+    }
   }
   return '';
+}
+
+/**
+ * Does this failure mean "GHN refuses to carry to this address"?
+ *
+ * Used by the order-create path (GHN-CREATE-01), which shares the fee preview's
+ * three refusal messages but not its dedicated banner. Keyed on the address
+ * vocabulary GHN owns — no other `400` on checkout talks about wards, districts
+ * or provinces (stock shortages and voucher problems name the product/code).
+ */
+export function isGhnAddressRefusal(error: unknown): boolean {
+  if (statusOf(error) !== 400) return false;
+  return /\b(ghn|ward|district|province)\b/i.test(rawMessage(error));
 }
 
 function statusOf(error: unknown): number | undefined {
