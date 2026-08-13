@@ -1,6 +1,6 @@
 # Snapshot — TryBuy Frontend Current State
 
-> Cập nhật: 2026-08-12 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
+> Cập nhật: 2026-08-13 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
 > Keep this LEAN: chỉ giữ bức tranh sống (overview, việc còn mở/bị chặn, known issues).
 > Việc đã xong nằm ở `CHANGELOG.md` (cùng thư mục, không auto-load) — **đừng chép lại vào đây**.
 > Convention/rule nằm ở `.ai/context/` — cũng không duplicate vào đây.
@@ -9,12 +9,13 @@
 
 React 19 + Vite FE cho marketplace microservices. Khung đầy đủ: marketplace, cart, checkout,
 order, seller, social, admin, chat, wishlist, sổ địa chỉ. **Toàn bộ P0/P1/P2 đã đóng phía FE**;
-riêng P0-03 còn hở đúng nhánh update (create đã atomic BE-side từ INV-CONTRACT-01, chưa deploy).
+riêng P0-03 còn hở đúng nhánh update (create đã atomic BE-side từ INV-CONTRACT-01, deploy prod
+2026-08-12).
 Public-ID migration (PUBID-01–07) đã
 xong — storefront id là opaque string end-to-end.
 
-**Gates (chạy lại + verify 2026-08-12):** `npm run build` ✓ · `npm run lint` 0 error /
-3 warning advisory · `npm run test:run` 687 test / 96 file, all pass. Không đóng item nào khi 3
+**Gates (chạy lại + verify 2026-08-13):** `npm run build` ✓ · `npm run lint` 0 error /
+3 warning advisory · `npm run test:run` 708 test / 100 file, all pass. Không đóng item nào khi 3
 lệnh này chưa xanh.
 
 > ⚠️ `npm run build` **mới** thực sự typecheck từ 2026-08-04. Trước đó script chỉ là `vite build`
@@ -29,11 +30,11 @@ login → product → cart → checkout → payment/order.
 
 | Ngày | Item |
 |---|---|
-| 2026-08-12 | **BATCH-0811 · tích hợp 8 entry BE trong một lượt** (⚠️ **class C — chưa push**, xem `../.agent-local/release-gate.md`). `INV-CONTRACT-01`: xoá `persistSimpleStock()`, luồng đăng bán còn đúng **1** request `POST /products` (BE tự seed inventory + rollback nếu hỏng) · `FE-INBOX-0811 #4`: search mã đơn thành **server-side** `?q=` (debounce 400ms, cap 32 ký tự) ⇒ **xoá được cả module `orderHistoryPaging.ts`**, hết fetch-all và hết empty-state nói dối · `ORD-GUARD-01`: field mới `paidAt` + 2 helper thuần `getSellerOrderActionState()`/`isAwaitingPayment()` — đơn online chưa trả tiền hiện lý do thay vì cái nút chắc chắn 400; cả hai so `=== null` để BE cũ (field vắng) degrade chứ không khoá cứng · `ORDER-SHAPE-01`: type `SellerOrderListRow`, card seller render thẳng từ list · `NOTIF-LIFECYCLE-01`: 5 type mới, `new_order` link `/sell/orders` (buyer view sẽ 403) · `RESIL-01`: `shippingFeeFailure()` — GHN **400 chặn** đặt hàng (địa chỉ giao không tới), **503 không chặn** (phí tính khi giao) · `RETURN-STOCK-01`: duyệt trả hàng invalidate thêm `inventory.all`+`products.all` · `STOCK-SYNC-01`: invalidate ở nhánh `onError` của form sửa. 12 file, +5 test file, 687 test xanh. **Runtime verify còn nợ** — BE của batch chưa deploy |
-| 2026-08-11 | **CD-FE-03 · Socket.IO qua Worker proxy** — realtime chết im trên prod: cookie `access_token` là host-only nên từ khi REST đi qua proxy (CD-FE-02), socket quay số thẳng origin gateway thành cross-site → gateway trả `41/notifications,` (namespace disconnect), badge chỉ đổi khi reload, console sạch. Worker giờ proxy cả `/socket.io/*` (nhánh upgrade phải là `fetch(url, request)` — dựng lại từ `Headers` là mất `Upgrade` vì hop-by-hop bị strip); `resolveSocketUrl()` mới cho 3 call site, env prod cả ba đều tương đối. **Verify live** qua `wrangler dev` đánh gateway thật: `40/notifications,` + `40/chat,` connect và ở lại, tin nhắn thật về tới tab kia (`42/chat,["new_message",…]`). ⚠️ **Chưa live** cho tới khi 2 variable được đổi — xem "Chờ thao tác của người dùng" |
-| 2026-08-09 | **RIGHTRAIL-IMG + cache URL đã fail** — hai thứ tìm được khi verify `PostImage` bằng MCP. (1) `RightRail` bỏ hẳn URL Unsplash hardcode (vừa là default khi `imageUrl` null, vừa là đích của `onError` — tự gán lại `e.target.src` nên có thể **lặp request**); thay bằng `<ProductThumb>`, hết request bên thứ ba trên trang chủ. (2) `failedPostImages.ts` — set URL đã 404 dùng chung, vì feed tile và lightbox là 2 mount khác nhau của cùng ảnh nên trước đó click ảnh hỏng bắn thêm một 404 nữa ở `w_1600`. Verify live: request Unsplash **biến mất**, 404 còn **1** thay vì 2 |
-| 2026-08-08 | **`PostImage`** — ảnh post 404 giờ ra placeholder `ImageOff` thay vì ảnh vỡ. Gom **7 chỗ `<img>`** rải ở 4 nhánh layout của `PostCard` + 2 nhánh của `PostDetailPage` (kể cả lightbox) về một component `features/social/PostImage.tsx`, cùng contract `onError` như `ProductThumb`: state keyed theo URL fail (slot feed tái sử dụng cho post khác vẫn thử lại ảnh mới), placeholder giữ nguyên class của slot nên **không layout shift**. **Verify runtime 2026-08-09 (Chrome DevTools MCP)**: feed + lightbox + `PostDetailPage` đều ra placeholder, click nền vẫn đóng lightbox. Nguyên nhân gốc (seed row trỏ asset không tồn tại) vẫn là việc của BE |
-| 2026-08-07 | **Drain BE handoff inbox**: 13 entry `## Open` → `## Done` sau khi verify từng cái với code thật (payment return URL giữ guard có chủ đích · GHN `shippingFee: 0` không chèn sàn client · post `productId` + SEC-L1 đã bị PUBID thay thế · media cap/ownership/upload signature/socket upgrade/status-counts/money fields: không còn việc). Inbox giờ còn **1 entry** — cái FE→BE xin per-user room cho chat · `ProductThumb` thêm `onError` fallback (SEC-M7 xoá ảnh của product đã xoá → đơn cũ đang render ảnh vỡ) · xoá folder chết `src/features/inventory/` |
+| 2026-08-13 | **BE-REPORT-0813 · dọn nốt 3 FYI cuối của inbox BE + đóng DEPLOY-0813** (class **B**, chưa push). `IDLEAK-01`: BE bảo "no FE change needed" — vẫn đi soi từng consumer thay vì tin: `checkStock` không đọc `productId`, `reviewedBy` vốn đã `string \| null`, `moderatorId` **không có consumer nào**, `client.ts` chỉ đọc `message` + status nên ENVELOPE-01 vô hình; thứ duy nhất sai là **fixture test** `postModeration.test.ts` còn assert `'Post 7 not found'` (social 404 giờ bỏ id) → sửa. `submittedBy` **cố ý giữ nguyên `number`** đúng như BE dặn (class C, BE giữ). `GHN-CREATE-01`: BE cũng bảo không cần sửa, nhưng nhánh fallback sẽ ném **tiếng Anh kèm tên endpoint nội bộ** (`pick a district from GET /api/shipping/districts`) vào mặt người mua trong UI tiếng Việt → helper thuần `features/cart/checkoutSubmitError.ts` đưa refusal của GHN về **đúng câu của banner phí ship**, mọi message khác giữ nguyên; `isGhnAddressRefusal()` khoá theo **400 + từ vựng địa chỉ GHN** nên 400 hết hàng/voucher không bị đổi lời, và strip luôn đuôi `— pick a … from GET …` cho cả banner. Tiện thể sửa bug tiềm ẩn ở call site: nó `String(err.message)` vô điều kiện nên có lúc in ra chữ `"undefined"`. **Verify prod (MCP)**: cả 3 fix BE của DEPLOY-0813 **đã lên prod** — comments/replies có `author`, `refundAmount` là number, ward lệch quận trả **400** đúng 3 câu đã code; và **nhánh `author` thật đã render được ở runtime** (bundle local trỏ API prod, `/post/…` in `shop1`/`user1` + reply lồng cấp, không còn chữ `Người dùng`, không rò `usr_`) — đây là món lượt trước còn nợ. Không probe `POST /api/order` trên prod: đoán sai là đặt đơn thật. +9 test / +1 file |
+| 2026-08-13 | **BATCH-0813 · drain 5 entry BE inbox trong một lượt** (class **B** — old FE vẫn đúng, chưa push). `SOCIAL-AUTHOR-01`: `Comment.author: PostAuthor \| null` (tái dùng type của post, không khai thêm type gần-trùng) + helper thuần `features/social/commentAuthor.ts` → `CommentNode` render username/avatar thật, và khi `author` vắng/null thì ra `Người dùng` **không kèm id** (trước là `Người dùng #usr_xxx` — rò id opaque ra UI) · `RET-NUM-01`: bỏ `Number(refundAmount)` ở 3 trang trả hàng — `formatVnd` đã nhận `number \| string` nên chạy đúng với **cả** BE cũ (`"45000.00"`) lẫn BE mới · `ORD-RBAC-01`: xoá 3 wrapper chết `ship`/`deliver`/`complete` trong `api/orders.ts` (0 call site, giờ admin-only) + để lại comment vì sao seller dừng ở `ready-to-ship` · `GHN-DIST-01` và `PATCH-ATOMIC-01`: **không cần sửa code** — cascade reset ward/district và invalidate ở nhánh `onError` đã đúng sẵn; vì BE change làm cascade thành load-bearing (ward lệch giờ là 400 chặn đặt hàng) nên pin lại bằng 2 RTL test. **Verify prod (Chrome DevTools MCP)**: cả 3 thay đổi BE **chưa deploy** — `/social/posts/:id/comments` + `/replies` chưa có `author`, `refundAmount` vẫn là string `"45000.00"`, `shipping-fee` ward lệch quận vẫn trả 201. Chạy build mới trỏ vào API prod: comment + reply lồng cấp ra `Người dùng` sạch id, `/returns` in `45.000 đ`/`90.000 đ`/`160.000 đ` đúng ⇒ degrade an toàn, đúng class B. +8 test / +2 file. **Cập nhật cuối ngày 2026-08-13:** cả ba đã lên prod và verify lại — xem dòng BE-REPORT-0813 ở trên |
+| 2026-08-13 | **SOCIAL-COUNT-01 + verify social/chat trên prod** — chạy E2E post → comment → reply → chat với 2 tài khoản thật (user1 ↔ shop1) và tìm ra 1 bug FE: `useCreateComment`/`useCreateReply`/`useDeleteComment` chỉ invalidate `social.comments(postId)`, **không** invalidate `social.post(postId)` — mà `commentCount` nằm trong payload của post, nên header vẫn in "Bình luận (0)" sau khi vừa gửi comment, phải reload mới đúng. Fix: helper `lib/query/socialInvalidation.ts` (`invalidateCommentViews`, cùng khuôn với `invalidateOrderViews`) — invalidate **một** key `social.post(postId)` là đủ vì nó là prefix của `social.comments(postId)` (thêm guard prefix vào `queryKeys.test.ts`, gọi 2 lần chồng nhau sẽ refetch comment list 2 lượt). Verify prod: like 0→1, comment + reply lồng cấp render ngay, notification `comment`/`reply` bắn realtime (badge 65→66 và 44→45, **không reload**), chat 2 chiều tới nơi tức thì. Ghi sang `backend-handoff.md`: comment/reply **không kèm `author`** nên UI in `Người dùng #usr_xxx` thay vì username (post thì có `author` đầy đủ) |
+| 2026-08-13 | **Runtime verify BATCH-0811 + BATCH-0812 trên prod — 6/6 + 5/5 PASS** (Chrome DevTools MCP, 4 tài khoản song song trong isolated context). Storefront: đăng bán 1 SP → đúng 1 request, stock đúng · `/orders` gõ mã đơn → đúng 1 request `?q=`, phân trang trên kết quả tìm · đơn online chưa trả tiền → "Khách chưa thanh toán — chưa thể xử lý đơn", không có nút (đơn COD cạnh đó vẫn có nút) · chuông thông báo đủ **6** type mới, `order_confirmed`/`order_processing` bắn thật khi seller đẩy đơn, `new_order` mở `/sell/orders` · checkout địa chỉ GHN không giao tới → banner đỏ + nút đặt hàng disabled. **RETURN-STOCK-01** (2026-08-13, sau khi đẩy đơn `ord_o00rM7DkTCMM3rzm` tới `completed` bằng `demo-status`): buyer gửi yêu cầu trả hàng → seller "Duyệt & hoàn tiền" → tồn kho SP đi từ **49 → 50** (tổng kho 10084 → 10085) mà **không reload** trang, đơn thành "Đã hoàn tiền", refund `45.000 đ` hiện đúng ở cả 2 phía. GHN console **5/5 PASS** (GHN-RAW/ENUM/ACT/HIST/RBAC-01) — chi tiết ở `../.agent-local/frontend-handoff-ghn.md`. Phát hiện mới ghi sang `backend-handoff.md`: `POST /api/order/shipping-fee` với `toDistrictId` không tồn tại vẫn trả **201** thay vì 400 |
+| 2026-08-12 | **BATCH-0811 · tích hợp 8 entry BE trong một lượt** (class C — đã push và verify prod 2026-08-12, xem `../.agent-local/release-gate.md` → Released). `INV-CONTRACT-01`: xoá `persistSimpleStock()`, luồng đăng bán còn đúng **1** request `POST /products` (BE tự seed inventory + rollback nếu hỏng) · `FE-INBOX-0811 #4`: search mã đơn thành **server-side** `?q=` (debounce 400ms, cap 32 ký tự) ⇒ **xoá được cả module `orderHistoryPaging.ts`**, hết fetch-all và hết empty-state nói dối · `ORD-GUARD-01`: field mới `paidAt` + 2 helper thuần `getSellerOrderActionState()`/`isAwaitingPayment()` — đơn online chưa trả tiền hiện lý do thay vì cái nút chắc chắn 400; cả hai so `=== null` để BE cũ (field vắng) degrade chứ không khoá cứng · `ORDER-SHAPE-01`: type `SellerOrderListRow`, card seller render thẳng từ list · `NOTIF-LIFECYCLE-01`: 6 type mới, `new_order` link `/sell/orders` (buyer view sẽ 403) · `RESIL-01`: `shippingFeeFailure()` — GHN **400 chặn** đặt hàng (địa chỉ giao không tới), **503 không chặn** (phí tính khi giao) · `RETURN-STOCK-01`: duyệt trả hàng invalidate thêm `inventory.all`+`products.all` · `STOCK-SYNC-01`: invalidate ở nhánh `onError` của form sửa. 12 file, +5 test file, 687 test xanh |
 
 ## Active Tasks — open / blocked
 
@@ -175,19 +176,23 @@ npx -y lighthouse http://localhost:4173/login --only-categories=performance \
 
 Cần full-stack live (FE↔BE) và/hoặc 2 tài khoản; không repro được qua UI thường:
 
-- **🔴 BATCH-0811 (2026-08-12) — nợ nguyên batch.** BE của batch còn nằm trong working tree của
-  `api/`, chưa deploy, nên **không môi trường nào phục vụ contract mới**: verify trên prod hiện
-  tại chỉ chạy đúng nhánh fallback, và riêng INV-CONTRACT-01 thì **verify trên BE cũ sẽ tạo ra
-  product không có inventory row** (rác thật, không phải test). Chrome DevTools MCP cũng không
-  connect trong session này. Verify ngay sau khi cả hai repo lên `main`: (1) đăng bán 1 SP thường
-  → stock đúng, form không in lỗi đỏ; (2) `/orders` gõ mã đơn → đúng 1 request có `?q=`, sang
-  page 2 của kết quả tìm; (3) đơn vnpay chưa trả tiền ở `/sell/orders` → hiện lý do thay vì nút;
-  (4) chuông thông báo qua đủ 5 type mới, `new_order` mở `/sell/orders`; (5) checkout địa chỉ
-  GHN không giao tới → nút đặt hàng **disabled** + banner đỏ; (6) duyệt trả hàng → tồn kho tăng
-  lại ngay không cần reload.
+> ✅ **BATCH-0811 đã verify đủ 6/6 trên prod 2026-08-13** — không còn nợ mục nào.
+>
+> **Cách đẩy một đơn tới `delivering`/`completed` trên prod mà không có webhook GHN thật** (mở khoá
+> mọi kịch bản trả hàng / hoàn tiền, kể cả mục F2 dưới đây): đăng nhập `shipping1` (quyền
+> `shipping:update:any`) rồi `POST /api/order/admin/ghn/orders/:id/demo-status` với
+> `{ ghnStatus }` — `picking`→`shipped`, `delivering`→`delivering`, `delivered`→`completed`.
+> Prod đang bật `GHN_DEMO_ENDPOINTS_ENABLED=true` (project demo cố ý giữ true). Đơn phải đã có
+> waybill (`ready-to-ship` xong) thì mới đi tiếp được; mapping forward-only nên đã `completed`
+> hoặc `canceled` thì mọi status sau đó bị bỏ qua.
+
 - P0-03 / P0-04 / P0-05 — endpoint self-test happy-path + 409/idempotency.
-- P1-06 / chat — E2E 2 tài khoản (open → send → receive → reconnect).
-- F2 return/refund — E2E 2 tài khoản. F3 voucher — cần admin tạo voucher thật trước.
+- ~~P1-06 / chat — E2E 2 tài khoản~~ — **đã chạy trên prod 2026-08-13** (user1 ↔ shop1, 2 isolated
+  context): open conversation → send → tab kia nhận **không reload**, cả hai chiều; list hội thoại
+  đổi preview + "Vừa xong" ngay. Còn lại nhánh **reconnect** (ngắt mạng giữa chừng) chưa chạy.
+- ~~F2 return/refund~~ — **đã chạy full E2E trên prod 2026-08-13** (buyer yêu cầu → seller duyệt →
+  hoàn tiền + trả tồn kho); còn lại nhánh **từ chối** yêu cầu chưa chạy. F3 voucher — cần admin
+  tạo voucher thật trước.
 - Forgot-password success-leg — code thật chỉ in ở console user-service (SMTP tắt ở dev).
 - Upload error path (UP-01/02/03/04/06) — không ép được file lỗi / fail giữa batch qua picker.
 - Batch >50 product id (SEC-H2) — cần 51 SP distinct trong cart.

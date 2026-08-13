@@ -7,7 +7,250 @@
 
 ## Maintenance
 
-### BATCH-0811 · tích hợp 8 entry handoff của BE trong một lượt (2026-08-12) — DONE (⚠️ CHƯA PUSH — class C)
+### BE-REPORT-0813 · dọn nốt 3 FYI cuối của inbox BE + đóng DEPLOY-0813 (2026-08-13)
+
+Lượt `/sweep` thứ hai trong ngày, user chỉ định phạm vi: *"làm task BE report"* — tức phần `## Open`
+còn lại của `../.agent-local/frontend-handoff.md`. Sau BATCH-0813 chỗ đó còn đúng ba entry, **cả ba
+đều được BE dán nhãn "no FE change needed — FYI"**, cộng một ask FE→BE (per-user chat room) không
+phải việc của FE. Bài học của lượt này nằm ở chỗ: *nhãn "no FE change needed" là kết luận của BE về
+contract, không phải kết luận về UI.* Một trong ba entry hoá ra vẫn có việc phải làm.
+
+**IDLEAK-01 — đúng là không phải sửa source, nhưng phải đi soi mới biết.**
+BE đóng bốn chỗ còn rò id số nội bộ. Thay vì tin nhãn, kiểm từng consumer:
+`productsApi.checkStock` khai response là `{available, availableStock}` và **không hề đọc**
+`productId`; `reviewedBy` đã là `string | null` ở `types/order.ts:64` từ trước — runtime bây giờ mới
+khớp với type chứ type không sai; `moderatorId` **không có consumer nào** trong FE (risk feedback là
+fire-and-forget); ENVELOPE-01 vô hình vì `src/api/client.ts` chỉ đọc `message` + HTTP status, không
+bao giờ đụng field `error`. Thứ duy nhất sai thật là một **fixture test**: `postModeration.test.ts`
+assert trên `'Post 7 not found'`, trong khi social 404 giờ là `'Post not found'` (BE bỏ id khỏi
+message). Test vẫn xanh vì assert `toContain('không còn tồn tại')`, nhưng fixture đã mô tả một
+contract không còn tồn tại — sửa kèm comment trỏ về entry.
+
+`submittedBy` trên pending brands/categories **cố ý không đụng tới**. BE dặn nguyên văn *"Do not
+change your types pre-emptively"*: nó vẫn là `number` trên dây, là **release class C** (BE đổi một
+mình thì `PendingBrandsPage.tsx:101` / `PendingCategoriesPage.tsx:101` sẽ in `#usr_…`), và cả hai
+phía phải lên cùng ngày. `types/catalog.ts` giữ nguyên.
+
+**GHN-CREATE-01 — chỗ duy nhất FE không đồng ý với "không cần sửa".**
+`POST /api/order` giờ ném lại `400` của GHN cho địa chỉ không giao được thay vì đặt đơn ở
+`shippingFee: 0`. Lập luận của BE đúng cho happy path — checkout đã chặn từ `POST /api/order/shipping-fee`
+nên người mua không tới được đây. Chỗ không đúng là câu tiếp theo: *"the generic checkout error path
+renders GHN's message, which is the correct text anyway"*. Message đó là **tiếng Anh và có tên một
+endpoint nội bộ trong đó** — `"GHN does not know district 999999 — pick a district from GET
+/api/shipping/districts"` — ném thẳng vào một UI tiếng Việt, ở đúng cái nút người ta vừa bấm để trả
+tiền. Race thật sự có: sửa địa chỉ giữa lúc preview phí và lúc submit.
+
+Helper thuần mới `src/features/cart/checkoutSubmitError.ts` → `checkoutSubmitErrorMessage(error)`:
+refusal địa chỉ của GHN được đưa về **đúng câu banner phí ship đang dùng** ("Không giao được tới địa
+chỉ này: … Vui lòng chọn hoặc cập nhật địa chỉ khác."), mọi message khác của BE đi qua **nguyên vẹn**,
+chỉ khi thiếu/blank mới rơi về câu chung. Nhận diện nằm ở `isGhnAddressRefusal()` trong
+`shippingFeeError.ts` — khoá theo **status 400 + từ vựng địa chỉ mà chỉ GHN dùng**
+(`ghn|ward|district|province`), nên 400 hết hàng ("Insufficient stock for product prod_…") hay 400
+voucher vẫn giữ nguyên lời của nó; bảo người mua đi sửa địa chỉ khi thật ra hết hàng thì còn tệ hơn
+tiếng Anh. `shippingFeeError.ts` đồng thời strip đuôi `— pick a … from GET …` cho **cả** banner phí
+ship, chỗ trước giờ vẫn in nguyên si.
+
+Tiện thể sửa một bug tiềm ẩn ngay tại call site: `CheckoutPage` cũ làm
+`String((err as {message: unknown}).message)` vô điều kiện, nên một error có key `message` nhưng giá
+trị `undefined` sẽ hiện đúng chữ **`"undefined"`** trên form. Helper mới đòi `typeof === 'string'` và
+non-blank trước khi dùng.
+
+**Không verify được qua UI, và không giả vờ là verify được.** Đúng như BE nói, cách duy nhất chạm tới
+`400` này là bypass hoặc race lời gọi phí — nên unit test (+9) là mức phủ trung thực. Bù lại, **ba
+chuỗi message mà test assert được lấy sống từ prod**, không phải chép từ handoff.
+
+**DEPLOY-0813 đóng — đo lại trên prod, cả ba fix đã live.**
+Entry này ở `backend-handoff.md` ghi rằng ba fix của 2026-08-13 chưa lên prod, và tự hẹn *"sẽ verify
+lại ngay lượt `/sweep` sau"*. Đo lại bằng Chrome DevTools MCP (isolated context, tài khoản `user1`):
+`GET /api/social/posts/post_JS61MaVvS7tVJiA9/comments` giờ có `author`, reply tree cũng có
+(`{id: "usr_xU2Q7pGhhFpduGWz", username: "shop1", avatar: null}`) ⇒ SOCIAL-AUTHOR-01 deployed;
+`GET /api/order/return-requests/mine` trả `refundAmount` là **number** (`45000`/`45000`/`90000` + một
+`null`) ⇒ RET-NUM-01 deployed; `POST /api/order/shipping-fee` ward `20110` dưới district `1443` →
+**400** *"Ward 20110 does not belong to GHN district 1443 — pick a ward from GET /api/shipping/wards"*,
+district `999999` → **400**, control `1442`/`20110` → **201** ⇒ GHN-DIST-01 deployed.
+
+**Món nợ của lượt trước đã trả: nhánh `author` có thật đã chạy được ở runtime.** Bundle local (đang
+mang BATCH-0813, chưa push) trỏ vào API prod qua dev proxy, đăng nhập `user1`, mở
+`/post/post_JS61MaVvS7tVJiA9`: hai comment in **`shop1`** và reply lồng cấp in **`user1`**, kèm
+avatar-initial, mở rộng reply tree vẫn đúng. Không còn chữ `Người dùng` nào trên trang và không id
+`usr_` nào lọt ra UI — tức là cả nhánh có `author` lẫn nhánh fallback đều đã được chứng minh, chứ
+trước đó chỉ có nhánh fallback là chạy thật.
+
+**Hai cái bẫy ghi lại để lượt sau khỏi mất thì giờ** (đã ghi cả sang `backend-handoff.md`):
+probe `POST /api/order/shipping-fee` phải dùng `items[].productName` — gửi `name` thì DTO trả
+`400 "property name should not exist"` cho **mọi** case kể cả case control, rất dễ đọc nhầm thành "BE
+đã deploy"; và mọi response của gateway đều bọc `{statusCode, status, message, timestamp, data}` với
+list phân trang nằm ở `data.data[]`, nên `(j.data ?? j).slice` sẽ ném. Ngoài ra **không** probe
+`POST /api/order` trên prod: nếu đoán sai về việc GHN-CREATE-01 đã deploy hay chưa thì cái giá là một
+đơn hàng thật nằm lại trong DB prod.
+
+Gates: `npm run build` ✓ · `npm run lint` 0 error / 3 warning advisory (cũ) ·
+`npm run test:run` **708 test / 100 file** (từ 699/99). Class **B** — chưa push, chờ release gate.
+
+### BATCH-0813 · drain 5 entry BE inbox (2026-08-13)
+
+Một lượt `/sweep` trên toàn bộ `## Open` của `../.agent-local/frontend-handoff.md`. Cả 5 entry đều là
+**class B** (BE additive, FE cũ vẫn đúng) và `release-gate.md` → **Holding rỗng**, nên không entry nào
+bị chặn bởi repo khác.
+
+**SOCIAL-AUTHOR-01 — comment/reply giờ kèm `author`.**
+Đây chính là entry FE đã ghi sang `backend-handoff.md` hôm 2026-08-13 (xem SOCIAL-COUNT-01 bên dưới):
+comment không có `author` nên UI phải in `Người dùng #usr_xU2Q7pGhhFpduGWz` — rò một id opaque ra mặt
+người dùng. `Comment` thêm `author: PostAuthor | null`; **tái dùng `PostAuthor`** thay vì khai một type
+gần-trùng, vì shape BE trả (`{id, username, avatar}`) đúng bằng `PostAuthor` trừ `name` optional.
+Nullable là **có chủ đích**, không phải phòng thủ thừa: BE nói rõ `author` là `null` khi user đã xoá
+hoặc user-service không với tới được, trong khi read comment vẫn thành công.
+
+Logic hiển thị tách ra `src/features/social/commentAuthor.ts` — `commentAuthorView(author)` trả
+`{ displayName, avatarSrc }`, ưu tiên `name` → `username` → hằng `COMMENT_AUTHOR_FALLBACK`
+(`'Người dùng'`, **không kèm id**), coi chuỗi rỗng/toàn khoảng trắng như vắng, và trả `undefined`
+(không phải `null`) cho `avatarSrc` để spread thẳng vào `<Avatar src>`. Để ở helper thuần chứ không
+nhét inline trong JSX vì đúng hai nhánh đáng test — `author` null và field blank — đều không test được
+nếu nằm trong component. `CommentNode` giờ render `displayName` + `<Avatar src={avatarSrc}>`;
+`<Link to={/profile/${comment.userId}}>` **giữ nguyên** — `userId` vẫn là public id `usr_` và vẫn là
+cái dùng để biết comment có phải của mình không.
+
+**RET-NUM-01 — `refundAmount` thành number.** Bỏ `Number(...)` ở `OrderDetailPage`,
+`ReturnRequestsPage`, `SellerReturnRequestsPage`, giữ nguyên guard `!= null`. An toàn hai chiều vì
+`formatVnd(n: number | string)` chuẩn hoá qua `toMoneyNumber` — case string đã được pin sẵn ở
+`utils.test.ts` (`formatVnd('1500000.00') === '1.500.000 đ'`), nên không cần thêm test.
+
+**ORD-RBAC-01 — `ship`/`deliver`/`complete` thành admin-only.** Ba wrapper trong `api/orders.ts` có
+**0 call site** (grep toàn `src/`) và giờ chắc chắn 403 với role `shop`, nên xoá hẳn thay vì để lại
+cái bẫy. Chỗ cũ để lại comment: vòng đời của seller dừng ở `ready-to-ship`, trạng thái sau đó do
+carrier báo, màn "đẩy tay" nếu có thì thuộc admin/GHN console chứ không thuộc storefront.
+
+**GHN-DIST-01 — ward lệch quận giờ là 400.** Kiểm lại `AddressFormModal`: `handleDistrictChange` đã
+`setWard(null)` và `handleProvinceChange` đã reset cả district lẫn ward — **không phải sửa gì**. Nhưng
+thay đổi BE làm cái reset đó từ "cho gọn" thành **load-bearing**: ward cũ sót lại giờ khiến
+`POST /order/shipping-fee` trả 400, và checkout dịch 400 thành banner đỏ "không giao tới" **chặn đặt
+hàng** (RESIL-01). Nên pin lại bằng 2 RTL test trong `AddressFormModal.test.tsx` — đổi district ⇒ ward
+rỗng, đổi province ⇒ cả district lẫn ward rỗng. Modal này là đường vào duy nhất: edit mode hydrate một
+cặp đã lưu và nhất quán, còn checkout dùng `AddressBookPicker` (chỉ chọn địa chỉ đã lưu).
+
+**PATCH-ATOMIC-01 — `PATCH /products/:id` không atomic giữa 2 DB.** Nhánh `onError` của
+`CreateProductPage` đã invalidate `products.detail` + `products.withInventory` ở edit mode kèm comment
+giải thích, nên **không sửa gì** — chỉ xác nhận là dòng đó phải ở lại. Phần "nếu form gửi `skuList` thì
+invalidate cả query SKU" không áp dụng: `queryKeys.ts` không có query danh sách SKU (`bySku` là lookup),
+mọi thứ SKU đi kèm `products.detail`.
+
+**Verify prod (Chrome DevTools MCP).** Kiểm thẳng API prod trước: **cả 3 thay đổi BE đều chưa deploy** —
+`/social/posts/:id/comments` và `/social/comments/:id/replies` trả về đúng
+`[id, postId, userId, content, createdAt, replyCount]`, **không có key `author`**; `refundAmount` vẫn là
+string `"45000.00"`; `POST /order/shipping-fee` với ward thuộc quận 1442 nhưng gửi kèm district 1443 vẫn
+trả **201** (`shippingFee: 0`) chứ chưa phải 400. Vì vậy chạy `vite dev` với
+`VITE_API_TARGET=https://tryhavejob.ooguy.com` để soi **bundle mới đánh BE cũ** — đúng cái tổ hợp sẽ live
+nếu push trước BE: post detail render 2 comment + 1 reply lồng cấp đều ra `Người dùng` **sạch id**, avatar
+ra placeholder, layout không xê dịch; `/returns` in `45.000 đ` / `90.000 đ` / `160.000 đ` đúng từ payload
+string. Degrade an toàn ⇒ đúng class B. Nhánh `author` có thật thì **chưa verify được ở runtime** cho tới
+khi BE lên — hiện chỉ có unit test phủ.
+
+⚠️ Ghi chú cho lượt sau: `GET /social/comments/:id/replies` **từ chối** `page`/`limit`
+(400 `property page should not exist`). FE gọi đúng (chỉ `depth` optional) — cái 400 gặp khi verify là do
+script probe tự thêm param, **không phải bug**.
+
+12 file · +3 test file (`commentAuthor.test.ts`, `AddressFormModal.test.tsx`, và 2 test mới trong đó).
+Gates: build ✓ · lint 0 error / 3 warning cũ · `test:run` **699 test / 99 file** xanh (từ 691/97).
+
+### SOCIAL-COUNT-01 · comment mutation không refresh `commentCount` của post (2026-08-13)
+
+Tìm ra khi chạy E2E social + chat trên prod với 2 tài khoản thật (user1 ↔ shop1, isolated context).
+
+**Triệu chứng.** shop1 gửi comment vào `post_JS61MaVvS7tVJiA9` → comment hiện ngay trong danh sách,
+nhưng header vẫn in `Bình luận (0)` và `0 bình luận`. Reload thì thành `1`. Reply cũng vậy:
+`GET /api/social/posts/:id` trả `commentCount: 3` trong khi trang đang hiện `Bình luận (2)`.
+
+**Nguyên nhân.** `commentCount` nằm trong payload của **post**, không nằm trong response danh sách
+comment. `useCreateComment`/`useCreateReply`/`useDeleteComment` chỉ invalidate
+`queryKeys.social.comments(postId)` nên query `social.post(postId)` không bao giờ bị đánh dấu stale
+— với `staleTime: 60_000` thì con số đứng im tới khi cache hết hạn hoặc user reload. Không phải lỗi
+dữ liệu: API trả đúng ngay từ request đầu.
+
+**Fix.** `src/lib/query/socialInvalidation.ts` — `invalidateCommentViews({ postId, parentCommentId })`,
+cùng khuôn với `invalidateOrderViews` đã có. Chỉ invalidate **một** key `social.post(postId)`: nó là
+prefix của `social.comments(postId)` (`["social","posts",id]` ⊂ `["social","posts",id,"comments"]`)
+nên TanStack quét luôn cả comment list. Cố tình **không** gọi thêm dòng `comments(postId)` — hai lần
+invalidate chồng prefix nhau sẽ refetch comment list 2 lượt. Vì fix dựa vào quan hệ prefix đó nên
+thêm guard vào `queryKeys.test.ts` (cùng chỗ với QK-01) để đổi shape key là test đỏ ngay.
+Ba call site trong `useComments.ts` giờ mỗi cái một dòng.
+
+Test: `src/lib/query/socialInvalidation.test.ts` (3 case, spy `QueryClient` giả như
+`orderInvalidation.test.ts`) + 1 case prefix trong `queryKeys.test.ts`.
+Gates: build ✓ · lint 0 error / 3 warning cũ · `test:run` **691 test / 97 file** xanh.
+
+**Verify prod (2026-08-13, Chrome DevTools MCP).** Đây là phần chạy trước khi fix, nên các số dưới
+là hành vi của bundle đang live:
+- **Post** — user1 tạo bài qua dialog "TẠO BÀI VIẾT", hiện ngay trong feed ("Vừa xong"), không reload.
+- **Like** — shop1 like: 0 → 1 ngay tại chỗ.
+- **Comment + reply** — shop1 comment 2 lần, user1 reply lồng cấp; cây reply render đúng, "Ẩn phản hồi"
+  hoạt động, nút "Xoá" chỉ hiện trên comment của chính mình (user1 không xoá được comment của shop1
+  kể cả trên bài của mình).
+- **Notification realtime** — badge user1 **65 → 66** khi shop1 comment, badge shop1 **44 → 45** khi
+  user1 reply, cả hai **không reload, không thao tác gì trên tab nhận**. Dropdown render tiếng Việt
+  ("Bình luận mới" / "Phản hồi mới" + preview) dù message BE là tiếng Anh — FE tự map theo `type`,
+  nên chuỗi tiếng Anh của BE không lộ ra ngoài.
+- **Chat 2 chiều** — user1 → shop1 và shop1 → user1, tin nhắn tới tab kia **không reload**; danh sách
+  hội thoại đổi preview + "Vừa xong" ngay. Đóng luôn mục **P1-06** trong `snapshot.md` (còn nhánh
+  reconnect chưa chạy).
+
+**Ghi sang `../.agent-local/backend-handoff.md`** (không sửa được ở FE):
+- `GET /api/social/posts/:id/comments` và `/social/comments/:id/replies` trả item **không có
+  `author`** (chỉ `userId`), trong khi `GET /api/social/posts/:id` có `author {id, username, avatar}`
+  đầy đủ ⇒ `CommentNode.tsx` in ra `Người dùng #usr_xU2Q7pGhhFpduGWz` cho người dùng thật. FE không
+  tự fetch profile từng comment được (N+1).
+- Quan sát không phải bug: **like không sinh notification** — `likePost()` bên `apps/social` không
+  emit event nào và `apps/notification` không có handler `like`; chưa từng được implement.
+
+### Runtime verify BATCH-0811 + BATCH-0812 trên prod thật (2026-08-12 → 13) — 11/11 PASS
+
+Chrome DevTools MCP, prod (`fe-react-vite.quangtruong01234.workers.dev` → `tryhavejob.ooguy.com`,
+console GHN `web-flow-ghn.vercel.app`), 4 tài khoản chạy song song trong isolated browser context
+(shop1 · user1 · shipping1 · logistic1). Không đổi dòng code nào — đây là checklist runtime mà
+BATCH-0811 nợ lại vì lúc đó BE chưa deploy.
+
+**Storefront — 6/6 PASS.**
+1. **INV-CONTRACT-01** — đăng bán 1 SP thường: đúng **1** request `POST /products`, stock hiện đúng,
+   form không in vệt lỗi đỏ nào.
+2. **FE-INBOX-0811 #4** — `/orders` gõ mã đơn: đúng **1** request mang `?q=`, sang page 2 vẫn nằm
+   trong kết quả tìm (không rơi về danh sách đầy đủ).
+3. **ORD-GUARD-01** — `/sell/orders?status=pending` cho thấy hai đơn cạnh nhau: đơn online chưa trả
+   tiền hiện lý do "Khách chưa thanh toán — chưa thể xử lý đơn" và **không** có nút; đơn COD ngay
+   dưới có nút "Xác nhận đơn" bật bình thường.
+4. **NOTIF-LIFECYCLE-01** — đủ **6** type (không phải 5 như ghi lúc tích hợp). `order_confirmed`
+   ("Đơn hàng đã xác nhận") và `order_processing` ("Đang chuẩn bị hàng") **bắn thật** khi seller đẩy
+   đơn qua confirm → ready-to-ship, cả hai mang public id `ord_`. `new_order` render "Đơn hàng mới"
+   và mở `/sell/orders`. Ba type còn lại (`order_shipped`/`order_delivering`/`order_completed`) do
+   GHN sở hữu nên không bắn được trên prod — chứng minh phần render bằng cách bơm row tổng hợp vào
+   response: "Đơn hàng đang giao" / "Đang giao đến bạn" / "Giao hàng thành công" đều đúng.
+5. **RESIL-01** — checkout với địa chỉ GHN không giao tới: banner đỏ + nút đặt hàng **disabled**.
+6. **RETURN-STOCK-01 — PASS (2026-08-13).** Lần đầu bị chặn vì không tạo nổi yêu cầu trả hàng:
+   `canRequestReturn()` chỉ cho phép ở `delivering`/`completed`, mà state machine của seller dừng ở
+   `processing` và GHN sandbox không bao giờ đẩy waybill đi tiếp. **Mở khoá bằng `demo-status`** —
+   `shipping1` gọi `POST /api/order/admin/ghn/orders/:id/demo-status` với `picking` → `delivering`
+   → `delivered`, đẩy `ord_o00rM7DkTCMM3rzm` (zalopay, đã thanh toán, waybill `L8VQA3`) từ
+   `processing` lên `completed`. Rồi: buyer gửi yêu cầu trả hàng → đơn thành `return_requested`,
+   `rr_YT5zuF1HYbiEWg2E` vào hàng chờ của seller → seller bấm "Duyệt & hoàn tiền" → tồn kho
+   "Tai nghe không dây Bluetooth 5.3" đi **49 → 50** (tổng kho 10084 → 10085) ở `/shop`, **không
+   reload** (patch `fetch` cài trước đó vẫn sống ⇒ chứng minh chỉ điều hướng SPA). Đơn hiện
+   "Đã hoàn tiền", khối trả hàng hiện "Đã duyệt · ZaloPay · 45.000 đ" ở cả buyer lẫn seller.
+   Ghi chú độ chặt của phép đo: lần fetch `/shop` gần nhất trước khi duyệt đã quá 60s (staleTime),
+   nên riêng lần refetch đó **chưa tách bạch được** invalidate với hết hạn cache. Đối chứng chạy
+   ngay sau: vào `/sell/orders` rồi quay lại `/shop` trong vòng **33s** → **0** request
+   `products`/`inventory`. Tức mount không tự refetch khi cache còn tươi ⇒ trong luồng thật (seller
+   duyệt xong bấm về kênh người bán sau vài giây) con số chỉ có thể mới nhờ `invalidateQueries`.
+
+**GHN console (BATCH-0812) — 5/5 PASS**, chi tiết ghi ở `../.agent-local/frontend-handoff-ghn.md`
+(repo khác, FE storefront không sửa code ở đó): GHN-RAW-01 (~44 key allow-list, không lộ id số),
+GHN-ENUM-01 (filter sai → 400 kèm enum hợp lệ), GHN-ACT-01 (6 action cho `shipping_manager`, 2 cho
+`logistics_operator`), GHN-HIST-01 (history mang `ord_`/`usr_`), GHN-RBAC-01 (analytics ẩn hết
+field tiền cho `logistics_operator`, UI đổi nhãn theo).
+
+**Phát hiện mới → `../.agent-local/backend-handoff.md` (Open):** `POST /api/order/shipping-fee` với
+`toDistrictId: 999999` trả **201** `{ shippingFee: 0 }` thay vì 400. Đây **không** phải chuyện số 0
+(đã đóng ở GHN-ADDR-01: sandbox gateway trả `total_fee: 0` cho mọi địa chỉ) mà là status code —
+district không tồn tại lọt qua nhánh 400 của RESIL-01 nên FE cho đặt hàng bình thường.
+
+### BATCH-0811 · tích hợp 8 entry handoff của BE trong một lượt (2026-08-12) — DONE (đã push + verify prod 2026-08-12)
 
 Gate cuối: build ✓ · lint 0 error / **3** warning cũ · **687 test / 96 file ✓** (+20 test, +5 file).
 12 file source đổi, 2 file tạo, **2 file xoá**.
