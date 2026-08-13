@@ -70,7 +70,7 @@ function RequestCard({
       {refundLine && (
         <p className="m-0 mt-1.5 font-body text-sm text-accent-green">
           {refundLine}
-          {request.refundAmount != null && ` · ${formatVnd(Number(request.refundAmount))}`}
+          {request.refundAmount != null && ` · ${formatVnd(request.refundAmount)}`}
         </p>
       )}
 

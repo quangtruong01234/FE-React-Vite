@@ -101,7 +101,7 @@ export default function ReturnRequestsPage(): ReactElement {
                 {refundLine && (
                   <p className="m-0 mt-1.5 font-body text-sm text-accent-green">
                     {refundLine}
-                    {req.refundAmount != null && ` · ${formatVnd(Number(req.refundAmount))}`}
+                    {req.refundAmount != null && ` · ${formatVnd(req.refundAmount)}`}
                   </p>
                 )}
               </div>

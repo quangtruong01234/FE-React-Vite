@@ -245,7 +245,7 @@ export default function OrderDetailPage(): ReactElement {
               {refundStatusLabel(returnRequest) && (
                 <p className="m-0 text-sm text-accent-green">
                   {refundStatusLabel(returnRequest)}
-                  {returnRequest.refundAmount != null && ` · ${formatVnd(Number(returnRequest.refundAmount))}`}
+                  {returnRequest.refundAmount != null && ` · ${formatVnd(returnRequest.refundAmount)}`}
                 </p>
               )}
             </div>
