@@ -76,7 +76,9 @@ describe('moderationSuccessMessage', () => {
 
 describe('moderationErrorMessage', () => {
   it('404 → post already gone', () => {
-    expect(moderationErrorMessage({ statusCode: 404, status: 404, message: 'Post 7 not found' }, 'hide'))
+    // IDLEAK-01 (2026-08-13): social 404s no longer put an id in the text —
+    // it is `"Post not found"` now, not `"Post 7 not found"`.
+    expect(moderationErrorMessage({ statusCode: 404, status: 404, message: 'Post not found' }, 'hide'))
       .toContain('không còn tồn tại');
   });
 
