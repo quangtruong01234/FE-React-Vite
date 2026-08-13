@@ -31,6 +31,13 @@ export interface Comment {
   content: string;
   replyCount?: number;
   createdAt: string;
+  /**
+   * Embedded author (SOCIAL-AUTHOR-01) — same shape a post carries, resolved in
+   * one batched call for the whole reply tree. `null` for a deleted user or an
+   * unreachable user service; the comment read still succeeds, so render the
+   * neutral placeholder rather than the raw `userId`.
+   */
+  author: PostAuthor | null;
 }
 
 export interface CommentTree extends Comment {

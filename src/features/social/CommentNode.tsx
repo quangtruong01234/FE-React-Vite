@@ -8,6 +8,7 @@ import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRole } from '@/hooks/auth/useRole';
 import { useReplies, useCreateReply, useDeleteComment } from './useComments';
+import { commentAuthorView } from './commentAuthor';
 import { cn } from '@/lib/format/utils';
 import { relativeTimeShort } from '@/lib/format/time';
 import type { Comment, CommentTree } from '@/types';
@@ -46,6 +47,7 @@ export function CommentNode({
 
   const replyCount = repliesData ? repliesData.children.length : (comment.replyCount ?? 0);
   const isOwn = meId !== undefined && meId === comment.userId;
+  const { displayName, avatarSrc } = commentAuthorView(comment.author);
 
   async function onReplySubmit(data: ReplyFormData): Promise<void> {
     await createReply.mutateAsync({ commentId: comment.id, content: data.content, postId });
@@ -69,7 +71,7 @@ export function CommentNode({
     <div className={cn(depth > 0 && 'ml-5 pl-4 border-l border-bdr')}>
       <div className="flex gap-2.5 py-2">
         <Link to={`/profile/${comment.userId}`}>
-          <Avatar size={34} />
+          <Avatar src={avatarSrc} alt={displayName} size={34} />
         </Link>
         <div className="flex-1 min-w-0">
           {/* Bubble */}
@@ -78,7 +80,7 @@ export function CommentNode({
               to={`/profile/${comment.userId}`}
               className="font-semibold text-[13px] text-ink-pri block hover:text-accent-amber transition-colors"
             >
-              Người dùng #{comment.userId}
+              {displayName}
             </Link>
             <p className="m-0 text-sm text-ink-pri leading-snug break-words">
               {comment.content}
