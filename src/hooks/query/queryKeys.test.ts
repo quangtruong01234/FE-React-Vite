@@ -28,6 +28,13 @@ describe("queryKeys.social list-level invalidation prefixes", () => {
     expect(isPrefixOf(queryKeys.social.userScopeAll, queryKeys.social.following('usr_1'))).toBe(true);
   });
 
+  it("post is a prefix of its comments key", () => {
+    // invalidateCommentViews relies on this: invalidating the post key must also
+    // sweep that post's comment list, so one call refreshes header + list.
+    expect(isPrefixOf(queryKeys.social.post('post_1'), queryKeys.social.comments('post_1'))).toBe(true);
+    expect(isPrefixOf(queryKeys.social.post('post_1'), queryKeys.social.comments('post_2'))).toBe(false);
+  });
+
   it("followingFeedAll does not accidentally match the for-you feed", () => {
     expect(isPrefixOf(queryKeys.social.followingFeedAll, queryKeys.social.feed(1))).toBe(false);
   });
