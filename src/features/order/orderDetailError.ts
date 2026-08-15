@@ -1,3 +1,4 @@
+import { toApiError } from '@/lib/http/apiError';
 import type { ApiError } from '@/types';
 
 /**
@@ -11,18 +12,11 @@ import type { ApiError } from '@/types';
  * that their order was gone.
  *
  * Returns `null` when the page should render its own not-found state (404, or a
- * successful response with no order), otherwise a normalised `ApiError` for
- * `<ApiErrorState>`. A rejected `fetch` (network down) carries no `statusCode`,
- * so it is normalised to `0` — the offline panel — and its raw `Failed to fetch`
- * message is dropped rather than shown as "Thông báo từ máy chủ".
+ * successful response with no order), otherwise the normalised `ApiError` from
+ * `toApiError` for `<ApiErrorState>`.
  */
 export function orderLoadError(error: unknown): ApiError | null {
-  if (!error) return null;
-
-  const raw = typeof error === 'object' ? (error as { statusCode?: unknown; message?: unknown }) : {};
-  const statusCode = typeof raw.statusCode === 'number' ? raw.statusCode : 0;
-  if (statusCode === 404) return null;
-
-  const message = statusCode !== 0 && typeof raw.message === 'string' ? raw.message : '';
-  return { statusCode, status: statusCode, message };
+  const normalised = toApiError(error);
+  if (!normalised || normalised.statusCode === 404) return null;
+  return normalised;
 }
