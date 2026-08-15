@@ -7,6 +7,351 @@
 
 ## Maintenance
 
+### SWEEP-0816 · đóng cả 4 mục audit + 3 lỗ a11y mà chỉ MCP mới nhìn thấy (2026-08-16)
+
+User: *"còn bug/gap nào không?"* → `/sweep audit` ra 4 mục → *"làm all"* → *"nhớ run mcp check UI"*.
+
+Class **A** (không đụng contract BE, không đổi request/response nào) — nhưng đây **không** phải lượt
+dọn cosmetic: mục 🔴 đầu tiên là một bug tiền thật.
+
+---
+
+**AUD-0816-01 🔴 · `PaymentResultPage` khẳng định "thanh toán thất bại" khi thứ hỏng là *request xác minh*.**
+
+`useQuery({ retry: false })` không lấy `isError` ra, và verdict được tính bằng
+`data?.status === 'success' | '1' | '00'`. Nghĩa là `data === undefined` — cái xảy ra khi
+`GET payment result` dính 500 / timeout / mất mạng — rơi **thẳng** vào nhánh đỏ. Kịch bản hỏng:
+buyer thanh toán VNPay/ZaloPay **thành công**, gateway redirect về, request xác minh hỏng, trang in
+"Giao dịch qua VNPay không thành công. Vui lòng thử lại." ⇒ buyer có thể trả tiền lần hai. Effect
+tiêu cart chỉ chạy khi `isSuccess` nên giỏ hàng còn nguyên, càng giống "chưa thanh toán".
+
+Sửa: tách verdict ra helper thuần `features/payment/paymentResultVerdict.ts` —
+`resolvePaymentVerdict(data, isError): 'success' | 'failed' | 'unverified'`, `SUCCESS_CODES` là một
+`Set` (`success`/`1`/`00`) thay vì chuỗi `||`. `PaymentResultPage` render ba nhánh phẳng; nhánh mới
+là panel hổ phách "chưa xác minh được" trỏ về `/order/:id` — **nguồn sự thật duy nhất** cho việc tiền
+đã vào hay chưa, và tuyệt đối không khẳng định thất bại.
+
+Hai thứ **cố ý giữ nguyên**:
+
+- `retry: false` — retry một callback mà gateway đã redirect xong không làm nó đúng thêm; cái buyer
+  cần là được chỉ sang đơn hàng, không phải xoay spinner.
+- Không tự tiêu cart ở nhánh `unverified` — chưa biết đơn có tồn tại hay không thì xoá giỏ là phá
+  dữ liệu của buyer.
+
+**AUD-0816-02 🟡 · 6 trang render lỗi query y hệt "rỗng thật".**
+
+Không phân biệt được "fetch hỏng" với "không có gì" là bug về sự thật, không phải về mỹ thuật:
+`CartPage` ra màn "giỏ hàng trống" (buyer tưởng giỏ bị xoá), `PendingBrandsPage`/`PendingCategoriesPage`
+in "Không có thương hiệu/danh mục chờ duyệt" (moderator tin hàng đợi đã sạch), `AdminPage` ra hai
+bảng rỗng không một dòng báo lỗi, `AdminAnalyticsPage`/`ShopAnalyticsPage` → `AnalyticsDashboard`
+(`!isLoading && data &&`) render **trắng hoàn toàn**.
+
+Sửa bằng cách dùng lại khuôn có sẵn (`ApiErrorState`, đúng lối `OrderDetailPage` đang làm), chỉ thêm
+hai mảnh còn thiếu:
+
+- `lib/http/apiError.ts` — `toApiError(error: unknown): ApiError | null`, narrow đúng kiểu strict-mode
+  thay vì `as` bừa ở 6 chỗ.
+- `components/shared/TableErrorRow.tsx` — `<tr><td colSpan>` bọc `<ApiErrorState … embedded />`, vì
+  ba trong sáu site là **bảng** và nhét một `<div>` vào `<tbody>` là HTML sai.
+
+Rồi nối `error` + `refetch` ở cả 6 site. Không đẻ component lỗi thứ hai.
+
+**AUD-0816-03 🟡 · 19/28 icon-only button không có tên cho screen reader — sửa ở *type*, không sửa ở call site.**
+
+Vá `aria-label` cho 19 chỗ thì lượt sau lại mọc chỗ thứ 20. `IconButton` giờ nhận union
+`AccessibleName`: phải có `aria-label` **hoặc** `title`, thiếu cả hai là **lỗi compile**. `ModalCloseButton`
+(dùng chung cho mọi modal) tự đặt tên. Cả một lớp bug chuyển từ "phải nhớ" sang "không viết sai được".
+
+**AUD-0816-04 🟢 · `Number()` thừa quanh tiền.**
+
+Đợt RET-NUM-01 bỏ sót `AdminPage:105`, `OrderHistoryPage:210`, `SellerOrdersPage:99/162/215`. Hôm nay
+chưa sai, nhưng `Number(null) = 0` **vô hiệu hoá** guard `null → '—'` của `toMoneyNumber`
+(`lib/format/utils.ts:14-18`) — ngày nào field thành nullable thì tiền thiếu in ra `0 đ`, và `0 đ`
+là con số trông hợp lệ nên không ai nhận ra.
+
+---
+
+**Phần MCP (`/verify-ui`) — và tại sao nó tìm được thứ regex không bao giờ tìm ra.**
+
+Verify runtime cả 4 fix trên app sống, rồi quét tiếp. Hai kỹ thuật đáng giữ lại:
+
+1. **Ép nhánh lỗi chạy thật mà không đụng backend:** `navigate_page` với `initScript` patch
+   `window.fetch` để trả 4xx/5xx cho **đúng một** endpoint. Trang duyệt danh mục ra
+   "Hệ thống đang bảo trì" — tức là AUD-0816-02 đúng ở runtime chứ không chỉ đúng trong test.
+2. **Hỏi a11y tree thật của Chrome thay vì grep source.** Audit tĩnh của tôi soi `<IconButton`, nên
+   nó **mù** hẳn một lớp control không đi qua component đó:
+   - **12 `role="switch"` không tên trên `/shop`** — một cái mỗi hàng sản phẩm; đọc màn hình nghe
+     đúng "switch, checked", không biết đang bật/tắt cái gì.
+   - **Ô upload ảnh nét đứt ở `/sell`** (`product-form/BasicInfoSection.tsx`) — control cuối cùng
+     không tên của trang.
+   - **4 nút mở lightbox trong `PostCard`** — `<img alt="">` (post không có caption để mượn) nên
+     **nút** phải tự đặt tên, nếu không cả feed toàn "button".
+
+   Sửa theo đúng lối bền vững của AUD-0816-03: `label` thành prop **bắt buộc** của `ToggleSwitch` +
+   `aria-label` đặt trên **control**. Ghi rõ ở comment vì đây là chỗ dễ sai lại: `title` trên `<div>`
+   bọc ngoài **không** đặt tên cho `<button>` bên trong — attribute phải nằm trên chính control.
+
+**Ba nghi ngờ tự loại sau khi đo** (ghi lại để lượt sau khỏi "phát hiện" lại):
+
+- `rounded-full` 91,9×30 trên "Theo dõi" — pill **chữ**, không phải icon button méo.
+- Badge header 36→42px — padding, không phải overflow.
+- `'0 đ'` trên `/sell/orders` — khớp nhầm **bên trong** một số lớn hơn; đi bộ theo leaf node ra
+  `count: 0`.
+
+Quét lại `/`, `/cart`, `/shop`, `/sell`, `/orders`, `/sell/orders`, `/admin*`: **0 control không tên ·
+0 nút icon méo · 0 icon bẹp · 0 lỗi absolute-centering**.
+
+**Gate:** `npm run build` ✓ 14,30s · `npm run lint` 0 problem · `npm run test:run`
+**746 test / 106 file** (+22 test / +3 file: `paymentResultVerdict.test.ts`, `apiError.test.ts`,
+`ToggleSwitch.test.tsx`).
+
+**Không có entry BE mới** — cả 4 mục lẫn 3 lỗ a11y đều là FE-side, không mục nào chạm contract.
+
+### SWEEP-0815b · BE trả lời 4 mục inbox → triển khai đúng phần FE làm được **hôm nay** (2026-08-15)
+
+User: *"BE đã fix xong và note => bắt đầu triển khai code"*.
+
+**Cái quyết định toàn bộ lượt này: không tin nhãn "done" của handoff.** `frontend-handoff.md` §Open
+ghi cả `CHAT-ROOM-01` lẫn `UPLOAD-SIZE-01` là đã xong, "release class B" — đọc như thế thì FE cứ
+việc dọn mitigation. Nhưng `release-gate.md` lại nói **toàn bộ working tree của `api` đang bị giữ ở
+class C**, tức là BE *viết xong* chứ chưa *ship*. Đi đọc thẳng repo `api/` (read-only, đúng
+cross-repo boundary) thì ra bằng chứng:
+
+- `1ea9ed6` (CHAT-ROOM-01) chỉ có trên branch `feat/chat-room-01-user-rooms`; `origin/main` đang ở
+  `6bcb6da` và **không** chứa nó.
+- `b071a25`, `786bdc3`, `5ceb46c` (UPLOAD-SIZE-01) chỉ có trên `fix/upload-size-01-server-cap`;
+  `git merge-base --is-ancestor 5ceb46c origin/main` → **không phải ancestor**.
+
+⇒ Việc được chia lại theo **cái đang chạy trên prod**, không theo cái BE viết trong inbox. Ba mục ra
+ba kết cục khác nhau, và mỗi kết cục đều là quyết định có lý do chứ không phải "làm được đến đâu hay
+đến đó".
+
+**IDLEAK-02 — làm đủ (mục duy nhất FE đi trước là an toàn).**
+
+BE đổi `submittedBy` từ PK số sang public id `usr_…`, và trả `null` khi tài khoản không resolve
+được, **vắng hẳn field** khi user service chết. Trước đó FE render thẳng `#{brand.submittedBy}`.
+
+- `types/catalog.ts` — `submittedBy?: string | null` trên **cả** `PendingBrand` và `PendingCategory`
+  (optional vì trạng thái "vắng field" là thật, không phải phòng xa).
+- `features/admin/submitterLabel.ts` (mới) — helper thuần: `null`/`undefined`/chuỗi rỗng → `—`, còn
+  lại in nguyên. **Cố ý nhận cả `number`**: BE đang bị giữ ở class C nên prod *vẫn* trả PK số, và
+  helper phải đúng ở cả hai thời điểm. Đây là lý do FE ship trước được — `submitterLabel(23)` ra
+  `'23'`, degrade sạch.
+- `PendingBrandsPage.tsx:101` + `PendingCategoriesPage.tsx:101` — thay `#{...}` bằng
+  `{submitterLabel(...)}`. **Bỏ luôn dấu `#`**: ghép `#` vào `usr_…` là in id opaque ra UI, đúng cái
+  IDLEAK sinh ra để chặn (cùng vết với `Người dùng #usr_xxx` đã sửa ở BATCH-0813).
+- `types/order.ts` — `TopProductStat.productId` nới thành `string | null`. Tidy-up thuần: **0
+  consumer** (`AnalyticsDashboard` chart theo `productName`), nhưng để `number` ở đó là để lại một
+  cái bẫy `Number()` cho lượt sau.
+- +5 test (`submitterLabel.test.ts`): public id, `null`, `undefined`, số `23`, chuỗi rỗng.
+
+**UPLOAD-SIZE-01 — làm nửa an toàn, cố ý bỏ nửa còn lại.**
+
+BE giờ trả `maxBytes`/`maxVideoBytes` kèm chữ ký, và nhận `?bytes=` để từ chối sớm.
+
+- `types/upload.ts` — thêm 2 field **optional**, camelCase (của mình, không phải của Cloudinary).
+- `lib/http/uploadValidation.ts` — `resolveUploadCap(caps, kind)` + `oversizeMessage(kind, max)`;
+  `validateUploadFile` dùng lại `oversizeMessage` để hai guard nói **cùng một câu**.
+- `lib/http/cloudinary.ts` — chặn theo cap của server ngay đầu `uploadChunked`. Cái này bắt được
+  đúng chỗ chữ ký **không thể** tự bắt: chữ ký cấp trước khi có byte nào nên chỉ biết trần của
+  *folder* — ảnh 11 MB vào `trybuy/posts` lọt qua trần video 100 MB của folder đó, chỉ check
+  theo-type mới chặn.
+- Field vắng ⇒ fallback về `MAX_IMAGE_BYTES`/`MAX_VIDEO_BYTES` ⇒ **hôm nay hành vi không đổi một
+  ly**, và khi BE hạ trần thì FE tuân theo mà không cần deploy.
+- +1 test ở `signedUploadFields.test.ts` ghim caps **không bao giờ** được append vào FormData — param
+  không nằm trong chữ ký SHA1 sẽ làm Cloudinary từ chối, đúng vết **UP-05**. +6 test ở
+  `uploadValidation.test.ts`.
+- **Không gửi `?bytes=file.size`.** BE prod hiện tại (`forbidNonWhitelisted`) sẽ trả
+  `400 "property bytes should not exist"` — đúng cái bẫy đã ghi ở `backend-handoff.md` §DEPLOY-0813
+  — nghĩa là **chết mọi upload**, đổi một cải tiến thành sự cố. Thêm sau khi BE lên prod.
+
+**CHAT-ROOM-01 — cố ý 0 dòng.** Dọn `joinAll()` (`chatPresenceSocket.ts:41`) và re-join theo query
+cache (`:89`) hôm nay là tắt tiếng chuông + đóng băng preview/badge cho **mọi** hội thoại không mở,
+cho tới lúc branch kia merge. Giữ nguyên, ghi rõ trong snapshot là chờ **push** chứ không chờ code.
+
+**UP-03(i) — không có việc cho FE.** BE dọn orphan server-side (GC có đếm tham chiếu), nên
+`RichTextEditor.tsx:66-71` giữ **nguyên**: nó track theo session rồi `deleteMedia`, và vẫn không
+được cleanup lúc unmount vì làm vậy là phá ảnh của bản save thành công.
+
+**Bonus — key bug bắt được lúc runtime-verify, không phải lúc đọc code.**
+
+Verify IDLEAK-02 bằng Chrome DevTools MCP: prod trả `data: []` ở **cả hai** hàng đợi duyệt nên
+không có hàng nào để nhìn. Thay vì tạo brand/category chờ duyệt thật trên prod, stub `window.fetch`
+qua `initScript` với 4 trạng thái hợp đồng (PK số `23`, `usr_…`, `null`, thiếu hẳn field) + chuỗi
+rỗng. Cột render đúng cả 4 (`23` · `usr_60ccb7b981c411f1` · `—` · `—`), không tràn cột. Nhưng
+`list_console_messages` trả về một lỗi React không liên quan tới IDLEAK-02:
+
+> `Each child in a list should have a unique "key" prop … Check the render method of \`tbody\`.
+> It was passed a child from PendingCategoriesPage.`
+
+Cả hai trang `map()` ra `<>` **trần** rồi đặt `key` lên `<tr>` bên trong. `key` phải nằm trên phần
+tử mà `map` trả về; đặt vào con thì React không thấy và **reconcile hàng theo vị trí**. Hệ quả thật,
+không chỉ là log bẩn: duyệt/từ chối một hàng ở giữa danh sách làm mọi hàng dưới nó tụt lên một bậc
+trong khi DOM/state giữ nguyên chỗ cũ — ô "Lý do từ chối" đang mở nhảy sang nhầm hàng.
+
+- `PendingBrandsPage.tsx` + `PendingCategoriesPage.tsx` — `<>` → `<Fragment key={x.id}>`, bỏ `key`
+  thừa trên `<tr>` chính và trên `<tr>` reject (`key={\`reject-…\`}` cũng vô nghĩa: nó là con của
+  fragment, không phải phần tử của list).
+- +4 test / +2 file (`PendingBrandsPage.test.tsx`, `PendingCategoriesPage.test.tsx`) — spy
+  `console.error`, assert **không** có warning `unique "key" prop`, cộng assert nhãn người gửi.
+  Đã kiểm chứng ngược: tạm trả `key` về `<tr>` thì test fail đúng chuỗi warning ở trên.
+
+**Gates:** `npm run build` ✓ (tsc + vite) · `npm run lint` ✓ 0 problem · `npm run test:run`
+**724 test / 103 file** pass (từ 708/100). +16 test / +3 file.
+
+**Release:** class **B** — BE cũ vẫn đúng ở cả ba thay đổi. Đã flip ô `frontend` của **IDLEAK-02**
+sang `✅ ready` trong `release-gate.md`; entry **vẫn nằm ở Holding** vì `web-flow-GHN` còn `⏳`
+(`topProducts[].productId`), nên `api` chưa được mở khoá. Chưa push — chờ user.
+
+### SWEEP-0815 · triage backlog "chờ backend" — clear 2 mục stale, filed 3 mục lần đầu (2026-08-15)
+
+User: *"làm các task BE report, trước khi làm check xem task bị cũ thì clear hoặc coi lại đã tự fix
+ở task khác chưa"*.
+
+**Kết quả: 0 dòng code FE thay đổi.** Không phải vì lười đi soi — mà vì đi soi từng mục xong thì
+mỗi mục đều rơi vào một trong ba ô: đã có người trả lời rồi mà snapshot chưa cập nhật, đã tự đóng ở
+task khác, hoặc thật sự chỉ backend mới sửa được. Vì không sửa `src/**` nên không có test mới; ba
+gate vẫn chạy để xác nhận working tree (đang mang phần chưa commit của FE-DEBT-0814) còn xanh.
+
+**Stale — clear khỏi §Chờ backend.**
+
+- **P0-03 · "nhánh update của inventory chưa chắc atomic"** — treo từ trước, nhưng
+  **PATCH-ATOMIC-01** (2026-08-12, `backend-handoff.md` §Done) đã trả lời dứt điểm ba ngày trước
+  đó: **không atomic, và không thể atomic**. Catalog (MySQL) và inventory (Postgres) là hai service
+  DB riêng, không có transaction chung, và **không có đường compensation cho nhánh update** — khác
+  create (create hỏng thì rollback nguyên con product, đó là INV-CONTRACT-01). Nghĩa là `PATCH
+  /products/:id` có thể đã ghi xong một phần field trước khi bước inventory hỏng, **vĩnh viễn**.
+  ⇒ Guard `onError` ở `CreateProductPage.tsx:220-254` (invalidate `products.detail(id)` +
+  `products.withInventory(id)`) **không phải TODO tạm**, mà là hành vi đúng lâu dài → chuyển sang
+  §Guard cố ý giữ để lượt refactor sau không "dọn" nhầm. Lời dặn kèm theo của BE ("nhớ invalidate
+  cả `skuList`") **đã tự thoả mãn** — `queryKeys.ts` khai `detail: (id) => ["products", id]` và
+  `withInventory: (id) => ["products", id, "inventory"]`, mà TanStack Query invalidate theo
+  **prefix**, nên invalidate `detail` là quét luôn mọi key con. Không cần thêm dòng nào.
+- **"Ảnh post 404 — prod chưa quét lần nào"** — quét prod hôm nay qua Chrome DevTools MCP (isolated
+  context, `fetch` với `credentials: 'include'`): feed prod có đúng **1** post mang `imageUrls:
+  null` và **0** URL Cloudinary trong toàn bộ feed. Không có ảnh chết nào để dọn, không có console
+  error nào trên happy path. Mục này chỉ còn là giả thiết chưa ai kiểm — nay kiểm rồi, sạch.
+
+**Nguyên nhân gốc khiến 2 mục còn lại treo vô hạn.**
+
+`UP-03(i)` và max-size **chưa bao giờ được viết vào inbox của backend**. Chúng nằm ở snapshot FE
+dưới nhãn "chờ backend" — nhưng `snapshot.md` là file FE tự đọc, không phải file BE đọc. Tức là
+suốt thời gian qua không ai thật sự hỏi. Nay đã filed vào `../.agent-local/backend-handoff.md`
+§Open, mỗi entry kèm line-number của chính chỗ hở trong `api/` (đọc chứ không sửa — cross-repo
+boundary):
+
+- **`UP-03(i)`** — `apps/product/src/product.service.ts:1626` / `:1640` gọi
+  `destroyDroppedImages(previousImageUrls, updated.imageUrls ?? [])`, tức chỉ diff **field**
+  `imageUrls` và không bao giờ parse HTML trong `description`. Ảnh RichTextEditor đã nằm trong bản
+  lưu ⇒ orphan mãi mãi. Xin BE cho `description` đi qua cùng đường diff bằng
+  `destroyUnreferencedMedia()` (đã có reference counting từ MEDIA-ORPHAN-01). FE đã mitigate hết
+  mức: `RichTextEditor.tsx:66-71` track theo session rồi `deleteMedia`; **không** được cleanup lúc
+  unmount vì như vậy là phá ảnh của một bản save thành công.
+- **`UPLOAD-SIZE-01`** — `apps/gateway/src/upload/upload.service.ts:48` mới ký
+  `allowed_formats&folder&public_id&timestamp`. `MAX_IMAGE_BYTES` (`lib/http/uploadValidation.ts`,
+  dùng ở `useProductForm.addImages:287` + `RichTextEditor:100`) là guard **UX**, không phải guard
+  bảo mật — client bỏ qua nó là upload thẳng lên Cloudinary được. Xin `max_bytes` nằm trong chuỗi
+  ký (hoặc signed upload preset có `max_file_size`), và xin BE nói rõ con số.
+
+**Sai inbox — `CHAT-ROOM-01`.**
+
+Ask "emit `new_message` vào room theo user" là hướng **FE→BE**, nhưng từ 2026-06-30 nó nằm trong
+`frontend-handoff.md` (inbox BE→FE, tức file backend agent **không** đọc như inbox của mình). Đó là
+lý do nó đứng yên gần hai tháng. Đọc lại code để chắc ask còn đúng: `chatPresenceSocket.ts:41`
+`joinAll(convs)` vẫn join từng conversation một, `:89` vẫn subscribe query cache để re-join khi
+danh sách đổi — ask còn nguyên giá trị. Chuyển sang `backend-handoff.md` §Open; bên
+`frontend-handoff.md` để lại dòng "Done = done sitting in the wrong inbox, không phải đã trả lời".
+
+**Giữ nguyên — `submittedBy` class C.**
+
+Đo lại prod: `topProducts[].productId` vẫn trả `23` (number) ⇒ BE chưa ship. FE **đúng** khi giữ
+`types/catalog.ts:14,29` là `number` theo lời dặn ở BE-REPORT-0813. Hold còn hiệu lực.
+
+**Ghi kèm vào inbox BE: block "đã kiểm chứng 2026-08-15 — KHÔNG phải bug, đừng đi truy lại"** —
+gồm ảnh post 404 trên prod (không tồn tại), class C vẫn numeric trên prod, và P0-03 đã được
+PATCH-ATOMIC-01 trả lời + advice `skuList` đã tự thoả mãn. Mục đích: chặn lượt sweep sau đi
+re-derive lại đúng ba thứ này.
+
+**Gate** (chạy trên working tree đang có, gồm phần chưa commit của FE-DEBT-0814): `npm run build` ✓
+· `npm run lint` **0 problem** · `npm run test:run` **708 test / 100 file** xanh.
+
+### FE-DEBT-0814 · đóng 3 lint warning + convert arbitrary sizing có token khớp (2026-08-14)
+
+User: *"làm các task Nợ FE"* — dọn backlog scale-consistency trong snapshot §Còn lại phía FE.
+
+**Lint 3 → 0.**
+
+- `src/context/AuthContext.tsx` tách ba: `authContextValue.ts` giữ `AuthContextValue` +
+  `createContext`, `useAuthContext.ts` giữ hook, `AuthContext.tsx` chỉ còn `AuthProvider`.
+  `react-refresh/only-export-components` fire khi một module vừa export component vừa export
+  non-component; tách file là cách sửa duy nhất. 11 importer repoint sang
+  `@/context/useAuthContext`; `App.tsx` + `LoginPage.test.tsx` vẫn lấy `AuthProvider` từ
+  `@/context/AuthContext` (đúng, không đổi).
+- `ui/badge.tsx` + `ui/button.tsx` export `cva` variants cạnh component — đúng thứ rule bắt, nhưng
+  `src/components/ui/` write-blocked nên warning không bao giờ actionable, chỉ che warning thật.
+  Tắt bằng override **scope đúng folder đó** trong `eslint.config.js`, kèm comment lý do.
+
+**Arbitrary sizing → token: 94 occurrence.**
+
+| Nhóm | Trước | Sau | Quy tắc |
+|---|---|---|---|
+| `rounded-[10px]` / `rounded-[20px]` | 43 | **0** | → `rounded-tb-input` (10px) / `rounded-tb-sheet` (20px) |
+| Spacing `-[Npx]` | 99 | **53** | chỉ N có token đúng byte: 2→0.5, 10→2.5, 14→3.5, 40→10, 44→11, 64→16 |
+| `text-[Npx]` | 122 | **117** | chỉ 5 site đã tự pin `leading-*` |
+
+Nguyên tắc: **chỉ đổi khi token khớp đúng byte**. 18/22/26/34/42/46/52/60/68/72/76/84px và
+container width không có token → giữ. `text-[14px]`/`[16px]` có `text-sm`/`text-base` nhưng named
+size set luôn `line-height`, 10 site đó không pin `leading-*` → giữ. Trước khi nhận đổi radius đã
+quét mọi call `cn()` xem có hai class `rounded-*` chọi nhau không (`tailwind-merge` không nhận
+`rounded-tb-*` là border-radius như nó nhận `rounded-[10px]`) — 0 hit.
+
+**Sự cố trong lúc làm — đã khôi phục sạch.** Lượt convert spacing đầu chạy regex qua
+`node -e "…"`; bash nuốt `\\[` thành `[` nên `-\[14px\]` biến thành character class, 7 pass dồn
+nhau ghi hỏng **92 file** (`top-0` → `top-px0.5.5`), chạm cả `src/components/ui/` và file test.
+Khôi phục bằng `git stash push -- src` về HEAD `80de0b3` (không dùng `git checkout` — bị deny
+trong `.claude/settings.json`), rồi apply lại bằng script ghi ra file, literal-replace, có
+self-test 8 ca (gồm đúng ca `top-0 z-[100]` phải bất biến) chạy trước khi ghi. Số thay thế khớp
+đúng con số scan dự đoán (46) trước khi tin.
+
+Gate: `npm run lint` 0 problem · `npm run build` ✓ · `npm run test:run` **708/708 pass**.
+
+### DOC-STALE-0813 · dọn state cũ trong snapshot / DEPLOYMENT / release-gate (2026-08-13)
+
+Không đổi code. User yêu cầu sau khi một lượt tra cứu ra kết luận sai: *"clear giúp tôi những cái cũ
+hoặc đã hoàn thành đi chứ research lại ra sai tiếp"*. Bốn chỗ state đã chết nhưng vẫn đọc như việc
+đang mở:
+
+- **CD-FE-01 đóng.** `snapshot.md` còn nguyên mục "Chờ thao tác của người dùng · CD-FE-01 — chờ
+  setup một lần" với 3 việc chủ tài khoản Cloudflare/GitHub phải nhập. Thực tế đã nhập xong từ
+  trước 2026-08-11: `deploy.yml` có **3 guard fail-fast** (bất kỳ `VITE_*` nào rỗng → `::error::`,
+  `dist/` còn `localhost:3000` → fail, `GATEWAY_ORIGIN` rỗng → fail trước `wrangler deploy`), nên
+  một deploy xanh **tự nó là bằng chứng** mọi giá trị đã có — mà CD-FE-03 đã deploy xanh + verify
+  prod ngày 2026-08-11. Xoá khỏi snapshot; `DEPLOYMENT.md` §One-time setup được gắn banner
+  "already done — reference for a token rotation, not open work".
+- **`DEPLOYMENT.md` §4 (backend env) không còn bắt buộc.** Nó viết "FE is cross-origin to the
+  gateway" — tiền đề đã sai từ CD-FE-02: Worker reverse-proxy `/api/*` + `/socket.io/*` nên request
+  là same-origin, CORS không gate nữa. Đổi thành cảnh báo "not required anymore", giữ nội dung cũ
+  cho ngày FE trỏ thẳng vào gateway. Tiện thể sửa "add three **variables**" → **four** (bảng ngay
+  dưới liệt kê 4 dòng: 3 × `VITE_*` + `GATEWAY_ORIGIN`).
+- **8 commit hôm nay đã lên prod, không phải "chưa push".** `origin/main` = `80de0b3`, reflog
+  `update by push` lúc 21:03. Verify bằng chính bundle live (MCP, isolated context): entry đổi
+  `index-BRya1NEn.js` → `index-CK3z688j.js`; chunk `CheckoutPage-3cL7Kved.js` mang cả `from GET`
+  lẫn `Đặt hàng thất bại` (hai chuỗi **chỉ** có trong BE-REPORT-0813), `PostDetailPage-B2OeGL2J.js`
+  in `Người dùng` **không** kèm `#` ⇒ SOCIAL-AUTHOR-01 live. Entry `release-gate.md` chuyển
+  **Ready to release → Released** kèm bằng chứng này.
+- **Payment return URL nằm nhầm mục "Chờ backend"** — BE đã fix từ 2026-08-07, cái còn lại thuần FE
+  ("đừng xoá `resolveResultOrderId()` cho tới khi payment row cũ hết hạn"). Tách ra mục mới
+  **"Guard cố ý giữ — đừng dọn khi refactor"**.
+
+Kèm theo, snapshot gọn lại: khối MEDIA-ORPHAN 25 dòng (phần lớn là lịch sử điều tra + một
+meta-correction về entry handoff không tồn tại) rút còn 1 bullet giữ đúng phần còn actionable —
+*prod chưa quét*; hai mục `~~gạch ngang~~` ở "Runtime verification còn nợ" (P1-06 chat, F2
+return/refund — đã chạy E2E prod 2026-08-13) rút còn đúng nhánh chưa chạy (reconnect, từ chối);
+`submittedBy` (class C, BE giữ) được **thêm** vào snapshot — trước đó chỉ nằm trong
+`../.agent-local/frontend-handoff.md`, đọc snapshot một mình sẽ không thấy. `release-gate.md` còn
+một con trỏ chết "hai phát hiện mới → `backend-handoff.md` → **Open**": cả hai đã đóng trong
+DEPLOY-0813, sửa lại kẻo lần sau đi tìm ở Open.
+
 ### BE-REPORT-0813 · dọn nốt 3 FYI cuối của inbox BE + đóng DEPLOY-0813 (2026-08-13)
 
 Lượt `/sweep` thứ hai trong ngày, user chỉ định phạm vi: *"làm task BE report"* — tức phần `## Open`

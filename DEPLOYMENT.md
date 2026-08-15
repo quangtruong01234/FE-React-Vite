@@ -42,6 +42,14 @@ ever costs money is a domain registration.
 
 ## One-time setup
 
+> ✅ **Already done — this is reference for a token rotation or a rebuild, not open
+> work.** Proof: the `production` deploy has been green since 2026-08-11 and
+> `deploy.yml` fails fast on a missing secret *or* variable (empty `VITE_*`, a
+> `localhost:3000` left in `dist/`, an unset `GATEWAY_ORIGIN`), so a green run is
+> itself the evidence that every value below is entered. The live Worker is
+> `https://fe-react-vite.quangtruong01234.workers.dev`. Section 4 is no longer
+> required either — see the note there.
+
 ### 1. Cloudflare — get two values
 
 **My Profile → API Tokens → Create Token →** use the **"Edit Cloudflare
@@ -65,7 +73,7 @@ there is no project to pre-create and no dashboard form to fill in.
 ### 3. GitHub — the `production` environment
 
 **Settings → Environments → New environment**, name it exactly `production`
-(`deploy.yml` declares `environment: production`), then add three
+(`deploy.yml` declares `environment: production`), then add four
 **variables** — the *Environment variables* box, not *Environment secrets*:
 
 | Variable | Value |
@@ -90,8 +98,15 @@ absolute origin, `https://` is still the right prefix.
 
 ### 4. Backend (the `api` repo's env on the box)
 
-The FE is cross-origin to the gateway, so two gateway env values must change or
-**login appears to succeed and every subsequent request is 401**:
+> ⚠️ **Not required anymore.** This section predates the `/api/*` reverse proxy
+> (CD-FE-02, below). The browser now calls the Worker's own origin, so CORS never
+> gates the request — verified against the live gateway through a local
+> `wrangler dev`: a request carrying an Origin *outside* `FRONTEND_URL` still
+> succeeded. Keep what follows for the day the FE points straight at the gateway
+> again.
+
+Back when the FE was cross-origin to the gateway, two gateway env values had to
+change or **login appears to succeed and every subsequent request is 401**:
 
 ```
 FRONTEND_URL=https://fe-react-vite.<subdomain>.workers.dev   # or the custom domain

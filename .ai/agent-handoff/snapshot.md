@@ -1,6 +1,6 @@
 # Snapshot — TryBuy Frontend Current State
 
-> Cập nhật: 2026-08-13 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
+> Cập nhật: 2026-08-16 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
 > Keep this LEAN: chỉ giữ bức tranh sống (overview, việc còn mở/bị chặn, known issues).
 > Việc đã xong nằm ở `CHANGELOG.md` (cùng thư mục, không auto-load) — **đừng chép lại vào đây**.
 > Convention/rule nằm ở `.ai/context/` — cũng không duplicate vào đây.
@@ -8,15 +8,15 @@
 ## Overview
 
 React 19 + Vite FE cho marketplace microservices. Khung đầy đủ: marketplace, cart, checkout,
-order, seller, social, admin, chat, wishlist, sổ địa chỉ. **Toàn bộ P0/P1/P2 đã đóng phía FE**;
-riêng P0-03 còn hở đúng nhánh update (create đã atomic BE-side từ INV-CONTRACT-01, deploy prod
-2026-08-12).
+order, seller, social, admin, chat, wishlist, sổ địa chỉ. **Toàn bộ P0/P1/P2 đã đóng phía FE**,
+kể cả P0-03: nhánh create atomic BE-side từ INV-CONTRACT-01 (prod 2026-08-12), nhánh update
+**không atomic và không thể atomic** — PATCH-ATOMIC-01 (2026-08-12) trả lời dứt điểm, FE giữ
+`onError` refetch vĩnh viễn (xem §Guard cố ý giữ).
 Public-ID migration (PUBID-01–07) đã
 xong — storefront id là opaque string end-to-end.
 
-**Gates (chạy lại + verify 2026-08-13):** `npm run build` ✓ · `npm run lint` 0 error /
-3 warning advisory · `npm run test:run` 708 test / 100 file, all pass. Không đóng item nào khi 3
-lệnh này chưa xanh.
+**Gates (chạy lại + verify 2026-08-16):** `npm run build` ✓ · `npm run lint` 0 problem ·
+`npm run test:run` **746 test / 106 file**, all pass. Không đóng item nào khi 3 lệnh này chưa xanh.
 
 > ⚠️ `npm run build` **mới** thực sự typecheck từ 2026-08-04. Trước đó script chỉ là `vite build`
 > (esbuild vứt type) trong khi doc ghi là có `tsc` → 3 lỗi type nằm im 2 tuần. Chi tiết +
@@ -30,105 +30,83 @@ login → product → cart → checkout → payment/order.
 
 | Ngày | Item |
 |---|---|
-| 2026-08-13 | **BE-REPORT-0813 · dọn nốt 3 FYI cuối của inbox BE + đóng DEPLOY-0813** (class **B**, chưa push). `IDLEAK-01`: BE bảo "no FE change needed" — vẫn đi soi từng consumer thay vì tin: `checkStock` không đọc `productId`, `reviewedBy` vốn đã `string \| null`, `moderatorId` **không có consumer nào**, `client.ts` chỉ đọc `message` + status nên ENVELOPE-01 vô hình; thứ duy nhất sai là **fixture test** `postModeration.test.ts` còn assert `'Post 7 not found'` (social 404 giờ bỏ id) → sửa. `submittedBy` **cố ý giữ nguyên `number`** đúng như BE dặn (class C, BE giữ). `GHN-CREATE-01`: BE cũng bảo không cần sửa, nhưng nhánh fallback sẽ ném **tiếng Anh kèm tên endpoint nội bộ** (`pick a district from GET /api/shipping/districts`) vào mặt người mua trong UI tiếng Việt → helper thuần `features/cart/checkoutSubmitError.ts` đưa refusal của GHN về **đúng câu của banner phí ship**, mọi message khác giữ nguyên; `isGhnAddressRefusal()` khoá theo **400 + từ vựng địa chỉ GHN** nên 400 hết hàng/voucher không bị đổi lời, và strip luôn đuôi `— pick a … from GET …` cho cả banner. Tiện thể sửa bug tiềm ẩn ở call site: nó `String(err.message)` vô điều kiện nên có lúc in ra chữ `"undefined"`. **Verify prod (MCP)**: cả 3 fix BE của DEPLOY-0813 **đã lên prod** — comments/replies có `author`, `refundAmount` là number, ward lệch quận trả **400** đúng 3 câu đã code; và **nhánh `author` thật đã render được ở runtime** (bundle local trỏ API prod, `/post/…` in `shop1`/`user1` + reply lồng cấp, không còn chữ `Người dùng`, không rò `usr_`) — đây là món lượt trước còn nợ. Không probe `POST /api/order` trên prod: đoán sai là đặt đơn thật. +9 test / +1 file |
-| 2026-08-13 | **BATCH-0813 · drain 5 entry BE inbox trong một lượt** (class **B** — old FE vẫn đúng, chưa push). `SOCIAL-AUTHOR-01`: `Comment.author: PostAuthor \| null` (tái dùng type của post, không khai thêm type gần-trùng) + helper thuần `features/social/commentAuthor.ts` → `CommentNode` render username/avatar thật, và khi `author` vắng/null thì ra `Người dùng` **không kèm id** (trước là `Người dùng #usr_xxx` — rò id opaque ra UI) · `RET-NUM-01`: bỏ `Number(refundAmount)` ở 3 trang trả hàng — `formatVnd` đã nhận `number \| string` nên chạy đúng với **cả** BE cũ (`"45000.00"`) lẫn BE mới · `ORD-RBAC-01`: xoá 3 wrapper chết `ship`/`deliver`/`complete` trong `api/orders.ts` (0 call site, giờ admin-only) + để lại comment vì sao seller dừng ở `ready-to-ship` · `GHN-DIST-01` và `PATCH-ATOMIC-01`: **không cần sửa code** — cascade reset ward/district và invalidate ở nhánh `onError` đã đúng sẵn; vì BE change làm cascade thành load-bearing (ward lệch giờ là 400 chặn đặt hàng) nên pin lại bằng 2 RTL test. **Verify prod (Chrome DevTools MCP)**: cả 3 thay đổi BE **chưa deploy** — `/social/posts/:id/comments` + `/replies` chưa có `author`, `refundAmount` vẫn là string `"45000.00"`, `shipping-fee` ward lệch quận vẫn trả 201. Chạy build mới trỏ vào API prod: comment + reply lồng cấp ra `Người dùng` sạch id, `/returns` in `45.000 đ`/`90.000 đ`/`160.000 đ` đúng ⇒ degrade an toàn, đúng class B. +8 test / +2 file. **Cập nhật cuối ngày 2026-08-13:** cả ba đã lên prod và verify lại — xem dòng BE-REPORT-0813 ở trên |
-| 2026-08-13 | **SOCIAL-COUNT-01 + verify social/chat trên prod** — chạy E2E post → comment → reply → chat với 2 tài khoản thật (user1 ↔ shop1) và tìm ra 1 bug FE: `useCreateComment`/`useCreateReply`/`useDeleteComment` chỉ invalidate `social.comments(postId)`, **không** invalidate `social.post(postId)` — mà `commentCount` nằm trong payload của post, nên header vẫn in "Bình luận (0)" sau khi vừa gửi comment, phải reload mới đúng. Fix: helper `lib/query/socialInvalidation.ts` (`invalidateCommentViews`, cùng khuôn với `invalidateOrderViews`) — invalidate **một** key `social.post(postId)` là đủ vì nó là prefix của `social.comments(postId)` (thêm guard prefix vào `queryKeys.test.ts`, gọi 2 lần chồng nhau sẽ refetch comment list 2 lượt). Verify prod: like 0→1, comment + reply lồng cấp render ngay, notification `comment`/`reply` bắn realtime (badge 65→66 và 44→45, **không reload**), chat 2 chiều tới nơi tức thì. Ghi sang `backend-handoff.md`: comment/reply **không kèm `author`** nên UI in `Người dùng #usr_xxx` thay vì username (post thì có `author` đầy đủ) |
-| 2026-08-13 | **Runtime verify BATCH-0811 + BATCH-0812 trên prod — 6/6 + 5/5 PASS** (Chrome DevTools MCP, 4 tài khoản song song trong isolated context). Storefront: đăng bán 1 SP → đúng 1 request, stock đúng · `/orders` gõ mã đơn → đúng 1 request `?q=`, phân trang trên kết quả tìm · đơn online chưa trả tiền → "Khách chưa thanh toán — chưa thể xử lý đơn", không có nút (đơn COD cạnh đó vẫn có nút) · chuông thông báo đủ **6** type mới, `order_confirmed`/`order_processing` bắn thật khi seller đẩy đơn, `new_order` mở `/sell/orders` · checkout địa chỉ GHN không giao tới → banner đỏ + nút đặt hàng disabled. **RETURN-STOCK-01** (2026-08-13, sau khi đẩy đơn `ord_o00rM7DkTCMM3rzm` tới `completed` bằng `demo-status`): buyer gửi yêu cầu trả hàng → seller "Duyệt & hoàn tiền" → tồn kho SP đi từ **49 → 50** (tổng kho 10084 → 10085) mà **không reload** trang, đơn thành "Đã hoàn tiền", refund `45.000 đ` hiện đúng ở cả 2 phía. GHN console **5/5 PASS** (GHN-RAW/ENUM/ACT/HIST/RBAC-01) — chi tiết ở `../.agent-local/frontend-handoff-ghn.md`. Phát hiện mới ghi sang `backend-handoff.md`: `POST /api/order/shipping-fee` với `toDistrictId` không tồn tại vẫn trả **201** thay vì 400 |
-| 2026-08-12 | **BATCH-0811 · tích hợp 8 entry BE trong một lượt** (class C — đã push và verify prod 2026-08-12, xem `../.agent-local/release-gate.md` → Released). `INV-CONTRACT-01`: xoá `persistSimpleStock()`, luồng đăng bán còn đúng **1** request `POST /products` (BE tự seed inventory + rollback nếu hỏng) · `FE-INBOX-0811 #4`: search mã đơn thành **server-side** `?q=` (debounce 400ms, cap 32 ký tự) ⇒ **xoá được cả module `orderHistoryPaging.ts`**, hết fetch-all và hết empty-state nói dối · `ORD-GUARD-01`: field mới `paidAt` + 2 helper thuần `getSellerOrderActionState()`/`isAwaitingPayment()` — đơn online chưa trả tiền hiện lý do thay vì cái nút chắc chắn 400; cả hai so `=== null` để BE cũ (field vắng) degrade chứ không khoá cứng · `ORDER-SHAPE-01`: type `SellerOrderListRow`, card seller render thẳng từ list · `NOTIF-LIFECYCLE-01`: 6 type mới, `new_order` link `/sell/orders` (buyer view sẽ 403) · `RESIL-01`: `shippingFeeFailure()` — GHN **400 chặn** đặt hàng (địa chỉ giao không tới), **503 không chặn** (phí tính khi giao) · `RETURN-STOCK-01`: duyệt trả hàng invalidate thêm `inventory.all`+`products.all` · `STOCK-SYNC-01`: invalidate ở nhánh `onError` của form sửa. 12 file, +5 test file, 687 test xanh |
+| 2026-08-16 | **SWEEP-0816 · đóng cả 4 mục audit 2026-08-16 + 3 lỗ a11y chỉ MCP mới thấy** (class **A** — không đụng contract BE). **AUD-0816-01** (🔴, tiền thật): `PaymentResultPage` in "Thanh toán thất bại" khi *request xác minh* hỏng chứ không phải khi thanh toán hỏng ⇒ buyer đã trả tiền có thể trả lần hai. Tách verdict ra helper thuần `features/payment/paymentResultVerdict.ts` — `resolvePaymentVerdict(data, isError)` → `success \| failed \| unverified`; `data === undefined` **không còn** rơi vào nhánh đỏ mà ra panel hổ phách "chưa xác minh được" trỏ `/order/:id` (nguồn sự thật). Giữ `retry: false` **cố ý**: retry một callback gateway đã redirect xong không làm nó đúng thêm. **AUD-0816-02**: 6 trang render lỗi query y hệt "rỗng thật" (`CartPage` ra "giỏ hàng trống", 2 trang duyệt ra "không có gì chờ duyệt" ⇒ moderator tin hàng đợi đã sạch, `AdminPage`/2 trang analytics ra trắng). Thêm `lib/http/apiError.ts` (`toApiError`) + `components/shared/TableErrorRow.tsx` (bọc `ApiErrorState … embedded` trong `<tr><td colSpan>`) rồi nối `error`+`refetch` ở cả 6 site — dùng lại `ApiErrorState` có sẵn, không đẻ khuôn mới. **AUD-0816-03**: thay vì vá 19 call site, ép tên vào **type**: `IconButton` nhận union `AccessibleName` (`aria-label` hoặc `title` — thiếu cả hai là **lỗi compile**), `ModalCloseButton` tự đặt tên. **AUD-0816-04**: bỏ `Number()` thừa quanh tiền ở `AdminPage:105`, `OrderHistoryPage:210`, `SellerOrdersPage:99/162/215` — `Number(null)=0` vô hiệu hoá guard `null → '—'` của `toMoneyNumber`. **Phần chỉ MCP mới bắt được** (quét a11y tree thật của Chrome, không phải regex): regex cũ chỉ soi `<IconButton` nên **mù** hẳn một lớp control — 12 `role="switch"` trên `/shop` (mỗi hàng sản phẩm một cái) đọc lên chỉ là "switch, checked", ô upload ảnh nét đứt ở `/sell`, và 4 nút mở lightbox trong `PostCard` (ảnh `alt=""` nên nút phải tự đặt tên). Sửa theo cùng lối bền vững: `label` thành prop **bắt buộc** của `ToggleSwitch` + `aria-label` trên control (không phải trên `<div>` bọc — `title` ở wrapper **không** đặt tên cho button bên trong). Cũng verify runtime bằng MCP: chặn `fetch` một endpoint trả 4xx/5xx qua `initScript` để bắt nhánh lỗi chạy thật (categories ra "Hệ thống đang bảo trì"), không cần đụng backend. Quét lại `/`, `/cart`, `/shop`, `/sell`, `/orders`, `/sell/orders`, `/admin*`: **0 control không tên, 0 nút icon méo, 0 icon bẹp**. 3 nghi ngờ tự loại sau khi đo (`rounded-full` là pill **chữ**, badge header 36→42px là padding chứ không overflow, `'0 đ'` khớp nhầm bên trong số lớn hơn). +22 test / +3 file → **746 test / 106 file** |
+| 2026-08-15 | **SWEEP-0815b · BE trả lời 4 mục inbox → triển khai phần FE làm được ngay** (class **B** — BE cũ vẫn đúng). Không tin nhãn "done" của handoff: đọc `release-gate.md` rồi `git branch --contains` trong `api/` mới thấy **CHAT-ROOM-01 (`1ea9ed6`) và UPLOAD-SIZE-01 (`5ceb46c`) chỉ nằm trên branch, chưa có trên `origin/main`** ⇒ chia việc theo cái thật sự đang chạy trên prod, không theo cái BE viết. **IDLEAK-02 — làm đủ**: `submittedBy?: string \| null` trên `PendingBrand`+`PendingCategory` (`types/catalog.ts`), helper thuần `features/admin/submitterLabel.ts` (null/undefined/chuỗi rỗng → `—`; vẫn nhận `number` **cố ý** vì prod còn trả PK số) thay cho `#{brand.submittedBy}` ở `PendingBrandsPage.tsx:101` + `PendingCategoriesPage.tsx:101` — bỏ luôn dấu `#` vì ghép `#` vào `usr_…` là rò id opaque ra UI; `TopProductStat.productId` nới thành `string \| null` (0 consumer — `AnalyticsDashboard` chart theo `productName`). FE ship trước BE **an toàn**: prod trả `23` thì render `23`. **UPLOAD-SIZE-01 — làm nửa an toàn**: `maxBytes`/`maxVideoBytes` (optional) trên `UploadSignature` + `resolveUploadCap()`/`oversizeMessage()` (`lib/http/uploadValidation.ts`) + chặn theo cap của server ngay đầu `uploadChunked` — field vắng thì fallback về hằng số cũ nên **BE cũ lẫn mới đều đúng**, và bắt được đúng cái bất đối xứng BE chỉ ra (ảnh 11 MB vào `trybuy/posts` lọt trần video 100 MB). Test pin caps **không bao giờ** được append vào form (param không ký ⇒ hỏng chữ ký SHA1, đúng vết UP-05). **Cố ý KHÔNG gửi `?bytes=`** — BE prod hiện tại sẽ trả `400 "property bytes should not exist"` ⇒ chết mọi upload. **CHAT-ROOM-01 — cố ý 0 dòng**: bỏ `joinAll` bây giờ là mất chuông + mất preview cho mọi hội thoại không mở. **UP-03(i)**: BE làm server-side (GC có đếm tham chiếu), FE giữ nguyên `RichTextEditor.tsx:66-71`. **Bonus — bug thật bắt được lúc verify bằng Chrome DevTools MCP**: cả 2 trang duyệt `map()` ra `<>` trần rồi đặt `key` lên `<tr>` bên trong ⇒ React log `Each child in a list should have a unique "key" prop … from PendingCategoriesPage` và **reconcile hàng theo vị trí** (duyệt/từ chối 1 hàng giữa danh sách → hàng dưới kế thừa state của hàng trên, gồm cả ô "Lý do từ chối" đang mở). Sửa: `<Fragment key={x.id}>`, bỏ `key` thừa trên `<tr>` + `<tr>` reject. +4 test / +2 file → **724 test / 103 file**. Đã flip ô `frontend` của IDLEAK-02 sang ✅ trong `release-gate.md` (entry vẫn Holding: `web-flow-GHN` còn ⏳) |
+| 2026-08-15 | **SWEEP-0815 · triage backlog "chờ backend" — 0 dòng code FE, 2 mục stale bị clear, 3 mục lần đầu được hỏi BE thật** (class **A**, chỉ doc + inbox). Không sửa `src/**`: đi soi từng mục rồi mới kết luận, và kết luận là **không mục nào còn việc cho FE**. Clear vì **stale**: (1) **P0-03 "update chưa chắc atomic"** — PATCH-ATOMIC-01 (2026-08-12) đã trả lời từ 3 ngày trước mà snapshot vẫn treo: **không atomic và không thể atomic** (MySQL catalog vs Postgres inventory, không transaction chung, không compensation cho update) ⇒ `onError` refetch ở `CreateProductPage.tsx:220-254` là **guard vĩnh viễn**, chuyển sang §Guard cố ý giữ; lời dặn "invalidate cả `skuList`" **đã tự thoả mãn** vì `products.detail(id)` = `["products", id]` là prefix của `["products", id, "inventory"]` (`queryKeys.ts`). (2) **"Ảnh post 404 — prod chưa quét"** — quét prod hôm nay: feed prod có đúng **1** post `imageUrls: null` và **0** URL Cloudinary ⇒ không có gì để dọn. Nguyên nhân gốc khiến 2 mục còn lại treo vô hạn: chúng nằm ở snapshot FE dưới nhãn "chờ backend" nhưng **chưa bao giờ được viết vào inbox của BE** — nay đã filed: `UP-03(i)` (orphan ảnh nhúng trong `description`; dẫn `product.service.ts:1626/:1640` — `destroyDroppedImages` chỉ diff `imageUrls`) và `UPLOAD-SIZE-01` (`upload.service.ts:48` mới ký `allowed_formats&folder&public_id&timestamp`; `MAX_IMAGE_BYTES` bên FE chỉ là guard UX). Thêm `CHAT-ROOM-01`: ask FE→BE về emit `new_message` theo room user nằm **nhầm inbox** từ 2026-06-30 (đặt ở `frontend-handoff.md` = file BE không đọc) → chuyển sang `backend-handoff.md`, vẫn còn đúng (`chatPresenceSocket.ts:41` `joinAll`, `:89` re-join). `submittedBy` giữ `number`: đo lại prod, `topProducts[].productId` vẫn là `23` ⇒ hold class C còn hiệu lực. Ghi kèm block "đã kiểm chứng — KHÔNG phải bug" vào inbox BE để lượt sau khỏi đi truy lại. Gate trên working tree đang có (từ FE-DEBT-0814): build ✓ · lint **0 problem** · 708 test / 100 file xanh |
+| 2026-08-13 | **BE-REPORT-0813 · dọn nốt 3 FYI cuối của inbox BE + đóng DEPLOY-0813** (class **B**). `IDLEAK-01`: BE bảo "no FE change needed" — vẫn đi soi từng consumer thay vì tin: `checkStock` không đọc `productId`, `reviewedBy` vốn đã `string \| null`, `moderatorId` **không có consumer nào**, `client.ts` chỉ đọc `message` + status nên ENVELOPE-01 vô hình; thứ duy nhất sai là **fixture test** `postModeration.test.ts` còn assert `'Post 7 not found'` (social 404 giờ bỏ id) → sửa. `submittedBy` **cố ý giữ nguyên `number`** đúng như BE dặn (class C, BE giữ). `GHN-CREATE-01`: BE cũng bảo không cần sửa, nhưng nhánh fallback sẽ ném **tiếng Anh kèm tên endpoint nội bộ** (`pick a district from GET /api/shipping/districts`) vào mặt người mua trong UI tiếng Việt → helper thuần `features/cart/checkoutSubmitError.ts` đưa refusal của GHN về **đúng câu của banner phí ship**, mọi message khác giữ nguyên; `isGhnAddressRefusal()` khoá theo **400 + từ vựng địa chỉ GHN** nên 400 hết hàng/voucher không bị đổi lời, và strip luôn đuôi `— pick a … from GET …` cho cả banner. Tiện thể sửa bug tiềm ẩn ở call site: nó `String(err.message)` vô điều kiện nên có lúc in ra chữ `"undefined"`. **Verify prod (MCP)**: cả 3 fix BE của DEPLOY-0813 **đã lên prod** — comments/replies có `author`, `refundAmount` là number, ward lệch quận trả **400** đúng 3 câu đã code; và **nhánh `author` thật đã render được ở runtime** (bundle local trỏ API prod, `/post/…` in `shop1`/`user1` + reply lồng cấp, không còn chữ `Người dùng`, không rò `usr_`) — đây là món lượt trước còn nợ. Không probe `POST /api/order` trên prod: đoán sai là đặt đơn thật. +9 test / +1 file. **ĐÃ LÊN PROD 2026-08-13 21:03** — 8 commit `14dac67..80de0b3` push → CI → Deploy; bundle live đổi `index-BRya1NEn.js` → `index-CK3z688j.js`, chunk `CheckoutPage` mang `from GET` + `Đặt hàng thất bại`, `PostDetailPage` in `Người dùng` **không** kèm `#` |
+| 2026-08-13 | **BATCH-0813 · drain 5 entry BE inbox trong một lượt** (class **B** — old FE vẫn đúng). `SOCIAL-AUTHOR-01`: `Comment.author: PostAuthor \| null` (tái dùng type của post, không khai thêm type gần-trùng) + helper thuần `features/social/commentAuthor.ts` → `CommentNode` render username/avatar thật, và khi `author` vắng/null thì ra `Người dùng` **không kèm id** (trước là `Người dùng #usr_xxx` — rò id opaque ra UI) · `RET-NUM-01`: bỏ `Number(refundAmount)` ở 3 trang trả hàng — `formatVnd` đã nhận `number \| string` nên chạy đúng với **cả** BE cũ (`"45000.00"`) lẫn BE mới · `ORD-RBAC-01`: xoá 3 wrapper chết `ship`/`deliver`/`complete` trong `api/orders.ts` (0 call site, giờ admin-only) + để lại comment vì sao seller dừng ở `ready-to-ship` · `GHN-DIST-01` và `PATCH-ATOMIC-01`: **không cần sửa code** — cascade reset ward/district và invalidate ở nhánh `onError` đã đúng sẵn; vì BE change làm cascade thành load-bearing (ward lệch giờ là 400 chặn đặt hàng) nên pin lại bằng 2 RTL test. **Verify prod (Chrome DevTools MCP)**: cả 3 thay đổi BE **chưa deploy** — `/social/posts/:id/comments` + `/replies` chưa có `author`, `refundAmount` vẫn là string `"45000.00"`, `shipping-fee` ward lệch quận vẫn trả 201. Chạy build mới trỏ vào API prod: comment + reply lồng cấp ra `Người dùng` sạch id, `/returns` in `45.000 đ`/`90.000 đ`/`160.000 đ` đúng ⇒ degrade an toàn, đúng class B. +8 test / +2 file. **Cập nhật cuối ngày 2026-08-13:** cả ba đã lên prod và verify lại — xem dòng BE-REPORT-0813 ở trên |
 
 ## Active Tasks — open / blocked
 
-### Chờ thao tác của người dùng (code đã xong, không agent nào làm hộ được)
+### Chờ backend (chỉ backend mới đóng được — FE không mitigate thêm được gì)
 
-- **CD-FE-01 · Cloudflare Workers deploy — chờ setup một lần.** Chốt 2026-08-07: **Workers
-  static assets + GitHub Actions**. Không dùng Pages, và **không** nối Git integration của
-  Cloudflare (Workers Builds) — nó nghe webhook `push` thuần, không chờ được CI, nối cả hai là
-  mỗi push build 2 lần và bản chưa test có thể thắng. Repo đã có `wrangler.toml` (assets-only,
-  `name = "fe-react-vite"`, `not_found_handling = "single-page-application"`), `ci.yml`,
-  `deploy.yml` (gate `workflow_run` + `conclusion == 'success'`, giống repo api), runbook
-  `DEPLOYMENT.md`. Còn 3 việc chỉ chủ tài khoản làm được: (1) tạo API token Cloudflare theo
-  template *Edit Cloudflare Workers* → secret `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`;
-  (2) tạo Environment `production` với 3 **variable** `VITE_*`; (3) sau lần deploy đầu, đặt
-  `FRONTEND_URL` + `AUTH_COOKIE_SAME_SITE=none` cho gateway trên EC2 — thiếu thì login "thành
-  công" nhưng mọi request sau đó 401. Chi tiết → `DEPLOYMENT.md`.
+*(Mục nào ghi "BE inbox `<id>`" thì **đã có entry trong `../.agent-local/backend-handoff.md` §Open**
+từ 2026-08-15 — trước đó chúng chỉ nằm ở file này, tức là chưa ai thật sự hỏi BE. Đừng viết entry
+mới, cập nhật entry cũ.)*
 
-  ✅ **CD-FE-03 đã xong hẳn 2026-08-11:** hai variable socket đổi sang `/`, push `ffa42a0` →
-  CI → Deploy tự chạy, bundle live `index-BRya1NEn.js` không còn origin gateway. Verify trên
-  **prod thật**: socket đi `wss://fe-react-vite…workers.dev/socket.io/`, `40/notifications,` +
-  `40/chat,`, 0 close, và tin nhắn từ tài khoản thứ hai về tới nơi (`42/chat,["new_message",…]`)
-  không cần reload.
+*(2026-08-15, lượt 2 — BE đã trả lời **cả 4** mục từng nằm ở đây. `UP-03(i)` đóng hẳn (BE làm,
+FE không phải sửa gì); `submittedBy`/IDLEAK-02 đã làm xong phía FE — xem Recent closes. Hai mục
+còn lại dưới đây **không còn chờ BE viết code** nữa, chúng chờ BE **push**: cả hai đang nằm trên
+branch chưa merge, đã verify bằng `git branch --contains` trong `api/`, không phải đoán.)*
 
-### Chờ backend (FE đã ship mitigation, chỉ backend mới đóng được)
+- **CHAT-ROOM-01 — BE xong nhưng CHƯA lên prod; FE **cố ý chưa dọn**.** `1ea9ed6` chỉ có trên
+  branch `feat/chat-room-01-user-rooms`, **không** có trên `api` `origin/main` (đo 2026-08-15).
+  Nên `joinAll()` (`chatPresenceSocket.ts:41`) + re-join theo query cache (`:89`) vẫn là **thứ duy
+  nhất** làm presence socket nhận được `new_message`; bỏ bây giờ là mất tiếng chuông và mất cập
+  nhật preview cho **mọi** hội thoại không mở, cho tới khi BE merge. Bỏ ngay sau khi BE push (FE
+  đổi một mình được, không cần entry Holding — `emit('join')` vẫn sống nên hai chiều đều đúng).
+- **UPLOAD-SIZE-01 — nửa còn lại (`?bytes=`) chờ BE push.** FE đã đọc `maxBytes`/`maxVideoBytes`
+  từ response chữ ký (fallback về hằng số cũ khi field vắng ⇒ chạy đúng với **cả** BE cũ lẫn mới).
+  Chưa gửi query param `?bytes=file.size` vì `5ceb46c` cũng chỉ nằm trên branch
+  `fix/upload-size-01-server-cap`: BE hiện tại nhiều khả năng trả **400 "property bytes should not
+  exist"** (đúng cái bẫy đã ghi ở `backend-handoff.md` §DEPLOY-0813) ⇒ **hỏng mọi upload**. Thêm
+  param sau khi BE lên prod. Lưu ý: đây vẫn **không phải** security guard — BE đã probe và
+  Cloudinary không cho ký tham số size, client bỏ qua vẫn upload được.
 
-- **Payment return URL trả order id nội bộ dạng số** (`../.agent-local/backend-handoff.md`,
-  **Done** 2026-08-07 — không còn chờ BE, chỉ chờ đám pending cũ hết hạn). Verify live 2026-08-04: `buildFrontendPaymentResultUrl()` gửi
-  `?order=111` — cùng biến sau đó đi qua `Number(orderId)` — trong khi `/api/order/111` **400**
-  `"Invalid id — expected format ord_<16 alphanumeric characters>"`. Trước đây snapshot ghi
-  ngược ("regex số không khớp `ord_`"): thật ra regex **nhận** id số rồi dựng `/order/111`, tức
-  là link chết chắc chắn, không phải id bị rơi. FE mitigation: `resolveResultOrderId()`
-  (`src/features/payment/paymentResultParams.ts`) chỉ nhận shape `ord_…`, số → fallback
-  `/orders`. Guard theo shape nên BE đổi contract là deep-link tự sống lại, FE không sửa gì.
-  Kèm theo: `.env.example` của payments trỏ return URL về endpoint JSON của gateway —
-  chi tiết trong handoff.
-  ✅ **BE ĐÃ FIX (2026-08-07):** redirect giờ mang `order=ord_<16>`, deep-link tự sống lại,
-  FE **không phải sửa gì**. Nhưng **giữ nguyên `resolveResultOrderId()`** — payment row tạo
-  *trước* thay đổi này vẫn giữ URL cũ có `?order=<số>` (chữ ký VNPay phủ `vnp_ReturnUrl` nên
-  không rewrite server-side được). Chỉ bỏ guard khi đám pending cũ đã hết hạn.
-- **P0-03 · Product create/update inventory không atomic — nhánh CREATE đã đóng, còn nhánh
-  UPDATE.** INV-CONTRACT-01 (2026-08-11, chưa deploy): `POST /products` tự tạo inventory row và
-  **rollback product nếu bước đó hỏng**, nên `201` = row chắc chắn tồn tại. FE đã xoá
-  `persistSimpleStock()` — hết cảnh "201 xong vẫn in lỗi đỏ". Còn mở: `PATCH /products/:id
-  { stockQuantity }` (STOCK-SYNC-01) có ghi vào inventory nhưng **BE chưa nói là atomic**; giả
-  định nó không, cho tới khi có xác nhận. FE không mitigate được nhánh này.
-- **Orphan cleanup cho ảnh trong HTML đã lưu (UP-03(i))** — mảnh **cuối** còn hở. SEC-M7
-  (2026-07-11) đã đóng phần còn lại: BE diff media URL trước/sau commit rồi destroy asset bị bỏ,
-  gồm cả **avatar cũ khi save** → UP-02(c) **đóng**. Nhưng SEC-M7 diff các *field* media
-  (`imageUrls`/`videoUrl`/`avatar`), **không** parse ảnh nhúng trong HTML `description`, nên ảnh
-  RichTextEditor đã nằm trong bản lưu vẫn thành orphan (và FE không được cleanup lúc unmount —
-  làm vậy là phá ảnh của bản save thành công).
-  ⚠️ Snapshot cũ trỏ item này tới "`backend-handoff.md` Open 2026-07-07" — **entry đó không tồn
-  tại** trong file; nội dung nằm ở `frontend-handoff.md` (SEC-M7, giờ ở **Done**).
-- **Max-size chưa nằm trong chữ ký upload.** Ownership thì đã xong hẳn: `DELETE /upload/media`
-  verify `public_id` theo prefix chủ sở hữu (`403` với id của người khác, `400` với folder ngoài
-  allowlist) — verify runtime 2026-07-08. SEC-M8 đã ký `allowed_formats`; còn max-size.
-- **2× Cloudinary 404 ảnh post cũ** (HEAD check live 2026-08-09 lên cloud `shopdev1234`: **2/3 ảnh
-  của feed page 1** trả 404 — con số cũ "1×" ghi 2026-08-07 là đếm thiếu, ảnh thứ hai nằm ở post
-  không lọt vào 10 post đầu). Hai pattern legacy (`trybuy/posts/trybuy/posts/…` và prefix
-  `undefined_`) **đã hết** — BE sanitize ở read path, grep `src/` không có workaround nào để xoá.
-  Hai cái còn lại qua cả sanitizer lẫn validator (URL đúng chuẩn) nhưng là **hai nguyên nhân khác
-  nhau** — đọc ra từ chính URL, ghi gộp ở bản 2026-08-08 là sai:
-  - `…/upload/**v1**/trybuy/posts/**17_mine**.jpg` — version `v1` placeholder + public id viết tay
-    ⇒ **chưa từng upload**, row seed viết thẳng vào DB. Seed cleanup.
-  - `…/upload/**v1780516926**/trybuy/posts/**dvh93r029vpy5rssldcc**.png`
-    (`post_5732da0c81d811f1`) — version là timestamp thật, khớp `createdAt` của post, public id đúng
-    dạng 20 ký tự Cloudinary tự sinh ⇒ **đã upload thật rồi bị xoá sau đó**, row DB còn trỏ tới.
-    ✅ **BE trả lời 2026-08-11 (MEDIA-ORPHAN-01): KHÔNG phải SEC-M7.** Đường destroy duy nhất chỉ
-    nhận URL mà row vừa save/delete **không còn mang nữa**, trong khi cả 5 URL chết vẫn đang được
-    chính post của nó trỏ tới. Cloud dev từng bị xoá sạch một lần — `trybuy/posts` chỉ còn đúng 1
-    asset. Vậy đây **không** phải bug sống, không đẻ thêm 404 mới.
+### Guard cố ý giữ — đừng "dọn" khi refactor
 
-  Upload **không hỏng**: `20_4u4glh7.png` (post 2026-07-08) và avatar `23_opyhl5h.png` đều 200.
-  ✅ **DEV đã sạch 2026-08-11:** BE set `imageUrls = null` cho 5 URL chết trên 4 post; feed dev còn
-  đúng 1 ảnh Cloudinary và nó trả 200, không còn request 404 nào. **Prod chưa quét** (EC2 trong
-  khung giờ tắt lúc BE fix) — nếu còn thấy 404 trên prod thì đó là data prod, **chỉ BE đóng được**.
-  Kèm theo, cleanup media giờ **đếm tham chiếu**: một URL gắn trên nhiều post chỉ bị destroy khi
-  post cuối cùng trỏ tới nó biến mất (trước đây sửa 1 post là hỏng ảnh của các post còn lại).
-  Phần FE **đã xong 2026-08-08**: `PostImage` (Recent closes) che ảnh hỏng ở cả `PostCard` lẫn
-  `PostDetailPage`, verify runtime 2026-08-09. Che ≠ hết: request vẫn fail và console vẫn có error
-  **trên happy path của feed** cho tới khi row được dọn.
+- **`onError` refetch ở form sửa sản phẩm** (`CreateProductPage.tsx:220-254` — invalidate
+  `products.detail(id)` + `products.withInventory(id)`). **Vĩnh viễn, không phải TODO.**
+  PATCH-ATOMIC-01 (2026-08-12) trả lời dứt điểm: nhánh update **không atomic và không thể atomic** —
+  catalog (MySQL) và inventory (Postgres) là 2 service DB riêng, không có transaction chung và
+  không có đường compensation cho update, nên `PATCH` có thể đã ghi xong một phần trước khi bước
+  inventory hỏng. Refetch để lấy lại baseline diff thay vì tin view trước khi submit; form giữ
+  nguyên input của seller vì nó chỉ seed một lần. Lời dặn kèm theo của BE ("invalidate cả
+  `skuList`") **đã tự thoả mãn**: `products.detail(id)` = `["products", id]` là **prefix** của mọi
+  key con, kể cả `["products", id, "inventory"]`.
+- **`resolveResultOrderId()`** (`features/payment/paymentResultParams.ts`) chỉ nhận shape `ord_…`,
+  id số → fallback `/orders`. BE đã fix redirect từ **2026-08-07** (`order=ord_<16>`) nên deep-link
+  đã tự sống lại, nhưng payment row tạo **trước** ngày đó vẫn giữ URL cũ có `?order=<số>` — chữ ký
+  VNPay phủ `vnp_ReturnUrl` nên không rewrite server-side được. Chỉ bỏ guard khi đám pending cũ đã
+  hết hạn.
 
 ### Còn lại phía FE
 
-*(mọi item dưới đây đã verify lại từ code thật ngày 2026-08-04)*
+*(verify từ code thật 2026-08-14; không mục nào chặn runtime — đây là scale-consistency + lint)*
 
-- **3 lint warning advisory — blocked/deferred.** `react-refresh/only-export-components` trên
-  `ui/badge.tsx:36`, `ui/button.tsx:56` (shadcn vendored trong `src/components/ui/` —
-  write-protected, không extract `cva` variants được) và `context/AuthContext.tsx:19`
-  (`useAuthContext` nhiều importer → churn rộng cho một warning dev-only). Đã từ 23 → 3 qua các
-  sweep 2026-07-09 → 07-22; 3 cái còn lại đúng bằng danh sách này, không phát sinh thêm.
-- **Arbitrary sizing/radius rải rác** — 269 occurrence / 60 file (`rounded-[10px]` ở
-  `LeftRail`/`Header`/`ProfileMenu`, `LoginPage` `px-[64px]`/`text-[64px]`/`gap-[22px]`…).
-  Chỉ là scale-consistency, không chặn runtime.
+- **Lint: 0 warning.** 3 advisory cũ đã đóng 2026-08-14. `context/AuthContext.tsx` tách làm ba:
+  `authContextValue.ts` (context object) + `useAuthContext.ts` (hook) + `AuthContext.tsx` (chỉ còn
+  provider) — 11 importer repoint sang `@/context/useAuthContext`. Hai cái trong
+  `src/components/ui/` (`badge.tsx`, `button.tsx`) không sửa được vì folder write-blocked, nên tắt
+  rule bằng override **có scope đúng folder đó** trong `eslint.config.js`. Từ giờ warning nào sống
+  sót qua `npm run lint` là warning thật — không còn nhiễu nền.
+- **Arbitrary sizing/radius — đã convert hết phần có token khớp đúng byte; phần còn lại là cố ý.**
+  Dọn 2026-08-14, tổng 94 occurrence:
+  - `rounded-[10px]`/`rounded-[20px]` → `rounded-tb-input`/`rounded-tb-sheet`: **43 → 0**. Không
+    còn `rounded-[…]` nào trong `src/`.
+  - Spacing (`px/py/pt/pb/pl/pr/p/m*/gap/top/left/w/h/size`) có token đúng byte — 2px→0.5,
+    10px→2.5, 14px→3.5, 40px→10, 44px→11, 64px→16: **99 → 53**.
+  - `text-[Npx]`: **122 → 117**. Chỉ đổi 5 site đã tự pin `leading-*` (4× `text-[36px]`→`text-4xl`
+    kèm `leading-[1.05]`, 1× `text-[18px]`→`text-lg` kèm `leading-relaxed`).
+
+  53 + 117 còn lại **giữ nguyên có chủ đích**: 18/22/26/34/42/46/52/60/68/72/76/84px và các
+  container width không có token nào khớp đúng — đổi là dời pixel. Riêng `text-[14px]` (7) và
+  `text-[16px]` (3) *có* `text-sm`/`text-base` nhưng named size kèm luôn `line-height` mà 10 site
+  đó không pin `leading-*`, nên đổi sẽ đổi cả khoảng dòng → bỏ qua.
+
+  > ⚠️ Đừng convert kiểu regex quét cả `src/`. Lần thử 2026-08-14 làm hỏng 92 file vì `\[` trong
+  > chuỗi `node -e` bị bash nuốt thành character class (`top-0` → `top-px0.5.5`). Nếu phải quét,
+  > viết script ra **file**, match cả class token có biên hai đầu, và self-test trước khi ghi.
 - **Hex + raw-palette: sạch.** Grep toàn `src/` chỉ còn 3 file dính hex: `index.css` (được
   phép), `assets/react.svg` (asset), và `features/order/analytics/AnalyticsDashboard.tsx`
   (19 literal — AN-01(c) bên dưới).
@@ -187,12 +165,10 @@ Cần full-stack live (FE↔BE) và/hoặc 2 tài khoản; không repro được
 > hoặc `canceled` thì mọi status sau đó bị bỏ qua.
 
 - P0-03 / P0-04 / P0-05 — endpoint self-test happy-path + 409/idempotency.
-- ~~P1-06 / chat — E2E 2 tài khoản~~ — **đã chạy trên prod 2026-08-13** (user1 ↔ shop1, 2 isolated
-  context): open conversation → send → tab kia nhận **không reload**, cả hai chiều; list hội thoại
-  đổi preview + "Vừa xong" ngay. Còn lại nhánh **reconnect** (ngắt mạng giữa chừng) chưa chạy.
-- ~~F2 return/refund~~ — **đã chạy full E2E trên prod 2026-08-13** (buyer yêu cầu → seller duyệt →
-  hoàn tiền + trả tồn kho); còn lại nhánh **từ chối** yêu cầu chưa chạy. F3 voucher — cần admin
-  tạo voucher thật trước.
+- Chat **reconnect** (ngắt mạng giữa chừng) — nhánh cuối của P1-06; phần E2E 2 tài khoản đã chạy
+  trên prod 2026-08-13 (user1 ↔ shop1, hai chiều, không reload).
+- Trả hàng nhánh **từ chối** — nhánh cuối của F2; nhánh duyệt + hoàn tiền + trả tồn kho đã chạy full
+  E2E trên prod 2026-08-13. F3 voucher — cần admin tạo voucher thật trước.
 - Forgot-password success-leg — code thật chỉ in ở console user-service (SMTP tắt ở dev).
 - Upload error path (UP-01/02/03/04/06) — không ép được file lỗi / fail giữa batch qua picker.
 - Batch >50 product id (SEC-H2) — cần 51 SP distinct trong cart.
