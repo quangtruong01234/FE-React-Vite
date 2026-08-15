@@ -1,15 +1,21 @@
 import { useEffect, useRef, type ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { useSearchParams } from 'react-router-dom';
-import { CheckCircle, XCircle, CreditCard } from 'lucide-react';
+import { CheckCircle, XCircle, CreditCard, AlertTriangle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
 import { useRemoveCartItem, useClearCart } from '@/hooks/data/useCart';
 import { getPendingCheckout, clearPendingCheckout } from '@/features/cart/pendingCheckout';
 import { resolveResultOrderId } from './paymentResultParams';
+import { resolvePaymentVerdict } from './paymentResultVerdict';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { cn } from '@/lib/format/utils';
 import { queryKeys } from '@/hooks/query/queryKeys';
+
+const SECONDARY_LINK = cn(
+  'w-full px-4 py-2.5 rounded-tb-input border border-bdr bg-canvas-elevated',
+  'text-ink-pri font-semibold text-sm text-center hover:border-accent-amber transition-colors block',
+);
 
 export default function PaymentResultPage(): ReactElement {
   const [searchParams] = useSearchParams();
@@ -23,14 +29,18 @@ export default function PaymentResultPage(): ReactElement {
   const method = searchParams.get('method') ?? (searchParams.has('vnp_TxnRef') ? 'vnpay' : 'zalopay');
   const gwLabel = method === 'vnpay' ? 'VNPay' : 'ZaloPay';
 
-  const { data, isLoading } = useQuery({
+  // `retry: false` stays: a verify call is not idempotent-safe to hammer, and a
+  // silent retry loop only delays the panel. The cost of not retrying is handled
+  // by the `unverified` verdict instead of by asserting failure.
+  const { data, isLoading, isError } = useQuery({
     queryKey: queryKeys.payment.result(params),
     queryFn: () => api.payment.getResult(params),
     enabled: Object.keys(params).length > 0,
     retry: false,
   });
 
-  const isSuccess = data?.status === 'success' || data?.status === '1' || data?.status === '00';
+  const verdict = resolvePaymentVerdict(data, isError);
+  const isSuccess = verdict === 'success';
 
   const removeCartItem = useRemoveCartItem();
   const clearCart = useClearCart();
@@ -76,7 +86,7 @@ export default function PaymentResultPage(): ReactElement {
   return (
     <div className="min-h-screen bg-canvas-base flex items-center justify-center p-4">
       <div className="bg-canvas-surface border border-bdr rounded-2xl p-10 max-w-md w-full flex flex-col items-center gap-5 text-center">
-        {isSuccess ? (
+        {verdict === 'success' && (
           <>
             <div className="w-20 h-20 rounded-full bg-tb-green/15 flex items-center justify-center">
               <CheckCircle size={44} className="text-accent-green" />
@@ -102,18 +112,14 @@ export default function PaymentResultPage(): ReactElement {
                   {orderId ? 'Xem chi tiết đơn hàng →' : 'Xem đơn hàng của tôi →'}
                 </GradientButton>
               </Link>
-              <Link
-                to="/"
-                className={cn(
-                  'w-full px-4 py-2.5 rounded-tb-input border border-bdr bg-canvas-elevated',
-                  'text-ink-pri font-semibold text-sm text-center hover:border-accent-amber transition-colors block',
-                )}
-              >
+              <Link to="/" className={SECONDARY_LINK}>
                 Về trang chủ
               </Link>
             </div>
           </>
-        ) : (
+        )}
+
+        {verdict === 'failed' && (
           <>
             <div className="w-20 h-20 rounded-full bg-tb-red/15 flex items-center justify-center">
               <XCircle size={44} className="text-accent-red" />
@@ -134,14 +140,35 @@ export default function PaymentResultPage(): ReactElement {
                   </GradientButton>
                 </Link>
               )}
-              <Link
-                to="/orders"
-                className={cn(
-                  'w-full px-4 py-2.5 rounded-tb-input border border-bdr bg-canvas-elevated',
-                  'text-ink-pri font-semibold text-sm text-center hover:border-accent-amber transition-colors block',
-                )}
-              >
+              <Link to="/orders" className={SECONDARY_LINK}>
                 Xem tất cả đơn hàng
+              </Link>
+            </div>
+          </>
+        )}
+
+        {verdict === 'unverified' && (
+          <>
+            <div className="w-20 h-20 rounded-full bg-tb-amber/15 flex items-center justify-center">
+              <AlertTriangle size={44} className="text-accent-amber shrink-0" />
+            </div>
+            <div>
+              <h2 className="font-display font-black text-2xl text-white m-0 mb-1">
+                Chưa xác nhận được thanh toán
+              </h2>
+              <p className="text-sm text-ink-sec m-0">
+                Không nhận được phản hồi từ cổng {gwLabel}. Giao dịch của bạn có thể đã thành
+                công — hãy kiểm tra đơn hàng trước khi thanh toán lại.
+              </p>
+            </div>
+            <div className="w-full flex flex-col gap-2.5">
+              <Link to={orderId ? `/order/${orderId}` : '/orders'} className="w-full">
+                <GradientButton className="w-full">
+                  {orderId ? 'Kiểm tra đơn hàng →' : 'Xem đơn hàng của tôi →'}
+                </GradientButton>
+              </Link>
+              <Link to="/" className={SECONDARY_LINK}>
+                Về trang chủ
               </Link>
             </div>
           </>
