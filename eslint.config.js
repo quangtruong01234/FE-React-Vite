@@ -58,4 +58,15 @@ export default defineConfig([
       'react-refresh/only-export-components': 'warn',
     },
   },
+  {
+    // shadcn/ui vendored as-is. `badge.tsx` and `button.tsx` export their `cva`
+    // variants alongside the component, which is exactly what this rule flags —
+    // but the folder is write-blocked (see .ai/context/core.md), so the warning
+    // can never be actioned and only hides real ones. Scoped off here rather
+    // than left standing, so any warning that survives `npm run lint` is real.
+    files: ['src/components/ui/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])
