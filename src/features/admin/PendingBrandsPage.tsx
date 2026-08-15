@@ -1,10 +1,13 @@
-import { type ReactElement, useState } from 'react';
+import { Fragment, type ReactElement, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle, XCircle, Tag } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
 import { formatDate } from '@/lib/format/time';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
+import { toApiError } from '@/lib/http/apiError';
+import { TableErrorRow } from '@/components/shared/TableErrorRow';
+import { submitterLabel } from './submitterLabel';
 import type { ReviewDto } from '@/types';
 
 export default function PendingBrandsPage(): ReactElement {
@@ -13,10 +16,12 @@ export default function PendingBrandsPage(): ReactElement {
   const [rejectNote, setRejectNote] = useState('');
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
 
-  const { data: brands, isLoading } = useQuery({
+  const { data: brands, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.brands.pending,
     queryFn: () => api.products.getPendingBrands(),
   });
+
+  const loadError = toApiError(error);
 
   function showToast(id: number, msg: string): void {
     setToast({ id, msg });
@@ -74,7 +79,10 @@ export default function PendingBrandsPage(): ReactElement {
                 </td>
               </tr>
             )}
-            {!isLoading && !brands?.length && (
+            {!isLoading && loadError && (
+              <TableErrorRow error={loadError} colSpan={6} onRetry={() => { void refetch(); }} />
+            )}
+            {!isLoading && !loadError && !brands?.length && (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center font-body text-sm">
                   <span className="flex flex-col items-center gap-2 text-ink-muted">
@@ -85,9 +93,11 @@ export default function PendingBrandsPage(): ReactElement {
               </tr>
             )}
             {brands?.map((brand, idx) => (
-              <>
+              // The key belongs on the Fragment: it is the element `map` returns.
+              // On the inner <tr> React never saw it and warned, and a reorder or a
+              // removed row would have been reconciled by position.
+              <Fragment key={brand.id}>
                 <tr
-                  key={brand.id}
                   className={cn(
                     'transition-colors hover:bg-canvas-elevated',
                     (idx < (brands.length - 1) || rejectId === brand.id) && 'border-b border-bdr',
@@ -98,7 +108,7 @@ export default function PendingBrandsPage(): ReactElement {
                   <td className="px-4 py-3 font-body text-ink-sec text-sm max-w-[200px] truncate">
                     {brand.description ?? '—'}
                   </td>
-                  <td className="px-4 py-3 font-mono text-ink-sec text-xs">#{brand.submittedBy}</td>
+                  <td className="px-4 py-3 font-mono text-ink-sec text-xs">{submitterLabel(brand.submittedBy)}</td>
                   <td className="px-4 py-3 font-body text-ink-sec text-sm">{formatDate(brand.createdAt)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -132,7 +142,7 @@ export default function PendingBrandsPage(): ReactElement {
                   </td>
                 </tr>
                 {rejectId === brand.id && (
-                  <tr key={`reject-${brand.id}`} className={cn(idx < (brands.length - 1) && 'border-b border-bdr')}>
+                  <tr className={cn(idx < (brands.length - 1) && 'border-b border-bdr')}>
                     <td colSpan={6} className="px-4 py-3 bg-canvas-elevated">
                       <div className="flex items-center gap-3">
                         <input
@@ -161,7 +171,7 @@ export default function PendingBrandsPage(): ReactElement {
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>

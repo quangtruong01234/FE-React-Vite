@@ -5,6 +5,8 @@ import { cn, formatVnd } from '@/lib/format/utils';
 import { formatDate } from '@/lib/format/time';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
+import { toApiError } from '@/lib/http/apiError';
+import { TableErrorRow } from '@/components/shared/TableErrorRow';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { InvoiceDownloadButton } from '@/features/order/InvoiceDownloadButton';
 
@@ -13,17 +15,33 @@ const USERS_PER_PAGE = 20;
 export default function AdminPage(): ReactElement {
   const [usersPage, setUsersPage] = useState(1);
 
-  const { data: ordersData, isLoading: ordersLoading } = useQuery({
+  const {
+    data: ordersData,
+    isLoading: ordersLoading,
+    error: ordersRawError,
+    refetch: refetchOrders,
+  } = useQuery({
     queryKey: queryKeys.orders.admin,
     queryFn: () => api.orders.getAdminOrders(1, 10),
   });
 
-  const { data: usersData, isLoading: usersLoading } = useQuery({
+  const {
+    data: usersData,
+    isLoading: usersLoading,
+    error: usersRawError,
+    refetch: refetchUsers,
+  } = useQuery({
     queryKey: queryKeys.users.list(usersPage, USERS_PER_PAGE),
     queryFn: () => api.users.getPaginated(usersPage, USERS_PER_PAGE),
     // Keep the previous page rendered while the next one loads (no empty flash).
     placeholderData: keepPreviousData,
   });
+
+  // Each section fails on its own: a broken user list must not blank the orders
+  // table, and neither may report "không có … nào" for a request that never
+  // answered. The stat cards keep their "—" placeholder rather than showing 0.
+  const ordersError = toApiError(ordersRawError);
+  const usersError = toApiError(usersRawError);
 
   const users = usersData?.data ?? [];
   const userTotal = usersData?.total ?? 0;
@@ -42,7 +60,7 @@ export default function AdminPage(): ReactElement {
           <div>
             <div className="text-ink-muted font-body text-xs mb-0.5">Tổng đơn hàng</div>
             <div className="font-display font-bold text-2xl text-ink-pri">
-              {ordersLoading ? '—' : (ordersData?.total ?? 0)}
+              {ordersLoading || ordersError ? '—' : (ordersData?.total ?? 0)}
             </div>
           </div>
         </div>
@@ -54,7 +72,7 @@ export default function AdminPage(): ReactElement {
           <div>
             <div className="text-ink-muted font-body text-xs mb-0.5">Tổng người dùng</div>
             <div className="font-display font-bold text-2xl text-ink-pri">
-              {usersLoading ? '—' : userTotal}
+              {usersLoading || usersError ? '—' : userTotal}
             </div>
           </div>
         </div>
@@ -82,7 +100,10 @@ export default function AdminPage(): ReactElement {
                   </td>
                 </tr>
               )}
-              {!ordersLoading && !ordersData?.data.length && (
+              {!ordersLoading && ordersError && (
+                <TableErrorRow error={ordersError} colSpan={6} onRetry={() => { void refetchOrders(); }} />
+              )}
+              {!ordersLoading && !ordersError && !ordersData?.data.length && (
                 <tr>
                   <td colSpan={6} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
                     Không có đơn hàng nào.
@@ -102,7 +123,7 @@ export default function AdminPage(): ReactElement {
                     {order.buyer.name ?? order.buyer.username}
                   </td>
                   <td className="px-4 py-3 font-body font-semibold text-accent-amber text-sm">
-                    {formatVnd(Number(order.total))}
+                    {formatVnd(order.total)}
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={order.status} />
@@ -147,7 +168,10 @@ export default function AdminPage(): ReactElement {
                   </td>
                 </tr>
               )}
-              {!usersLoading && !users.length && (
+              {!usersLoading && usersError && (
+                <TableErrorRow error={usersError} colSpan={5} onRetry={() => { void refetchUsers(); }} />
+              )}
+              {!usersLoading && !usersError && !users.length && (
                 <tr>
                   <td colSpan={6} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
                     Không có người dùng nào.

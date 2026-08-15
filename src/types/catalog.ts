@@ -11,7 +11,8 @@ export interface PendingBrand {
   id: number;
   name: string;
   description?: string;
-  submittedBy: number;
+  /** IDLEAK-02: opaque `usr_…` id. `null` when the account no longer resolves, absent when the user service is down. */
+  submittedBy?: string | null;
   createdAt: string;
 }
 
@@ -26,7 +27,8 @@ export interface PendingCategory {
   id: number;
   name: string;
   description?: string;
-  submittedBy: number;
+  /** IDLEAK-02: opaque `usr_…` id. `null` when the account no longer resolves, absent when the user service is down. */
+  submittedBy?: string | null;
   createdAt: string;
 }
 
