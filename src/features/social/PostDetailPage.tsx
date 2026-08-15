@@ -9,7 +9,7 @@ import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuthContext } from '@/context/AuthContext';
+import { useAuthContext } from '@/context/useAuthContext';
 import { CommentNode } from './CommentNode';
 import { useComments, useCreateComment } from './useComments';
 import { useLikePost, useUnlikePost } from './useFeed';

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuthContext } from '@/context/AuthContext';
+import { useAuthContext } from '@/context/useAuthContext';
 import { useProductReviews, useDeleteReview } from '@/hooks/data/useProductReviews';
 import { StarRating } from '@/components/shared/StarRating';
 

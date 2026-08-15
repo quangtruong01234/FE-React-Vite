@@ -12,7 +12,7 @@ import PostCard from '@/features/social/PostCard';
 import ProductCard from '@/features/product/ProductCard';
 import { useProducts } from '@/features/product/useProducts';
 import { useFollowers, useFollowing, useFollowUser, useUnfollowUser, useIsFollowing } from '@/features/social/useFollow';
-import { useAuthContext } from '@/context/AuthContext';
+import { useAuthContext } from '@/context/useAuthContext';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { usePageParam } from '@/hooks/ui/usePageParam';
 import { Pagination } from '@/components/shared/Pagination';

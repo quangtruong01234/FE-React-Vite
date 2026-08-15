@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { PenLine } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/format/utils';
-import { useAuthContext } from '@/context/AuthContext';
+import { useAuthContext } from '@/context/useAuthContext';
 import { useFeed } from './useFeed';
 import { useFollowingFeed } from './useFollow';
 import PostCard from './PostCard';

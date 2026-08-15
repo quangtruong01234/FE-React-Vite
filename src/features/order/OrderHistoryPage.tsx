@@ -1,7 +1,7 @@
 import { useState, type ReactElement } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Search } from 'lucide-react';
-import { useAuthContext } from '@/context/AuthContext';
+import { useAuthContext } from '@/context/useAuthContext';
 import { useOrdersByUser } from './useOrdersByUser';
 import { useOrderStatusCounts } from './useOrderStatusCounts';
 import { orderItemsSummary, orderCoverImage } from './orderSummary';
@@ -80,7 +80,7 @@ export default function OrderHistoryPage(): ReactElement {
 
       <div className="max-w-[900px] mx-auto px-8 pt-8 pb-10">
         {/* Page title */}
-        <h1 className="font-display font-black text-[36px] leading-[1.05] tracking-[-0.02em] text-ink-pri m-0 mb-1">
+        <h1 className="font-display font-black text-4xl leading-[1.05] tracking-[-0.02em] text-ink-pri m-0 mb-1">
           Đơn hàng của tôi
         </h1>
         <p className="font-body text-sm text-ink-sec mt-0 mb-7">
@@ -98,7 +98,7 @@ export default function OrderHistoryPage(): ReactElement {
 
         {/* Filter tabs + search */}
         <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
-          <div className="flex gap-[10px] overflow-x-auto pb-[2px]">
+          <div className="flex gap-2.5 overflow-x-auto pb-0.5">
             {FILTER_OPTS.map(opt => {
               const active = opt.id === filterTab;
               return (
@@ -107,7 +107,7 @@ export default function OrderHistoryPage(): ReactElement {
                   type="button"
                   onClick={() => setFilterTab(opt.id)}
                   className={cn(
-                    'flex-none px-[18px] py-[10px] rounded-full text-ink-pri font-body font-semibold text-[13px] cursor-pointer whitespace-nowrap border',
+                    'flex-none px-[18px] py-2.5 rounded-full text-ink-pri font-body font-semibold text-[13px] cursor-pointer whitespace-nowrap border',
                     active ? 'bg-tb-gradient border-transparent' : 'bg-tb-elevated border-tb-border',
                   )}
                 >
@@ -117,7 +117,7 @@ export default function OrderHistoryPage(): ReactElement {
             })}
           </div>
           <div className="relative w-[280px] shrink-0">
-            <Search size={16} className="absolute left-[14px] top-1/2 -translate-y-1/2 text-tb-muted pointer-events-none" />
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-tb-muted pointer-events-none" />
             <input
               type="text"
               placeholder="Tìm theo mã đơn…"
@@ -125,7 +125,7 @@ export default function OrderHistoryPage(): ReactElement {
               // The backend answers 400 past 32 chars — cap the box, not the request.
               maxLength={ORDER_SEARCH_MAX}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-tb-elevated border border-tb-border rounded-[10px] py-[10px] pl-[40px] pr-[14px] text-ink-pri font-body text-[13px] placeholder:text-tb-muted outline-none focus:border-tb-amber/50 transition-colors"
+              className="w-full bg-tb-elevated border border-tb-border rounded-tb-input py-2.5 pl-10 pr-3.5 text-ink-pri font-body text-[13px] placeholder:text-tb-muted outline-none focus:border-tb-amber/50 transition-colors"
             />
           </div>
         </div>
@@ -207,7 +207,7 @@ export default function OrderHistoryPage(): ReactElement {
 
                   {/* Price */}
                   <div className="font-mono font-bold text-accent-amber whitespace-nowrap text-right">
-                    {formatVnd(Number(order.total))}
+                    {formatVnd(order.total)}
                   </div>
                 </div>
               </Link>

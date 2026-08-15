@@ -8,7 +8,7 @@ import { cldImage } from '@/lib/http/cloudinaryUrl';
 import { preloadImage } from '@/lib/http/preloadImage';
 import { Avatar } from '@/components/shared/Avatar';
 import { ModalCloseButton } from '@/components/shared/ModalCloseButton';
-import { useAuthContext } from '@/context/AuthContext';
+import { useAuthContext } from '@/context/useAuthContext';
 import { useLikePost, useUnlikePost } from './useFeed';
 import { useIsFollowing, useFollowUser, useUnfollowUser } from './useFollow';
 import { useSharePost } from './useSharePost';
@@ -162,7 +162,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
       {/* content */}
       {post.content && (
         <div className="px-5 pb-4">
-          <p className="m-0 text-[18px] leading-relaxed text-ink-pri font-body">
+          <p className="m-0 text-lg leading-relaxed text-ink-pri font-body">
             {post.content}
           </p>
         </div>
@@ -178,6 +178,10 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
             type="button"
             onClick={(e) => openLightbox(e, 0)}
             onMouseEnter={() => warmLightbox(0)}
+            // The nested <img> carries alt="" (posts have no caption to borrow),
+            // so the button itself has to name the action — otherwise a screen
+            // reader announces a bare "button" on every image in the feed.
+            aria-label="Xem ảnh bài viết"
             className="w-full bg-black flex items-center justify-center aspect-[4/3] max-h-[520px] overflow-hidden border-0 p-0 cursor-pointer"
           >
             {/* Fixed aspect reserves the slot before the image loads → no feed CLS. */}
@@ -195,6 +199,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
               type="button"
               onClick={(e) => openLightbox(e, 0)}
               onMouseEnter={() => warmLightbox(0)}
+              aria-label={`Xem ảnh 1/${images.length}`}
               className="bg-black row-span-2 overflow-hidden border-0 p-0 cursor-pointer"
             >
               <PostImage
@@ -211,6 +216,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
                 type="button"
                 onClick={(e) => openLightbox(e, i + 1)}
                 onMouseEnter={() => warmLightbox(i + 1)}
+                aria-label={`Xem ảnh ${i + 2}/${images.length}`}
                 className="bg-black aspect-square overflow-hidden border-0 p-0 cursor-pointer"
               >
                 <PostImage src={url} width={600} className="w-full h-full object-cover" loading="lazy" />
@@ -225,6 +231,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
                 type="button"
                 onClick={(e) => openLightbox(e, i)}
                 onMouseEnter={() => warmLightbox(i)}
+                aria-label={`Xem ảnh ${i + 1}/${images.length}`}
                 className="bg-black aspect-square overflow-hidden border-0 p-0 cursor-pointer"
               >
                 <PostImage
@@ -256,6 +263,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
           {images.length > 1 && (
             <IconButton
               onClick={goPrev}
+              aria-label="Ảnh trước"
               className="absolute left-4 size-10 rounded-full bg-white/10 hover:bg-white/25 text-white border-0 cursor-pointer transition-colors z-10"
             >
               <ChevronLeft size={22} className="shrink-0" />
@@ -274,6 +282,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
           {images.length > 1 && (
             <IconButton
               onClick={goNext}
+              aria-label="Ảnh sau"
               className="absolute right-4 size-10 rounded-full bg-white/10 hover:bg-white/25 text-white border-0 cursor-pointer transition-colors z-10"
             >
               <ChevronRight size={22} className="shrink-0" />

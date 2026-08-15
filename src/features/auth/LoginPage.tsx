@@ -9,7 +9,7 @@ import { registerSchema, type RegisterFormData } from './auth.schema';
 import { ForgotPasswordForm } from './ForgotPasswordForm';
 import { PasswordField } from './PasswordField';
 import { api } from '@/api';
-import { useAuthContext } from '@/context/AuthContext';
+import { useAuthContext } from '@/context/useAuthContext';
 import type { User } from '@/types';
 import { cn } from '@/lib/format/utils';
 import { credentialConflictError } from '@/lib/domain/credentialConflict';
@@ -60,7 +60,7 @@ function LeftPanel(): ReactElement {
   ];
 
   return (
-    <aside className="hidden md:flex flex-col justify-between px-[64px] py-[60px] overflow-hidden border-r border-tb-border bg-tb-base bg-login-left">
+    <aside className="hidden md:flex flex-col justify-between px-16 py-[60px] overflow-hidden border-r border-tb-border bg-tb-base bg-login-left">
       <TBLogo />
 
       <div className="flex flex-col gap-[22px] max-w-[480px]">
@@ -73,7 +73,7 @@ function LeftPanel(): ReactElement {
           Livestream 24/7, giá tốt nhất.
         </p>
 
-        <div className="grid grid-cols-3 gap-3 mt-[14px]">
+        <div className="grid grid-cols-3 gap-3 mt-3.5">
           {statTiles.map((s) => (
             <div
               key={s.v}
@@ -144,14 +144,14 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
           </p>
         </div>
 
-        <div className="tb-enter tb-stagger flex flex-col gap-[14px]">
+        <div className="tb-enter tb-stagger flex flex-col gap-3.5">
           {errors.root?.message && (
-            <div className="bg-tb-red/10 border border-tb-red/40 rounded-tb-input text-tb-red text-[13px] px-[14px] py-[10px] text-center">
+            <div className="bg-tb-red/10 border border-tb-red/40 rounded-tb-input text-tb-red text-[13px] px-3.5 py-2.5 text-center">
               {errors.root.message}
             </div>
           )}
 
-          <form className="flex flex-col gap-[14px]" onSubmit={(e) => void handleSubmit(onSubmit)(e)} noValidate>
+          <form className="flex flex-col gap-3.5" onSubmit={(e) => void handleSubmit(onSubmit)(e)} noValidate>
             <div className="flex flex-col gap-1">
               <label htmlFor="reg-username" className="font-body font-[500] text-[11px] leading-[1.4] text-tb-secondary tracking-[0.04em] uppercase">
                 Tên đăng nhập
@@ -161,7 +161,7 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
                 placeholder="Nhập tên đăng nhập"
                 autoFocus
                 className={cn(
-                  'h-[44px] bg-tb-elevated border rounded-[10px] px-[14px] text-white font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
+                  'h-11 bg-tb-elevated border rounded-tb-input px-3.5 text-white font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
                   'focus:border-[rgba(245,158,11,0.5)] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)]',
                   errors.username ? 'border-tb-red focus:border-tb-red focus:shadow-[0_0_0_4px_rgba(239,68,68,0.10)]' : 'border-tb-border',
                 )}
@@ -179,7 +179,7 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
                 type="email"
                 placeholder="Nhập địa chỉ email"
                 className={cn(
-                  'h-[44px] bg-tb-elevated border rounded-[10px] px-[14px] text-white font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
+                  'h-11 bg-tb-elevated border rounded-tb-input px-3.5 text-white font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
                   'focus:border-[rgba(245,158,11,0.5)] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)]',
                   errors.email ? 'border-tb-red focus:border-tb-red focus:shadow-[0_0_0_4px_rgba(239,68,68,0.10)]' : 'border-tb-border',
                 )}
@@ -264,19 +264,19 @@ export default function LoginPage(): ReactElement {
               </p>
             </div>
 
-            <div className="tb-enter tb-stagger flex flex-col gap-[14px]">
+            <div className="tb-enter tb-stagger flex flex-col gap-3.5">
               {resetNotice && !apiError && (
-                <div className="bg-accent-green/15 border border-accent-green/30 rounded-tb-input text-accent-green text-[13px] px-[14px] py-[10px] text-center">
+                <div className="bg-accent-green/15 border border-accent-green/30 rounded-tb-input text-accent-green text-[13px] px-3.5 py-2.5 text-center">
                   Đặt lại mật khẩu thành công. Hãy đăng nhập với mật khẩu mới.
                 </div>
               )}
               {apiError && (
-                <div className="bg-tb-red/10 border border-tb-red/40 rounded-tb-input text-tb-red text-[13px] px-[14px] py-[10px] text-center">
+                <div className="bg-tb-red/10 border border-tb-red/40 rounded-tb-input text-tb-red text-[13px] px-3.5 py-2.5 text-center">
                   {apiError}
                 </div>
               )}
 
-              <form className="flex flex-col gap-[14px]" onSubmit={(e) => void handleSubmit(e)} noValidate>
+              <form className="flex flex-col gap-3.5" onSubmit={(e) => void handleSubmit(e)} noValidate>
                 <div className="flex flex-col gap-1">
                   <TextField
                     id="username" name="username"

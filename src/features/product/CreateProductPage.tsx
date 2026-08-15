@@ -6,7 +6,7 @@ import { IconButton } from '@/components/shared/IconButton';
 import { ToggleSwitch } from '@/components/shared/ToggleSwitch';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
-import { useAuthContext } from '@/context/AuthContext';
+import { useAuthContext } from '@/context/useAuthContext';
 import { useRole } from '@/hooks/auth/useRole';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/format/utils';
@@ -320,6 +320,7 @@ export default function CreateProductPage(): ReactElement {
       <div className="flex items-center gap-3 mb-6">
         <IconButton
           onClick={() => navigate(-1)}
+          aria-label="Quay lại"
           className="size-8 rounded-full hover:bg-canvas-elevated text-ink-sec transition-colors shrink-0"
         >
           <ChevronLeft size={18} className="shrink-0" />
@@ -384,6 +385,7 @@ export default function CreateProductPage(): ReactElement {
                   <span className="text-xs text-ink-muted font-body">Nhiều phân loại</span>
                   <ToggleSwitch
                     size="sm"
+                    label="Nhiều phân loại"
                     checked={form.fields.hasVariations}
                     onChange={v => form.setField('hasVariations', v)}
                   />

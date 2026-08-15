@@ -3,7 +3,7 @@ import { User, Package, Store, LayoutDashboard, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Avatar } from '@/components/shared/Avatar';
 import { useRole } from '@/hooks/auth/useRole';
-import { useAuthContext } from '@/context/AuthContext';
+import { useAuthContext } from '@/context/useAuthContext';
 
 export function ProfileMenu(): ReactElement {
   const [open, setOpen] = useState(false);
@@ -50,20 +50,20 @@ export function ProfileMenu(): ReactElement {
 
           <button
             onClick={() => go(`/profile/${me.id}`)}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-[10px] bg-transparent border-0 cursor-pointer hover:bg-canvas-elevated transition-colors text-left text-sm text-ink-pri"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-tb-input bg-transparent border-0 cursor-pointer hover:bg-canvas-elevated transition-colors text-left text-sm text-ink-pri"
           >
             <User size={15} className="text-ink-sec" /> Trang cá nhân
           </button>
           <button
             onClick={() => go('/orders')}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-[10px] bg-transparent border-0 cursor-pointer hover:bg-canvas-elevated transition-colors text-left text-sm text-ink-pri"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-tb-input bg-transparent border-0 cursor-pointer hover:bg-canvas-elevated transition-colors text-left text-sm text-ink-pri"
           >
             <Package size={15} className="text-ink-sec" /> Đơn hàng
           </button>
           {isSeller && (
             <button
               onClick={() => go('/shop')}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-[10px] bg-transparent border-0 cursor-pointer hover:bg-canvas-elevated transition-colors text-left text-sm text-ink-pri"
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-tb-input bg-transparent border-0 cursor-pointer hover:bg-canvas-elevated transition-colors text-left text-sm text-ink-pri"
             >
               <Store size={15} className="text-ink-sec" /> Kênh người bán
             </button>
@@ -71,7 +71,7 @@ export function ProfileMenu(): ReactElement {
           {isAdmin && (
             <button
               onClick={() => go('/admin')}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-[10px] bg-transparent border-0 cursor-pointer hover:bg-canvas-elevated transition-colors text-left text-sm text-ink-pri"
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-tb-input bg-transparent border-0 cursor-pointer hover:bg-canvas-elevated transition-colors text-left text-sm text-ink-pri"
             >
               <LayoutDashboard size={15} className="text-ink-sec" /> Quản trị sàn
             </button>
@@ -80,7 +80,7 @@ export function ProfileMenu(): ReactElement {
           <div className="h-px bg-bdr my-1.5" />
           <button
             onClick={() => logout({ onSuccess: () => void navigate('/login') })}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-[10px] bg-transparent border-0 cursor-pointer hover:bg-canvas-elevated transition-colors text-left text-sm text-ink-sec"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-tb-input bg-transparent border-0 cursor-pointer hover:bg-canvas-elevated transition-colors text-left text-sm text-ink-sec"
           >
             <LogOut size={15} /> Đăng xuất
           </button>

@@ -24,7 +24,7 @@ import { IconButton } from "@/components/shared/IconButton";
 import { ProductThumb } from "@/components/shared/ProductThumb";
 import { api } from "@/api";
 import { queryKeys } from "@/hooks/query/queryKeys";
-import { useAuthContext } from "@/context/AuthContext";
+import { useAuthContext } from "@/context/useAuthContext";
 import type { ProductWithInventory } from "@/types";
 
 const CONDITION_LABEL: Record<string, string> = {
@@ -144,6 +144,7 @@ function ProductRow({
         >
           <ToggleSwitch
             size="sm"
+            label={`Hiển thị ${product.name}`}
             checked={product.isActive ?? true}
             onChange={onToggleActive}
             disabled={isTogglingActive || isBlocked}
@@ -154,6 +155,7 @@ function ProductRow({
         <div className="flex items-center gap-1.5">
           <IconButton
             onClick={onEdit}
+            aria-label={`Sửa ${product.name}`}
             className="size-7 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec hover:border-accent-amber/50 hover:text-accent-amber transition-colors"
           >
             <Pencil size={13} className="shrink-0" />
@@ -161,6 +163,7 @@ function ProductRow({
           <IconButton
             onClick={onDelete}
             disabled={isDeleting}
+            aria-label={`Xóa ${product.name}`}
             className="size-7 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec hover:border-accent-red/50 hover:text-accent-red transition-colors disabled:opacity-40"
           >
             <Trash2 size={13} className="shrink-0" />
@@ -456,6 +459,7 @@ export default function ShopPage() {
                   </div>
                   <IconButton
                     onClick={() => handleEdit(row.productId)}
+                    aria-label={`Sửa ${row.name}`}
                     className="size-7 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec hover:border-accent-amber/50 hover:text-accent-amber transition-colors shrink-0"
                   >
                     <Pencil size={13} className="shrink-0" />

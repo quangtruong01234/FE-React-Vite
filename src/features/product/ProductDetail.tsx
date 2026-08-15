@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
 import { useCart, useAddToCart } from '@/hooks/data/useCart';
 import { queryKeys } from '@/hooks/query/queryKeys';
-import { useAuthContext } from '@/context/AuthContext';
+import { useAuthContext } from '@/context/useAuthContext';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/format/utils';
@@ -64,7 +64,7 @@ export default function ProductDetail(): ReactElement {
         </div>
         <div className="max-w-[1080px] mx-auto px-8 pt-6 grid lg:grid-cols-[1.15fr_1fr] gap-12">
           <div className="flex flex-col gap-3">
-            <Skeleton className="w-full aspect-square bg-canvas-elevated rounded-[20px]" />
+            <Skeleton className="w-full aspect-square bg-canvas-elevated rounded-tb-sheet" />
             <div className="flex gap-2.5">
               {[1, 2, 3, 4].map(i => <Skeleton key={i} className="w-[84px] h-[84px] bg-canvas-elevated rounded-xl" />)}
             </div>
@@ -182,7 +182,7 @@ export default function ProductDetail(): ReactElement {
 
           {/* Col 1 — Gallery */}
           <div>
-            <div className="relative aspect-square bg-canvas-elevated rounded-[20px] border border-bdr overflow-hidden">
+            <div className="relative aspect-square bg-canvas-elevated rounded-tb-sheet border border-bdr overflow-hidden">
               {gallery.length > 0 ? (
                 <img
                   src={cldImage(gallery[activeImg], 1200)}
@@ -390,7 +390,7 @@ export default function ProductDetail(): ReactElement {
             {/* Seller card + trust strip — hidden when viewing own product */}
             {!isOwner && (
               <>
-                <div className="flex items-center gap-[14px] p-[18px] bg-canvas-surface border border-bdr rounded-2xl">
+                <div className="flex items-center gap-3.5 p-[18px] bg-canvas-surface border border-bdr rounded-2xl">
                   <Avatar alt={sellerName} size={48} />
                   <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                     <span className="font-body font-semibold text-sm text-white truncate">{sellerName}</span>
@@ -398,7 +398,7 @@ export default function ProductDetail(): ReactElement {
                   </div>
                   <button
                     type="button"
-                    className="bg-canvas-elevated border border-bdr rounded-[10px] px-3 py-2 font-body font-semibold text-xs text-tb-secondary cursor-pointer hover:border-accent-amber hover:text-white transition-colors whitespace-nowrap">
+                    className="bg-canvas-elevated border border-bdr rounded-tb-input px-3 py-2 font-body font-semibold text-xs text-tb-secondary cursor-pointer hover:border-accent-amber hover:text-white transition-colors whitespace-nowrap">
                     Theo dõi
                   </button>
                   <button
@@ -408,7 +408,7 @@ export default function ProductDetail(): ReactElement {
                         ? navigate('/messages', { state: { otherUserId: detail.userId } })
                         : navigate('/login')
                     }
-                    className="bg-canvas-elevated border border-bdr rounded-[10px] px-3 py-2 font-body font-semibold text-xs text-tb-secondary cursor-pointer hover:border-accent-amber hover:text-white transition-colors whitespace-nowrap">
+                    className="bg-canvas-elevated border border-bdr rounded-tb-input px-3 py-2 font-body font-semibold text-xs text-tb-secondary cursor-pointer hover:border-accent-amber hover:text-white transition-colors whitespace-nowrap">
                     Chat
                   </button>
                 </div>
@@ -416,7 +416,7 @@ export default function ProductDetail(): ReactElement {
                 <div className="grid grid-cols-3 gap-3 pt-4 border-t border-bdr">
                   {trustItems.map(({ Icon, label, sub }) => (
                     <div key={label} className="flex items-center gap-2.5">
-                      <span className="w-9 h-9 rounded-[10px] bg-tb-amber/[0.10] text-tb-amber flex-none inline-flex items-center justify-center">
+                      <span className="w-9 h-9 rounded-tb-input bg-tb-amber/[0.10] text-tb-amber flex-none inline-flex items-center justify-center">
                         <Icon size={18} />
                       </span>
                       <div className="flex flex-col">
