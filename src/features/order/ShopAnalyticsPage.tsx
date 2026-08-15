@@ -8,7 +8,7 @@ import { useAnalyticsFilters } from './analytics/useAnalyticsFilters';
 export default function ShopAnalyticsPage(): ReactElement {
   const [filters, setFilters] = useAnalyticsFilters();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.orders.sellerAnalytics(filters),
     queryFn: () => api.orders.getSellerAnalytics(filters),
   });
@@ -16,7 +16,14 @@ export default function ShopAnalyticsPage(): ReactElement {
   return (
     <div className="max-w-5xl mx-auto py-8 px-4 space-y-6">
       <h1 className="font-display font-bold text-2xl text-ink-pri">Thống kê bán hàng</h1>
-      <AnalyticsDashboard data={data} isLoading={isLoading} filters={filters} onFiltersChange={setFilters} />
+      <AnalyticsDashboard
+        data={data}
+        isLoading={isLoading}
+        error={error}
+        onRetry={() => { void refetch(); }}
+        filters={filters}
+        onFiltersChange={setFilters}
+      />
     </div>
   );
 }

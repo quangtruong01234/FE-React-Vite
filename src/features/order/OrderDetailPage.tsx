@@ -298,7 +298,7 @@ export default function OrderDetailPage(): ReactElement {
                 src={item.image ?? ''}
                 alt={item.productName ?? ''}
                 to={`/product/${item.productId}`}
-                className="w-14 h-14 rounded-[10px]"
+                className="w-14 h-14 rounded-tb-input"
               />
               <div className="min-w-0 flex-1">
                 <Link

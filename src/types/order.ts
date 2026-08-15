@@ -222,7 +222,8 @@ export interface RevenuePoint {
 }
 
 export interface TopProductStat {
-  productId: string;
+  /** IDLEAK-02: `prod_…`, or `null` once the product is deleted. Not read by the dashboard (charts key on `productName`). */
+  productId: string | null;
   productName: string;
   quantitySold: number;
   revenue: number;

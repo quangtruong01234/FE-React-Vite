@@ -180,7 +180,7 @@ export default function SellerReturnRequestsPage(): ReactElement {
         </button>
       </div>
 
-      <h1 className="font-display font-black text-[36px] leading-[1.05] tracking-[-0.02em] text-ink-pri m-0 mb-1">
+      <h1 className="font-display font-black text-4xl leading-[1.05] tracking-[-0.02em] text-ink-pri m-0 mb-1">
         Yêu cầu trả hàng
       </h1>
       <p className="font-body text-sm text-ink-sec mt-1 mb-7">
@@ -199,7 +199,7 @@ export default function SellerReturnRequestsPage(): ReactElement {
       )}
 
       {/* Filter tabs */}
-      <div className="flex gap-[10px] overflow-x-auto pb-[2px] mb-6">
+      <div className="flex gap-2.5 overflow-x-auto pb-0.5 mb-6">
         {FILTER_OPTS.map(opt => {
           const active = opt.id === filterTab;
           return (
@@ -208,7 +208,7 @@ export default function SellerReturnRequestsPage(): ReactElement {
               type="button"
               onClick={() => handleTabChange(opt.id)}
               className={cn(
-                'flex-none px-[18px] py-[10px] rounded-full text-ink-pri font-body font-semibold text-[13px] cursor-pointer whitespace-nowrap border',
+                'flex-none px-[18px] py-2.5 rounded-full text-ink-pri font-body font-semibold text-[13px] cursor-pointer whitespace-nowrap border',
                 active ? 'bg-tb-gradient border-transparent' : 'bg-tb-elevated border-tb-border',
               )}
             >

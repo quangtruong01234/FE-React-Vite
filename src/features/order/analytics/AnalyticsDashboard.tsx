@@ -15,6 +15,8 @@ import {
 } from 'recharts';
 import { DollarSign, Package, Receipt, TrendingUp } from 'lucide-react';
 import { cn, formatPrice, formatVnd } from '@/lib/format/utils';
+import { toApiError } from '@/lib/http/apiError';
+import { ApiErrorState } from '@/components/shared/ApiErrorState';
 import { ORDER_STATUS_META } from '@/lib/domain/orderStatus';
 import { rangePresetDates } from './analyticsRange';
 import type { AnalyticsFilters } from './useAnalyticsFilters';
@@ -47,6 +49,9 @@ const RANGE_PRESETS: { key: RangePreset; label: string; days: number }[] = [
 interface AnalyticsDashboardProps {
   data: OrderAnalytics | undefined;
   isLoading: boolean;
+  /** Raw query error, if any — the dashboard normalises it itself. */
+  error?: unknown;
+  onRetry?: () => void;
   filters: AnalyticsFilters;
   onFiltersChange: (filters: AnalyticsFilters) => void;
 }
@@ -73,7 +78,12 @@ function StatCard({
   );
 }
 
-export function AnalyticsDashboard({ data, isLoading, filters, onFiltersChange }: AnalyticsDashboardProps): ReactElement {
+export function AnalyticsDashboard({ data, isLoading, error, onRetry, filters, onFiltersChange }: AnalyticsDashboardProps): ReactElement {
+  // The filter bar stays mounted on failure so the user can narrow the range and
+  // retry; only the charts are replaced. Without this the page rendered nothing
+  // at all below the heading — indistinguishable from "chưa có dữ liệu".
+  const loadError = toApiError(error);
+
   function applyRangePreset(days: number): void {
     onFiltersChange({ ...filters, ...rangePresetDates(days) });
   }
@@ -127,7 +137,11 @@ export function AnalyticsDashboard({ data, isLoading, filters, onFiltersChange }
         <div className="py-16 text-center font-body text-sm text-ink-muted">Đang tải dữ liệu...</div>
       )}
 
-      {!isLoading && data && (
+      {!isLoading && loadError && (
+        <ApiErrorState error={loadError} onRetry={onRetry} embedded />
+      )}
+
+      {!isLoading && !loadError && data && (
         <>
           {/* Summary cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

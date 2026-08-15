@@ -42,6 +42,16 @@ describe('formatVnd', () => {
   it('coerces decimal-string money values', () => {
     expect(formatVnd('1500000.00')).toBe('1.500.000 đ');
   });
+
+  // AUD-0816-04: call sites used to wrap the argument in `Number()`, which is
+  // both redundant (the formatter already coerces strings) and harmful —
+  // `Number(null)` is `0`, so a missing amount rendered as a confident "0 đ"
+  // instead of the em dash that says "we don't have this value".
+  it('renders a missing amount as an em dash, not 0 đ', () => {
+    expect(formatVnd(null as unknown as number)).toBe('—');
+    expect(formatVnd(undefined as unknown as number)).toBe('—');
+    expect(formatVnd(Number(null))).toBe('0 đ');
+  });
 });
 
 describe('buildVariantLabel', () => {

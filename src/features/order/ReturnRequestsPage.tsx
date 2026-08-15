@@ -39,7 +39,7 @@ export default function ReturnRequestsPage(): ReactElement {
         </button>
       </div>
 
-      <h1 className="font-display font-black text-[36px] leading-[1.05] tracking-[-0.02em] text-ink-pri m-0 mb-1">
+      <h1 className="font-display font-black text-4xl leading-[1.05] tracking-[-0.02em] text-ink-pri m-0 mb-1">
         Yêu cầu trả hàng
       </h1>
       <p className="font-body text-sm text-ink-sec mt-1 mb-7">
