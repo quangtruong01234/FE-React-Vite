@@ -41,7 +41,7 @@ export function NotificationBell(): ReactElement {
       <button
         onClick={() => setOpen(o => !o)}
         aria-label="Thông báo"
-        className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-[10px] p-2.5 grid place-items-center cursor-pointer hover:border-accent-amber transition-colors"
+        className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-tb-input p-2.5 grid place-items-center cursor-pointer hover:border-accent-amber transition-colors"
       >
         <Bell size={16} className="shrink-0" />
         {unreadCount > 0 && (

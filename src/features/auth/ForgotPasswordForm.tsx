@@ -26,7 +26,7 @@ interface ForgotPasswordFormProps {
 
 const fieldInput = (hasError: boolean): string =>
   cn(
-    'h-[44px] bg-tb-elevated border rounded-[10px] px-[14px] text-white font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
+    'h-11 bg-tb-elevated border rounded-tb-input px-3.5 text-white font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
     'focus:border-[rgba(245,158,11,0.5)] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)]',
     hasError ? 'border-tb-red focus:border-tb-red focus:shadow-[0_0_0_4px_rgba(239,68,68,0.10)]' : 'border-tb-border',
   );
@@ -125,14 +125,14 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
           </p>
         </div>
 
-        <div className="tb-enter tb-stagger flex flex-col gap-[14px]">
+        <div className="tb-enter tb-stagger flex flex-col gap-3.5">
           {apiError && (
-            <div className="bg-tb-red/10 border border-tb-red/40 rounded-tb-input text-tb-red text-[13px] px-[14px] py-[10px] text-center">
+            <div className="bg-tb-red/10 border border-tb-red/40 rounded-tb-input text-tb-red text-[13px] px-3.5 py-2.5 text-center">
               {apiError}
             </div>
           )}
           {resendNotice && !apiError && (
-            <div className="bg-accent-green/15 border border-accent-green/30 rounded-tb-input text-accent-green text-[13px] px-[14px] py-[10px] text-center">
+            <div className="bg-accent-green/15 border border-accent-green/30 rounded-tb-input text-accent-green text-[13px] px-3.5 py-2.5 text-center">
               Đã gửi lại mã (nếu email tồn tại).
             </div>
           )}
@@ -143,7 +143,7 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
             // leak into the code field.
             <form
               key="email"
-              className="flex flex-col gap-[14px]"
+              className="flex flex-col gap-3.5"
               onSubmit={(e) => void emailForm.handleSubmit(onSubmitEmail)(e)}
               noValidate
             >
@@ -172,7 +172,7 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
           ) : (
             <form
               key="reset"
-              className="flex flex-col gap-[14px]"
+              className="flex flex-col gap-3.5"
               onSubmit={(e) => void resetForm.handleSubmit(onSubmitReset)(e)}
               noValidate
             >

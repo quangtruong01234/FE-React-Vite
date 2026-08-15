@@ -58,7 +58,7 @@ export function RightRail(): ReactElement {
             <Link
               key={s.id}
               to={`/profile/${s.id}`}
-              className="flex items-center gap-3 px-2 py-2 rounded-[10px] hover:bg-canvas-elevated transition-colors"
+              className="flex items-center gap-3 px-2 py-2 rounded-tb-input hover:bg-canvas-elevated transition-colors"
             >
               <Avatar src={s.avatar ?? undefined} alt={s.username} size={36} />
               <div className="min-w-0 flex-1">
@@ -100,7 +100,7 @@ export function RightRail(): ReactElement {
             <Link
               key={p.id}
               to={`/product/${p.id}`}
-              className="flex items-center gap-3 px-2 py-2 rounded-[10px] hover:bg-canvas-elevated transition-colors"
+              className="flex items-center gap-3 px-2 py-2 rounded-tb-input hover:bg-canvas-elevated transition-colors"
             >
               <ProductThumb
                 src={p.imageUrl}

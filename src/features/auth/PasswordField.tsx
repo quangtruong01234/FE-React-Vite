@@ -29,7 +29,7 @@ export function PasswordField({ id, label, placeholder, error, inputProps }: Pas
           placeholder={placeholder}
           autoComplete="new-password"
           className={cn(
-            'w-full h-[44px] bg-tb-elevated border rounded-[10px] pl-[14px] pr-11 text-white font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
+            'w-full h-11 bg-tb-elevated border rounded-tb-input pl-3.5 pr-11 text-white font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
             'focus:border-[rgba(245,158,11,0.5)] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)]',
             error ? 'border-tb-red focus:border-tb-red focus:shadow-[0_0_0_4px_rgba(239,68,68,0.10)]' : 'border-tb-border',
           )}

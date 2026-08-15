@@ -452,7 +452,7 @@ export default function CheckoutPage(): ReactElement {
                 name="paymentMethod"
                 control={control}
                 render={({ field }) => (
-                  <div className="flex flex-col gap-[10px]">
+                  <div className="flex flex-col gap-2.5">
                     {paymentLoading ? (
                       <>
                         <Skeleton className="h-[52px] rounded-tb-cta bg-canvas-elevated" />
@@ -469,7 +469,7 @@ export default function CheckoutPage(): ReactElement {
                             type="button"
                             onClick={() => field.onChange(id as PaymentMethod)}
                             className={cn(
-                              "flex items-center gap-[14px] px-[18px] py-[14px] text-left rounded-tb-cta border w-full cursor-pointer",
+                              "flex items-center gap-3.5 px-[18px] py-3.5 text-left rounded-tb-cta border w-full cursor-pointer",
                               active
                                 ? "bg-tb-amber/[0.08] border-tb-amber/50"
                                 : "bg-tb-elevated border-tb-border",
@@ -535,12 +535,12 @@ export default function CheckoutPage(): ReactElement {
                 >
                   <div className="flex flex-wrap items-center gap-3">
                     {productsLoading ? (
-                      <Skeleton className="w-14 h-14 rounded-[10px] shrink-0" />
+                      <Skeleton className="w-14 h-14 rounded-tb-input shrink-0" />
                     ) : (
                       <ProductThumb
                         src={imageUrl}
                         alt={name}
-                        className="w-14 h-14 rounded-[10px]"
+                        className="w-14 h-14 rounded-tb-input"
                       />
                     )}
                     <div className="min-w-[120px] flex-1">
@@ -683,13 +683,13 @@ export default function CheckoutPage(): ReactElement {
                         }
                       }}
                       placeholder="Mã giảm giá"
-                      className="h-9 flex-1 min-w-0 bg-canvas-base border border-bdr rounded-[10px] px-3 text-ink-pri font-mono text-[13px] uppercase placeholder:normal-case placeholder:font-body placeholder:text-ink-muted outline-none focus:border-tb-amber/50 transition-colors"
+                      className="h-9 flex-1 min-w-0 bg-canvas-base border border-bdr rounded-tb-input px-3 text-ink-pri font-mono text-[13px] uppercase placeholder:normal-case placeholder:font-body placeholder:text-ink-muted outline-none focus:border-tb-amber/50 transition-colors"
                     />
                     <button
                       type="button"
                       onClick={handleApplyVoucher}
                       disabled={voucherPending || !voucherInput.trim()}
-                      className="h-9 px-3 rounded-[10px] border border-bdr bg-canvas-elevated text-ink-pri font-body font-semibold text-[13px] whitespace-nowrap transition-colors enabled:cursor-pointer enabled:hover:border-accent-amber disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="h-9 px-3 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-pri font-body font-semibold text-[13px] whitespace-nowrap transition-colors enabled:cursor-pointer enabled:hover:border-accent-amber disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {voucherPending ? "Đang kiểm tra…" : "Áp dụng"}
                     </button>

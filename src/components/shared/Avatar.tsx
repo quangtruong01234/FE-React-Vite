@@ -26,8 +26,8 @@ export function Avatar({
       className={cn('relative flex-shrink-0', className)}
       style={{ '--avatar-sz': `${size}px`, '--avatar-fs': `${size * 0.35}px` } as React.CSSProperties}
     >
-      <div className="rounded-full p-[2px] w-[var(--avatar-sz)] h-[var(--avatar-sz)] bg-tb-gradient">
-        <div className="rounded-full p-[2px] w-full h-full bg-tb-base">
+      <div className="rounded-full p-0.5 w-[var(--avatar-sz)] h-[var(--avatar-sz)] bg-tb-gradient">
+        <div className="rounded-full p-0.5 w-full h-full bg-tb-base">
           {src ? (
             <img
               src={cldImage(src, size * 2)}

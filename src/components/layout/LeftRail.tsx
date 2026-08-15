@@ -30,7 +30,7 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
       {me && (
         <Link
           to={`/profile/${me.id}`}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-[10px] hover:bg-canvas-elevated transition-colors mb-1"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-tb-input hover:bg-canvas-elevated transition-colors mb-1"
         >
           <Avatar src={me.avatar ?? undefined} alt={me.username} size={38} />
           <div className="min-w-0">
@@ -49,7 +49,7 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
             key={item.label}
             to={item.to}
             className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors w-full',
+              'flex items-center gap-3 px-3 py-2.5 rounded-tb-input cursor-pointer transition-colors w-full',
               active ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
             )}
           >
@@ -73,7 +73,7 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
         <Link
           to="/addresses"
           className={cn(
-            'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors w-full',
+            'flex items-center gap-3 px-3 py-2.5 rounded-tb-input cursor-pointer transition-colors w-full',
             isActive('/addresses') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
           )}
         >
@@ -98,7 +98,7 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
           <Link
             to="/shop"
             className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors',
+              'flex items-center gap-3 px-3 py-2.5 rounded-tb-input cursor-pointer transition-colors',
               isActive('/shop') && !location.pathname.startsWith('/shop/analytics') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
             )}
           >
@@ -110,7 +110,7 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
           <Link
             to="/sell"
             className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors',
+              'flex items-center gap-3 px-3 py-2.5 rounded-tb-input cursor-pointer transition-colors',
               isActive('/sell') && !location.pathname.startsWith('/sell/orders') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
             )}
           >
@@ -122,7 +122,7 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
           <Link
             to="/sell/orders"
             className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors',
+              'flex items-center gap-3 px-3 py-2.5 rounded-tb-input cursor-pointer transition-colors',
               isActive('/sell/orders') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
             )}
           >
@@ -134,7 +134,7 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
           <Link
             to="/shop/analytics"
             className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors',
+              'flex items-center gap-3 px-3 py-2.5 rounded-tb-input cursor-pointer transition-colors',
               isActive('/shop/analytics') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
             )}
           >
@@ -152,7 +152,7 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
           <Link
             to="/admin"
             className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors',
+              'flex items-center gap-3 px-3 py-2.5 rounded-tb-input cursor-pointer transition-colors',
               location.pathname === '/admin' ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
             )}
           >
@@ -164,7 +164,7 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
           <Link
             to="/admin/brands/pending"
             className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors',
+              'flex items-center gap-3 px-3 py-2.5 rounded-tb-input cursor-pointer transition-colors',
               isActive('/admin/brands/pending') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
             )}
           >
@@ -176,7 +176,7 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
           <Link
             to="/admin/categories/pending"
             className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors',
+              'flex items-center gap-3 px-3 py-2.5 rounded-tb-input cursor-pointer transition-colors',
               isActive('/admin/categories/pending') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
             )}
           >
@@ -188,7 +188,7 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
           <Link
             to="/admin/reports"
             className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors',
+              'flex items-center gap-3 px-3 py-2.5 rounded-tb-input cursor-pointer transition-colors',
               isActive('/admin/reports') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
             )}
           >
@@ -200,7 +200,7 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
           <Link
             to="/admin/product-risk"
             className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors',
+              'flex items-center gap-3 px-3 py-2.5 rounded-tb-input cursor-pointer transition-colors',
               isActive('/admin/product-risk') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
             )}
           >
@@ -212,7 +212,7 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
           <Link
             to="/admin/analytics"
             className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-[10px] cursor-pointer transition-colors',
+              'flex items-center gap-3 px-3 py-2.5 rounded-tb-input cursor-pointer transition-colors',
               isActive('/admin/analytics') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
             )}
           >

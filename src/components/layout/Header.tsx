@@ -68,7 +68,7 @@ export function Header(): ReactElement {
           <Link
             to="/messages"
             aria-label="Tin nhắn"
-            className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-[10px] p-2.5 grid place-items-center hover:border-accent-amber transition-colors overflow-visible"
+            className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-tb-input p-2.5 grid place-items-center hover:border-accent-amber transition-colors overflow-visible"
           >
             <MessageSquare size={20} className="shrink-0" />
           </Link>
@@ -79,7 +79,7 @@ export function Header(): ReactElement {
           <Link
             to="/wishlist"
             aria-label="Yêu thích"
-            className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-[10px] p-2.5 grid place-items-center hover:border-accent-amber transition-colors"
+            className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-tb-input p-2.5 grid place-items-center hover:border-accent-amber transition-colors"
           >
             <Heart size={20} className="shrink-0" />
           </Link>
@@ -88,7 +88,7 @@ export function Header(): ReactElement {
           <Link
             to="/cart"
             aria-label="Giỏ hàng"
-            className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-[10px] p-2.5 grid place-items-center hover:border-accent-amber transition-colors overflow-visible"
+            className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-tb-input p-2.5 grid place-items-center hover:border-accent-amber transition-colors overflow-visible"
           >
             <ShoppingCart size={20} className="shrink-0" />
             {totalCount > 0 && (
