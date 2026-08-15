@@ -3,6 +3,7 @@ import type { UploadSignature } from '@/types';
 import { outcomeFromError, outcomeFromResult, type DeleteMediaOutcome } from './deleteMediaOutcome';
 import { buildChunkForm } from './signedUploadFields';
 import { buildUploadId, planUploadChunks } from './uploadChunkPlan';
+import { oversizeMessage, resolveUploadCap } from './uploadValidation';
 
 export type UploadProgressCallback = (percent: number) => void;
 
@@ -17,6 +18,15 @@ async function uploadChunked(
   resourceType: 'image' | 'video',
   onProgress?: UploadProgressCallback,
 ): Promise<UploadResult> {
+  // UPLOAD-SIZE-01: the signature carries the backend's ceiling, so honour that
+  // number rather than the local constant. This also covers the asymmetry the
+  // backend flagged: the signature is issued before a byte exists, so its own
+  // check can only use the *folder* ceiling — an 11 MB image bound for
+  // `trybuy/posts` clears the 100 MB video ceiling there and is caught only by a
+  // per-type check like this one.
+  const cap = resolveUploadCap(sig, resourceType);
+  if (file.size > cap) throw new Error(oversizeMessage(resourceType, cap));
+
   const url = `https://api.cloudinary.com/v1_1/${sig.cloud_name}/${resourceType}/upload`;
   const publicId = sig.public_id;
   const uploadId = buildUploadId(sig.timestamp, publicId);

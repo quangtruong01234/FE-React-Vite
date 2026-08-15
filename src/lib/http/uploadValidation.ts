@@ -16,6 +16,34 @@ export interface ValidateUploadOptions {
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
 export const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB
 
+/** The size ceilings the signature endpoint reports (UPLOAD-SIZE-01). */
+export interface UploadCaps {
+  maxBytes?: number;
+  maxVideoBytes?: number;
+}
+
+/**
+ * UPLOAD-SIZE-01: the backend owns the size ceiling now and returns it on the
+ * upload signature, so the cap is read from the response rather than hardcoded —
+ * lower it server-side and this client respects it without a deploy. The
+ * constants above stay as the fallback: they are the fast pre-upload guard the
+ * pickers run *before* any signature exists, and they are what a backend that
+ * predates the change leaves us with. Today both sides carry the same numbers,
+ * so nothing changes until the backend moves one.
+ *
+ * A video cap only exists for the folder that accepts video; anything else falls
+ * back to the image ceiling.
+ */
+export function resolveUploadCap(caps: UploadCaps | undefined, kind: UploadKind): number {
+  if (kind === 'video') return caps?.maxVideoBytes ?? MAX_VIDEO_BYTES;
+  return caps?.maxBytes ?? MAX_IMAGE_BYTES;
+}
+
+/** The oversize message, shared by the pre-upload guard and the post-signature check. */
+export function oversizeMessage(kind: UploadKind, maxBytes: number): string {
+  return `${kind === 'image' ? 'Ảnh' : 'Video'} vượt quá ${formatMb(maxBytes)}MB`;
+}
+
 // Backend caps `imageUrls[]` at 10 entries on products and posts → 11+ is a 400
 // (backend-handoff 2026-07-07). Enforce it client-side so the UI never submits an
 // over-limit batch and the user gets a clear message instead of a server error.
@@ -109,7 +137,7 @@ export function validateUploadFile(
   }
 
   if (file.size > maxBytes) {
-    return `${label} vượt quá ${formatMb(maxBytes)}MB`;
+    return oversizeMessage(kind, maxBytes);
   }
 
   return null;

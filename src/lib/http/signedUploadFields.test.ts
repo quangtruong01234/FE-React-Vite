@@ -52,6 +52,12 @@ describe('buildChunkForm', () => {
     expect(form.has('upload_id')).toBe(false);
   });
 
+  it('never forwards the backend-owned size caps (UPLOAD-SIZE-01) — they are unsigned', () => {
+    const form = buildChunkForm(chunk, { ...baseSig, maxBytes: 10485760, maxVideoBytes: 104857600 });
+    expect(form.has('maxBytes')).toBe(false);
+    expect(form.has('maxVideoBytes')).toBe(false);
+  });
+
   it('sends the chunk under the file key with the signed values verbatim', () => {
     const form = buildChunkForm(chunk, baseSig);
     expect(form.get('file')).toBeInstanceOf(Blob);

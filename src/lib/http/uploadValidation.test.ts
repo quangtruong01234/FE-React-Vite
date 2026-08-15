@@ -4,6 +4,8 @@ import {
   firstUploadError,
   capFilesToLimit,
   capImageBatch,
+  resolveUploadCap,
+  oversizeMessage,
   MAX_IMAGE_BYTES,
   MAX_VIDEO_BYTES,
   MAX_PRODUCT_IMAGES,
@@ -153,5 +155,41 @@ describe('capImageBatch', () => {
 
   it('returns no notice for an empty incoming batch', () => {
     expect(capImageBatch(4, files(0), 4)).toEqual({ accepted: [], notice: null });
+  });
+});
+
+describe('resolveUploadCap — UPLOAD-SIZE-01', () => {
+  it('prefers the backend ceiling over the local constant for images', () => {
+    expect(resolveUploadCap({ maxBytes: 5 * 1024 * 1024 }, 'image')).toBe(5 * 1024 * 1024);
+  });
+
+  it('prefers the backend video ceiling for videos', () => {
+    expect(resolveUploadCap({ maxBytes: 10, maxVideoBytes: 42 }, 'video')).toBe(42);
+  });
+
+  it('falls back to the local constants on a backend that does not report caps', () => {
+    expect(resolveUploadCap(undefined, 'image')).toBe(MAX_IMAGE_BYTES);
+    expect(resolveUploadCap(undefined, 'video')).toBe(MAX_VIDEO_BYTES);
+    expect(resolveUploadCap({}, 'image')).toBe(MAX_IMAGE_BYTES);
+  });
+
+  it('falls back to the video constant when only the image cap comes back (non-video folder)', () => {
+    expect(resolveUploadCap({ maxBytes: 5 }, 'video')).toBe(MAX_VIDEO_BYTES);
+  });
+
+  it('does not confuse a video-folder image with a video: the image cap still applies', () => {
+    // `trybuy/posts` reports both; an image there must be measured against maxBytes.
+    expect(resolveUploadCap({ maxBytes: 10 * 1024 * 1024, maxVideoBytes: 100 * 1024 * 1024 }, 'image'))
+      .toBe(10 * 1024 * 1024);
+  });
+});
+
+describe('oversizeMessage', () => {
+  it('matches the message validateUploadFile produces, so both guards read alike', () => {
+    const tooBig = img({ size: MAX_IMAGE_BYTES + 1 });
+    expect(validateUploadFile(tooBig, { kind: 'image', maxBytes: MAX_IMAGE_BYTES }))
+      .toBe(oversizeMessage('image', MAX_IMAGE_BYTES));
+    expect(oversizeMessage('image', MAX_IMAGE_BYTES)).toBe('Ảnh vượt quá 10MB');
+    expect(oversizeMessage('video', MAX_VIDEO_BYTES)).toBe('Video vượt quá 100MB');
   });
 });
