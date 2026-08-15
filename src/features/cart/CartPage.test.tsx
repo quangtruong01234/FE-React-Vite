@@ -57,3 +57,17 @@ describe('CartPage selection', () => {
     expect(firstItem).not.toBeChecked();
   });
 });
+
+describe('CartPage load failure', () => {
+  it('shows the server-error panel, not "Giỏ hàng trống", when the cart request fails', async () => {
+    server.use(
+      http.get(`${API_BASE}/cart`, () =>
+        HttpResponse.json({ statusCode: 500, message: 'Internal server error' }, { status: 500 }),
+      ),
+    );
+    renderWithProviders(<CartPage />);
+
+    expect(await screen.findByText('Máy chủ gặp sự cố')).toBeInTheDocument();
+    expect(screen.queryByText('Giỏ hàng trống')).not.toBeInTheDocument();
+  });
+});

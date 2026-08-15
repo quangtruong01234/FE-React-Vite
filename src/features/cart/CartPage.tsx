@@ -6,7 +6,9 @@ import { useCart, useUpdateCartItem, useRemoveCartItem, useClearCart } from '@/h
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { formatPrice, buildVariantLabel, cn } from '@/lib/format/utils';
+import { toApiError } from '@/lib/http/apiError';
 import { GradientButton } from '@/components/shared/GradientButton';
+import { ApiErrorState } from '@/components/shared/ApiErrorState';
 import { IconButton } from '@/components/shared/IconButton';
 import { ProductThumb } from '@/components/shared/ProductThumb';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -16,7 +18,7 @@ import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
 
 export default function CartPage(): ReactElement {
   const navigate = useNavigate();
-  const { data: cart, isLoading: cartLoading } = useCart();
+  const { data: cart, isLoading: cartLoading, error: cartError, refetch: refetchCart } = useCart();
   const updateItem = useUpdateCartItem();
   const removeItem = useRemoveCartItem();
   const clearCart = useClearCart();
@@ -46,6 +48,10 @@ export default function CartPage(): ReactElement {
 
   const isMutating = updateItem.isPending || removeItem.isPending || clearCart.isPending;
   const isLoading = cartLoading || productsLoading;
+  // Only the cart request decides this: it is what "giỏ hàng trống" is a claim
+  // about. A failed *product* lookup still leaves real rows to render, with the
+  // "Sản phẩm không còn tồn tại" fallback per item.
+  const loadError = toApiError(cartError);
 
   function getEffectivePrice(item: (typeof items)[0]): number {
     return effectiveUnitPrice(item, productMap.get(item.productId));
@@ -114,6 +120,8 @@ export default function CartPage(): ReactElement {
             </div>
             <Skeleton className="h-64 rounded-xl bg-canvas-elevated" />
           </div>
+        ) : loadError ? (
+          <ApiErrorState error={loadError} onRetry={() => { void refetchCart(); }} embedded />
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-5 py-24 text-ink-sec">
             <ShoppingCart size={56} className="text-ink-muted shrink-0" />
@@ -208,6 +216,7 @@ export default function CartPage(): ReactElement {
                       <IconButton
                         disabled={isMutating}
                         onClick={() => removeItem.mutate(item.id)}
+                        aria-label={`Xóa ${name} khỏi giỏ hàng`}
                         className="size-7 rounded-md text-ink-muted hover:text-accent-red transition-colors"
                       >
                         <Trash2 size={14} className="shrink-0" />
@@ -217,6 +226,7 @@ export default function CartPage(): ReactElement {
                         <IconButton
                           disabled={isMutating || item.quantity <= 1}
                           onClick={() => handleDecrement(item.id, item.quantity)}
+                          aria-label="Giảm số lượng"
                           className="size-7 rounded-md border border-bdr bg-canvas-elevated text-ink-pri transition-colors enabled:cursor-pointer enabled:hover:border-accent-amber disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           <Minus size={13} className="shrink-0" />
@@ -227,6 +237,7 @@ export default function CartPage(): ReactElement {
                         <IconButton
                           disabled={isMutating}
                           onClick={() => updateItem.mutate({ itemId: item.id, quantity: item.quantity + 1 })}
+                          aria-label="Tăng số lượng"
                           className="size-7 rounded-md border border-bdr bg-canvas-elevated text-ink-pri transition-colors enabled:cursor-pointer enabled:hover:border-accent-amber disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           <Plus size={13} className="shrink-0" />
