@@ -4,6 +4,13 @@ import { cn } from "@/lib/format/utils";
 interface ToggleSwitchProps {
   checked: boolean;
   onChange: (v: boolean) => void;
+  /**
+   * Accessible name — required, not optional. The track renders no text, so
+   * without it a screen reader announces only "switch, checked" and the user
+   * cannot tell what is being toggled. A `title` on a wrapping element does
+   * not name the button; the attribute has to sit on the control itself.
+   */
+  label: string;
   size?: "sm" | "md";
   disabled?: boolean;
 }
@@ -16,6 +23,7 @@ const SIZES = {
 export function ToggleSwitch({
   checked,
   onChange,
+  label,
   size = "md",
   disabled = false,
 }: ToggleSwitchProps): ReactElement {
@@ -24,6 +32,7 @@ export function ToggleSwitch({
     <button
       type="button"
       role="switch"
+      aria-label={label}
       aria-checked={checked}
       disabled={disabled}
       onClick={() => !disabled && onChange(!checked)}

@@ -242,6 +242,7 @@ export function BasicInfoSection({
                 )}
                 <IconButton
                   onClick={() => onRemoveImage(i)}
+                  aria-label={`Xóa ảnh ${i + 1}`}
                   className="absolute top-1 right-1 size-5 rounded-full bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <X size={10} className="shrink-0 text-ink-pri" />
@@ -253,6 +254,7 @@ export function BasicInfoSection({
               <button
                 type="button"
                 disabled={uploadState.active}
+                aria-label={uploadState.active ? 'Đang tải ảnh lên' : 'Thêm ảnh sản phẩm'}
                 onClick={() => imageInputRef.current?.click()}
                 className={cn(
                   'aspect-square rounded-tb-card border-2 border-dashed border-bdr',
@@ -421,6 +423,7 @@ export function BasicInfoSection({
                   )}
                   <IconButton
                     onClick={handleClearBrand}
+                    aria-label="Bỏ chọn thương hiệu"
                     className="size-5 rounded-full text-ink-muted hover:text-ink-pri transition-colors shrink-0"
                   >
                     <X size={12} className="shrink-0" />

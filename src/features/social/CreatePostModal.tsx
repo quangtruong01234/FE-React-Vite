@@ -327,6 +327,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
                     )}
                     <IconButton
                       onClick={() => removeMedia(i)}
+                      aria-label={`Xóa media ${i + 1}`}
                       className="absolute top-2 right-2 size-7 rounded-full bg-black/60 text-ink-pri border-0 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <X size={13} className="shrink-0" />

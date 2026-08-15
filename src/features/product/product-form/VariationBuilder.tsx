@@ -33,6 +33,7 @@ function OptionChip({
       {label}
       <IconButton
         onClick={onRemove}
+        aria-label={`Xóa option ${label}`}
         className="size-3.5 rounded-full hover:bg-accent-amber/20 transition-colors"
       >
         <X size={9} className="shrink-0" />
@@ -86,6 +87,7 @@ function GroupRow({
         {canRemove && (
           <IconButton
             onClick={onRemoveGroup}
+            aria-label={`Xóa nhóm ${group.name || index + 1}`}
             className="size-8 rounded-full hover:bg-canvas-surface text-ink-muted hover:text-accent-red transition-colors shrink-0"
           >
             <X size={15} className="shrink-0" />
@@ -120,6 +122,7 @@ function GroupRow({
         <IconButton
           onClick={commit}
           disabled={!draft.trim()}
+          aria-label="Thêm option"
           className={cn(
             'size-8 rounded-tb-input shrink-0',
             'bg-accent-amber/10 text-accent-amber border border-accent-amber/20',
