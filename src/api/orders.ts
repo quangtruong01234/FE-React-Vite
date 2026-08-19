@@ -11,6 +11,8 @@ import type {
   ReturnRequestStatus,
   VoucherValidateDto,
   VoucherValidation,
+  Voucher,
+  CreateVoucherDto,
   ShippingFeeDto,
   ShippingFeeResponse,
   AnalyticsQueryParams,
@@ -74,6 +76,29 @@ export const ordersApi = {
     request<VoucherValidation>("/order/voucher/validate", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+
+  // Admin voucher console (F3-ADMIN). All three are admin-only (`order`
+  // create/read/update `:any`) — a seller hitting them gets 403.
+  createVoucher: (data: CreateVoucherDto): Promise<Voucher> =>
+    request<Voucher>("/order/admin/vouchers", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getAdminVouchers: (
+    page = 1,
+    limit = 20,
+  ): Promise<PaginatedResponse<Voucher>> => {
+    const qs = toQuery({ page, limit });
+    return request<PaginatedResponse<Voucher>>(`/order/admin/vouchers${qs}`);
+  },
+
+  // There is no update/reactivate endpoint — deactivation is one-way, so the UI
+  // must confirm before calling it.
+  deactivateVoucher: (id: number): Promise<Voucher> =>
+    request<Voucher>(`/order/admin/vouchers/${id}/deactivate`, {
+      method: "PATCH",
     }),
 
   getByUser: (

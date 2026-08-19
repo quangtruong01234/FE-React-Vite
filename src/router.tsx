@@ -23,6 +23,7 @@ const PendingBrandsPage       = lazy(() => import('@/features/admin/PendingBrand
 const PendingCategoriesPage   = lazy(() => import('@/features/admin/PendingCategoriesPage'));
 const ReportedPostsPage       = lazy(() => import('@/features/admin/ReportedPostsPage'));
 const ProductRiskPage         = lazy(() => import('@/features/admin/ProductRiskPage'));
+const AdminVouchersPage       = lazy(() => import('@/features/admin/AdminVouchersPage'));
 const CreateProductPage       = lazy(() => import('@/features/product/CreateProductPage'));
 const CartPage           = lazy(() => import('@/features/cart/CartPage'));
 const SellerOrdersPage   = lazy(() => import('@/features/order/SellerOrdersPage'));
@@ -164,6 +165,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute requiredRole="admin">
             <ProductRiskPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin/vouchers',
+        element: (
+          <ProtectedRoute requiredRole="admin">
+            <AdminVouchersPage />
           </ProtectedRoute>
         ),
       },

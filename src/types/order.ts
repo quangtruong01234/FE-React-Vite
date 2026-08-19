@@ -178,6 +178,57 @@ export interface VoucherValidation {
   finalItemsTotal: number;
 }
 
+/**
+ * A voucher row from the admin console (`GET /order/admin/vouchers`). Money
+ * fields are DECIMAL columns, so TypeORM can serialize them as strings
+ * ("50000.00") — always `Number()` before doing arithmetic.
+ *
+ * `id` is a plain auto-increment integer: vouchers were never migrated to the
+ * `xxx_`-prefixed public ids, so the deactivate route takes the numeric id.
+ */
+export interface Voucher {
+  id: number;
+  code: string;
+  description: string | null;
+  discountType: VoucherDiscountType;
+  /** percent: 1–100 (%) · fixed: VND amount. */
+  discountValue: number | string;
+  minOrderAmount: number | string;
+  /** Cap on a percent discount (VND). `null` = uncapped. */
+  maxDiscountAmount: number | string | null;
+  /** Total redemptions allowed across all users. `null` = unlimited. */
+  usageLimit: number | null;
+  usedCount: number;
+  /** Redemptions allowed per user. `null` = unlimited. */
+  perUserLimit: number | null;
+  startsAt: string | null;
+  expiresAt: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * `POST /order/admin/vouchers` — admin only. Optional fields must be **omitted**
+ * rather than sent as `null`: the backend reads a missing key as "unlimited" /
+ * "no window", while `null` fails class-validator and comes back 400.
+ */
+export interface CreateVoucherDto {
+  code: string;
+  description?: string;
+  discountType: VoucherDiscountType;
+  discountValue: number;
+  minOrderAmount?: number;
+  maxDiscountAmount?: number;
+  usageLimit?: number;
+  perUserLimit?: number;
+  /** ISO-8601 */
+  startsAt?: string;
+  /** ISO-8601 */
+  expiresAt?: string;
+  isActive?: boolean;
+}
+
 /** Multi-seller checkout: gateway splits the cart into N orders and pre-initiates one payment covering all of them. */
 export interface MultiSellerOrderResponse {
   orders: Order[];

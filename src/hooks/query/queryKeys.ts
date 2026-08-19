@@ -68,6 +68,11 @@ export const queryKeys = {
       ["orders", "seller", "analytics", params] as const,
     adminAnalytics: (params: AnalyticsQueryParams) =>
       ["orders", "admin", "analytics", params] as const,
+    // Admin voucher console (F3-ADMIN): list-level prefix invalidates every page
+    // after a create/deactivate, since both reorder or restatus the list.
+    adminVouchers: ["orders", "admin", "vouchers"] as const,
+    adminVouchersList: (page: number, limit: number) =>
+      ["orders", "admin", "vouchers", page, limit] as const,
   },
   auth: {
     me: ["auth", "me"] as const,
