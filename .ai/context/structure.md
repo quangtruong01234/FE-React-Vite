@@ -111,7 +111,7 @@ Source of truth: `src/router.tsx` (route-level pages lazy-load via `React.lazy` 
 | `/notifications` | `NotificationsPage` | auth |
 | `/shop` · `/shop/analytics` | `ShopPage` · `ShopAnalyticsPage` | role: shop |
 | `/sell` · `/sell/:id` · `/sell/orders` · `/sell/returns` | seller pages | role: shop |
-| `/admin` · `/admin/analytics` · `/admin/reports` · `/admin/product-risk` · `/admin/{brands,categories}/pending` | admin pages | role: admin |
+| `/admin` · `/admin/analytics` · `/admin/reports` · `/admin/product-risk` · `/admin/vouchers` · `/admin/{brands,categories}/pending` | admin pages | role: admin |
 | `*` (inside layout) | 404 `ApiErrorState` | — |
 | `*` (top-level) | `<Navigate to="/" />` | — |
 
