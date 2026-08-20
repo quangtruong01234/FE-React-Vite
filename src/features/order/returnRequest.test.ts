@@ -6,6 +6,7 @@ import {
   findReturnRequestForOrder,
   returnStatusMeta,
   refundStatusLabel,
+  reviewerLabel,
   returnRequestErrorMessage,
 } from './returnRequest';
 
@@ -17,7 +18,6 @@ function makeRequest(overrides: Partial<ReturnRequest> = {}): ReturnRequest {
     reason: 'Sản phẩm lỗi',
     status: 'pending_review',
     rejectReason: null,
-    previousOrderStatus: 'completed',
     refundAmount: null,
     refundMethod: null,
     refundStatus: null,
@@ -27,6 +27,30 @@ function makeRequest(overrides: Partial<ReturnRequest> = {}): ReturnRequest {
     ...overrides,
   };
 }
+
+describe('reviewerLabel', () => {
+  it('names the reviewer when the backend hydrated it (OVERFETCH-01)', () => {
+    const request = makeRequest({
+      status: 'approved',
+      reviewedBy: 'usr_0000000000000004',
+      reviewer: { id: 'usr_0000000000000004', username: 'shopA', avatar: null },
+    });
+    expect(reviewerLabel(request)).toBe('@shopA');
+  });
+
+  it('falls back to the bare reviewedBy id on a pre-rollout response', () => {
+    const request = makeRequest({ status: 'rejected', reviewedBy: 'usr_0000000000000004' });
+    expect(reviewerLabel(request)).toBe('#usr_0000000000000004');
+  });
+
+  it('shows nothing while the request is still awaiting review', () => {
+    expect(reviewerLabel(makeRequest({ status: 'pending_review' }))).toBeNull();
+  });
+
+  it('shows nothing for an old decided row that recorded no reviewer', () => {
+    expect(reviewerLabel(makeRequest({ status: 'approved', reviewedBy: null }))).toBeNull();
+  });
+});
 
 describe('canRequestReturn', () => {
   it('allows only delivering and completed orders', () => {

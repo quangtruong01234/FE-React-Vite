@@ -6,6 +6,7 @@ import type {
 } from '@/types';
 import { PAYMENT_LABEL } from './orderConstants';
 import { isReturnStatus } from '@/lib/domain/orderStatus';
+import { userSummaryLabel } from '@/lib/format/user';
 
 /**
  * Pure helpers for the buyer return/refund flow (F2).
@@ -57,6 +58,17 @@ export function refundStatusLabel(request: ReturnRequest): string | null {
   const method = request.refundMethod ? PAYMENT_LABEL[request.refundMethod] : null;
   const base = request.refundStatus === 'refunded' ? 'Đã hoàn tiền' : 'Chờ hoàn tiền thủ công';
   return method ? `${base} · ${method}` : base;
+}
+
+/**
+ * Who decided the request — the `reviewer` embed (OVERFETCH-01 §7) when the
+ * backend sent it, else the bare `reviewedBy` id. Null while the request is
+ * still awaiting review, and on old rows that were decided before the backend
+ * started recording a reviewer.
+ */
+export function reviewerLabel(request: ReturnRequest): string | null {
+  if (request.status === 'pending_review') return null;
+  return userSummaryLabel(request.reviewer, request.reviewedBy);
 }
 
 /** Friendly message for a failed return-request submit (400 = ineligible order). */

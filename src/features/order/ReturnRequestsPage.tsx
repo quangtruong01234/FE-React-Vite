@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, RotateCcw } from 'lucide-react';
 import { useMyReturnRequests } from './useReturnRequests';
 import { usePageParam } from '@/hooks/ui/usePageParam';
-import { returnStatusMeta, refundStatusLabel } from './returnRequest';
+import { returnStatusMeta, refundStatusLabel, reviewerLabel } from './returnRequest';
 import { Pagination } from '@/components/shared/Pagination';
 import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -72,6 +72,7 @@ export default function ReturnRequestsPage(): ReactElement {
           {requests.map((req) => {
             const meta = returnStatusMeta(req.status);
             const refundLine = refundStatusLabel(req);
+            const reviewer = reviewerLabel(req);
             return (
               <div key={req.id} className="bg-canvas-surface border border-bdr rounded-xl p-5">
                 <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
@@ -102,6 +103,11 @@ export default function ReturnRequestsPage(): ReactElement {
                   <p className="m-0 mt-1.5 font-body text-sm text-accent-green">
                     {refundLine}
                     {req.refundAmount != null && ` · ${formatVnd(req.refundAmount)}`}
+                  </p>
+                )}
+                {reviewer && (
+                  <p className="m-0 mt-1.5 font-body text-xs text-ink-muted">
+                    Người duyệt: <span className="font-mono">{reviewer}</span>
                   </p>
                 )}
               </div>
