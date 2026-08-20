@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { Eye, EyeOff, FlagOff, Trash2, ShieldCheck, ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
 import { formatDateTime } from '@/lib/format/time';
+import { userSummaryLabel } from '@/lib/format/user';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { Avatar } from '@/components/shared/Avatar';
@@ -120,7 +121,9 @@ function ReportedPostCard({
           return (
             <div key={report.id} className="flex items-center justify-between gap-3 flex-wrap">
               <span className="font-body text-sm text-ink-sec min-w-0 truncate">
-                <span className="font-mono text-xs text-ink-muted">#{report.reporterId}</span> · {report.reason}
+                <span className="font-mono text-xs text-ink-muted">
+                  {userSummaryLabel(report.reporter, report.reporterId)}
+                </span> · {report.reason}
               </span>
               <span className="flex items-center gap-2 shrink-0">
                 <span className="font-body text-xs text-ink-muted">{formatDateTime(report.createdAt)}</span>
