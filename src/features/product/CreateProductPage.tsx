@@ -108,7 +108,7 @@ export default function CreateProductPage(): ReactElement {
     (existingProduct.skus ?? []).forEach(s => {
       rows[JSON.stringify(s.tierIdx)] = {
         price: String(s.price ?? ''),
-        stockQuantity: String(s.stockQuantity ?? s.stock ?? ''),
+        stockQuantity: String(s.stockQuantity ?? ''),
       };
     });
     return {
