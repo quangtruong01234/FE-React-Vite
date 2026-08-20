@@ -114,10 +114,16 @@ branch chưa merge, đã verify bằng `git branch --contains` trong `api/`, kh�
     @shop1`/`@admin1` render trên return request đã xử lý (hàng `pending_review` đúng là để trống),
     notification ra `@shop1 vừa bình luận về bài viết của bạn: "…"` không rò `usr_`, và API prod
     đã sạch `previousOrderStatus` / `Role.slug` / read-cursor hội thoại / `followerId`.
-  - **Hai chỗ prod không phủ được:** cột **người báo cáo** (`ReportedPostsPage`) — prod có **0**
-    report ở mọi trạng thái, và tạo report thử bị permission classifier chặn nên không ép được
-    dữ liệu; **prefill ma trận SKU** — không sản phẩm prod nào có `skus[]`. Cả hai đã có unit test
-    phủ, nhưng chưa có bằng chứng runtime trên prod.
+  - **Cột người báo cáo — verify prod 2026-08-21 (user cho phép tạo dữ liệu thử).** Prod vốn có
+    **0** report nên phải tự sinh: `shop1` báo cáo bài của `user1` qua chính UI (`post_JS61MaVvS7tVJiA9`,
+    lý do gắn tiền tố `[TEST]`) → `/admin/reports` bằng `admin1` in **`@shop1 · [TEST]…`** ở cả tab
+    *Chờ xử lý* lẫn *Đã bỏ qua*, `hasRawId: false`; API trả `reporter: {id, username, avatar}` non-null
+    đúng shape `UserSummary`. **Đã dọn:** bấm *Bỏ qua báo cáo* ngay sau khi kiểm ⇒ hàng đợi pending
+    về 0, report nằm ở `dismissed`. Lưu ý cho lượt sau: report bài viết **không** có embed `reviewer`
+    (`reviewedBy` không nằm trong response `admin/reports`) — khác return request; đó là thiết kế BE,
+    không phải thiếu sót.
+  - **Chỗ prod vẫn chưa phủ được:** **prefill ma trận SKU** — không sản phẩm prod nào có `skus[]`.
+    Có unit test phủ, nhưng chưa có bằng chứng runtime trên prod.
 
 - **Lint: 0 warning.** 3 advisory cũ đã đóng 2026-08-14. `context/AuthContext.tsx` tách làm ba:
   `authContextValue.ts` (context object) + `useAuthContext.ts` (hook) + `AuthContext.tsx` (chỉ còn
