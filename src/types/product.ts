@@ -12,7 +12,11 @@ export interface Product {
   price: number;
   imageUrl?: string;
   imageUrls?: string[] | null;
-  sku: string;
+  /** Base SKU. Nullable on the backend column: the seller may leave it blank on
+   *  create, and a SKU-matrix product carries its codes on `skus[]` instead — so
+   *  a product read back can carry `sku: null`. Never call string methods on it
+   *  unguarded (that crashed the seller edit page). */
+  sku: string | null;
   condition: ProductCondition;
   brandId?: number;
   // OVERFETCH-01 (FE side): the singular `categoryId` had no reader — products

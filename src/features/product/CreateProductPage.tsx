@@ -21,6 +21,7 @@ import { usePriceSuggestion } from './product-form/usePriceSuggestion';
 import { DuplicateWarningHint } from './product-form/DuplicateWarningHint';
 import { duplicateWarningView } from './product-form/duplicateCheck';
 import { missingFields } from './product-form/productReadiness';
+import { skuForField } from './product-form/productSku';
 import { VariationBuilder } from './product-form/VariationBuilder';
 import { SkuMatrix } from './product-form/SkuMatrix';
 import { ShippingMiscSection } from './product-form/ShippingMiscSection';
@@ -114,7 +115,7 @@ export default function CreateProductPage(): ReactElement {
     return {
       name: existingProduct.name,
       description: existingProduct.description ?? '',
-      sku: existingProduct.sku,
+      sku: skuForField(existingProduct.sku),
       // The API returns ids as strings despite the typed contract — coerce to
       // number so brand selection and category checkboxes hydrate as checked.
       brandId: existingProduct.brandId != null ? Number(existingProduct.brandId) : null,

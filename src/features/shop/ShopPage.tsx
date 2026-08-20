@@ -20,6 +20,7 @@ import { formatPrice } from "@/lib/format/utils";
 import { useProducts } from "../product/useProducts";
 import { productCategoryNames } from "../product/productCategories";
 import { buildLowStockRows } from "./lowStock";
+import { filterProductsByQuery } from "./productSearch";
 import { IconButton } from "@/components/shared/IconButton";
 import { ProductThumb } from "@/components/shared/ProductThumb";
 import { api } from "@/api";
@@ -339,14 +340,10 @@ export default function ShopPage() {
     deleteMutation.mutate(id);
   }
 
-  const filteredProducts = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return products;
-    return products.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q),
-    );
-  }, [products, search]);
+  const filteredProducts = useMemo(
+    () => filterProductsByQuery(products, search),
+    [products, search],
+  );
 
   const lowStockRows = useMemo(
     () => buildLowStockRows(lowStockRecords ?? []),

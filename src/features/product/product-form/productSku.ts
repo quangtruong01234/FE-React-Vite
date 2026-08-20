@@ -10,3 +10,14 @@
 export function skuForPayload(raw: string): string | undefined {
   return raw.trim() || undefined;
 }
+
+/**
+ * Normalizes a persisted product SKU into a controlled-input value.
+ *
+ * The column is nullable (blank on create, or the codes live on `skus[]`), so the
+ * edit form must not feed `null` into the text field — that both breaks the
+ * controlled input and reaches `skuForPayload`, which calls `.trim()`.
+ */
+export function skuForField(stored: string | null | undefined): string {
+  return stored ?? '';
+}
