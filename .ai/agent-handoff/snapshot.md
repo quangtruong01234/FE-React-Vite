@@ -84,6 +84,31 @@ branch chưa merge, đã verify bằng `git branch --contains` trong `api/`, kh�
 
 *(verify từ code thật 2026-08-14; không mục nào chặn runtime — đây là scale-consistency + lint)*
 
+- **OVERFETCH-01 (phần FE) — ĐÃ LÀM 2026-08-20, chờ BE deploy mới push.** Audit response GET
+  (mục OVERFETCH-01 trong `../.agent-local/backend-handoff.md`) → BE đã cắt 6 field và thêm 3
+  embed `{id, username, avatar}`. FE đã dọn xong:
+  - **Xoá type chết:** `Role.slug`, `Conversation.user1LastReadAt`/`user2LastReadAt`,
+    `ReturnRequest.previousOrderStatus`, `FollowerItem.followerId`, `FollowingItem.followingId`.
+    `tsc` chỉ gãy ở fixture test ⇒ chứng minh không có code sản phẩm nào đọc chúng.
+  - **Xoá field FE tự bịa:** `ProductSku.stock` (BE không có cột này — fallback `s.stock` ở
+    `CreateProductPage.tsx:111` là nhánh chết) và `Product.categoryId` số ít.
+  - **Dùng embed mới:** `userSummaryLabel()` (`src/lib/format/user.ts`) — `@username`, fallback
+    `#id` khi embed vắng (response cũ / id null). Dùng ở `ReportedPostsPage` (cột người báo cáo),
+    `notificationDisplay` (comment/reply nêu tên actor, fallback "Có người" chứ **không** phải id
+    thô), `returnRequest.reviewerLabel()` → `ReturnRequestsPage`.
+  - `FollowUser` giờ là alias của `UserSummary` (`src/types/user.ts`) — một định nghĩa duy nhất.
+  - **Hậu kiểm (FE báo → BE sửa cùng ngày):** `actor` lúc đầu ra nullable cả ba field trong khi
+    `reviewer`/`reporter` non-null. BE đã pin shape bằng type `NotificationActor` và chỉ phát
+    embed khi có đủ `publicId` + `username` ⇒ **hoặc đầy đủ hoặc `null`**, không nửa vời. Ba embed
+    giờ chung đúng một shape ⇒ `UserSummary` khai non-null là đúng sự thật. **Không đổi code FE.**
+    Vẫn giữ nhánh fallback trong `userSummaryLabel()` vì nó lo luôn ca embed **vắng** (response cũ).
+  - **`actor` có cả trên WS:** event `notification` (namespace `/notifications`) chạy cùng
+    `exposeReferences` nên mang embed y hệt. `notificationSocket.ts` vốn type payload là
+    `Notification` và đẩy thẳng vào cache ⇒ toast/bell nêu tên người ngay từ socket, **không** cần
+    `GET /api/notifications` bồi thêm. Không phải làm gì.
+  - **Chưa push:** BE OVERFETCH-01 mới nằm ở working tree `api/`, chưa commit/deploy. Xem
+    release gate trước khi đẩy.
+
 - **Lint: 0 warning.** 3 advisory cũ đã đóng 2026-08-14. `context/AuthContext.tsx` tách làm ba:
   `authContextValue.ts` (context object) + `useAuthContext.ts` (hook) + `AuthContext.tsx` (chỉ còn
   provider) — 11 importer repoint sang `@/context/useAuthContext`. Hai cái trong
