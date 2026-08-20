@@ -1,3 +1,5 @@
+import type { UserSummary } from "./user";
+
 // --- Notification ---
 
 export interface Notification {
@@ -10,6 +12,11 @@ export interface Notification {
   postId: string | null;
   /** userId of the commenter/replier — set only for type "comment" | "reply". */
   actorId: string | null;
+  /**
+   * `actorId` hydrated to a display summary (OVERFETCH-01 §7) — null when
+   * `actorId` is null, absent on responses served before the backend rollout.
+   */
+  actor?: UserSummary | null;
   /** Comment/reply text (≤255 chars) — set only for type "comment" | "reply". */
   preview: string | null;
   message: string;

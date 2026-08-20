@@ -20,7 +20,7 @@ const testUser: User = {
   id: 'usr_0000000000000001',
   username: 'tester',
   email: 'tester@test.com',
-  role: { id: 3, name: 'user', slug: 'user-001' },
+  role: { id: 3, name: 'user' },
   isActive: true,
 };
 

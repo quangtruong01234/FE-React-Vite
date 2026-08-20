@@ -1,3 +1,5 @@
+import type { UserSummary } from "./user";
+
 // --- Social: posts & comments ---
 
 export interface PostAuthor {
@@ -70,6 +72,11 @@ export type PostReportStatus = 'pending' | 'resolved' | 'dismissed';
 export interface PostReport {
   id: number;
   reporterId: string;
+  /**
+   * `reporterId` hydrated to a display summary (OVERFETCH-01 §7) — absent on
+   * responses served before the backend rollout, so always fall back to the id.
+   */
+  reporter?: UserSummary | null;
   reason: string;
   status: PostReportStatus;
   createdAt: string;
@@ -121,20 +128,16 @@ export interface FollowResult {
   followingId: string;
 }
 
-export interface FollowUser {
-  id: string;
-  username: string;
-  avatar: string | null;
-}
+export type FollowUser = UserSummary;
 
+// OVERFETCH-01: the follow rows no longer repeat the id — `user.id` already is
+// the follower's / followee's public id.
 export interface FollowerItem {
-  followerId: string;
   createdAt: string;
   user: FollowUser;
 }
 
 export interface FollowingItem {
-  followingId: string;
   createdAt: string;
   user: FollowUser;
 }

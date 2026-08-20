@@ -18,7 +18,7 @@ const otherUser: User = {
   id: 'usr_0000000000000002',
   username: 'seller',
   email: 'seller@test.com',
-  role: { id: 3, name: 'user', slug: 'user-001' },
+  role: { id: 3, name: 'user' },
   isActive: true,
 };
 
@@ -27,8 +27,6 @@ const conv: Conversation = {
   user1Id: 'usr_0000000000000001',
   user2Id: 'usr_0000000000000002',
   createdAt: '2026-07-18T00:00:00Z',
-  user1LastReadAt: null,
-  user2LastReadAt: null,
   lastMessage: null,
   unreadCount: 0,
 };

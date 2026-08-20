@@ -13,8 +13,6 @@ function conv(id: number, partial: Partial<Conversation> = {}): Conversation {
     user1Id: 'usr_1',
     user2Id: 'usr_2',
     createdAt: '2026-06-20T00:00:00.000Z',
-    user1LastReadAt: null,
-    user2LastReadAt: null,
     lastMessage: null,
     unreadCount: 0,
     ...partial,

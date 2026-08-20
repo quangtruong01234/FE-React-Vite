@@ -7,7 +7,6 @@ function sku(partial: Partial<ProductSku> & { tierIdx: number[] }): ProductSku {
     id: 1,
     sku: 'SKU',
     price: 1000,
-    stock: partial.stockQuantity ?? 0,
     stockQuantity: 0,
     ...partial,
   };

@@ -15,7 +15,8 @@ export interface Product {
   sku: string;
   condition: ProductCondition;
   brandId?: number;
-  categoryId: number;
+  // OVERFETCH-01 (FE side): the singular `categoryId` had no reader — products
+  // are multi-category, so `categoryIds` / `categories` is the real shape.
   categoryIds: number[];
   isActive?: boolean;
   approvalBlocked?: boolean;
@@ -53,7 +54,9 @@ export interface ProductSku {
   id: number;
   sku: string;
   price: number;
-  stock: number;
+  // OVERFETCH-01 (FE side): `stock` was never a column on the SKU entity — the
+  // backend has only ever returned `stockQuantity`. The declaration made the
+  // fallback below it look meaningful; it never fired.
   stockQuantity: number;
   tierIdx: number[];
   imageUrl?: string;

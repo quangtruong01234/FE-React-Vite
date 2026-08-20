@@ -1,4 +1,5 @@
 import type { PaymentMethod } from "./payment";
+import type { UserSummary } from "./user";
 
 // --- Order ---
 
@@ -57,11 +58,18 @@ export interface ReturnRequest {
   reason: string;
   status: ReturnRequestStatus;
   rejectReason: string | null;
-  previousOrderStatus: OrderStatus;
+  // OVERFETCH-01: `previousOrderStatus` is a server-side restore handle for a
+  // rejected request — the order's own `status` is what the UI reads.
   refundAmount: number | null;
   refundMethod: PaymentMethod | null;
   refundStatus: RefundStatus | null;
   reviewedBy: string | null;
+  /**
+   * `reviewedBy` hydrated to a display summary (OVERFETCH-01 §7) — absent while
+   * the request is still `pending_review`, and on responses served before the
+   * backend rollout.
+   */
+  reviewer?: UserSummary | null;
   createdAt: string;
   updatedAt: string;
 }

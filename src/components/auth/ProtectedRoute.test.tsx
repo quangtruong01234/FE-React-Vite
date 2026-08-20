@@ -28,7 +28,7 @@ function makeUser(roleName: Role['name']): User {
     id: 'usr_0000000000000001',
     username: 'tester',
     email: 'tester@test.com',
-    role: { id: 3, name: roleName, slug: `${roleName}-001` },
+    role: { id: 3, name: roleName },
     isActive: true,
   };
 }

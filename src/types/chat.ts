@@ -12,8 +12,8 @@ export interface Conversation {
   user1Id: string;
   user2Id: string;
   createdAt: string;
-  user1LastReadAt: string | null;
-  user2LastReadAt: string | null;
+  // OVERFETCH-01: the two read cursors stayed server-side — `unreadCount` is
+  // already derived from them, so the raw timestamps are no longer sent.
   lastMessage: ConversationLastMessage | null;
   unreadCount: number;
 }
