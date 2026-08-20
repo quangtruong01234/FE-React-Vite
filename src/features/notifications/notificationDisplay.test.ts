@@ -82,6 +82,23 @@ describe('getNotificationContent', () => {
       .toBe('Có người vừa trả lời bình luận của bạn: “Cảm ơn bạn nhé”');
   });
 
+  it('names the actor when the backend hydrated it (OVERFETCH-01)', () => {
+    const actor = { id: 'usr_0000000000000009', username: 'quang', avatar: null };
+    expect(getNotificationContent(notif({ type: 'comment', actorId: actor.id, actor })).body)
+      .toBe('@quang vừa bình luận về bài viết của bạn.');
+    expect(getNotificationContent(notif({ type: 'reply', actorId: actor.id, actor, preview: 'Cảm ơn bạn nhé' })).body)
+      .toBe('@quang vừa trả lời bình luận của bạn: “Cảm ơn bạn nhé”');
+  });
+
+  it('keeps the generic wording — never the raw actorId — when the actor embed is missing', () => {
+    // Pre-rollout responses carry `actorId` with no `actor`; "#usr_..." would be
+    // meaningless to a reader, so the fallback stays "Có người".
+    expect(getNotificationContent(notif({ type: 'comment', actorId: 'usr_0000000000000009' })).body)
+      .toBe('Có người vừa bình luận về bài viết của bạn.');
+    expect(getNotificationContent(notif({ type: 'comment', actorId: 'usr_0000000000000009', actor: null })).body)
+      .toBe('Có người vừa bình luận về bài viết của bạn.');
+  });
+
   it('renders order types with a bigint-string orderId', () => {
     expect(getNotificationContent(notif({ type: 'payment_completed', orderId: 'ord_0000000000000107' })).body)
       .toBe('Đơn hàng #ord_0000000000000107 đã được thanh toán thành công.');

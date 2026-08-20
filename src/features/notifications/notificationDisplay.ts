@@ -3,6 +3,7 @@ import {
   BadgeCheck, Ban, Bell, CheckCircle, ClipboardCheck, FolderTree, MessageCircle,
   Package, PackageCheck, Reply, RotateCcw, ShoppingBag, Tag, Truck, XCircle,
 } from 'lucide-react';
+import { userSummaryLabel } from '@/lib/format/user';
 import type { Notification } from '@/types';
 
 export interface NotificationMeta {
@@ -47,9 +48,16 @@ function orderBody(n: Notification, text: (orderId: string) => string): string |
   return n.orderId != null ? text(n.orderId) : null;
 }
 
-/** Comment/reply: personalize with the comment text when the backend sent it. */
-function socialBody(n: Notification, generic: string, withPreview: (preview: string) => string): string {
-  return n.preview ? withPreview(n.preview) : generic;
+/**
+ * Comment/reply: name the actor and quote the comment text when the backend
+ * sent them. The `actor` embed (OVERFETCH-01) is absent on legacy rows and on
+ * responses served before the backend rollout, so "Có người" stays the fallback
+ * — never the raw `actorId`, which means nothing to a reader.
+ */
+function socialBody(n: Notification, action: string): string {
+  const who = userSummaryLabel(n.actor, null) ?? 'Có người';
+  const base = `${who} vừa ${action}`;
+  return n.preview ? `${base}: “${n.preview}”` : `${base}.`;
 }
 
 const TYPE_CONFIG: Record<string, TypeConfig> = {
@@ -123,20 +131,12 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
   comment: {
     Icon: MessageCircle, color: 'text-accent-cyan bg-accent-cyan/10',
     title: 'Bình luận mới',
-    body: (n) => socialBody(
-      n,
-      'Có người vừa bình luận về bài viết của bạn.',
-      (preview) => `Có người vừa bình luận về bài viết của bạn: “${preview}”`,
-    ),
+    body: (n) => socialBody(n, 'bình luận về bài viết của bạn'),
   },
   reply: {
     Icon: Reply, color: 'text-accent-cyan bg-accent-cyan/10',
     title: 'Phản hồi mới',
-    body: (n) => socialBody(
-      n,
-      'Có người vừa trả lời bình luận của bạn.',
-      (preview) => `Có người vừa trả lời bình luận của bạn: “${preview}”`,
-    ),
+    body: (n) => socialBody(n, 'trả lời bình luận của bạn'),
   },
   brand_approved: {
     Icon: Tag, color: 'text-accent-green bg-accent-green/10',
