@@ -250,6 +250,26 @@ Action khả dụng (`moderationActionsFor`): `hide`/`unhide` toggle theo `post.
 một trong hai) · `dismiss` **chỉ khi** `pendingCount > 0` · `delete` luôn có.
 404 = post đã bị xoá → nhắc reload list; 403 = không đủ quyền.
 
+**Report sống lâu hơn post — và hàng đợi cố tình giấu chúng đi** (REPORT-TOTAL-01, 2026-08-21).
+Hai đường xoá post **không** giống nhau, đọc code BE mới thấy:
+
+| Ai xoá | BE | Report row |
+|---|---|---|
+| **Admin**, nút *Xoá* ở `/admin/reports` | `adminDeletePost` — transaction `delete(PostReport)` rồi `remove(post)` | **xoá sạch** (đúng như bảng trên) |
+| **Chính tác giả**, xoá bài của mình | `deletePost` — chỉ `remove(post)`, không FK, không cascade | **còn lại, thành mồ côi** |
+
+Nên một người bị báo cáo **tự xoá bài trước khi moderator kịp xử lý** sẽ để lại report row trỏ
+vào post không còn tồn tại. `GET /social/admin/reports` `INNER JOIN posts` ở **cả** câu đếm lẫn
+câu phân trang để loại chúng ⇒ với FE, mồ côi là **vô hình**: không nằm trong `data`, không được
+tính vào `total`. Hệ quả thực tế cần biết:
+
+- Report có thể **biến mất khỏi tab *Chờ xử lý* mà không ai bấm gì** — tác giả xoá bài, thế thôi.
+  Đây không phải bug, đừng đi truy "ai đã dismiss".
+- `total` **thấp hơn** số row `post_reports` thật của status đó là **đúng thiết kế**. Đừng đối
+  chiếu tay hai con số này rồi kết luận BE đếm sai.
+- Row mồ côi vẫn nằm trong DB làm dấu vết kiểm duyệt của bài đã gỡ, chỉ là không với tới được
+  qua HTTP.
+
 ### Product risk queue (AI-02) — `src/features/admin/productRisk.ts`
 
 - **Điểm rủi ro là advisory** — không bao giờ chặn đăng bán hay tự gỡ listing. Queue chỉ là

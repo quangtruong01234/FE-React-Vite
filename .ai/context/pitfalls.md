@@ -233,6 +233,34 @@ Trước khi kết luận "FE không gửi patch", hãy xác nhận form state *
 
 ---
 
+## 16 · Viết chẩn đoán suy đoán vào `backend-handoff.md` như thể đã đo (REPORT-TOTAL-01)
+
+**Triệu chứng.** `GET /social/admin/reports?status=resolved` trả `{ data: [], total: 1 }`. FE
+filed entry cho BE kèm câu: *"`total` có vẻ được đếm mà không kèm filter `status`"* — nghe rất
+hợp lý, và sai.
+
+**Nguyên nhân.** Câu đó được suy ra từ **triệu chứng**, không phải từ code. Cả hai query đều đã
+lọc `status` từ lúc tính năng lên (tháng 7). Nguyên nhân thật là **report mồ côi**: tác giả tự
+xoá bài (`deletePost`) để lại `post_reports` không FK, không cascade; câu đếm thấy chúng còn câu
+phân trang thì không. Hai lỗi khác hẳn nhau, và cách sửa cũng khác hẳn.
+
+**Vì sao đắt.** `backend-handoff.md` không phải sổ tay riêng — nó là **đầu vào để BE đi sửa**.
+BE nói thẳng: nếu cứ theo chẩn đoán đó mà "thêm `status` vào câu đếm" thì đã sửa một thứ không
+hỏng, prod vẫn nguyên bug, và mất thêm một vòng qua lại mới quay về vạch xuất phát. Suy đoán
+trình bày như kết luận thì người đọc không có cách nào biết mà nghi ngờ.
+
+**Luật.** Trong mọi entry handoff, tách bạch hai thứ:
+
+- **Đo được** — response thật, status code, số đếm, commit hash, `file:line` đã đọc. Ghi kèm cách
+  lấy để người khác lặp lại được.
+- **Giả thuyết** — gắn nhãn rõ: *"giả thuyết, chưa đọc code BE"*. Không ghi nhãn thì mặc định
+  người đọc hiểu là bạn đã kiểm.
+
+Đọc được code repo kia thì đọc trước khi đoán (`api/` là read-only nhưng **không** cấm đọc — xem
+`core.md` §Cross-repo boundary). Không đọc được thì nói là không đọc được.
+
+---
+
 ## Khi phát hiện bẫy mới
 
 Thêm vào đây **chỉ khi** nó thoả 2 điều kiện ở đầu file. Trạng thái công việc → `snapshot.md`.

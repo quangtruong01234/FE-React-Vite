@@ -56,6 +56,20 @@ branch chưa merge, đã verify bằng `git branch --contains` trong `api/`, kh�
   nhất** làm presence socket nhận được `new_message`; bỏ bây giờ là mất tiếng chuông và mất cập
   nhật preview cho **mọi** hội thoại không mở, cho tới khi BE merge. Bỏ ngay sau khi BE push (FE
   đổi một mình được, không cần entry Holding — `emit('join')` vẫn sống nên hai chiều đều đúng).
+- **REPORT-TOTAL-01 — BE đã viết fix nhưng CHƯA commit; FE **không có việc**, chỉ chờ push.**
+  `GET /social/admin/reports` đếm `total`/`totalPages` trên tập row **khác** với tập row trả về:
+  report mồ côi (post bị chính tác giả xoá) lọt vào câu đếm nhưng rớt khỏi câu phân trang. Đo lại
+  prod hôm nay bằng `admin1`: `?status=resolved` → `{data: [], total: 1, totalPages: 1,
+  hasNext: false}` — **vẫn tái hiện**. Fix nằm trong working tree `api/` (`social.service.ts:874`
+  + `:886`, cả hai thêm `innerJoin(Post…)`), **chưa** có commit nào: `api` `origin/main` vẫn là
+  `038af41` (OVERFETCH-01), `git log --all --grep=REPORT-TOTAL` rỗng. **Không mitigate** — đã soi
+  chứ không tin nhãn "no FE action needed": `ReportedPostsPage.tsx:229` đọc **duy nhất**
+  `totalPages`, `:326` chuyền `hasNext`, không nơi nào trong `src/` đọc `total` của response này;
+  `Pagination.tsx:26` `return null` khi `totalPages <= 1` nên ở lượng dữ liệu prod hiện tại con số
+  sai **không hiện ra UI**. Triệu chứng chỉ nổi khi mồ côi đẩy `totalPages` lên ≥ 2 — lúc đó FE vẽ
+  thanh phân trang dẫn sang một trang rỗng. Đóng mục này khi BE push: chỉ cần curl lại 3 tab,
+  không có dòng code nào phải sửa. Hành vi "report sống lâu hơn post" đã ghi vào
+  `.ai/context/domain.md` §8.
 - **UPLOAD-SIZE-01 — nửa còn lại (`?bytes=`) chờ BE push.** FE đã đọc `maxBytes`/`maxVideoBytes`
   từ response chữ ký (fallback về hằng số cũ khi field vắng ⇒ chạy đúng với **cả** BE cũ lẫn mới).
   Chưa gửi query param `?bytes=file.size` vì `5ceb46c` cũng chỉ nằm trên branch
@@ -229,7 +243,7 @@ Cần full-stack live (FE↔BE) và/hoặc 2 tài khoản; không repro được
 
 ## Pitfall đã trả giá
 
-Đã chuyển sang `.ai/context/pitfalls.md` (13 mục, on-demand) — pitfall là kiến thức vĩnh viễn,
+Đã chuyển sang `.ai/context/pitfalls.md` (16 mục, on-demand) — pitfall là kiến thức vĩnh viễn,
 không thuộc live-picture. Đọc file đó khi debug thứ "trông đúng mà không chạy".
 
 ## Definition of production-ready
