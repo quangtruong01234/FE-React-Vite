@@ -70,8 +70,10 @@ export const productsApi = {
   getWithInventory: (id: string): Promise<ProductWithInventory> =>
     request<ProductWithInventory>(`/products/${id}/with-inventory`),
 
-  // P2-06 (resolved): backend now skips missing ids and returns partial array;
-  // fetchBatchTolerant kept as safety net — fan-out only triggers on 404 which no longer happens.
+  // P2-06: the "backend 404s the whole batch" story was wrong — BE re-measured on
+  // 2026-08-27 (SHAPE-01 hậu kiểm) and the gateway swallows product-service errors
+  // into `200 []`, so a stale cart id silently empties the batch today on prod.
+  // fetchBatchTolerant now treats that empty answer as unverified and fans out.
   // SEC-H2 (2026-07-09): backend rejects batches >50 ids with 400 — batchProductIds
   // dedupes and chunks so an oversized cart hydration can't 400 the whole batch.
   getMultipleWithInventory: async (productIds: string[]): Promise<ProductWithInventory[]> => {

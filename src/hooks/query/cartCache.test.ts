@@ -56,6 +56,17 @@ describe('addItemToCartCache', () => {
     });
   });
 
+  it('appends onto the SHAPE-01 empty cart instead of no-opping on it', () => {
+    // Before SHAPE-01 an empty cart arrived as `null` and this helper no-opped.
+    // The new shape is a real object with `items: []` and no row id yet, so the
+    // first add now gets its optimistic row — and must not choke on `id: null`.
+    const empty: ServerCart = { id: null, userId: 'usr_5', items: [] };
+    const after = addItemToCartCache(empty, { productId: 'prod_100', quantity: 2 }, NOW);
+
+    expect(after?.items).toHaveLength(1);
+    expect(after?.items[0]).toMatchObject({ id: -NOW, cartId: null, productId: 'prod_100', quantity: 2 });
+  });
+
   it('does not mutate the input cart', () => {
     const before = cart([item({ quantity: 1 })]);
     addItemToCartCache(before, { productId: 'prod_100', quantity: 4 }, NOW);
