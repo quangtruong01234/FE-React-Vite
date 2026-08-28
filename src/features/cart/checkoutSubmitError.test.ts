@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { checkoutSubmitErrorMessage } from './checkoutSubmitError';
 
-/** The three refusals GHN-CREATE-01 says `POST /api/order` can now answer with. */
+/** The refusals GHN-CREATE-01 says `POST /api/order` can now answer with. */
 const GHN_REFUSALS = [
   'GHN does not know district 999999 — pick a district from GET /api/shipping/districts',
   'Ward 20308 does not belong to GHN district 1442 — pick a ward from GET /api/shipping/wards',
   'Cannot resolve province "Hà Nộii" to a GHN province',
+  // Create shares the fee preview's mapper, so it raises these two as well.
+  'GHN cannot deliver to this ward — pick another shipping address',
+  'GHN no longer delivers to ward 20804 — pick another ward from GET /api/shipping/wards',
 ];
 
 describe('checkoutSubmitErrorMessage', () => {

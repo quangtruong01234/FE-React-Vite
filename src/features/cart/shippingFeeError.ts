@@ -14,6 +14,11 @@
  * GHN-DIST-01 the reason can also carry a developer-facing tail naming the
  * endpoint to call instead (`"— pick a district from GET /api/shipping/districts"`);
  * that is stripped too, for the same reason.
+ *
+ * What survives the strip is still English. The backend has frozen the wording
+ * of the ward-level refusals (GHN-MSG-01, GHN-WARD-01), so those get Vietnamese
+ * copy of our own; anything else keeps passing through, since an unrecognised
+ * reason is still more useful to the buyer than a blank one.
  */
 export type ShippingFeeFailureKind = 'address' | 'outage' | 'unknown';
 
@@ -24,8 +29,33 @@ export interface ShippingFeeFailure {
 }
 
 const GHN_PREFIX = /^GHN [\w\s]*error:\s*/i;
-/** `"… — pick a district from GET /api/shipping/districts"` — an instruction for us, not the buyer. */
-const ENDPOINT_HINT = /\s*[—–-]\s*pick an? \w+ from GET\s+\S+\s*$/i;
+/**
+ * Trailing instructions aimed at us, not the buyer:
+ *  - `"… — pick a district from GET /api/shipping/districts"` (GHN-DIST-01)
+ *  - `"… — pick another ward from GET /api/shipping/wards"` (GHN-WARD-01)
+ *  - `"… — pick another shipping address"` (GHN-MSG-01)
+ */
+const ENDPOINT_HINT =
+  /\s*[—–-]\s*pick (?:an?|another) (?:\w+ from GET\s+\S+|shipping address)\s*$/i;
+
+/**
+ * Refusals whose exact wording the backend froze for us (GHN-MSG-01,
+ * GHN-WARD-01, plus the district-mismatch one that predates them). Matched
+ * whole rather than by substring, as the backend asked: a future rewording
+ * then falls through to the pass-through branch instead of being mistranslated.
+ *
+ * All three mean the same thing to a buyer — GHN will not carry to the ward on
+ * this address — so they share one line of copy.
+ */
+const WARD_REFUSALS: readonly RegExp[] = [
+  /^GHN cannot deliver to this ward$/i,
+  /^GHN no longer delivers to ward \S+$/i,
+  /^Ward \S+ does not belong to GHN district \S+$/i,
+];
+
+const WARD_REFUSED_MESSAGE =
+  'Không giao được tới địa chỉ này: đơn vị vận chuyển không nhận giao tới ' +
+  'phường/xã đã chọn. Vui lòng chọn hoặc cập nhật địa chỉ khác.';
 
 function rawMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'message' in error) {
@@ -62,13 +92,17 @@ export function shippingFeeFailure(error: unknown): ShippingFeeFailure {
   const reason = rawMessage(error);
 
   switch (statusOf(error)) {
-    case 400:
+    case 400: {
+      if (WARD_REFUSALS.some((refusal) => refusal.test(reason))) {
+        return { kind: 'address', message: WARD_REFUSED_MESSAGE };
+      }
       return {
         kind: 'address',
         message: reason
           ? `Không giao được tới địa chỉ này: ${reason}. Vui lòng chọn hoặc cập nhật địa chỉ khác.`
           : 'Không giao được tới địa chỉ này. Vui lòng chọn hoặc cập nhật địa chỉ khác.',
       };
+    }
     case 503:
       return {
         kind: 'outage',

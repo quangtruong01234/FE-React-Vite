@@ -30,6 +30,34 @@ describe('shippingFeeFailure', () => {
     expect(failure.message).not.toMatch(/GET|\/api\//);
   });
 
+  it('renders our own Vietnamese copy for the frozen ward refusals (GHN-MSG-01, GHN-WARD-01)', () => {
+    for (const message of [
+      'GHN preview error: GHN cannot deliver to this ward — pick another shipping address',
+      'GHN no longer delivers to ward 20804 — pick another ward from GET /api/shipping/wards',
+      'Ward 20308 does not belong to GHN district 1442 — pick a ward from GET /api/shipping/wards',
+    ]) {
+      const failure = shippingFeeFailure({ statusCode: 400, message });
+      expect(failure.kind).toBe('address');
+      // No English, no raw ward code, no endpoint name reaches the buyer.
+      expect(failure.message).not.toMatch(/GHN|GET|\/api\/|ward|deliver/i);
+      expect(failure.message).not.toMatch(/\d/);
+      expect(failure.message).toContain('phường/xã');
+      expect(failure.message).toContain('chọn hoặc cập nhật địa chỉ khác');
+    }
+  });
+
+  it('keeps passing through a 400 whose wording the backend has not frozen', () => {
+    // A bad phone still comes back verbatim (GHN-MSG-01) — mistranslating it as
+    // "wrong ward" would send the buyer to fix the wrong field.
+    const failure = shippingFeeFailure({
+      statusCode: 400,
+      message:
+        'GHN preview error: Lỗi gọi API: master_data_validate_phone - số điện thoại 123 không đúng',
+    });
+    expect(failure.kind).toBe('address');
+    expect(failure.message).toContain('số điện thoại 123 không đúng');
+  });
+
   it('still names the address when the 400 carries no reason', () => {
     expect(shippingFeeFailure({ statusCode: 400 })).toEqual({
       kind: 'address',
@@ -56,11 +84,14 @@ describe('shippingFeeFailure', () => {
 });
 
 describe('isGhnAddressRefusal', () => {
-  it('recognises the three refusals GHN-CREATE-01 can raise on order create', () => {
+  it('recognises the refusals GHN-CREATE-01 can raise on order create', () => {
     for (const message of [
       'GHN does not know district 999999 — pick a district from GET /api/shipping/districts',
       'Ward 20308 does not belong to GHN district 1442 — pick a ward from GET /api/shipping/wards',
       'Cannot resolve province "Hà Nộii" to a GHN province',
+      // GHN-MSG-01 / GHN-WARD-01 — same field, same fix for the buyer.
+      'GHN cannot deliver to this ward — pick another shipping address',
+      'GHN no longer delivers to ward 20804 — pick another ward from GET /api/shipping/wards',
     ]) {
       expect(isGhnAddressRefusal({ statusCode: 400, message })).toBe(true);
     }
