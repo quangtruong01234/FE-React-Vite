@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   checkoutSchema,
   type CheckoutFormData,
@@ -23,7 +23,7 @@ import { usePaymentOptions } from "./usePaymentOptions";
 import { setPendingCheckout } from "./pendingCheckout";
 import { buildCheckoutSignature, resolveIdempotencyKey } from "./idempotency";
 import { effectiveUnitPrice, buildShippingFeeItems } from "./shippingFee";
-import { shippingFeeFailure } from "./shippingFeeError";
+import { isGhnAddressRefusal, shippingFeeFailure } from "./shippingFeeError";
 import { checkoutSubmitErrorMessage } from "./checkoutSubmitError";
 import { buildOrderItems, findStockShortages } from "./checkoutItems";
 import {
@@ -32,6 +32,12 @@ import {
   discountedGrandTotal,
   voucherErrorMessage,
 } from "./voucher";
+import {
+  sortVoucherSuggestions,
+  voucherIneligibleMessage,
+  voucherScopeLabel,
+  voucherSuggestionDiscount,
+} from "./voucherSuggestions";
 import { resolvePaymentUrl, redirectToPaymentGateway, paymentUrlErrorMessage } from "@/lib/domain/paymentUrl";
 import { api } from "@/api";
 import {
@@ -79,6 +85,7 @@ export default function CheckoutPage(): ReactElement {
   const [stockError, setStockError] = useState<Record<string, string>>({});
   const [successOrderIds, setSuccessOrderIds] = useState<string[] | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
+  const queryClient = useQueryClient();
 
   const allItems = serverCart?.items ?? [];
   const items = selectedIds.size > 0 ? allItems.filter(i => selectedIds.has(i.id)) : allItems;
@@ -96,6 +103,10 @@ export default function CheckoutPage(): ReactElement {
 
   const productMap = new Map<string, ProductWithInventory>();
   productsData?.forEach((product) => productMap.set(product.id, product));
+
+  // Item payloads carry the product name, so anything priced against the basket
+  // (shipping fee, voucher suggestions) has to wait for the product query.
+  const productsReady = productIds.length === 0 || productsData != null;
 
   function getEffectivePrice(item: (typeof items)[0]): number {
     return effectiveUnitPrice(item, productMap.get(item.productId));
@@ -155,6 +166,14 @@ export default function CheckoutPage(): ReactElement {
         // so the fee shown here is the one the waybill will be built from.
         ...ghnLocationIds(address),
       }),
+    // GHN-WARD-01: GHN retires wards, and a ward list cached earlier in the
+    // session still offers the dead ones. Drop it on a refusal so the buyer's
+    // re-pick is made from the list GHN will actually accept.
+    onError: (error) => {
+      if (isGhnAddressRefusal(error)) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.shipping.wardsAll });
+      }
+    },
   });
 
   const shippingFee = shippingResult?.shippingFee ?? 0;
@@ -202,6 +221,34 @@ export default function CheckoutPage(): ReactElement {
     validateVoucher({ code, items: buildOrderItems(items, productMap) });
   }
 
+  // F3 (VOUCHER-SHOP-01): codes the buyer can pick instead of guessing, already
+  // priced against this exact basket — hence the signature in the key.
+  //
+  // Degrades silently on purpose: a backend without the route answers 404, and
+  // the list is a convenience layer over the manual input, not a gate. `retry:
+  // false` keeps a missing route from costing three round-trips per basket
+  // change, and an error simply renders no list.
+  const { data: voucherSuggestionData } = useQuery({
+    queryKey: queryKeys.orders.availableVouchers(basketSignature),
+    queryFn: () =>
+      api.orders.getAvailableVouchers({
+        items: buildOrderItems(items, productMap),
+      }),
+    enabled: items.length > 0 && productsReady && !multiSeller,
+    retry: false,
+    staleTime: 60_000,
+  });
+  const voucherSuggestions = sortVoucherSuggestions(
+    voucherSuggestionData?.vouchers ?? [],
+  );
+
+  // Picking a row still goes through validate: the suggestion is a hint priced
+  // a moment ago, and the last redemption can be taken in between (409).
+  function handlePickVoucher(code: string): void {
+    setVoucherInput(code);
+    validateVoucher({ code, items: buildOrderItems(items, productMap) });
+  }
+
   const discountAmount = !multiSeller && voucher ? voucher.discountAmount : 0;
   const grandTotal = discountedGrandTotal(totalPrice, discountAmount, shippingFee);
 
@@ -210,7 +257,6 @@ export default function CheckoutPage(): ReactElement {
   // accurate weights) so the fee shows without a manual click and never goes
   // stale. GHN failures degrade gracefully — see the summary render below.
   const selectedAddressId = selectedAddress?.id ?? null;
-  const productsReady = productIds.length === 0 || productsData != null;
   useEffect(() => {
     resetShipping();
     if (!selectedAddress || !productsReady || items.length === 0) return;
@@ -441,6 +487,13 @@ export default function CheckoutPage(): ReactElement {
                 selectedId={selectedAddress?.id ?? null}
                 onSelect={setSelectedAddress}
               />
+              {/* GHN-MSG-01: a refused address is a problem with this field, so
+                  say so here — not only as a line next to the disabled button. */}
+              {addressRejected && shippingFailure && (
+                <p className="m-0 rounded-xl border border-accent-red bg-tb-red/10 px-4 py-3 font-body text-xs leading-relaxed text-accent-red">
+                  {shippingFailure.message}
+                </p>
+              )}
             </div>
 
             {/* Payment method */}
@@ -699,6 +752,54 @@ export default function CheckoutPage(): ReactElement {
                       {voucherErrorMessage(voucherError)}
                     </span>
                   )}
+                  {/* Suggestions (VOUCHER-SHOP-01) — absent whenever the backend
+                      cannot price them, so the manual input above still stands
+                      on its own. */}
+                  {voucherSuggestions.length > 0 && (
+                    <div className="flex flex-col gap-1.5 mt-0.5">
+                      <span className="font-body text-[11px] uppercase tracking-[0.04em] text-ink-muted">
+                        Mã giảm giá cho đơn này
+                      </span>
+                      <ul className="flex flex-col gap-1.5 m-0 p-0 list-none max-h-56 overflow-y-auto">
+                        {voucherSuggestions.map((suggestion) => (
+                          <li key={suggestion.code}>
+                            <button
+                              type="button"
+                              onClick={() => handlePickVoucher(suggestion.code)}
+                              disabled={!suggestion.isEligible || voucherPending}
+                              className={cn(
+                                'w-full flex items-start justify-between gap-2 rounded-tb-input border px-2.5 py-2 text-left transition-colors',
+                                suggestion.isEligible
+                                  ? 'border-bdr bg-canvas-base enabled:cursor-pointer enabled:hover:border-accent-amber'
+                                  : 'border-bdr bg-canvas-base opacity-50 cursor-not-allowed',
+                              )}
+                            >
+                              <span className="flex flex-col gap-0.5 min-w-0">
+                                <span className="flex items-center gap-1.5 min-w-0">
+                                  <span className="font-mono text-[13px] text-accent-amber truncate">
+                                    {suggestion.code}
+                                  </span>
+                                  <span className="shrink-0 rounded-full border border-bdr px-1.5 font-body text-[10px] text-ink-muted">
+                                    {voucherScopeLabel(suggestion)}
+                                  </span>
+                                </span>
+                                <span className="font-body text-[11px] leading-[1.4] text-ink-muted">
+                                  {suggestion.isEligible
+                                    ? (suggestion.description ?? 'Áp dụng được cho đơn này')
+                                    : voucherIneligibleMessage(suggestion, formatVnd)}
+                                </span>
+                              </span>
+                              {suggestion.isEligible && (
+                                <span className="shrink-0 font-mono text-[13px] text-accent-green">
+                                  −{formatVnd(voucherSuggestionDiscount(suggestion))}
+                                </span>
+                              )}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
               <div className="flex justify-between items-center pt-3 border-t border-bdr">
@@ -720,7 +821,9 @@ export default function CheckoutPage(): ReactElement {
                     : 'border-bdr bg-canvas-surface text-ink-sec',
                 )}
               >
-                {shippingFailure.message}
+                {addressRejected
+                  ? "Vui lòng chọn hoặc cập nhật địa chỉ giao hàng ở mục 1 để tiếp tục."
+                  : shippingFailure.message}
               </div>
             )}
 
