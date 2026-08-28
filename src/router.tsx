@@ -30,6 +30,7 @@ const SellerOrdersPage   = lazy(() => import('@/features/order/SellerOrdersPage'
 const ReturnRequestsPage       = lazy(() => import('@/features/order/ReturnRequestsPage'));
 const SellerReturnRequestsPage = lazy(() => import('@/features/order/SellerReturnRequestsPage'));
 const ShopAnalyticsPage        = lazy(() => import('@/features/order/ShopAnalyticsPage'));
+const SellerVouchersPage       = lazy(() => import('@/features/shop/SellerVouchersPage'));
 const AdminAnalyticsPage       = lazy(() => import('@/features/admin/AdminAnalyticsPage'));
 
 export const router = createBrowserRouter([
@@ -116,6 +117,16 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute requiredRole="shop">
             <ShopAnalyticsPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        // Static, so it must not be swallowed by `sell/:id` below — v7 ranks
+        // literal segments above dynamic ones, but keeping it above is clearer.
+        path: 'sell/vouchers',
+        element: (
+          <ProtectedRoute requiredRole="shop">
+            <SellerVouchersPage />
           </ProtectedRoute>
         ),
       },

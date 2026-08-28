@@ -112,7 +112,13 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
             to="/sell"
             className={cn(
               'flex items-center gap-3 px-3 py-2.5 rounded-tb-input cursor-pointer transition-colors',
-              isActive('/sell') && !location.pathname.startsWith('/sell/orders') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
+              // `/sell/:id` (editing a product) belongs to this entry, but the
+              // sibling `/sell/*` screens have rails of their own.
+              isActive('/sell') &&
+                !location.pathname.startsWith('/sell/orders') &&
+                !location.pathname.startsWith('/sell/vouchers')
+                ? 'bg-canvas-elevated'
+                : 'hover:bg-canvas-elevated',
             )}
           >
             <span className="size-8 rounded-full bg-accent-amber/10 text-accent-amber flex-none grid place-items-center">
@@ -131,6 +137,20 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
               <ClipboardList size={16} className="shrink-0" />
             </span>
             <span className="flex-1 font-body font-semibold text-sm text-ink-pri">Đơn bán</span>
+          </Link>
+          <Link
+            to="/sell/vouchers"
+            className={cn(
+              'flex items-center gap-3 px-3 py-2.5 rounded-tb-input cursor-pointer transition-colors',
+              isActive('/sell/vouchers') ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
+            )}
+          >
+            <span className="size-8 rounded-full bg-accent-amber/10 text-accent-amber flex-none grid place-items-center">
+              <TicketPercent size={16} className="shrink-0" />
+            </span>
+            {/* "shop" qualifies it: an account that is both seller and admin
+                also has the platform-wide "Mã giảm giá" entry further down. */}
+            <span className="flex-1 font-body font-semibold text-sm text-ink-pri">Mã giảm giá shop</span>
           </Link>
           <Link
             to="/shop/analytics"

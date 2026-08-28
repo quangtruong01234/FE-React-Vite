@@ -73,6 +73,15 @@ export const queryKeys = {
     adminVouchers: ["orders", "admin", "vouchers"] as const,
     adminVouchersList: (page: number, limit: number) =>
       ["orders", "admin", "vouchers", page, limit] as const,
+    // Seller voucher console (`GET /order/vouchers/mine`). Keyed off the route
+    // rather than under `["orders","seller"]`, which is the *seller orders*
+    // invalidation prefix — parking vouchers there would make every seller
+    // order action refetch the voucher list too. It must also stay disjoint
+    // from `adminVouchers`: the two lists answer different questions for
+    // different accounts, so invalidating one must never sweep the other.
+    sellerVouchers: ["orders", "vouchers", "mine"] as const,
+    sellerVouchersList: (page: number, limit: number) =>
+      ["orders", "vouchers", "mine", page, limit] as const,
     // F3: vouchers priced against one exact basket. The signature keys the
     // cache — a different basket is a different answer, so quantities and SKU
     // choices must be part of the key or a stale discount would be shown.

@@ -6,7 +6,7 @@ import {
   voucherWindowLabel,
   canDeactivateVoucher,
   canReactivateVoucher,
-  voucherAdminErrorMessage,
+  voucherConsoleErrorMessage,
   localInputToIso,
   optionalNumber,
   buildCreateVoucherDto,
@@ -17,12 +17,12 @@ import {
   voucherEditBlockedMessage,
   voucherLooseningConfirm,
   voucherActiveToggleCopy,
-} from './voucherAdmin';
+} from './voucherRules';
 import {
   voucherCreateSchema,
   voucherEditSchema,
   VOUCHER_FORM_DEFAULTS,
-} from './voucherAdmin.schema';
+} from './voucherRules.schema';
 import type { Voucher } from '@/types';
 
 const NOW = new Date('2026-08-18T10:00:00.000Z').getTime();
@@ -148,29 +148,41 @@ describe('canDeactivateVoucher', () => {
   });
 });
 
-describe('voucherAdminErrorMessage', () => {
+describe('voucherConsoleErrorMessage', () => {
   it('names the duplicate-code conflict', () => {
-    expect(voucherAdminErrorMessage({ statusCode: 409, message: 'Voucher SALE10 already exists' }, 'create'))
+    expect(voucherConsoleErrorMessage({ statusCode: 409, message: 'Voucher SALE10 already exists' }, 'create'))
       .toBe('Mã này đã tồn tại. Hãy chọn một mã khác.');
   });
 
   it('explains a permission failure for both 401 and 403', () => {
     const expected = 'Bạn không có quyền quản lý mã giảm giá.';
-    expect(voucherAdminErrorMessage({ statusCode: 403, message: 'Forbidden' }, 'list')).toBe(expected);
-    expect(voucherAdminErrorMessage({ statusCode: 401, message: 'Unauthorized' }, 'list')).toBe(expected);
+    expect(voucherConsoleErrorMessage({ statusCode: 403, message: 'Forbidden' }, 'list')).toBe(expected);
+    expect(voucherConsoleErrorMessage({ statusCode: 401, message: 'Unauthorized' }, 'list')).toBe(expected);
+  });
+
+  it('uses the caller-supplied wording for a 401/403, since 403 is role-dependent', () => {
+    // The shop routes are ownership-gated as well as role-gated, so their 403
+    // has to read differently — but only 401/403 may be overridden.
+    const sellerForbidden = 'Bạn không quản lý được mã này. Shop chỉ sửa được mã của chính mình.';
+    expect(voucherConsoleErrorMessage({ statusCode: 403 }, 'update', sellerForbidden)).toBe(sellerForbidden);
+    expect(voucherConsoleErrorMessage({ statusCode: 401 }, 'list', sellerForbidden)).toBe(sellerForbidden);
+    expect(voucherConsoleErrorMessage({ statusCode: 404 }, 'update', sellerForbidden))
+      .toBe('Không tìm thấy mã giảm giá này.');
+    expect(voucherConsoleErrorMessage({ statusCode: 409, message: 'dup' }, 'create', sellerForbidden))
+      .toBe('Mã này đã tồn tại. Hãy chọn một mã khác.');
   });
 
   it('surfaces the backend validation text on a 400', () => {
-    expect(voucherAdminErrorMessage(
+    expect(voucherConsoleErrorMessage(
       { statusCode: 400, message: 'Percent discount value must be between 1 and 100' },
       'create',
     )).toBe('Percent discount value must be between 1 and 100');
   });
 
   it('falls back per action when the error carries no message', () => {
-    expect(voucherAdminErrorMessage(undefined, 'list')).toBe('Không tải được danh sách mã giảm giá. Vui lòng thử lại.');
-    expect(voucherAdminErrorMessage(undefined, 'create')).toBe('Không tạo được mã giảm giá. Vui lòng thử lại.');
-    expect(voucherAdminErrorMessage(undefined, 'deactivate')).toBe('Không tắt được mã giảm giá. Vui lòng thử lại.');
+    expect(voucherConsoleErrorMessage(undefined, 'list')).toBe('Không tải được danh sách mã giảm giá. Vui lòng thử lại.');
+    expect(voucherConsoleErrorMessage(undefined, 'create')).toBe('Không tạo được mã giảm giá. Vui lòng thử lại.');
+    expect(voucherConsoleErrorMessage(undefined, 'deactivate')).toBe('Không tắt được mã giảm giá. Vui lòng thử lại.');
   });
 });
 

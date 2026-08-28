@@ -129,6 +129,43 @@ export const ordersApi = {
       body: JSON.stringify(data),
     }),
 
+  // Seller voucher console — the same four operations as above, scoped to the
+  // signed-in shop (`shop` role; an admin or buyer hitting them gets 403). The
+  // payloads and rules are identical to the admin routes; what differs is that
+  // ownership is implied by the cookie and enforced server-side:
+  //
+  //  - create takes the admin DTO **minus ownership** — sending `sellerId` at
+  //    all is a 400 `SELLER_NOT_ASSIGNABLE`, so `buildCreateVoucherDto` (which
+  //    never emits the key) is the correct builder here too;
+  //  - `…/mine` only ever returns your own vouchers, so there is no filter to
+  //    pass and no way to page someone else's;
+  //  - touching another shop's voucher is a 403 whose message deliberately does
+  //    not echo the code, so it cannot be used to probe for existing ones.
+  createSellerVoucher: (data: CreateVoucherDto): Promise<Voucher> =>
+    request<Voucher>("/order/vouchers", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getSellerVouchers: (
+    page = 1,
+    limit = 20,
+  ): Promise<PaginatedResponse<Voucher>> => {
+    const qs = toQuery({ page, limit });
+    return request<PaginatedResponse<Voucher>>(`/order/vouchers/mine${qs}`);
+  },
+
+  deactivateSellerVoucher: (id: number): Promise<Voucher> =>
+    request<Voucher>(`/order/vouchers/${id}/deactivate`, {
+      method: "PATCH",
+    }),
+
+  updateSellerVoucher: (id: number, data: UpdateVoucherDto): Promise<Voucher> =>
+    request<Voucher>(`/order/vouchers/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
   getByUser: (
     userId: string,
     page = 1,

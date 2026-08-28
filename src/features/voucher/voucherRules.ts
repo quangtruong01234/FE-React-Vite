@@ -1,16 +1,19 @@
 import type { ApiError, CreateVoucherDto, UpdateVoucherDto, Voucher } from '@/types';
 import { formatVnd } from '@/lib/format/utils';
 import { toVoucherNumber } from '@/lib/domain/voucherMoney';
-import type { VoucherFormData } from './voucherAdmin.schema';
+import type { VoucherFormData } from './voucherRules.schema';
 
 /**
- * Pure helpers for the admin voucher console (F3-ADMIN).
+ * Pure helpers for the voucher console (F3-ADMIN), shared by the platform-wide
+ * admin screen and the seller's own-vouchers screen.
  *
- * Backend contract: `POST /order/admin/vouchers` creates (409 on a duplicate
- * code), `GET /order/admin/vouchers` pages the list newest-first,
- * `PATCH /order/admin/vouchers/:id/deactivate` flips `isActive` to false, and
- * since VOUCHER-EDIT-01 `PATCH /order/admin/vouchers/:id` edits a voucher —
- * including switching a deactivated one back on with `{ isActive: true }`.
+ * Backend contract, in both role flavours (`/order/admin/vouchers` for admins,
+ * `/order/vouchers` + `/order/vouchers/mine` for shops): create 409s on a
+ * duplicate code, the list pages newest-first, `…/:id/deactivate` flips
+ * `isActive` to false, and since VOUCHER-EDIT-01 `PATCH …/:id` edits a voucher —
+ * including switching a deactivated one back on with `{ isActive: true }`. The
+ * *rules* are identical either side, which is why none of this knows the role;
+ * only the URLs and the meaning of a 403 differ, and those live in the binding.
  *
  * Money columns are DECIMAL, so they can arrive as strings ("50000.00");
  * everything here coerces with `toVoucherNumber` before comparing or formatting.
@@ -103,27 +106,35 @@ export function canReactivateVoucher(voucher: Pick<Voucher, 'isActive'>): boolea
   return !voucher.isActive;
 }
 
-export type VoucherAdminAction = 'list' | 'create' | 'deactivate' | 'update';
+export type VoucherConsoleAction = 'list' | 'create' | 'deactivate' | 'update';
+
+/** What a 401/403 means when only the role is checked. */
+export const VOUCHER_FORBIDDEN_DEFAULT = 'Bạn không có quyền quản lý mã giảm giá.';
 
 /**
- * Friendly message for an admin voucher call. 403 means the account is not an
- * admin (the routes are `:any`-scoped), 409 is the duplicate-code guard on
- * create, and 400 carries the backend's own validation text — surface it rather
- * than swallowing it, since it names the exact rule that failed.
+ * Friendly message for a voucher console call. 409 is the duplicate-code guard
+ * on create, and 400 carries the backend's own validation text — surface it
+ * rather than swallowing it, since it names the exact rule that failed.
+ *
+ * 403 is the one status whose meaning is role-dependent, hence `forbidden`: on
+ * the admin routes it can only mean "not an admin", but the shop routes are
+ * *also* ownership-gated and their 403 deliberately does not echo the code, so
+ * the seller wording has to cover both readings without leaking whose it is.
  */
-export function voucherAdminErrorMessage(
+export function voucherConsoleErrorMessage(
   error: unknown,
-  action: VoucherAdminAction,
+  action: VoucherConsoleAction,
+  forbidden: string = VOUCHER_FORBIDDEN_DEFAULT,
 ): string {
   const err = error as ApiError | undefined;
   const status = err?.statusCode ?? err?.status;
   const message = typeof err?.message === 'string' ? err.message.trim() : '';
-  if (status === 401 || status === 403) return 'Bạn không có quyền quản lý mã giảm giá.';
+  if (status === 401 || status === 403) return forbidden;
   if (status === 409) return 'Mã này đã tồn tại. Hãy chọn một mã khác.';
   if (status === 404) return 'Không tìm thấy mã giảm giá này.';
   if (status === 400 && message) return message;
   if (message) return message;
-  const fallbackByAction: Record<VoucherAdminAction, string> = {
+  const fallbackByAction: Record<VoucherConsoleAction, string> = {
     list: 'Không tải được danh sách mã giảm giá. Vui lòng thử lại.',
     create: 'Không tạo được mã giảm giá. Vui lòng thử lại.',
     deactivate: 'Không tắt được mã giảm giá. Vui lòng thử lại.',
