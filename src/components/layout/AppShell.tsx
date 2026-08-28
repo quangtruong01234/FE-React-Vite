@@ -4,6 +4,7 @@ import { Header } from './Header';
 import { LeftRail } from './LeftRail';
 import { MobileNav } from './MobileNav';
 import { RightRail } from './RightRail';
+import { RouteErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { GlobalCreatePost } from '@/features/social/GlobalCreatePost';
 
 interface AppShellProps {
@@ -19,7 +20,9 @@ export function AppShell({ children, rightRail, fixedHeight }: AppShellProps): R
         <Header />
         <div className="flex-1 overflow-hidden grid md:grid-cols-[210px_minmax(0,1fr)] px-5 pt-6 gap-6 min-h-0 items-stretch">
           <LeftRail fullHeight />
-          <main className="min-w-0 min-h-0 overflow-hidden">{children}</main>
+          <main className="min-w-0 min-h-0 overflow-hidden">
+            <RouteErrorBoundary>{children}</RouteErrorBoundary>
+          </main>
         </div>
         <GlobalCreatePost />
       </div>
@@ -38,7 +41,9 @@ export function AppShell({ children, rightRail, fixedHeight }: AppShellProps): R
         )}
       >
         <LeftRail />
-        <main className="min-w-0">{children}</main>
+        <main className="min-w-0">
+          <RouteErrorBoundary>{children}</RouteErrorBoundary>
+        </main>
         {rightRail !== undefined && <RightRail />}
       </div>
       <MobileNav />
