@@ -73,6 +73,11 @@ export const queryKeys = {
     adminVouchers: ["orders", "admin", "vouchers"] as const,
     adminVouchersList: (page: number, limit: number) =>
       ["orders", "admin", "vouchers", page, limit] as const,
+    // F3: vouchers priced against one exact basket. The signature keys the
+    // cache — a different basket is a different answer, so quantities and SKU
+    // choices must be part of the key or a stale discount would be shown.
+    availableVouchers: (basketSignature: string) =>
+      ["orders", "vouchers", "available", basketSignature] as const,
   },
   auth: {
     me: ["auth", "me"] as const,
@@ -92,6 +97,10 @@ export const queryKeys = {
     districts: (provinceId: number) =>
       ["shipping", "districts", provinceId] as const,
     wards: (districtId: number) => ["shipping", "wards", districtId] as const,
+    // List-level prefix. GHN-WARD-01: GHN retires wards, and a list cached
+    // before that happened still offers one — refetch every district's list
+    // once GHN has refused an address, so the re-pick sees the current one.
+    wardsAll: ["shipping", "wards"] as const,
   },
   social: {
     feed: (page: number) => ["social", "feed", page] as const,

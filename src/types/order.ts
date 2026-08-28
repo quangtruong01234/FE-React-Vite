@@ -187,12 +187,84 @@ export interface VoucherValidation {
 }
 
 /**
+ * Whose subtotal the voucher's thresholds are measured against. `platform`
+ * (`sellerId: null`) prices on the whole goods subtotal; `shop` prices on that
+ * seller's slice of the basket **only** — so `minOrderAmount`, `amountToAdd`,
+ * `maxDiscountAmount` and `discountAmount` on a shop voucher are all about the
+ * slice, never the cart total. Label it in the UI or "cần thêm 300k" reads as a
+ * lie on a 500k basket split across two shops.
+ */
+export type VoucherScope = "platform" | "shop";
+
+/**
+ * Why `vouchers/available` says a code cannot be used right now. Stable machine
+ * strings — the backend deliberately sends no prose, so the Vietnamese copy
+ * lives in `features/cart/voucherSuggestions.ts`. Typed as a union plus
+ * `string` so a reason added server-side degrades to the generic copy instead
+ * of failing to compile.
+ */
+export type VoucherIneligibleReason =
+  | "INACTIVE"
+  | "WRONG_SELLER"
+  | "NOT_ACTIVE_YET"
+  | "EXPIRED"
+  | "MIN_ORDER_NOT_MET"
+  | "FULLY_REDEEMED"
+  | "USER_LIMIT_REACHED"
+  | "NO_DISCOUNT";
+
+/** `POST /order/vouchers/available` — same item shape as `voucher/validate`. */
+export interface AvailableVouchersDto {
+  items: CreateOrderItemDto[];
+}
+
+/**
+ * One row of `POST /order/vouchers/available`: a voucher already priced against
+ * the basket that was sent. Money fields are DECIMAL columns server-side, so
+ * they can arrive as `"50000.00"` — coerce with `toVoucherNumber` before math.
+ */
+export interface AvailableVoucher {
+  code: string;
+  description: string | null;
+  discountType: VoucherDiscountType;
+  discountValue: number | string;
+  minOrderAmount: number | string;
+  maxDiscountAmount: number | string | null;
+  /** `usr_…` on a shop voucher, `null` on a platform one — never a number. */
+  sellerId: string | null;
+  scope: VoucherScope;
+  isEligible: boolean;
+  /** `null` when eligible. */
+  ineligibleReason: VoucherIneligibleReason | string | null;
+  /** How much more to spend before this code applies; `0` when eligible. */
+  amountToAdd: number | string;
+  /** What this code would take off right now — sort by it to rank the list. */
+  discountAmount: number | string;
+  /** The slice the discount was measured against (see `VoucherScope`). */
+  applicableSubtotal: number | string;
+}
+
+/**
+ * The list is a **hint, not a permission**: applying a code the list called
+ * eligible can still fail (`400` from `voucher/validate` / `POST /order`, or
+ * `409 JUST_FULLY_REDEEMED` when someone else claims the last slot in between —
+ * the list reads the DB counter and cannot see in-flight Redis claims). Never
+ * skip the validate/apply round-trip because a row said `isEligible`.
+ */
+export interface AvailableVouchersResponse {
+  /** Goods subtotal re-priced from the catalog — reconcile against cart maths. */
+  itemsTotal: number | string;
+  /** Capped at 50 rows server-side. */
+  vouchers: AvailableVoucher[];
+}
+
+/**
  * A voucher row from the admin console (`GET /order/admin/vouchers`). Money
  * fields are DECIMAL columns, so TypeORM can serialize them as strings
  * ("50000.00") — always `Number()` before doing arithmetic.
  *
  * `id` is a plain auto-increment integer: vouchers were never migrated to the
- * `xxx_`-prefixed public ids, so the deactivate route takes the numeric id.
+ * `xxx_`-prefixed public ids, so the deactivate/update routes take the numeric id.
  */
 export interface Voucher {
   id: number;
@@ -212,6 +284,12 @@ export interface Voucher {
   startsAt: string | null;
   expiresAt: string | null;
   isActive: boolean;
+  /**
+   * Owner of a shop voucher (`usr_…`), `null` for a platform-wide one. Optional
+   * because a backend without VOUCHER-SHOP-01 omits the key entirely; treat
+   * absent and `null` the same. Not editable — a voucher never changes owner.
+   */
+  sellerId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -234,6 +312,41 @@ export interface CreateVoucherDto {
   startsAt?: string;
   /** ISO-8601 */
   expiresAt?: string;
+  isActive?: boolean;
+}
+
+/**
+ * `PATCH /order/admin/vouchers/:id` (VOUCHER-EDIT-01) — a **partial**, and the
+ * two "empty" values mean opposite things: **omit** a key to leave the field
+ * untouched, send `null` to clear it (uncapped / unlimited / no window / no
+ * description). `{}` is accepted and changes nothing.
+ *
+ * `code`, `discountType`, `discountValue` and `sellerId` are absent on purpose —
+ * they are immutable, and sending one is a `400 "property … should not exist"`
+ * rather than a silent no-op. Orders already priced against a voucher cannot be
+ * re-priced, so changing the money is deliberately deactivate-and-reissue.
+ *
+ * `{ isActive: true }` is also the **reactivate** route; there is no separate
+ * endpoint. Once `usedCount > 0` the voucher can only be **loosened** — a
+ * tightening edit is a `400`, and a loosening one cannot be walked back through
+ * the API (the reverse would be a tightening), so confirm before widening.
+ */
+export interface UpdateVoucherDto {
+  description?: string | null;
+  /**
+   * The one optional amount that is **not** nullable: the column is `NOT NULL
+   * DEFAULT 0`, the DTO declares `minOrderAmount?: number`, and the service
+   * calls `.toFixed(2)` on whatever arrives. `@IsOptional()` skips validation
+   * for `null` as well as `undefined`, so a `null` sails past the pipe and
+   * crashes the handler with a **500**, not a 400. "No minimum" is `0` here.
+   */
+  minOrderAmount?: number;
+  maxDiscountAmount?: number | null;
+  usageLimit?: number | null;
+  perUserLimit?: number | null;
+  /** ISO-8601, or `null` to clear the window end/start. */
+  startsAt?: string | null;
+  expiresAt?: string | null;
   isActive?: boolean;
 }
 

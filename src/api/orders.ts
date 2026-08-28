@@ -11,8 +11,11 @@ import type {
   ReturnRequestStatus,
   VoucherValidateDto,
   VoucherValidation,
+  AvailableVouchersDto,
+  AvailableVouchersResponse,
   Voucher,
   CreateVoucherDto,
+  UpdateVoucherDto,
   ShippingFeeDto,
   ShippingFeeResponse,
   AnalyticsQueryParams,
@@ -78,7 +81,23 @@ export const ordersApi = {
       body: JSON.stringify(data),
     }),
 
-  // Admin voucher console (F3-ADMIN). All three are admin-only (`order`
+  // F3 (VOUCHER-SHOP-01): every voucher relevant to this basket, already priced
+  // against it — `isEligible` + `ineligibleReason` + `amountToAdd` per row, so
+  // the buyer can pick a code instead of guessing one. Same item shape as
+  // `validateVoucher`; `items: []` is valid and returns platform vouchers only.
+  //
+  // The answer is a HINT, not a permission: keep calling `validateVoucher` /
+  // `create` before redeeming (see `AvailableVouchersResponse`). A backend
+  // without this route answers 404 — callers must degrade, not break.
+  getAvailableVouchers: (
+    data: AvailableVouchersDto,
+  ): Promise<AvailableVouchersResponse> =>
+    request<AvailableVouchersResponse>("/order/vouchers/available", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // Admin voucher console (F3-ADMIN). All are admin-only (`order`
   // create/read/update `:any`) — a seller hitting them gets 403.
   createVoucher: (data: CreateVoucherDto): Promise<Voucher> =>
     request<Voucher>("/order/admin/vouchers", {
@@ -94,11 +113,20 @@ export const ordersApi = {
     return request<PaginatedResponse<Voucher>>(`/order/admin/vouchers${qs}`);
   },
 
-  // There is no update/reactivate endpoint — deactivation is one-way, so the UI
-  // must confirm before calling it.
   deactivateVoucher: (id: number): Promise<Voucher> =>
     request<Voucher>(`/order/admin/vouchers/${id}/deactivate`, {
       method: "PATCH",
+    }),
+
+  // VOUCHER-EDIT-01: partial update, and also the only way to switch a
+  // deactivated voucher back on (`{ isActive: true }`). Omitting a key leaves
+  // the field alone; sending `null` clears it — `buildUpdateVoucherDto` owns
+  // that distinction. `code`/`discountType`/`discountValue` are immutable and
+  // rejected with a 400, so they never appear in the payload.
+  updateVoucher: (id: number, data: UpdateVoucherDto): Promise<Voucher> =>
+    request<Voucher>(`/order/admin/vouchers/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
     }),
 
   getByUser: (
