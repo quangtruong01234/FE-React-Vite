@@ -93,19 +93,36 @@ Sở hữu: `src/features/cart/voucher.ts`.
   trong message backend (`expired` · `not started` · `min` · `per-user`/`already` · `usage`/
   `limit` · `seller`/`multi`) — xem `voucherErrorMessage`.
 
-### Admin console (F3-ADMIN)
+### Voucher console (F3-ADMIN)
 
-Sở hữu: `src/features/admin/voucherAdmin.ts` + `voucherAdmin.schema.ts` · trang `/admin/vouchers`.
+Sở hữu: `src/features/voucher/` — `voucherRules.ts` + `voucherRules.schema.ts` (luật thuần),
+`VoucherConsole.tsx` (màn hình), `voucherConsoleBinding.ts` (endpoint + query key + copy theo
+role). Hai trang chỉ là vỏ: `/admin/vouchers` (`features/admin/AdminVouchersPage`) và
+`/sell/vouchers` (`features/shop/SellerVouchersPage`).
 
-- **Chỉ admin.** Backend gác bằng `order` `create/read/update:any` — seller gọi vào là **403**.
-  Không có màn quản lý voucher cho seller, và cũng không có endpoint để làm.
-- **Chỉ có 3 thao tác:** `POST /order/admin/vouchers` (409 nếu trùng mã) ·
-  `GET /order/admin/vouchers?page&limit` (mới nhất trước) ·
-  `PATCH /order/admin/vouchers/:id/deactivate`.
-  **Không có sửa, không có bật lại** — tắt là một chiều, mã sai thì tạo mã mới. UI phải
-  `window.confirm` trước khi tắt.
+- **Một màn hình, hai role.** Luật y hệt nhau ở cả hai phía nên `VoucherConsole` **không bao
+  giờ** rẽ nhánh theo role — mọi khác biệt nằm trong binding. Thêm luật mới thì sửa
+  `voucherRules.ts` (dùng chung), đổi URL/copy thì sửa binding.
+  - admin (`/order/admin/vouchers…`): toàn sàn, sửa được mọi mã.
+  - shop (`/order/vouchers`, `/order/vouchers/mine`, `…/:id/deactivate`, `…/:id`): **chỉ mã của
+    chính mình**, quyền sở hữu lấy từ cookie. Gửi kèm `sellerId` là **400
+    `SELLER_NOT_ASSIGNABLE`** — `buildCreateVoucherDto` vốn không phát field đó, đừng thêm.
+  - **403 ở route shop mơ hồ có chủ đích**: hoặc sai role, hoặc mã của shop khác, backend cố ý
+    không nói rõ cái nào ⇒ copy phải phủ cả hai (`SELLER_VOUCHER_BINDING.copy.forbidden`).
+- **4 thao tác:** tạo (409 nếu trùng mã) · list (mới nhất trước) · `…/:id/deactivate` ·
+  `PATCH …/:id` (sửa; `{ isActive: true }` chính là **bật lại**, không có endpoint riêng).
+  UI phải `window.confirm` trước khi tắt.
+- **Sửa là partial PATCH:** vắng key = giữ nguyên · `null` = xoá · `{}` = no-op.
+  `code`/`discountType`/`discountValue`/`sellerId` **bất biến** — gửi là 400 `property … should
+  not exist`, nên form khoá `readOnly` ở chế độ sửa. Mã đã có người dùng (`usedCount > 0`) chỉ
+  được **nới lỏng**, và nới lỏng **không đi ngược lại được** ⇒ confirm trước khi gửi
+  (`voucherLooseningConfirm`).
+- **`minOrderAmount` không bao giờ được gửi `null`** — cột `NOT NULL DEFAULT 0`, `null` ra
+  **500** chứ không phải 400. Xoá ô ⇒ gửi `0` (`diffMinOrderAmount`).
 - `voucher.id` là **số nguyên auto-increment**, không phải public id `xxx_` — route deactivate
   nhận số. Đừng đổi sang string id.
+- Query key hai console phải **rời nhau** và **không** nằm dưới `queryKeys.orders.seller` (đó là
+  prefix invalidate của *đơn* bán) — `["orders","vouchers","mine"]`, có test chốt.
 - **Field optional phải bỏ hẳn key**, không gửi `null`: backend đọc key thiếu là "không giới
   hạn"/"không có window", còn `null` rớt class-validator → **400**. `buildCreateVoucherDto`
   lo việc này; `maxDiscountAmount` cũng bị bỏ khi voucher là `fixed`.

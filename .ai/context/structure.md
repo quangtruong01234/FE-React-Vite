@@ -62,7 +62,8 @@ frontend/
     │   ├── address/            # AddressesPage, AddressFormModal, AddressSelect, AddressBookPicker,
     │   │                       # useAddresses, useShippingLocations, addressUtils
     │   ├── admin/              # AdminPage, AdminAnalyticsPage, Pending{Brands,Categories}Page,
-    │   │                       # ReportedPostsPage, ProductRiskPage, postModeration, productRisk
+    │   │                       # ReportedPostsPage, ProductRiskPage, postModeration, productRisk,
+    │   │                       # AdminVouchersPage (thin — binds features/voucher/)
     │   ├── auth/               # LoginPage, ForgotPasswordForm, PasswordField, auth.schema, useLogin
     │   ├── cart/               # CartPage, CheckoutPage + checkout/voucher/shippingFee helpers
     │   ├── chat/               # ChatDialog, ChatThread, MessagesPage, useChat, chatPresenceSocket, chat*.ts
@@ -72,10 +73,13 @@ frontend/
     │   ├── payment/            # PaymentResultPage, paymentResultParams
     │   ├── product/            # MarketplacePage, ProductDetail, ProductCard, CreateProductPage,
     │   │                       # product-form/, useProducts, productParams, marketplaceUrl
-    │   ├── shop/               # ShopPage, lowStock
+    │   ├── shop/               # ShopPage, lowStock, SellerVouchersPage (thin — binds features/voucher/)
     │   ├── social/             # FeedPage, PostCard, PostDetailPage, CreatePostModal, ProductPicker,
     │   │                       # ReportPostDialog, useFeed/useComments/useFollow/useSharePost
     │   ├── user/               # ProfilePage, EditProfileModal, FollowListModal, avatarUpload, profileAbout
+    │   ├── voucher/            # Role-neutral voucher console shared by admin + shop:
+    │   │                       # VoucherConsole, voucherConsoleBinding (endpoints/keys/copy per role),
+    │   │                       # voucherRules(.schema)
     │   └── wishlist/           # WishlistPage, wishlistCache
     └── assets/
 ```
@@ -110,7 +114,7 @@ Source of truth: `src/router.tsx` (route-level pages lazy-load via `React.lazy` 
 | `/profile/:id` · `/addresses` | `ProfilePage` · `AddressesPage` | auth |
 | `/notifications` | `NotificationsPage` | auth |
 | `/shop` · `/shop/analytics` | `ShopPage` · `ShopAnalyticsPage` | role: shop |
-| `/sell` · `/sell/:id` · `/sell/orders` · `/sell/returns` | seller pages | role: shop |
+| `/sell` · `/sell/:id` · `/sell/orders` · `/sell/returns` · `/sell/vouchers` | seller pages | role: shop |
 | `/admin` · `/admin/analytics` · `/admin/reports` · `/admin/product-risk` · `/admin/vouchers` · `/admin/{brands,categories}/pending` | admin pages | role: admin |
 | `*` (inside layout) | 404 `ApiErrorState` | — |
 | `*` (top-level) | `<Navigate to="/" />` | — |

@@ -7,6 +7,80 @@
 
 ## Maintenance
 
+### VOUCHER-SHOP-FE-01 · màn voucher cho seller — một màn hình, hai role (2026-08-29)
+
+User: *"check xem bên handoff có nói về nó không nếu có thì làm"*. Có: `frontend-handoff.md` §F3,
+mục 3 của "FE action needed" — *"Optional: a seller voucher screen off the three `shop`-role
+routes"* — và chính lượt SWEEP-0826 đã ghi *"**Item 3 deliberately skipped** — it is marked
+optional"*. Lượt này làm nốt. Ba route shop đó (cộng `PATCH …/:id` của VOUCHER-EDIT-01) đã live
+trên prod từ 2026-08-26, nên đây là class **B** thuần FE: không có gì bên BE phải đợi.
+
+---
+
+**Vấn đề không phải "viết một trang mới", mà là "đừng viết trang thứ hai".** `AdminVouchersPage`
+là **682 dòng**: form 10 field, bảng, phân trang, confirm tắt/nới lỏng, mirror hai cái 400 của mã
+đã redeem. Màn của seller giống tới ~95% — luật BE **y hệt** ở cả hai phía, chỉ khác URL và ý
+nghĩa của một cái 403. Copy-paste là nhân đôi mọi luật voucher và đảm bảo hai bên lệch nhau sau
+lần sửa đầu tiên; `core.md` §DRY cũng bắt tách khi một pattern UI xuất hiện ở 2+ chỗ.
+
+**1 · Tách thành `src/features/voucher/` — role-neutral.** Không đặt ở `components/shared/` (chỗ
+đó dành cho reusable *generic*, không phải một console của một domain), cũng không để trang role
+`shop` import ngược từ `features/admin/` (ngược chiều phụ thuộc). Bố cục:
+
+- `voucherRules.ts` + `voucherRules.schema.ts` — `git mv` từ `features/admin/voucherAdmin.ts`,
+  **nội dung luật không đổi một dòng nào**. Đổi đúng hai thứ: docblock nói rõ luật dùng chung cho
+  cả hai role, và `voucherAdminErrorMessage(error, action)` → `voucherConsoleErrorMessage(error,
+  action, forbidden?)` — **chỉ** nhánh 401/403 nhận được câu chữ từ caller, 409/404/400 vẫn là
+  câu chung (test chốt điều này, vì nới rộng chỗ override là mở đường cho hai console nói khác
+  nhau về cùng một lỗi).
+- `VoucherConsole.tsx` — nguyên thân `AdminVouchersPage` cũ, nhận `binding`.
+- `voucherConsoleBinding.ts` — **toàn bộ** khác biệt giữa hai role gom vào đây: 4 endpoint, 2
+  query key, 5 câu copy. Nhờ vậy `VoucherConsole` **không bao giờ** rẽ nhánh theo role.
+
+Hai trang còn lại là vỏ 14 dòng: `features/admin/AdminVouchersPage.tsx` (giữ nguyên đường import
+của route cũ) và `features/shop/SellerVouchersPage.tsx`. Build xác nhận tách có lợi thật: hai
+trang lazy nay dùng chung một chunk `voucherConsoleBinding` **23.45 kB / 7.38 kB gzip** thay vì
+mỗi trang một bản console.
+
+**2 · Ba cái bẫy của route shop, xử ngay ở binding chứ không ở JSX.**
+
+- **Tạo mã không được mang `sellerId`** — không phải "bị bỏ qua" mà là **400
+  `SELLER_NOT_ASSIGNABLE`**; quyền sở hữu lấy từ cookie. May là `buildCreateVoucherDto` vốn không
+  phát field đó, nên không phải sửa gì — nhưng có test chốt `expect(dto).not.toHaveProperty('sellerId')`
+  để lần sau ai thêm vào form thì gãy ở test chứ không gãy trên prod.
+- **403 ở route shop mơ hồ *có chủ đích*** — hoặc sai role, hoặc mã của shop khác, và BE cố ý
+  không nói rõ cái nào. Nên copy của seller phải phủ cả hai nghĩa (*"Shop chỉ sửa được mã của
+  chính mình"*) chứ không dùng lại câu của admin (*"Bạn không có quyền quản lý mã giảm giá"*),
+  câu đó đọc như một khẳng định sai.
+- **Query key**: viết `["orders","seller","vouchers"]` là sai — `queryKeys.orders.seller` là
+  prefix **invalidate của đơn bán**, TanStack match theo prefix nên **mọi** thao tác đơn của
+  seller sẽ kéo theo refetch list voucher. Key thật là `["orders","vouchers","mine"]` (soi theo
+  route), kèm test chốt cả ba tính chất: `listKey` phải là prefix của mọi `listPageKey`, hai
+  console phải **rời nhau**, và seller-voucher phải **nằm ngoài** `orders.seller`.
+
+**3 · Route + rail.** `/sell/vouchers`, `ProtectedRoute requiredRole="shop"`, lazy như mọi trang
+route-level. Hai chỗ suýt sai trong `LeftRail`: (a) mục `/sell` ("Đăng sản phẩm") active bằng
+`isActive('/sell')` và mới chỉ loại trừ `/sell/orders` ⇒ vào `/sell/vouchers` là **hai mục cùng
+sáng**, đã loại trừ nốt; (b) block admin đã có sẵn một link nhãn **"Mã giảm giá"** — tài khoản
+vừa `shop` vừa `admin` sẽ thấy **hai nhãn y hệt nhau** trỏ hai trang khác nhau, nên nhãn của
+seller là **"Mã giảm giá shop"**.
+
+**Bẫy Windows, ăn một lượt build:** đặt tên `voucherConsole.ts` (helper) cạnh `VoucherConsole.tsx`
+(component) ⇒ **`TS1149`** — filesystem case-insensitive nên với tsc đó là *một* file. Đổi tên
+helper thành `voucherRules.*` chứ không đổi tên component.
+
+**Không làm:** không đụng `evaluateVoucher`/luật ở `voucherRules.ts` (tách là tách, không kèm
+refactor luật); không thêm cột `scope` cho bảng admin trong lượt này; **chưa verify runtime trên
+prod** — cần một tài khoản `shop` tạo mã thật, mà tạo mã trên prod thì phải dọn, để lượt sau.
+
+**Gates:** `npm run build` ✓ · `npm run lint` 0 problem · +36 test / +1 file → **882 test / 113 file**.
+
+**Files:** `src/features/voucher/{VoucherConsole.tsx, voucherConsoleBinding.ts(+test),
+voucherRules.ts(+test), voucherRules.schema.ts}` (3 file sau `git mv` từ `features/admin/`),
+`src/features/admin/AdminVouchersPage.tsx` (682 → 14 dòng), `src/features/shop/SellerVouchersPage.tsx`,
+`src/api/orders.ts`, `src/hooks/query/queryKeys.ts`, `src/router.tsx`,
+`src/components/layout/LeftRail.tsx`, `.ai/context/{structure,domain}.md`.
+
 ### SWEEP-0828 · GHN-MSG-01 + GHN-WARD-01 — địa chỉ GHN từ chối, nói bằng tiếng Việt và nói đúng chỗ (2026-08-28)
 
 User: `/sweep` (không tham số) ⇒ lấy đúng **một** item ưu tiên cao nhất trong backlog. Hai entry
