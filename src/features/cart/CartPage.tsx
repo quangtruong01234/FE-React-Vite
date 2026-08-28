@@ -14,6 +14,7 @@ import { ProductThumb } from '@/components/shared/ProductThumb';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ProductWithInventory } from '@/types';
 import { effectiveUnitPrice } from './shippingFee';
+import { cartLineName } from './checkoutItems';
 import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
 
 export default function CartPage(): ReactElement {
@@ -37,7 +38,12 @@ export default function CartPage(): ReactElement {
 
   const productIds = [...new Set(items.map(i => i.productId))].sort();
 
-  const { data: productsData, isLoading: productsLoading } = useQuery({
+  const {
+    data: productsData,
+    isLoading: productsLoading,
+    isError: productsFailed,
+    refetch: refetchProducts,
+  } = useQuery({
     queryKey: queryKeys.products.cartItems(productIds),
     queryFn: () => api.products.getMultipleWithInventory(productIds),
     enabled: productIds.length > 0,
@@ -49,8 +55,9 @@ export default function CartPage(): ReactElement {
   const isMutating = updateItem.isPending || removeItem.isPending || clearCart.isPending;
   const isLoading = cartLoading || productsLoading;
   // Only the cart request decides this: it is what "giỏ hàng trống" is a claim
-  // about. A failed *product* lookup still leaves real rows to render, with the
-  // "Sản phẩm không còn tồn tại" fallback per item.
+  // about. A failed *product* lookup still leaves real rows to render — but it
+  // must not borrow the "Sản phẩm không còn tồn tại" wording, which asserts a
+  // deletion nobody verified (BATCH-FAIL-01). It gets its own notice instead.
   const loadError = toApiError(cartError);
 
   function getEffectivePrice(item: (typeof items)[0]): number {
@@ -167,10 +174,25 @@ export default function CartPage(): ReactElement {
                 )}
               </div>
 
+              {productsFailed && (
+                <div className="flex items-center justify-between gap-3 px-4 py-3 bg-tb-red/10 border border-tb-red/30 rounded-xl">
+                  <span className="font-body text-xs text-ink-sec">
+                    Chưa tải được thông tin sản phẩm. Giỏ hàng của bạn vẫn còn nguyên.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void refetchProducts()}
+                    className="font-body text-xs text-accent-amber cursor-pointer hover:underline bg-transparent border-0 shrink-0"
+                  >
+                    Thử lại
+                  </button>
+                </div>
+              )}
+
               {/* Items */}
               {items.map(item => {
                 const product = productMap.get(item.productId);
-                const name = product?.name ?? 'Sản phẩm không còn tồn tại';
+                const name = cartLineName(product, productsFailed);
                 const imageUrl = product?.imageUrls?.[0] ?? product?.imageUrl ?? '';
                 const variantLabel = buildVariantLabel(item.skuTierIdx, product?.variations);
                 const price = getEffectivePrice(item);

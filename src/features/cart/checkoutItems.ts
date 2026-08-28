@@ -28,6 +28,23 @@ export function buildOrderItems(
 }
 
 /**
+ * Name to show for a cart line whose product is missing from the hydration
+ * response. Absence only means "deleted" when the lookup itself **succeeded**:
+ * BATCH-FAIL-01 (2026-08-27) is precisely the case where it did not — the
+ * gateway used to flatten a product-service outage into an empty `200`, and
+ * after that fix answers `502`. Either way, telling a shopper every line in
+ * their cart no longer exists is a false claim about their own data, and it is
+ * the one that makes them re-add items that were never gone.
+ */
+export function cartLineName(
+  product: Pick<ProductWithInventory, 'name'> | undefined,
+  lookupFailed: boolean,
+): string {
+  if (product) return product.name;
+  return lookupFailed ? 'Chưa tải được tên sản phẩm' : 'Sản phẩm không còn tồn tại';
+}
+
+/**
  * Pre-submit stock check: per product, the user-facing shortage message when a
  * line asks for more than is available. Availability comes from the matched
  * SKU's `stockQuantity` when the line carries a `skuId` (and the product has

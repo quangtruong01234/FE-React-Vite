@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { ProductWithInventory } from '@/types';
-import { buildOrderItems, findStockShortages } from './checkoutItems';
+import { buildOrderItems, cartLineName, findStockShortages } from './checkoutItems';
 
 function product(
   partial: Partial<ProductWithInventory> & { id: string },
@@ -38,6 +38,24 @@ describe('buildOrderItems', () => {
 
   it('uses an empty name for a product missing from the map', () => {
     expect(buildOrderItems([{ productId: 'prod_99', quantity: 1 }], map)[0].productName).toBe('');
+  });
+});
+
+describe('cartLineName', () => {
+  it('uses the product name whenever the product resolved', () => {
+    expect(cartLineName({ name: 'Tai nghe' }, false)).toBe('Tai nghe');
+    // Even mid-failure: a row we did resolve is not in doubt.
+    expect(cartLineName({ name: 'Tai nghe' }, true)).toBe('Tai nghe');
+  });
+
+  it('claims deletion only when the lookup itself succeeded', () => {
+    expect(cartLineName(undefined, false)).toBe('Sản phẩm không còn tồn tại');
+  });
+
+  it('does not claim deletion when the lookup failed', () => {
+    // BATCH-FAIL-01: an outage answered `200 []`, and now `502`. Neither is
+    // evidence that the shopper's items are gone.
+    expect(cartLineName(undefined, true)).toBe('Chưa tải được tên sản phẩm');
   });
 });
 
