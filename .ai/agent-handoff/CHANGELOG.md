@@ -60,9 +60,86 @@ tiếng Việt ở mục 1, đó là toàn bộ những gì làm được cho t�
 `src/features/cart/CheckoutPage.tsx`, `src/hooks/query/queryKeys.ts`.
 
 **Gates:** `npm run build` ✓ · `npm run lint` 0 problem · `npm run test:run` **873 test / 112 file**
-✓ (+2 test). **Runtime verify: còn nợ** — repro cần một địa chỉ trỏ vào ward GHN từ chối (một
-trong chín ward Quận 8 ở trên) trên full-stack live; lượt này không có backend chạy nên **không
-đánh dấu là đã verify**. Đường lỗi đi qua đúng một hàm thuần đã được test pin cả năm nhánh.
+✓ (+2 test).
+
+**✅ Runtime verify trên prod 2026-08-28 (sau khi push, worker đã chạy bundle mới).** Lượt sweep
+không có backend nên để nợ; trả nợ ngay sau khi CD lên xong. Cách làm **không đụng dữ liệu cũ**:
+`user1` **thêm** một địa chỉ mới ("GHN Ward Probe", Quận 8 / Phường 1), **không** tick mặc định
+⇒ địa chỉ thật của `user1` không bị sửa một chữ nào; xong việc thì xoá địa chỉ probe, sổ địa chỉ
+trở lại đúng **1 địa chỉ mặc định** như trước. Không đặt đơn, không đụng voucher.
+
+- `GET /api/shipping/wards?districtId=1450` trả **16 ward, vẫn có đủ chín ward bị từ chối**
+  (`20801` = "Phường 1" … `20816` = "Phường 16") ⇒ xác nhận đúng lời BE: **không phân biệt được**
+  ward chết với ward sống từ master-data, nên FE lọc hộ là chặn nhầm.
+- `POST /api/order/shipping-fee` với `toDistrictId: 1450`, `toWardCode: "20801"` → **400**, body
+  `"message": "GHN cannot deliver to this ward — pick another shipping address"` — **đúng chuỗi
+  GHN-MSG-01 mà regex `an?` cũ để lọt**. Cùng phiên, địa chỉ Quận 1 vẫn ra **201** bình thường.
+- UI: dưới mục **1. Địa chỉ giao hàng** hiện *"Không giao được tới địa chỉ này: đơn vị vận chuyển
+  không nhận giao tới phường/xã đã chọn. Vui lòng chọn hoặc cập nhật địa chỉ khác."*; cột tóm tắt
+  rút còn *"Vui lòng chọn hoặc cập nhật địa chỉ giao hàng ở mục 1 để tiếp tục."*; dòng phí là
+  *"Không giao được"*; nút **XÁC NHẬN ĐẶT HÀNG disabled**.
+- Quét rò rỉ trên `main.innerText`: **không** có `GET`, **không** có `/api/`, **không** có
+  `deliver`. Hai chữ `GHN`/`ward` duy nhất trên trang đến từ **tên địa chỉ probe tôi tự đặt**
+  ("GHN Ward Probe"), không phải từ câu lỗi.
+
+### CRASH-0827 · giỏ hàng không được phép nói dối khi backend hỏng (2026-08-27)
+
+> **Entry này viết bù ngày 2026-08-28.** Lượt 2026-08-27 làm xong code + test nhưng **không đóng
+> vòng**: không có entry CHANGELOG, không có dòng snapshot, và cũng chưa commit — nên
+> `snapshot.md` vẫn ghi `856 test / 111 file` trong khi `backend-handoff.md` của chính lượt đó đã
+> ghi `871 / 112`. Phát hiện lúc `/sweep` 2026-08-28 dọn cây làm việc. Nội dung dưới đây dựng lại
+> từ diff của ba commit `ee6689a` / `825453e` / `025e786` + mục 4 trong entry "BATCH-FAIL-01 hậu
+> kiểm" của `backend-handoff.md`, **không** phải từ trí nhớ của phiên đó. Class **A** — không
+> đụng contract nào.
+
+**Một chủ đề chung cho cả ba: chỗ nào hệ thống đang biến "tôi không biết" thành "không có".**
+Đó đúng là cái lie mà BATCH-FAIL-01 diệt ở gateway (`.catch(() => [])`), và lượt này đi tìm nốt
+các bản sao của nó ở phía client.
+
+**1 · `ErrorBoundary` — một route ném là trắng cả app.** Không có boundary nào dưới router, nên
+một lỗi render bất kỳ ăn trắng toàn bộ trang (đúng vết SKU-NULL-01: `/sell/:id` ra
+*"Unexpected Application Error!"*). Nay hai lớp, cố ý khác nhau về phạm vi:
+`RootErrorBoundary` bọc cây provider, `RouteErrorBoundary` nằm **trong** `<main>` của `AppShell`
+⇒ một trang chết thì **vỏ ứng dụng vẫn sống** — nav, giỏ hàng, chat vẫn bấm được, người dùng đi
+tiếp được thay vì phải F5. `src/components/shared/ErrorBoundary.tsx` (+ 157 dòng test).
+
+**2 · `fetchBatchTolerant` — trigger thứ hai: `200 []`.** Hàm này vốn chỉ fan-out khi batch trả
+**404**. Nhưng BE đo lại 2026-08-27 (SHAPE-01 hậu kiểm) và xác nhận gateway bọc call sản phẩm
+trong `.catch(() => [])` ⇒ **404 không bao giờ tới**; cái tới là `200` với mảng rỗng. Rỗng còn tệ
+hơn 404: không có gì để `catch`, nên **một** dòng giỏ hàng trỏ vào id chết là render giỏ **rỗng
+hoàn toàn** và chặn checkout bằng "Chỉ còn 0" trên mọi dòng. Nay mảng rỗng trả về cho một danh
+sách id **không** rỗng bị coi là *chưa xác minh* chứ không phải sự thật ⇒ fan-out từng id. Giá
+phải trả: một lượt fan-out thừa khi id chết thật — hiếm, và câu trả lời cuối cùng vẫn là `[]`.
+Comment `P2-06` trong `api/products.ts` ghi *"backend now skips missing ids"* là **sai sự thật**,
+đã sửa lại đúng cái prod đang làm.
+
+**3 · Type giỏ hàng — khai đúng cái BE trả.** `ServerCart.id` là `number | null` và
+`createdAt`/`updatedAt` optional-nullable, `ServerCartItem.cartId` là `number | null`: SHAPE-01
+chốt giỏ rỗng trả **đủ năm key ở cả hai trạng thái** (`{ id: null, userId, createdAt: null,
+updatedAt: null, items: [] }`) thay vì bỏ bớt key. Giữ `?` để **prod cũ vẫn đúng type**.
+
+**4 · `cartLineName()` — tách "đã bị xoá" khỏi "chưa tra được".** `CartPage` cố ý nuốt lỗi
+product và dán nhãn `"Sản phẩm không còn tồn tại"` cho **mọi** dòng không tra được — tức là cùng
+một câu nói dối của gateway, chỉ dời từ BE vào UI: product-service chớp một cái là người mua đọc
+"toàn bộ giỏ đã bị xoá" trong khi hàng còn nguyên, và phản xạ đầu tiên của họ là **thêm lại
+những món chưa từng mất**. Nay tra được mà thiếu ⇒ vẫn `"Sản phẩm không còn tồn tại"`; tra hỏng
+⇒ `"Chưa tải được tên sản phẩm"` + banner *"Giỏ hàng của bạn vẫn còn nguyên"* kèm nút thử lại.
+`CheckoutPage` đã đúng sẵn (panel lỗi + chặn submit) nên **không đụng**.
+
+**KHÔNG làm:** không bỏ trigger `404` cũ. Cả hai trigger chỉ được gỡ **sau khi** BATCH-FAIL-01 lên
+prod — và khi đó phải gỡ **cả hai**, vì `extractStatusCode` của gateway đoán status theo từ khoá
+trong message (`"not found"` → 404), nên giữ trigger 404 lại sẽ biến một lỗi hạ tầng bắt được
+thành `[]` im lặng: đúng cái cửa sau đã ghi ở `backend-handoff.md` mục 2.
+
+**Files:** `src/components/shared/ErrorBoundary.tsx` (+test), `src/App.tsx`,
+`src/components/layout/AppShell.tsx`, `src/lib/http/fetchBatchTolerant.ts` (+test),
+`src/api/products.ts`, `src/types/cart.ts`, `src/hooks/query/cartCache.test.ts`,
+`src/features/cart/checkoutItems.ts` (+test), `src/features/cart/CartPage.tsx`.
+
+**Gates (đo lại 2026-08-28 cùng cây với SWEEP-0828):** `npm run build` ✓ · `npm run lint`
+0 problem · `npm run test:run` ✓. Con số của riêng lượt này là **871 test / 112 file**
+(`backend-handoff.md` ghi cùng ngày). **Runtime verify: không có** — cả ba nhánh chỉ hiện ra khi
+product-service chết, không dựng được trên prod mà không phá dịch vụ thật.
 
 ### SWEEP-0826 · F3 voucher (phần FE) + VOUCHER-EDIT-01 + VOUCHER-GUARD-01 (2026-08-26)
 
