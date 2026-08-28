@@ -7,6 +7,201 @@
 
 ## Maintenance
 
+### SWEEP-0828 · GHN-MSG-01 + GHN-WARD-01 — địa chỉ GHN từ chối, nói bằng tiếng Việt và nói đúng chỗ (2026-08-28)
+
+User: `/sweep` (không tham số) ⇒ lấy đúng **một** item ưu tiên cao nhất trong backlog. Hai entry
+**Open** duy nhất của `frontend-handoff.md` mà FE **không** bị chặn bởi một lượt push của BE là
+GHN-MSG-01 và GHN-WARD-01 — cùng một field, cùng một flow, cùng class **B**, và cả hai đã live
+trên prod từ 2026-08-26. Gộp làm một lượt. (BATCH-FAIL-01, nhánh bỏ fan-out của SHAPE-01,
+CHAT-ROOM-01, UPLOAD-SIZE-01 đều đang chờ BE lên prod; VOUCHER-NULL-01, VOUCHER-CANCEL-01,
+REPORT-TOTAL-01, OVERFETCH-01, F3 đều là "FE không phải sửa gì".)
+
+---
+
+**Bug thật, không phải việc dọn dẹp.** BE đóng băng lời văn cho hai câu từ chối mới:
+
+- GHN-MSG-01 — `"GHN cannot deliver to this ward — pick another shipping address"`
+- GHN-WARD-01 — `"GHN no longer delivers to ward <code> — pick another ward from GET /api/shipping/wards"`
+
+`shippingFeeError.ts` cắt cái đuôi "gọi endpoint này đi" bằng regex `…pick an? \w+ from GET …`.
+Nhánh `an?` chỉ khớp `a` / `an`, **không khớp `another`** ⇒ cả hai câu mới đi thẳng qua bộ cắt,
+rồi rơi vào nhánh nội suy `Không giao được tới địa chỉ này: ${reason}.` Người mua nhận nguyên
+tiếng Anh — và với GHN-WARD-01 là **lộ luôn tên endpoint nội bộ** `GET /api/shipping/wards` ra
+banner checkout, đúng loại rò rỉ mà BE-REPORT-0813 đã dọn cho biến thể `district` trước đây.
+
+**1 · Dịch — khớp cả chuỗi, không khớp chuỗi con.** BE nói rõ *"Match on the whole string"*, nên
+`WARD_REFUSALS` là ba regex **neo hai đầu** (`^…$`) chứ không phải `includes`: câu GHN-MSG-01, câu
+GHN-WARD-01, và câu `"Ward X does not belong to GHN district Y"` có sẵn từ GHN-DIST-01. Cả ba nói
+cùng một điều với người mua — GHN không nhận giao tới phường/xã của địa chỉ này — nên dùng chung
+một câu copy. BE đổi lời văn sau này thì rơi về nhánh pass-through cũ chứ **không** bị dịch sai.
+Câu 400 nào BE chưa đóng băng vẫn giữ nguyên đường cũ: lỗi số điện thoại
+(`master_data_validate_phone …`) vẫn in verbatim, vì bảo người mua đi sửa **địa chỉ** là chỉ sai
+field. Regex đuôi cũng mở rộng cho `another` + cho câu `— pick another shipping address` (không có
+`from GET`).
+
+**2 · Gắn lỗi vào đúng field.** Trước lượt này thông điệp chỉ nằm ở cột tóm tắt bên phải, cạnh nút
+đã bị disable — cách mục **1. Địa chỉ giao hàng** cả một trang. Nay câu đầy đủ nằm ngay dưới
+`AddressBookPicker`, còn banner cột phải rút thành một dòng trỏ ngược lên (`"… ở mục 1 để tiếp
+tục."`) thay vì lặp y hệt. Chỉ đổi cho nhánh `kind === 'address'`; nhánh `outage` (503) và
+`unknown` giữ nguyên chỗ cũ vì đó là vấn đề của **phí**, không phải của địa chỉ.
+
+**3 · Cache ward.** GHN-WARD-01 mục (2): một list ward đã cache trước khi GHN khai tử ward vẫn
+mời người mua chọn đúng cái ward chết đó (`useWards` để `staleTime` 1 giờ). `queryKeys.shipping`
+thêm prefix `wardsAll`, và mutation tính phí `onError` gọi `invalidateQueries` khi
+`isGhnAddressRefusal(error)` ⇒ lượt chọn lại được đọc từ list GHN thật sự chấp nhận. Không phải
+"invalidate một lần lúc khởi động": đánh đúng vào thời điểm biết chắc list đang sai.
+
+**Không làm:** không lọc thêm ward phía FE. Chín ward Quận 8 (`20801`-`20803`, `20808`-`20813`)
+vẫn bị GHN từ chối mà **không** phân biệt được với ward tốt trong master-data — BE đã nói rõ là
+không lọc được, và FE đoán hộ thì sẽ chặn nhầm ward sống. Người mua chạm phải sẽ nhận đúng câu
+tiếng Việt ở mục 1, đó là toàn bộ những gì làm được cho tới khi GHN sửa master-data.
+
+**Files:** `src/features/cart/shippingFeeError.ts` (+test), `src/features/cart/checkoutSubmitError.test.ts`,
+`src/features/cart/CheckoutPage.tsx`, `src/hooks/query/queryKeys.ts`.
+
+**Gates:** `npm run build` ✓ · `npm run lint` 0 problem · `npm run test:run` **873 test / 112 file**
+✓ (+2 test). **Runtime verify: còn nợ** — repro cần một địa chỉ trỏ vào ward GHN từ chối (một
+trong chín ward Quận 8 ở trên) trên full-stack live; lượt này không có backend chạy nên **không
+đánh dấu là đã verify**. Đường lỗi đi qua đúng một hàm thuần đã được test pin cả năm nhánh.
+
+### SWEEP-0826 · F3 voucher (phần FE) + VOUCHER-EDIT-01 + VOUCHER-GUARD-01 (2026-08-26)
+
+User: *"làm các task về voucher, sau khi làm xong bạn xem flow làm như thế có gây thiệt hại gì không?"*
+
+Class **B** — **chưa push** (chờ user duyệt), entry ở *Ready to release* trong `release-gate.md`.
+
+---
+
+**Class C rồi thành B — và vì sao.** Đọc `api/` (read-only, đúng ranh giới cross-repo) trước khi
+viết dòng nào: `git log origin/main` cho `ad67e15`, không có `POST /order/vouchers/available` hay
+`PATCH /order/admin/vouchers/:id` ⇒ tôi xếp cả cây là **C** và mở entry Holding. **Đo sai.** Ref
+`origin/main` trong bản clone local đã cũ; `git ls-remote origin main` cho `e10506f` — agent BE
+push lúc 14:39 cùng ngày. Bài học ghi lại cho lượt sau: **`git ls-remote` mới là cách đo trạng thái
+repo khác**, `git log origin/main` chỉ nói về lần fetch gần nhất. Cụm route đã live, verify được
+trên prod, nên class đúng là **B** và entry đã chuyển sang *Ready to release*.
+
+**1 · VOUCHER-EDIT-01 — sửa voucher, và bật lại mã đã tắt.**
+
+`/admin/vouchers` trước đây chỉ có *tạo* + *tắt*, và tắt là **một chiều**. Hệ quả thực tế: gõ sai
+một ký tự trong `description`, hoặc muốn nới hạn dùng thêm một tuần, đều phải bỏ mã cũ đi tạo mã
+mới — mã cũ thì người mua đã lưu, đã share.
+
+Toàn bộ ngữ nghĩa PATCH nằm ở helper thuần trong `voucherAdmin.ts`, không rải trong JSX:
+
+- `voucherToFormData` — DECIMAL `"10.00"` → `"10"`, null → `''` (form giữ chuỗi rỗng = "không
+  giới hạn", không được coerce thành `0`).
+- `isoToLocalInput` — nghịch đảo của `localInputToIso` đã có; test pin round-trip.
+- `buildUpdateVoucherDto` — **vắng field = giữ nguyên, `null` = xoá, `{}` = no-op**, đúng contract
+  BE. Và **không bao giờ** phát `code`/`discountType`/`discountValue`/`sellerId`: BE trả
+  400 `property … should not exist` cho field immutable, nên gửi kèm "cho chắc" là hỏng cả request.
+  Mã `fixed` thì bỏ hẳn `maxDiscountAmount` khỏi payload.
+- `voucherEditBlockedMessage` — mirror **cả hai** 400 của mã đã có người dùng: `usedCount > 0` chỉ
+  cho **nới lỏng** (siết lại là đổi luật với người đã cầm mã), và `usageLimit` không được nhỏ hơn
+  `usedCount`. Bắt trước khi gửi để admin thấy lý do bằng tiếng Việt, không phải sau round-trip.
+- `voucherLooseningConfirm` — nới lỏng **không đi ngược lại được** (đã nới thì không siết lại được
+  nữa). Chặn bằng `window.confirm` nêu đúng field sắp nới.
+
+UI: `CreateVoucherForm` tổng quát thành `VoucherForm({ voucher?, onCancel, onSaved })` dùng chung
+cho tạo + sửa — không nhân bản một form 10 field. Field immutable ở chế độ sửa là `readOnly` /
+`disabled` chứ không biến mất, để admin vẫn đọc được giá trị. Mỗi hàng có **Sửa** (luôn có),
+**Tắt mã** (khi đang bật), **Bật lại** (khi đang tắt).
+
+Tiện thể sửa **2 câu copy sai sự thật** đang nằm trên UI: form tạo ghi là mã "không sửa được"
+(giờ sửa được phần điều kiện), và confirm tắt mã ngụ ý vĩnh viễn (giờ bật lại được).
+
+**2 · F3 mục 2 — gợi ý voucher ở checkout.**
+
+`POST /order/vouchers/available` + `queryKeys.orders.availableVouchers(basketSignature)` — dùng lại
+đúng chữ ký giỏ đã có làm cache key, giỏ đổi thì gợi ý tự đổi theo. Dưới ô nhập mã hiện danh sách
+bấm-để-điền, xếp bởi `features/cart/voucherSuggestions.ts`: mã dùng được (giảm nhiều nhất trước) →
+mã **sắp** dùng được (`MIN_ORDER_NOT_MET`, thiếu ít nhất trước, in *"Mua thêm X để dùng mã này"*) →
+mã chết. 8 giá trị `ineligibleReason` được dịch sang tiếng Việt và có test pin rằng **enum thô
+không bao giờ lọt ra UI**; giá trị lạ (BE thêm về sau) rơi về câu chung chứ không render mã máy.
+
+Response được coi là **gợi ý, không phải giấy phép** — nguồn sự thật vẫn là `validate` lúc bấm và
+`POST /order` lúc đặt. Query để `retry: false` và render **rỗng** khi lỗi/404 ⇒ endpoint hỏng thì
+trang checkout **y hệt trước đây**, đường nhập mã tay không suy suyển.
+
+**3 · VOUCHER-GUARD-01.** Mã `fixed` có `discountValue >= minOrderAmount` là đơn 0đ (hoặc âm) ⇒
+chặn ngay ở zod. **Chỉ** kiểm khi có đặt đơn tối thiểu > 0 — không có mức tối thiểu thì không có gì
+để so, và mọi ca guard này bỏ sót vẫn rơi đúng vào 400 mà `voucherAdminErrorMessage` in verbatim.
+
+`toVoucherNumber` tách sang `lib/domain/voucherMoney.ts` — hai feature (`admin` + `cart`) cùng dùng,
+đúng ngưỡng DRY của `core.md`, thay vì để bản sao thứ hai trong `voucherSuggestions.ts`.
+
+**Cố ý KHÔNG làm:** F3 mục 3 — màn hình voucher cho seller. Mục này vốn là *optional* trong handoff.
+
+**4 · Verify runtime trên prod (MCP) — và 2 bug nó bắt được trong chính code lượt này.**
+
+Chạy dev server local với `VITE_API_TARGET` trỏ vào Cloudflare Worker (worker reverse-proxy `/api/*`
+sang gateway) ⇒ **code FE chưa push chạy trên dữ liệu prod thật**. Đăng nhập `admin1` rồi `user1`.
+
+- 🔴 **Công tắc bật/tắt nói dối ở chế độ sửa.** Mở **Sửa** trên `E2EPROD0806` (`isActive: false`,
+  hàng in "Đã tắt") thì công tắc hiện `switch "Mã đang được bật"` + chữ "Đang bật". Bind thì đúng
+  (`checked={isActive}`), nhưng **cả nhãn lẫn chữ bên cạnh bị hard-code** theo `isEdit`. Screen
+  reader nhận tên "Mã đang được bật" cho một switch đang off. Tách `voucherActiveToggleCopy(isEdit,
+  isActive)`: **accessible name phải đứng yên** — role `switch` tự đọc checked/unchecked — còn chữ
+  hiển thị mới là thứ mang trạng thái.
+- 🔴 **Mở form rồi bấm Lưu = bị chặn "siết Thời gian kết thúc", dù không sửa gì.** `expiresAt` của
+  `E2EPROD0806` trên prod là `2026-12-31T23:59:59.000Z`, mà `datetime-local` chỉ giữ tới **phút** ⇒
+  ISO dựng lại sớm hơn **59 giây**, và `diffOptionalDate` so nó với ISO thô nên chấm là một lần siết.
+  Trên mã đã có người dùng thì bị chặn (đó là cái tôi thấy); trên mã **chưa ai dùng** thì tệ hơn —
+  không có guard nào, PATCH đi và **âm thầm dời hạn mã sớm lại 59 giây** mỗi lần admin mở form bấm
+  Lưu. Sửa: so `raw` với **chính chuỗi đã seed vào input** (`isoToLocalInput(current)`) thay vì so
+  hai mốc ISO; field nào input không biểu diễn nổi thì không thể là "đã sửa".
+
+Phần verify còn lại đều đúng như thiết kế: lưu-khi-không-đổi ⇒ "Chưa có thay đổi nào để lưu." và
+**không phát request**; hạ `usageLimit` 5→3 ⇒ chặn client-side nêu đúng tên trường; nâng 5→7 ⇒
+`window.confirm` cảnh báo một chiều (**đã hủy** — nới trên prod là không hoàn lại được); round-trip
+Bật lại → Tắt mã trên `TRYBUY20K` ⇒ PATCH 200 + refetch, đã trả về nguyên trạng; checkout `user1`
+giỏ 10.000 đ ⇒ "Mua thêm 90.000 đ để dùng mã này.", lên 110.000 đ ⇒ "−11.000 đ", áp mã ⇒ tổng
+99.000 đ. Không đặt đơn. Dữ liệu prod sau lượt test **giống hệt trước lượt test**.
+
+**5 · Audit lại toàn bộ bề mặt voucher đối chiếu source BE — 3 bug FE nữa.**
+
+User: *"còn bug voucher bên FE thì fix luôn, mà bạn đánh giá xem cần sửa lại flow voucher gì
+không, nếu có lí do tại sao?"* Đọc `api/` read-only (`voucher.dto.ts`, `orders.service.ts`) rồi
+soi ngược lại code FE lượt này — không đoán contract, đọc thẳng handler.
+
+- 🔴 **Xoá ô "Đơn tối thiểu" ở form sửa = 500 trên prod.** `minOrderAmount` là cột
+  `NOT NULL DEFAULT 0`, DTO khai `minOrderAmount?: number` (**không** `nullable: true`), handler
+  gọi `input.minOrderAmount.toFixed(2)` không guard. Mà `@IsOptional()` của class-validator bỏ qua
+  validation cho **cả `null`**, nên `null` lọt pipe và ném `TypeError` ⇒ **500, không phải 400**.
+  FE lượt trước dùng `diffOptionalNumber` chung cho mọi số ⇒ ô trống → `null` → nổ. Bất kỳ admin
+  nào cũng chạm được, vì `voucherToFormData` seed ô bằng `"0"` kể cả khi row là `0.00`. Sửa: helper
+  riêng `diffMinOrderAmount` — trống = "không yêu cầu" = **`0`**; row đã `0` thì bỏ hẳn key. Và
+  `types/order.ts` bỏ `| null` khỏi field này để TypeScript chặn tại compile-time, không chỉ tại
+  runtime. Đã ghi vào `backend-handoff.md` (BE nên trả 400 có message thay vì 500 trắng) — nhưng
+  đây **không** phải workaround: `null` vốn không hợp lệ, chính entry VOUCHER-EDIT-01 của BE đã
+  ghi *"muốn bỏ ngưỡng thì gửi `0`"*.
+- 🔴 **Form tạo cho phép mã `fixed` không có đơn tối thiểu — BE 400 100% số lần.** Guard BE là
+  `discountValue >= (minOrderAmount ?? 0)`: ô trống **không phải** "không có gì để so", nó so với
+  `0` và luôn thua. Zod lượt trước lại `minOrder > 0` mới kiểm ⇒ đúng ca hỏng chắc chắn thì bỏ qua.
+  Sửa: mã `fixed` **bắt buộc** có đơn tối thiểu lớn hơn số tiền giảm; hint dưới ô đổi theo loại mã
+  ("Bỏ trống = không yêu cầu" chỉ còn đúng với `percent`).
+- 🟡 **Lỗi VOUCHER-GUARD-01 chỉ vào field không bấm được.** Issue gắn `path: ['discountValue']` —
+  field **`readOnly` ở chế độ sửa**. Admin hạ `minOrderAmount` của mã `fixed` thì nhận lỗi đỏ trên
+  ô không sửa được, còn ô sửa được thì sạch. Chuyển sang `path: ['minOrderAmount']`.
+
+Kéo theo một quyết định về **schema**: tách `voucherCreateSchema` / `voucherEditSchema` (cùng một
+object, khác `superRefine`). Chế độ sửa **cố ý không** enforce luật fixed-vs-minimum, vì BE chỉ
+re-check khi patch *có mang* `minOrderAmount` — enforce ở zod sẽ khoá cứng một row cũ vi phạm sẵn,
+admin không sửa nổi cả `description` lẫn nút tắt. Ca patch *có* mang minimum thì
+`voucherEditBlockedMessage` bắt, vì hàm đó biết diff.
+
+**Đánh giá flow (user hỏi thẳng): không cần đổi flow, chỉ đổi guard.** Ba bug trên đều là *guard sai
+chỗ*, không phải kiến trúc sai: dữ liệu vẫn một chiều form → DTO thuần → mutation, nguồn sự thật vẫn
+là BE, gợi ý vẫn chỉ là gợi ý. Cái sai chung của cả ba là **FE đoán luật BE thay vì đọc luật BE** —
+`null` thì "chắc là xoá", `?? 0` thì "chắc là không so". Một thứ **có thể** đổi nhưng là quyết định
+sản phẩm nên để user chốt: danh sách gợi ý ở checkout đang render **mọi** dòng BE trả về, gồm cả
+EXPIRED / FULLY_REDEEMED / USER_LIMIT_REACHED / NO_DISCOUNT — thứ người mua không cách nào biến
+thành tiền. Sắp xếp đã đẩy dòng dùng được lên đầu nên tác hại thấp, và giữ dòng chết có cái lợi là
+"mã này có thật, tôi hết lượt rồi" — nên **không tự ý lọc**.
+
+Gates: build ✓ · lint 0 problem · **856 test / 111 file** (+50 test / +2 file so với đầu lượt).
+
+---
+
 ### SWEEP-0816 · đóng cả 4 mục audit + 3 lỗ a11y mà chỉ MCP mới nhìn thấy (2026-08-16)
 
 User: *"còn bug/gap nào không?"* → `/sweep audit` ra 4 mục → *"làm all"* → *"nhớ run mcp check UI"*.
