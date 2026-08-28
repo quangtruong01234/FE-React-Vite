@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, type ReactElement, type ReactNode } from '
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { Plus, TicketPercent, PowerOff, X } from 'lucide-react';
+import { Plus, TicketPercent, Pencil, Power, PowerOff, X } from 'lucide-react';
 import { cn, formatVnd } from '@/lib/format/utils';
 import { formatDateTime } from '@/lib/format/time';
 import { api } from '@/api';
@@ -20,12 +20,20 @@ import {
   voucherUsageLabel,
   voucherWindowLabel,
   canDeactivateVoucher,
+  canReactivateVoucher,
   voucherAdminErrorMessage,
   buildCreateVoucherDto,
-  toVoucherNumber,
+  buildUpdateVoucherDto,
+  voucherToFormData,
+  hasVoucherEdits,
+  voucherEditBlockedMessage,
+  voucherLooseningConfirm,
+  voucherActiveToggleCopy,
 } from './voucherAdmin';
+import { toVoucherNumber } from '@/lib/domain/voucherMoney';
 import {
-  voucherFormSchema,
+  voucherCreateSchema,
+  voucherEditSchema,
   VOUCHER_FORM_DEFAULTS,
   type VoucherFormData,
 } from './voucherAdmin.schema';
@@ -35,6 +43,9 @@ const LIMIT = 20;
 
 const INPUT_CLASS =
   'h-10 w-full bg-canvas-base border border-bdr rounded-tb-input px-3 text-ink-pri font-body text-sm placeholder:text-ink-muted outline-none focus:border-tb-amber/50 transition-colors';
+
+/** Immutable-in-edit-mode fields: still readable, visibly not yours to change. */
+const READONLY_CLASS = 'bg-canvas-elevated text-ink-muted cursor-not-allowed focus:border-bdr';
 
 function FormField({
   label,
@@ -68,14 +79,24 @@ function FormField({
   );
 }
 
-function CreateVoucherForm({
+/**
+ * One form for both create and edit (VOUCHER-EDIT-01). The field set is
+ * identical; what changes is that `code`, `discountType` and `discountValue`
+ * are immutable server-side, so in edit mode they are shown read-only and never
+ * make it into the payload — `buildUpdateVoucherDto` only diffs the rest.
+ */
+function VoucherForm({
+  voucher,
   onCancel,
-  onCreated,
+  onSaved,
 }: {
+  /** Row being edited, or null/undefined to create a new code. */
+  voucher?: Voucher | null;
   onCancel: () => void;
-  onCreated: (voucher: Voucher) => void;
+  onSaved: (voucher: Voucher, mode: 'create' | 'update') => void;
 }): ReactElement {
   const queryClient = useQueryClient();
+  const isEdit = voucher != null;
   const {
     register,
     handleSubmit,
@@ -85,29 +106,54 @@ function CreateVoucherForm({
     reset,
     formState: { errors, isSubmitting },
   } = useForm<VoucherFormData>({
-    resolver: zodResolver(voucherFormSchema),
-    defaultValues: VOUCHER_FORM_DEFAULTS,
+    // Edit mode drops the fixed-vs-minimum guard: `discountValue` is read-only
+    // there and the backend only re-checks the rule on patches that carry a
+    // minimum, so a legacy bad row must stay editable. `buildUpdateVoucherDto`
+    // + `voucherEditBlockedMessage` catch the patches that do carry one.
+    resolver: zodResolver(isEdit ? voucherEditSchema : voucherCreateSchema),
+    defaultValues: voucher ? voucherToFormData(voucher) : VOUCHER_FORM_DEFAULTS,
   });
 
   // `useWatch` rather than `watch()` — the latter returns a fresh function every
   // render, which opts the whole component out of React Compiler memoization.
   const discountType = useWatch({ control, name: 'discountType' });
   const isActive = useWatch({ control, name: 'isActive' });
+  const toggleCopy = voucherActiveToggleCopy(isEdit, isActive);
 
-  const createVoucher = useMutation({
-    mutationFn: (form: VoucherFormData) => api.orders.createVoucher(buildCreateVoucherDto(form)),
+  const saveVoucher = useMutation({
+    mutationFn: (form: VoucherFormData) =>
+      voucher
+        ? api.orders.updateVoucher(voucher.id, buildUpdateVoucherDto(form, voucher))
+        : api.orders.createVoucher(buildCreateVoucherDto(form)),
   });
 
   async function onSubmit(form: VoucherFormData): Promise<void> {
+    if (voucher) {
+      const dto = buildUpdateVoucherDto(form, voucher);
+      if (!hasVoucherEdits(dto)) {
+        setError('root', { message: 'Chưa có thay đổi nào để lưu.' });
+        return;
+      }
+      // Mirror the backend's own refusals before spending the request…
+      const blocked = voucherEditBlockedMessage(dto, voucher);
+      if (blocked) {
+        setError('root', { message: blocked });
+        return;
+      }
+      // …and make the one-way edits an explicit decision.
+      const confirmation = voucherLooseningConfirm(dto, voucher);
+      if (confirmation && !window.confirm(confirmation)) return;
+    }
+
     try {
-      const voucher = await createVoucher.mutateAsync(form);
+      const saved = await saveVoucher.mutateAsync(form);
       // A new code lands at the top of the newest-first list, so every cached
       // page shifts — invalidate the whole prefix rather than one page.
       void queryClient.invalidateQueries({ queryKey: queryKeys.orders.adminVouchers });
-      reset(VOUCHER_FORM_DEFAULTS);
-      onCreated(voucher);
+      if (!isEdit) reset(VOUCHER_FORM_DEFAULTS);
+      onSaved(saved, isEdit ? 'update' : 'create');
     } catch (error: unknown) {
-      setError('root', { message: voucherAdminErrorMessage(error, 'create') });
+      setError('root', { message: voucherAdminErrorMessage(error, isEdit ? 'update' : 'create') });
     }
   }
 
@@ -118,13 +164,17 @@ function CreateVoucherForm({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="font-display font-semibold text-base text-ink-pri">Tạo mã giảm giá</h2>
+          <h2 className="font-display font-semibold text-base text-ink-pri">
+            {isEdit ? `Sửa mã ${voucher.code}` : 'Tạo mã giảm giá'}
+          </h2>
           <p className="font-body text-xs text-ink-muted mt-1 m-0">
-            Mã chỉ áp dụng cho đơn từ một người bán và không thể sửa sau khi tạo — chỉ tắt được.
+            {isEdit
+              ? 'Mã, loại giảm và mức giảm không đổi được. Mã đã có lượt dùng chỉ nới lỏng được điều kiện, và nới rồi thì không siết lại được.'
+              : 'Mã chỉ áp dụng cho đơn từ một người bán. Sau khi tạo vẫn sửa được điều kiện, nhưng mã và mức giảm thì không.'}
           </p>
         </div>
         <IconButton
-          aria-label="Đóng biểu mẫu tạo mã"
+          aria-label={isEdit ? 'Đóng biểu mẫu sửa mã' : 'Đóng biểu mẫu tạo mã'}
           onClick={onCancel}
           className="size-8 shrink-0 rounded-tb-input text-ink-muted hover:text-ink-pri hover:bg-canvas-elevated transition-colors"
         >
@@ -143,14 +193,19 @@ function CreateVoucherForm({
           label="Mã"
           htmlFor="voucher-code"
           error={errors.code?.message}
-          hint="Tự động viết hoa khi gửi lên."
+          hint={isEdit ? 'Không sửa được sau khi tạo.' : 'Tự động viết hoa khi gửi lên.'}
         >
           <input
             id="voucher-code"
             {...register('code')}
+            readOnly={isEdit}
             placeholder="SALE10"
             autoComplete="off"
-            className={cn(INPUT_CLASS, 'font-mono uppercase placeholder:normal-case placeholder:font-body')}
+            className={cn(
+              INPUT_CLASS,
+              'font-mono uppercase placeholder:normal-case placeholder:font-body',
+              isEdit && READONLY_CLASS,
+            )}
           />
         </FormField>
 
@@ -171,12 +226,14 @@ function CreateVoucherForm({
                 key={type}
                 type="button"
                 aria-pressed={discountType === type}
+                disabled={isEdit}
                 onClick={() => setValue('discountType', type, { shouldValidate: true })}
                 className={cn(
-                  'flex-1 h-10 rounded-tb-input border font-body font-semibold text-[13px] cursor-pointer transition-colors',
+                  'flex-1 h-10 rounded-tb-input border font-body font-semibold text-[13px] transition-colors enabled:cursor-pointer disabled:cursor-not-allowed',
                   discountType === type
                     ? 'bg-tb-gradient border-transparent text-white'
-                    : 'bg-canvas-elevated border-bdr text-ink-sec hover:text-ink-pri',
+                    : 'bg-canvas-elevated border-bdr text-ink-sec enabled:hover:text-ink-pri',
+                  isEdit && discountType !== type && 'opacity-40',
                 )}
               >
                 {type === 'percent' ? 'Theo phần trăm' : 'Số tiền cố định'}
@@ -188,21 +245,29 @@ function CreateVoucherForm({
         <FormField
           label={discountType === 'percent' ? 'Phần trăm giảm (%)' : 'Số tiền giảm (VND)'}
           htmlFor="voucher-discount-value"
+          hint={isEdit ? 'Không sửa được sau khi tạo.' : undefined}
           error={errors.discountValue?.message}
         >
           <input
             id="voucher-discount-value"
             {...register('discountValue')}
+            readOnly={isEdit}
             inputMode="decimal"
             placeholder={discountType === 'percent' ? '10' : '50000'}
-            className={cn(INPUT_CLASS, 'font-mono')}
+            className={cn(INPUT_CLASS, 'font-mono', isEdit && READONLY_CLASS)}
           />
         </FormField>
 
         <FormField
           label="Đơn tối thiểu (VND)"
           htmlFor="voucher-min-order"
-          hint="Bỏ trống = không yêu cầu."
+          hint={
+            // A fixed voucher with no minimum is compared against 0 server-side
+            // and always rejected, so "leave blank" is only true for percent.
+            discountType === 'fixed'
+              ? 'Bắt buộc, phải lớn hơn số tiền giảm.'
+              : 'Bỏ trống = không yêu cầu.'
+          }
           error={errors.minOrderAmount?.message}
         >
           <input
@@ -296,10 +361,10 @@ function CreateVoucherForm({
           <ToggleSwitch
             checked={isActive}
             onChange={(next) => setValue('isActive', next)}
-            label="Kích hoạt mã ngay sau khi tạo"
+            label={toggleCopy.label}
             size="sm"
           />
-          <span className="font-body text-sm text-ink-sec">Kích hoạt ngay</span>
+          <span className="font-body text-sm text-ink-sec">{toggleCopy.state}</span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -310,7 +375,9 @@ function CreateVoucherForm({
             Hủy
           </button>
           <GradientButton type="submit" size="sm" disabled={isSubmitting}>
-            {isSubmitting ? 'Đang tạo…' : 'Tạo mã'}
+            {isSubmitting
+              ? isEdit ? 'Đang lưu…' : 'Đang tạo…'
+              : isEdit ? 'Lưu thay đổi' : 'Tạo mã'}
           </GradientButton>
         </div>
       </div>
@@ -318,16 +385,26 @@ function CreateVoucherForm({
   );
 }
 
+/** Row actions share one look; only the accent colour separates on from off. */
+const ROW_ACTION_CLASS =
+  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
+
 function VoucherRow({
   voucher,
   isLast,
   deactivatePending,
+  reactivatePending,
+  onEdit,
   onDeactivate,
+  onReactivate,
 }: {
   voucher: Voucher;
   isLast: boolean;
   deactivatePending: boolean;
+  reactivatePending: boolean;
+  onEdit: (voucher: Voucher) => void;
   onDeactivate: (voucher: Voucher) => void;
+  onReactivate: (voucher: Voucher) => void;
 }): ReactElement {
   const status = voucherStatusMeta(voucher);
   const minOrder = toVoucherNumber(voucher.minOrderAmount);
@@ -364,20 +441,39 @@ function VoucherRow({
           {status.label}
         </span>
       </td>
-      <td className="px-4 py-3 align-top text-right">
-        {canDeactivateVoucher(voucher) ? (
+      <td className="px-4 py-3 align-top">
+        <div className="flex items-center justify-end gap-2">
           <button
             type="button"
-            disabled={deactivatePending}
-            onClick={() => onDeactivate(voucher)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr text-accent-red hover:border-accent-red/50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => onEdit(voucher)}
+            className={cn(ROW_ACTION_CLASS, 'text-ink-sec hover:border-accent-amber/50 hover:text-ink-pri')}
           >
-            <PowerOff size={14} className="shrink-0" />
-            {deactivatePending ? 'Đang tắt…' : 'Tắt mã'}
+            <Pencil size={14} className="shrink-0" />
+            Sửa
           </button>
-        ) : (
-          <span className="font-body text-xs text-ink-muted">—</span>
-        )}
+          {canDeactivateVoucher(voucher) && (
+            <button
+              type="button"
+              disabled={deactivatePending}
+              onClick={() => onDeactivate(voucher)}
+              className={cn(ROW_ACTION_CLASS, 'text-accent-red hover:border-accent-red/50')}
+            >
+              <PowerOff size={14} className="shrink-0" />
+              {deactivatePending ? 'Đang tắt…' : 'Tắt mã'}
+            </button>
+          )}
+          {canReactivateVoucher(voucher) && (
+            <button
+              type="button"
+              disabled={reactivatePending}
+              onClick={() => onReactivate(voucher)}
+              className={cn(ROW_ACTION_CLASS, 'text-accent-green hover:border-accent-green/50')}
+            >
+              <Power size={14} className="shrink-0" />
+              {reactivatePending ? 'Đang bật…' : 'Bật lại'}
+            </button>
+          )}
+        </div>
       </td>
     </tr>
   );
@@ -389,6 +485,9 @@ export default function AdminVouchersPage(): ReactElement {
   const queryClient = useQueryClient();
   const [page, setPage] = usePageParam();
   const [isFormOpen, setIsFormOpen] = useState(false);
+  // The row being edited. Held as the row object (not just an id) so the form
+  // can diff against the exact values the admin was looking at.
+  const [editing, setEditing] = useState<Voucher | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const { data, isLoading, isFetching, error } = useQuery({
@@ -418,16 +517,35 @@ export default function AdminVouchersPage(): ReactElement {
     },
   });
 
+  // VOUCHER-EDIT-01 made deactivation reversible: `{ isActive: true }` on the
+  // update route is the way back on, so this is no longer a one-way door.
+  const reactivate = useMutation({
+    mutationFn: (voucher: Voucher) => api.orders.updateVoucher(voucher.id, { isActive: true }),
+    onSuccess: (_result, voucher) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.orders.adminVouchers });
+      showToast(`Đã bật lại mã ${voucher.code}.`);
+    },
+  });
+
   function handleDeactivate(voucher: Voucher): void {
-    // One-way on the backend — there is no reactivate endpoint.
-    if (!window.confirm(`Tắt mã ${voucher.code}? Mã đã tắt không thể bật lại.`)) return;
+    if (!window.confirm(`Tắt mã ${voucher.code}? Người mua sẽ không dùng được cho tới khi bật lại.`)) {
+      return;
+    }
     deactivate.mutate(voucher);
+  }
+
+  function handleEdit(voucher: Voucher): void {
+    setIsFormOpen(false);
+    setEditing(voucher);
   }
 
   const vouchers = data?.data ?? [];
   const listErrorMsg = error ? voucherAdminErrorMessage(error, 'list') : null;
   const deactivateErrorMsg = deactivate.isError
     ? voucherAdminErrorMessage(deactivate.error, 'deactivate')
+    : null;
+  const reactivateErrorMsg = reactivate.isError
+    ? voucherAdminErrorMessage(reactivate.error, 'update')
     : null;
 
   return (
@@ -436,11 +554,11 @@ export default function AdminVouchersPage(): ReactElement {
         <div>
           <h1 className="font-display font-bold text-2xl text-ink-pri">Mã giảm giá</h1>
           <p className="font-body text-sm text-ink-sec mt-1 m-0">
-            Tạo và theo dõi mã giảm giá toàn sàn. Người mua nhập mã ở bước thanh toán —
-            mã chỉ áp dụng cho đơn từ một người bán.
+            Tạo, sửa và theo dõi mã giảm giá toàn sàn. Người mua chọn hoặc nhập mã ở bước
+            thanh toán — mã chỉ áp dụng cho đơn từ một người bán.
           </p>
         </div>
-        {!isFormOpen && (
+        {!isFormOpen && !editing && (
           <button
             type="button"
             onClick={() => setIsFormOpen(true)}
@@ -470,13 +588,30 @@ export default function AdminVouchersPage(): ReactElement {
           · {deactivateErrorMsg}
         </div>
       )}
+      {reactivateErrorMsg && (
+        <div className="bg-accent-red/10 text-accent-red border border-accent-red/30 rounded-tb-card px-4 py-3 font-body text-sm">
+          {reactivate.variables ? (
+            <span className="font-mono font-bold">{reactivate.variables.code}</span>
+          ) : null}{' '}
+          · {reactivateErrorMsg}
+        </div>
+      )}
 
-      {isFormOpen && (
-        <CreateVoucherForm
-          onCancel={() => setIsFormOpen(false)}
-          onCreated={(voucher) => {
+      {(isFormOpen || editing) && (
+        <VoucherForm
+          // Remount on a different row so the form re-seeds its defaults.
+          key={editing?.id ?? 'create'}
+          voucher={editing}
+          onCancel={() => {
             setIsFormOpen(false);
-            showToast(`Đã tạo mã ${voucher.code}.`);
+            setEditing(null);
+          }}
+          onSaved={(voucher, mode) => {
+            setIsFormOpen(false);
+            setEditing(null);
+            showToast(
+              mode === 'create' ? `Đã tạo mã ${voucher.code}.` : `Đã lưu mã ${voucher.code}.`,
+            );
           }}
         />
       )}
@@ -521,7 +656,10 @@ export default function AdminVouchersPage(): ReactElement {
                     voucher={voucher}
                     isLast={idx === vouchers.length - 1}
                     deactivatePending={deactivate.isPending && deactivate.variables?.id === voucher.id}
+                    reactivatePending={reactivate.isPending && reactivate.variables?.id === voucher.id}
+                    onEdit={handleEdit}
                     onDeactivate={handleDeactivate}
+                    onReactivate={(row) => reactivate.mutate(row)}
                   />
                 ))}
               </tbody>

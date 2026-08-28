@@ -1,25 +1,20 @@
-import type { ApiError, CreateVoucherDto, Voucher } from '@/types';
+import type { ApiError, CreateVoucherDto, UpdateVoucherDto, Voucher } from '@/types';
+import { formatVnd } from '@/lib/format/utils';
+import { toVoucherNumber } from '@/lib/domain/voucherMoney';
 import type { VoucherFormData } from './voucherAdmin.schema';
 
 /**
  * Pure helpers for the admin voucher console (F3-ADMIN).
  *
  * Backend contract: `POST /order/admin/vouchers` creates (409 on a duplicate
- * code), `GET /order/admin/vouchers` pages the list newest-first, and
- * `PATCH /order/admin/vouchers/:id/deactivate` flips `isActive` to false. There
- * is **no update and no reactivate endpoint** — deactivation is one-way, so a
- * mistyped voucher is replaced by creating a new code, not by editing.
+ * code), `GET /order/admin/vouchers` pages the list newest-first,
+ * `PATCH /order/admin/vouchers/:id/deactivate` flips `isActive` to false, and
+ * since VOUCHER-EDIT-01 `PATCH /order/admin/vouchers/:id` edits a voucher —
+ * including switching a deactivated one back on with `{ isActive: true }`.
  *
  * Money columns are DECIMAL, so they can arrive as strings ("50000.00");
- * everything here coerces with `Number()` before comparing or formatting.
+ * everything here coerces with `toVoucherNumber` before comparing or formatting.
  */
-
-/** DECIMAL columns arrive as `number` or `"50000.00"` — normalize before math. */
-export function toVoucherNumber(value: number | string | null | undefined): number {
-  if (value == null) return 0;
-  const parsed = typeof value === 'string' ? Number(value) : value;
-  return Number.isFinite(parsed) ? parsed : 0;
-}
 
 export type VoucherStatusKind =
   | 'inactive'
@@ -94,12 +89,21 @@ export function voucherWindowLabel(
   return `${from} → ${to}`;
 }
 
-/** A one-way deactivate is only offered while the code can still be redeemed. */
+/** Deactivate is only offered while the code can still be redeemed. */
 export function canDeactivateVoucher(voucher: Pick<Voucher, 'isActive'>): boolean {
   return voucher.isActive;
 }
 
-export type VoucherAdminAction = 'list' | 'create' | 'deactivate';
+/**
+ * The mirror of `canDeactivateVoucher`. Since VOUCHER-EDIT-01 an off voucher
+ * can be switched back on with `PATCH /vouchers/:id { isActive: true }` — it is
+ * no longer a one-way door, so the row offers the way back.
+ */
+export function canReactivateVoucher(voucher: Pick<Voucher, 'isActive'>): boolean {
+  return !voucher.isActive;
+}
+
+export type VoucherAdminAction = 'list' | 'create' | 'deactivate' | 'update';
 
 /**
  * Friendly message for an admin voucher call. 403 means the account is not an
@@ -123,6 +127,7 @@ export function voucherAdminErrorMessage(
     list: 'Không tải được danh sách mã giảm giá. Vui lòng thử lại.',
     create: 'Không tạo được mã giảm giá. Vui lòng thử lại.',
     deactivate: 'Không tắt được mã giảm giá. Vui lòng thử lại.',
+    update: 'Không lưu được thay đổi. Vui lòng thử lại.',
   };
   return fallbackByAction[action];
 }
@@ -178,4 +183,262 @@ export function buildCreateVoucherDto(form: VoucherFormData): CreateVoucherDto {
     ...(startsAt ? { startsAt } : {}),
     ...(expiresAt ? { expiresAt } : {}),
   };
+}
+
+/* ── VOUCHER-EDIT-01 ────────────────────────────────────────────────────────
+ * `PATCH /order/admin/vouchers/:id` is a true partial update with three
+ * distinct meanings per key: **omit** = leave alone, **null** = clear,
+ * **value** = set. Sending the whole form back would silently rewrite fields
+ * the admin never touched, so everything below is a diff against the row.
+ *
+ * `code` / `discountType` / `discountValue` / `sellerId` are immutable and are
+ * rejected outright (`property … should not exist`), so they never appear in a
+ * payload built here.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+/** Inverse of `localInputToIso` — ISO → the local wall-clock `datetime-local` wants. */
+export function isoToLocalInput(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const ms = new Date(iso).getTime();
+  if (!Number.isFinite(ms)) return '';
+  const date = new Date(ms);
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/**
+ * Copy for the active/inactive toggle in the voucher form.
+ *
+ * Both strings used to be hard-coded to the "on" wording in edit mode, so
+ * opening a **deactivated** voucher showed "Đang bật" next to a switch that was
+ * off, and screen readers got the accessible name "Mã đang được bật" for an
+ * unchecked switch. The accessible name must be **stable** — the switch role
+ * already announces checked/unchecked — while the visible text is the thing
+ * that carries the state.
+ */
+export function voucherActiveToggleCopy(
+  isEdit: boolean,
+  isActive: boolean,
+): { label: string; state: string } {
+  if (!isEdit) {
+    return { label: 'Kích hoạt mã ngay sau khi tạo', state: 'Kích hoạt ngay' };
+  }
+  return { label: 'Trạng thái mã', state: isActive ? 'Đang bật' : 'Đã tắt' };
+}
+
+/** Existing row → edit-form state. DECIMAL strings ("10.00") become "10". */
+export function voucherToFormData(voucher: Voucher): VoucherFormData {
+  const amount = (value: number | string | null | undefined): string =>
+    value == null ? '' : String(toVoucherNumber(value));
+  return {
+    code: voucher.code,
+    description: voucher.description ?? '',
+    discountType: voucher.discountType,
+    discountValue: amount(voucher.discountValue),
+    minOrderAmount: amount(voucher.minOrderAmount),
+    maxDiscountAmount: amount(voucher.maxDiscountAmount),
+    usageLimit: voucher.usageLimit == null ? '' : String(voucher.usageLimit),
+    perUserLimit: voucher.perUserLimit == null ? '' : String(voucher.perUserLimit),
+    startsAt: isoToLocalInput(voucher.startsAt),
+    expiresAt: isoToLocalInput(voucher.expiresAt),
+    isActive: voucher.isActive,
+  };
+}
+
+/** `undefined` = unchanged (omit the key), `null` = the admin cleared the field. */
+function diffOptionalNumber(
+  raw: string,
+  current: number | string | null | undefined,
+): number | null | undefined {
+  const next = optionalNumber(raw);
+  if (next === undefined) return current == null ? undefined : null;
+  if (current != null && toVoucherNumber(current) === next) return undefined;
+  return next;
+}
+
+/**
+ * `minOrderAmount` needs its own diff because it is the one amount the backend
+ * cannot take a `null` for: the column is `NOT NULL DEFAULT 0` and the handler
+ * runs `input.minOrderAmount.toFixed(2)` unguarded, so a cleared field sent as
+ * `null` is a **500**, not a 400 (`@IsOptional()` waves `null` through the
+ * validation pipe). Emptying the box means "no minimum", which on this column
+ * is `0` — and when the stored value is already 0 there is nothing to send.
+ */
+function diffMinOrderAmount(
+  raw: string,
+  current: number | string | null | undefined,
+): number | undefined {
+  const next = optionalNumber(raw) ?? 0;
+  return toVoucherNumber(current) === next ? undefined : next;
+}
+
+function diffOptionalDate(
+  raw: string,
+  current: string | null | undefined,
+): string | null | undefined {
+  // The field is seeded with `isoToLocalInput(current)`, and `datetime-local`
+  // only carries minutes — anything finer in `current` cannot survive the round
+  // trip. Prod rows really do end at `…23:59:59.000Z`, so comparing the rebuilt
+  // ISO against the raw one made merely *opening* the form read as a 59-second
+  // edit: a no-op save was refused as a tightening of "Thời gian kết thúc", and
+  // on a voucher with no redemptions it would have quietly moved the expiry
+  // earlier. Compare against the seeded string instead.
+  if (raw === isoToLocalInput(current)) return undefined;
+  const next = localInputToIso(raw);
+  if (next === undefined) return current == null ? undefined : null;
+  return next;
+}
+
+/**
+ * Form state → patch payload, containing **only** what actually changed. An
+ * empty object is a legal no-op server-side, but the page treats it as "nothing
+ * to save" rather than spending a request — see `hasVoucherEdits`.
+ */
+export function buildUpdateVoucherDto(
+  form: VoucherFormData,
+  original: Voucher,
+): UpdateVoucherDto {
+  const dto: UpdateVoucherDto = {};
+
+  const description = form.description.trim();
+  if (description !== (original.description ?? '')) {
+    dto.description = description === '' ? null : description;
+  }
+
+  const minOrderAmount = diffMinOrderAmount(form.minOrderAmount, original.minOrderAmount);
+  if (minOrderAmount !== undefined) dto.minOrderAmount = minOrderAmount;
+
+  // A cap is meaningless on a fixed voucher, exactly as on create.
+  if (original.discountType === 'percent') {
+    const maxDiscountAmount = diffOptionalNumber(
+      form.maxDiscountAmount,
+      original.maxDiscountAmount,
+    );
+    if (maxDiscountAmount !== undefined) dto.maxDiscountAmount = maxDiscountAmount;
+  }
+
+  const usageLimit = diffOptionalNumber(form.usageLimit, original.usageLimit);
+  if (usageLimit !== undefined) dto.usageLimit = usageLimit;
+
+  const perUserLimit = diffOptionalNumber(form.perUserLimit, original.perUserLimit);
+  if (perUserLimit !== undefined) dto.perUserLimit = perUserLimit;
+
+  const startsAt = diffOptionalDate(form.startsAt, original.startsAt);
+  if (startsAt !== undefined) dto.startsAt = startsAt;
+
+  const expiresAt = diffOptionalDate(form.expiresAt, original.expiresAt);
+  if (expiresAt !== undefined) dto.expiresAt = expiresAt;
+
+  if (form.isActive !== original.isActive) dto.isActive = form.isActive;
+
+  return dto;
+}
+
+/** `{}` is accepted by the backend but there is nothing to send. */
+export function hasVoucherEdits(dto: UpdateVoucherDto): boolean {
+  return Object.keys(dto).length > 0;
+}
+
+/**
+ * The fields whose limits this patch makes **stricter**, in the backend's own
+ * terms: a higher minimum, a smaller cap/limit, a later start or an earlier
+ * end. `null` is the loosest possible value everywhere (no minimum, no cap, no
+ * limit, no window), which is why it never counts as tightening.
+ */
+export function voucherTighteningFields(
+  dto: UpdateVoucherDto,
+  original: Voucher,
+): string[] {
+  const fields: string[] = [];
+
+  if (dto.minOrderAmount !== undefined) {
+    // Never null (see `diffMinOrderAmount`); 0 is the loosest value.
+    if (dto.minOrderAmount > toVoucherNumber(original.minOrderAmount)) {
+      fields.push('Đơn tối thiểu');
+    }
+  }
+  if (dto.maxDiscountAmount !== undefined) {
+    const next = dto.maxDiscountAmount ?? Infinity;
+    const current =
+      original.maxDiscountAmount == null
+        ? Infinity
+        : toVoucherNumber(original.maxDiscountAmount);
+    if (next < current) fields.push('Giảm tối đa');
+  }
+  if (dto.usageLimit !== undefined) {
+    if ((dto.usageLimit ?? Infinity) < (original.usageLimit ?? Infinity)) {
+      fields.push('Tổng lượt dùng');
+    }
+  }
+  if (dto.perUserLimit !== undefined) {
+    if ((dto.perUserLimit ?? Infinity) < (original.perUserLimit ?? Infinity)) {
+      fields.push('Lượt mỗi người');
+    }
+  }
+  if (dto.startsAt !== undefined) {
+    const next = dto.startsAt == null ? -Infinity : new Date(dto.startsAt).getTime();
+    const current = original.startsAt ? new Date(original.startsAt).getTime() : -Infinity;
+    if (next > current) fields.push('Thời gian bắt đầu');
+  }
+  if (dto.expiresAt !== undefined) {
+    const next = dto.expiresAt == null ? Infinity : new Date(dto.expiresAt).getTime();
+    const current = original.expiresAt ? new Date(original.expiresAt).getTime() : Infinity;
+    if (next < current) fields.push('Thời gian kết thúc');
+  }
+
+  return fields;
+}
+
+/**
+ * Client-side mirror of the 400s this patch can hit, so the admin is told the
+ * rule before the request rather than after it. Returns the message to show, or
+ * null when the patch is allowed.
+ */
+export function voucherEditBlockedMessage(
+  dto: UpdateVoucherDto,
+  original: Voucher,
+): string | null {
+  if (dto.usageLimit != null && dto.usageLimit < original.usedCount) {
+    return `Tổng lượt dùng không thể nhỏ hơn số lượt đã dùng (${original.usedCount}).`;
+  }
+  // VOUCHER-GUARD-01, re-checked server-side on every patch that carries a
+  // minimum: a fixed voucher worth at least its own threshold zeroes the goods
+  // cost of every basket. Unlike the rules below it does not care about
+  // `usedCount` — and it fires on a *cleared* minimum too, because "no minimum"
+  // is 0 and every fixed discount is worth more than that.
+  if (dto.minOrderAmount !== undefined && original.discountType === 'fixed') {
+    const discountValue = toVoucherNumber(original.discountValue);
+    if (discountValue >= dto.minOrderAmount) {
+      return `Mã giảm tiền cố định phải có đơn tối thiểu lớn hơn số tiền giảm (${formatVnd(discountValue)}).`;
+    }
+  }
+  if (original.usedCount === 0) return null;
+  const tightened = voucherTighteningFields(dto, original);
+  if (tightened.length === 0) return null;
+  return `Mã đã được dùng ${original.usedCount} lần nên chỉ có thể nới lỏng điều kiện. Không thể siết: ${tightened.join(', ')}.`;
+}
+
+/** Constrained fields — the ones the backend one-ways once a voucher is used. */
+const CONSTRAINED_FIELDS = [
+  'minOrderAmount',
+  'maxDiscountAmount',
+  'usageLimit',
+  'perUserLimit',
+  'startsAt',
+  'expiresAt',
+] as const satisfies readonly (keyof UpdateVoucherDto)[];
+
+/**
+ * Loosening a redeemed voucher cannot be walked back — the backend will refuse
+ * to tighten it again, forever. That deserves a confirm, so this returns the
+ * question to ask (or null when the edit is freely reversible).
+ */
+export function voucherLooseningConfirm(
+  dto: UpdateVoucherDto,
+  original: Voucher,
+): string | null {
+  if (original.usedCount === 0) return null;
+  const changed = CONSTRAINED_FIELDS.filter((field) => dto[field] !== undefined);
+  if (changed.length === 0) return null;
+  return `Mã "${original.code}" đã được dùng ${original.usedCount} lần. Nới lỏng điều kiện là thay đổi một chiều — sau này không siết lại được. Tiếp tục?`;
 }

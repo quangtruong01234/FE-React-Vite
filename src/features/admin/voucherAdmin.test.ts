@@ -1,17 +1,28 @@
 import { describe, it, expect } from 'vitest';
 import {
-  toVoucherNumber,
   voucherStatusMeta,
   voucherDiscountLabel,
   voucherUsageLabel,
   voucherWindowLabel,
   canDeactivateVoucher,
+  canReactivateVoucher,
   voucherAdminErrorMessage,
   localInputToIso,
   optionalNumber,
   buildCreateVoucherDto,
+  voucherToFormData,
+  buildUpdateVoucherDto,
+  hasVoucherEdits,
+  voucherTighteningFields,
+  voucherEditBlockedMessage,
+  voucherLooseningConfirm,
+  voucherActiveToggleCopy,
 } from './voucherAdmin';
-import { voucherFormSchema, VOUCHER_FORM_DEFAULTS } from './voucherAdmin.schema';
+import {
+  voucherCreateSchema,
+  voucherEditSchema,
+  VOUCHER_FORM_DEFAULTS,
+} from './voucherAdmin.schema';
 import type { Voucher } from '@/types';
 
 const NOW = new Date('2026-08-18T10:00:00.000Z').getTime();
@@ -36,19 +47,6 @@ function makeVoucher(overrides: Partial<Voucher> = {}): Voucher {
     ...overrides,
   };
 }
-
-describe('toVoucherNumber', () => {
-  it('accepts both the decimal-string and the number form of a money column', () => {
-    expect(toVoucherNumber('50000.00')).toBe(50000);
-    expect(toVoucherNumber(50000)).toBe(50000);
-  });
-
-  it('falls back to 0 for null, undefined and unparseable values', () => {
-    expect(toVoucherNumber(null)).toBe(0);
-    expect(toVoucherNumber(undefined)).toBe(0);
-    expect(toVoucherNumber('abc')).toBe(0);
-  });
-});
 
 describe('voucherStatusMeta', () => {
   it('reports a deactivated code as off even when it is also expired', () => {
@@ -277,45 +275,85 @@ describe('buildCreateVoucherDto', () => {
   });
 });
 
-describe('voucherFormSchema', () => {
+describe('voucherCreateSchema', () => {
   const validForm = { ...VOUCHER_FORM_DEFAULTS, code: 'SALE10', discountValue: '10' };
 
   it('accepts a minimal valid form', () => {
-    expect(voucherFormSchema.safeParse(validForm).success).toBe(true);
+    expect(voucherCreateSchema.safeParse(validForm).success).toBe(true);
   });
 
   it('rejects a code with characters that are unsafe in a URL or in print', () => {
-    expect(voucherFormSchema.safeParse({ ...validForm, code: 'SALE 10%' }).success).toBe(false);
+    expect(voucherCreateSchema.safeParse({ ...validForm, code: 'SALE 10%' }).success).toBe(false);
   });
 
   it('mirrors the backend 1-100 rule for percent vouchers', () => {
-    expect(voucherFormSchema.safeParse({ ...validForm, discountValue: '150' }).success).toBe(false);
-    expect(voucherFormSchema.safeParse({ ...validForm, discountValue: '100' }).success).toBe(true);
+    expect(voucherCreateSchema.safeParse({ ...validForm, discountValue: '150' }).success).toBe(false);
+    expect(voucherCreateSchema.safeParse({ ...validForm, discountValue: '100' }).success).toBe(true);
+  });
+
+  it('mirrors VOUCHER-GUARD-01: a fixed voucher must stay under the minimum order', () => {
+    const base = { ...validForm, discountType: 'fixed' as const };
+    expect(
+      voucherCreateSchema.safeParse({ ...base, discountValue: '50000', minOrderAmount: '50000' }).success,
+    ).toBe(false);
+    expect(
+      voucherCreateSchema.safeParse({ ...base, discountValue: '50000', minOrderAmount: '60000' }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a fixed voucher with no minimum at all — the backend compares against 0', () => {
+    const base = { ...validForm, discountType: 'fixed' as const, discountValue: '50000' };
+    expect(voucherCreateSchema.safeParse({ ...base, minOrderAmount: '' }).success).toBe(false);
+    expect(voucherCreateSchema.safeParse({ ...base, minOrderAmount: '0' }).success).toBe(false);
+  });
+
+  it('blames the minimum, not the discount value, which is read-only when editing', () => {
+    const result = voucherCreateSchema.safeParse({
+      ...validForm,
+      discountType: 'fixed' as const,
+      discountValue: '50000',
+      minOrderAmount: '',
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.path[0] === 'minOrderAmount')).toBe(true);
+      expect(result.error.issues.some((issue) => issue.path[0] === 'discountValue')).toBe(false);
+    }
+  });
+
+  it('leaves a percent voucher untouched by the fixed-vs-minimum guard', () => {
+    const form = { ...validForm, discountValue: '10', minOrderAmount: '5' };
+    expect(voucherCreateSchema.safeParse(form).success).toBe(true);
   });
 
   it('allows a fixed amount above 100, where the percent cap does not apply', () => {
-    const form = { ...validForm, discountType: 'fixed' as const, discountValue: '50000' };
-    expect(voucherFormSchema.safeParse(form).success).toBe(true);
+    const form = {
+      ...validForm,
+      discountType: 'fixed' as const,
+      discountValue: '50000',
+      minOrderAmount: '200000',
+    };
+    expect(voucherCreateSchema.safeParse(form).success).toBe(true);
   });
 
   it('rejects a zero or negative discount', () => {
-    expect(voucherFormSchema.safeParse({ ...validForm, discountValue: '0' }).success).toBe(false);
-    expect(voucherFormSchema.safeParse({ ...validForm, discountValue: '-5' }).success).toBe(false);
+    expect(voucherCreateSchema.safeParse({ ...validForm, discountValue: '0' }).success).toBe(false);
+    expect(voucherCreateSchema.safeParse({ ...validForm, discountValue: '-5' }).success).toBe(false);
   });
 
   it('leaves blank optional fields valid — blank means unlimited, not invalid', () => {
     const form = { ...validForm, usageLimit: '', perUserLimit: '', minOrderAmount: '', maxDiscountAmount: '' };
-    expect(voucherFormSchema.safeParse(form).success).toBe(true);
+    expect(voucherCreateSchema.safeParse(form).success).toBe(true);
   });
 
   it('rejects a non-integer or below-1 usage limit', () => {
-    expect(voucherFormSchema.safeParse({ ...validForm, usageLimit: '2.5' }).success).toBe(false);
-    expect(voucherFormSchema.safeParse({ ...validForm, usageLimit: '0' }).success).toBe(false);
+    expect(voucherCreateSchema.safeParse({ ...validForm, usageLimit: '2.5' }).success).toBe(false);
+    expect(voucherCreateSchema.safeParse({ ...validForm, usageLimit: '0' }).success).toBe(false);
   });
 
   it('rejects an end date that is not after the start date', () => {
     const form = { ...validForm, startsAt: '2026-08-20T10:00', expiresAt: '2026-08-20T09:00' };
-    const result = voucherFormSchema.safeParse(form);
+    const result = voucherCreateSchema.safeParse(form);
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.issues.some((issue) => issue.path[0] === 'expiresAt')).toBe(true);
@@ -323,6 +361,290 @@ describe('voucherFormSchema', () => {
   });
 
   it('accepts a start date with no end date', () => {
-    expect(voucherFormSchema.safeParse({ ...validForm, startsAt: '2026-08-20T10:00' }).success).toBe(true);
+    expect(voucherCreateSchema.safeParse({ ...validForm, startsAt: '2026-08-20T10:00' }).success).toBe(true);
+  });
+});
+
+describe('voucherEditSchema', () => {
+  const validForm = { ...VOUCHER_FORM_DEFAULTS, code: 'SALE10', discountValue: '10' };
+
+  it('still keeps a legacy fixed voucher editable — the guard is not re-checked here', () => {
+    // A row created before VOUCHER-GUARD-01 can violate it. Blocking the form
+    // would leave the admin unable to fix the description or turn the code off.
+    const form = {
+      ...validForm,
+      discountType: 'fixed' as const,
+      discountValue: '50000',
+      minOrderAmount: '10000',
+    };
+    expect(voucherCreateSchema.safeParse(form).success).toBe(false);
+    expect(voucherEditSchema.safeParse(form).success).toBe(true);
+  });
+
+  it('keeps every shared rule — the percent cap and the date order', () => {
+    expect(voucherEditSchema.safeParse({ ...validForm, discountValue: '150' }).success).toBe(false);
+    expect(
+      voucherEditSchema.safeParse({
+        ...validForm,
+        startsAt: '2026-08-20T10:00',
+        expiresAt: '2026-08-20T09:00',
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe('voucherToFormData', () => {
+  it('rehydrates a row into form state, flattening DECIMAL strings', () => {
+    const form = voucherToFormData(
+      makeVoucher({ discountValue: '10.00', minOrderAmount: '100000.00', usageLimit: 100 }),
+    );
+    expect(form.discountValue).toBe('10');
+    expect(form.minOrderAmount).toBe('100000');
+    expect(form.usageLimit).toBe('100');
+  });
+
+  it('renders every "unlimited" field as blank, never as 0', () => {
+    const form = voucherToFormData(
+      makeVoucher({ maxDiscountAmount: null, usageLimit: null, perUserLimit: null, expiresAt: null }),
+    );
+    expect(form.maxDiscountAmount).toBe('');
+    expect(form.usageLimit).toBe('');
+    expect(form.perUserLimit).toBe('');
+    expect(form.expiresAt).toBe('');
+  });
+
+  it('round-trips a date through the local input format', () => {
+    const voucher = makeVoucher({ startsAt: '2026-08-20T03:00:00.000Z' });
+    const form = voucherToFormData(voucher);
+    expect(localInputToIso(form.startsAt)).toBe(voucher.startsAt);
+  });
+});
+
+describe('buildUpdateVoucherDto', () => {
+  const original = makeVoucher({
+    description: 'Giảm 10%',
+    minOrderAmount: '100000.00',
+    usageLimit: 100,
+    expiresAt: '2026-09-01T00:00:00.000Z',
+  });
+
+  it('sends nothing when the form still matches the row', () => {
+    expect(buildUpdateVoucherDto(voucherToFormData(original), original)).toEqual({});
+  });
+
+  it('sends only the field that changed', () => {
+    const form = { ...voucherToFormData(original), minOrderAmount: '50000' };
+    expect(buildUpdateVoucherDto(form, original)).toEqual({ minOrderAmount: 50000 });
+  });
+
+  it('does not read seconds the date input cannot hold as an edit', () => {
+    // The prod row E2EPROD0806 expires at :59.000Z; datetime-local stops at
+    // minutes, so a rebuilt ISO is 59s earlier than the stored one.
+    const dated = makeVoucher({ expiresAt: '2026-12-31T23:59:59.000Z' });
+    expect(buildUpdateVoucherDto(voucherToFormData(dated), dated)).toEqual({});
+  });
+
+  it('still sends a date the admin actually moved', () => {
+    const dated = makeVoucher({ expiresAt: '2026-12-31T23:59:59.000Z' });
+    const form = { ...voucherToFormData(dated), expiresAt: '2027-02-01T10:30' };
+    expect(buildUpdateVoucherDto(form, dated).expiresAt).toBe(
+      localInputToIso('2027-02-01T10:30'),
+    );
+  });
+
+  it('still clears a date the admin emptied', () => {
+    const dated = makeVoucher({ expiresAt: '2026-12-31T23:59:59.000Z' });
+    const form = { ...voucherToFormData(dated), expiresAt: '' };
+    expect(buildUpdateVoucherDto(form, dated).expiresAt).toBeNull();
+  });
+
+  it('clears the minimum as 0, never as null — null is a 500 on that column', () => {
+    // `minOrderAmount` is NOT NULL DEFAULT 0 and the handler calls `.toFixed(2)`
+    // on it unguarded, while `@IsOptional()` waves a null past the pipe.
+    const form = { ...voucherToFormData(original), minOrderAmount: '' };
+    const dto = buildUpdateVoucherDto(form, original);
+    expect(dto.minOrderAmount).toBe(0);
+  });
+
+  it('omits an already-zero minimum the admin left empty', () => {
+    const zeroed = makeVoucher({ minOrderAmount: '0.00' });
+    const form = { ...voucherToFormData(zeroed), minOrderAmount: '' };
+    expect('minOrderAmount' in buildUpdateVoucherDto(form, zeroed)).toBe(false);
+  });
+
+  it('reads "0" typed over a "0.00" row as no edit at all', () => {
+    const zeroed = makeVoucher({ minOrderAmount: '0.00' });
+    expect('minOrderAmount' in buildUpdateVoucherDto(voucherToFormData(zeroed), zeroed)).toBe(false);
+  });
+
+  it('turns a cleared field into an explicit null, not an omitted key', () => {
+    const form = { ...voucherToFormData(original), usageLimit: '', description: '' };
+    const dto = buildUpdateVoucherDto(form, original);
+    expect(dto.usageLimit).toBeNull();
+    expect(dto.description).toBeNull();
+  });
+
+  it('omits an already-empty optional field instead of clearing it again', () => {
+    const form = voucherToFormData(original);
+    expect('perUserLimit' in buildUpdateVoucherDto(form, original)).toBe(false);
+  });
+
+  it('never sends the immutable code/type/value the backend rejects', () => {
+    const form = { ...voucherToFormData(original), code: 'OTHER', discountValue: '99' };
+    const dto = buildUpdateVoucherDto(form, original);
+    expect(Object.keys(dto)).toEqual([]);
+  });
+
+  it('drops a cap edit on a fixed voucher, where a cap is meaningless', () => {
+    const fixed = makeVoucher({ discountType: 'fixed', discountValue: '50000.00' });
+    const form = { ...voucherToFormData(fixed), maxDiscountAmount: '10000' };
+    expect('maxDiscountAmount' in buildUpdateVoucherDto(form, fixed)).toBe(false);
+  });
+
+  it('carries the on/off switch as isActive', () => {
+    const form = { ...voucherToFormData(original), isActive: false };
+    expect(buildUpdateVoucherDto(form, original)).toEqual({ isActive: false });
+  });
+});
+
+describe('voucherTighteningFields', () => {
+  const original = makeVoucher({
+    minOrderAmount: '100000.00',
+    maxDiscountAmount: '50000.00',
+    usageLimit: 100,
+    expiresAt: '2026-09-01T00:00:00.000Z',
+  });
+
+  it('names a raised minimum and a shrunken cap', () => {
+    const fields = voucherTighteningFields(
+      { minOrderAmount: 200000, maxDiscountAmount: 20000 },
+      original,
+    );
+    expect(fields).toEqual(['Đơn tối thiểu', 'Giảm tối đa']);
+  });
+
+  it('treats the loosest value as loosening, never as tightening', () => {
+    // Null on the nullable columns, 0 on `minOrderAmount` — that one is NOT
+    // NULL, so "no minimum" is a zero, not a null.
+    expect(
+      voucherTighteningFields(
+        { minOrderAmount: 0, maxDiscountAmount: null, usageLimit: null, expiresAt: null },
+        original,
+      ),
+    ).toEqual([]);
+  });
+
+  it('reads an earlier end date as tightening and a later one as loosening', () => {
+    expect(voucherTighteningFields({ expiresAt: '2026-08-20T00:00:00.000Z' }, original)).toEqual([
+      'Thời gian kết thúc',
+    ]);
+    expect(voucherTighteningFields({ expiresAt: '2026-10-01T00:00:00.000Z' }, original)).toEqual([]);
+  });
+});
+
+describe('voucherEditBlockedMessage', () => {
+  it('lets any edit through while the voucher is unused', () => {
+    const unused = makeVoucher({ usedCount: 0, minOrderAmount: '100000.00' });
+    expect(voucherEditBlockedMessage({ minOrderAmount: 500000 }, unused)).toBeNull();
+  });
+
+  it('blocks tightening once the voucher has been redeemed', () => {
+    const used = makeVoucher({ usedCount: 3, minOrderAmount: '100000.00' });
+    expect(voucherEditBlockedMessage({ minOrderAmount: 500000 }, used)).toContain('Đơn tối thiểu');
+  });
+
+  it('still allows loosening a redeemed voucher', () => {
+    const used = makeVoucher({ usedCount: 3, minOrderAmount: '100000.00' });
+    expect(voucherEditBlockedMessage({ minOrderAmount: 50000 }, used)).toBeNull();
+  });
+
+  it('blocks a usage limit below what has already been redeemed', () => {
+    const used = makeVoucher({ usedCount: 5, usageLimit: 100 });
+    expect(voucherEditBlockedMessage({ usageLimit: 3 }, used)).toContain('5');
+  });
+
+  it('mirrors VOUCHER-GUARD-01 on a fixed voucher, even with zero redemptions', () => {
+    // The backend re-checks `discountValue >= minOrderAmount` on any patch that
+    // carries a minimum — `usedCount` does not enter into it.
+    const fixed = makeVoucher({
+      discountType: 'fixed',
+      discountValue: '50000.00',
+      minOrderAmount: '200000.00',
+      usedCount: 0,
+    });
+    expect(voucherEditBlockedMessage({ minOrderAmount: 50000 }, fixed)).toContain('đơn tối thiểu');
+    expect(voucherEditBlockedMessage({ minOrderAmount: 60000 }, fixed)).toBeNull();
+  });
+
+  it('blocks a cleared minimum on a fixed voucher — "no minimum" is 0 there', () => {
+    const fixed = makeVoucher({
+      discountType: 'fixed',
+      discountValue: '50000.00',
+      minOrderAmount: '200000.00',
+    });
+    expect(voucherEditBlockedMessage({ minOrderAmount: 0 }, fixed)).not.toBeNull();
+  });
+
+  it('leaves a fixed voucher alone when the patch carries no minimum', () => {
+    // A legacy row that already violates the guard must stay editable, exactly
+    // as the backend allows — it only re-checks when a minimum is present.
+    const legacy = makeVoucher({
+      discountType: 'fixed',
+      discountValue: '50000.00',
+      minOrderAmount: '10000.00',
+    });
+    expect(voucherEditBlockedMessage({ description: 'Đổi mô tả' }, legacy)).toBeNull();
+    expect(voucherEditBlockedMessage({ isActive: false }, legacy)).toBeNull();
+  });
+
+  it('never applies the guard to a percent voucher', () => {
+    const percent = makeVoucher({ discountValue: '10.00', minOrderAmount: '100000.00' });
+    expect(voucherEditBlockedMessage({ minOrderAmount: 5 }, percent)).toBeNull();
+  });
+});
+
+describe('voucherLooseningConfirm', () => {
+  it('asks nothing for an unused voucher', () => {
+    expect(voucherLooseningConfirm({ minOrderAmount: 1 }, makeVoucher({ usedCount: 0 }))).toBeNull();
+  });
+
+  it('asks before a one-way loosening of a redeemed voucher', () => {
+    const used = makeVoucher({ usedCount: 3, code: 'SALE10' });
+    expect(voucherLooseningConfirm({ minOrderAmount: 0 }, used)).toContain('SALE10');
+  });
+
+  it('does not ask when only the on/off switch or the description moved', () => {
+    const used = makeVoucher({ usedCount: 3 });
+    expect(voucherLooseningConfirm({ isActive: false, description: 'x' }, used)).toBeNull();
+  });
+});
+
+describe('hasVoucherEdits', () => {
+  it('separates a real patch from an empty no-op', () => {
+    expect(hasVoucherEdits({})).toBe(false);
+    expect(hasVoucherEdits({ isActive: true })).toBe(true);
+  });
+});
+
+describe('canReactivateVoucher', () => {
+  it('offers the way back on only for a voucher that is off', () => {
+    expect(canReactivateVoucher(makeVoucher({ isActive: false }))).toBe(true);
+    expect(canReactivateVoucher(makeVoucher({ isActive: true }))).toBe(false);
+  });
+});
+
+describe('voucherActiveToggleCopy', () => {
+  it('never tells a deactivated voucher that it is on', () => {
+    expect(voucherActiveToggleCopy(true, false).state).toBe('Đã tắt');
+    expect(voucherActiveToggleCopy(true, true).state).toBe('Đang bật');
+  });
+
+  it('keeps one stable accessible name per mode — the switch role announces the state', () => {
+    expect(voucherActiveToggleCopy(true, false).label).toBe(voucherActiveToggleCopy(true, true).label);
+    expect(voucherActiveToggleCopy(false, false).label).toBe(voucherActiveToggleCopy(false, true).label);
+  });
+
+  it('phrases create mode as an intent, not a current state', () => {
+    expect(voucherActiveToggleCopy(false, true).state).toBe('Kích hoạt ngay');
   });
 });
