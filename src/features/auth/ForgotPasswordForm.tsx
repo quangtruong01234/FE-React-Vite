@@ -17,7 +17,7 @@ import {
   resetPasswordErrorMessage,
   resendCooldownRemaining,
 } from './forgotPassword';
-import { PasswordField } from './PasswordField';
+import { PasswordField } from '@/components/shared/PasswordField';
 
 interface ForgotPasswordFormProps {
   onBack: () => void;

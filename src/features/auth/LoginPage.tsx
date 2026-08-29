@@ -7,7 +7,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useLogin } from './useLogin';
 import { registerSchema, type RegisterFormData } from './auth.schema';
 import { ForgotPasswordForm } from './ForgotPasswordForm';
-import { PasswordField } from './PasswordField';
+import { PasswordField } from '@/components/shared/PasswordField';
 import { api } from '@/api';
 import { useAuthContext } from '@/context/useAuthContext';
 import type { User } from '@/types';

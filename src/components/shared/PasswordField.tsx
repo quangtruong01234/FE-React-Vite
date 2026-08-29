@@ -9,12 +9,25 @@ interface PasswordFieldProps {
   placeholder: string;
   error?: string;
   inputProps: UseFormRegisterReturn;
+  /**
+   * Defaults to `new-password` — the right hint everywhere a password is being
+   * set. Pass `current-password` when asking for the existing one so password
+   * managers offer the saved credential instead of generating a new one.
+   */
+  autoComplete?: 'new-password' | 'current-password';
 }
 
 // Labeled password input with its own show/hide toggle (same suffix button
-// pattern as the login TextField eye toggle). Shared by the register and
-// reset-password forms.
-export function PasswordField({ id, label, placeholder, error, inputProps }: PasswordFieldProps): ReactElement {
+// pattern as the login TextField eye toggle). Shared by the register,
+// reset-password and change-password forms.
+export function PasswordField({
+  id,
+  label,
+  placeholder,
+  error,
+  inputProps,
+  autoComplete = 'new-password',
+}: PasswordFieldProps): ReactElement {
   const [show, setShow] = useState(false);
 
   return (
@@ -27,7 +40,7 @@ export function PasswordField({ id, label, placeholder, error, inputProps }: Pas
           id={id}
           type={show ? 'text' : 'password'}
           placeholder={placeholder}
-          autoComplete="new-password"
+          autoComplete={autoComplete}
           className={cn(
             'w-full h-11 bg-tb-elevated border rounded-tb-input pl-3.5 pr-11 text-white font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
             'focus:border-[rgba(245,158,11,0.5)] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)]',
