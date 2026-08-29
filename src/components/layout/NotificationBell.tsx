@@ -16,7 +16,7 @@ export function NotificationBell(): ReactElement {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const { notifications, unreadCount, markRead } = useNotifications();
+  const { notifications, unreadCount, markRead, markAllRead } = useNotifications();
   const preview = notifications.slice(0, 5);
 
   useEffect(() => {
@@ -55,14 +55,16 @@ export function NotificationBell(): ReactElement {
         <div className="absolute right-0 top-11 w-[360px] max-w-[90vw] bg-canvas-surface border border-bdr rounded-tb-card shadow-tb-card z-[120] overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-bdr">
             <span className="font-display font-black uppercase tracking-wide text-ink-pri">Thông báo</span>
+            {/* Marks the loaded notifications read in place — the footer link is the
+                only way out of this dropdown, so the two never lead to the same page. */}
             {unreadCount > 0 && (
-              <Link
-                to="/notifications"
-                onClick={() => setOpen(false)}
-                className="text-accent-amber text-xs font-semibold hover:underline"
+              <button
+                type="button"
+                onClick={markAllRead}
+                className="bg-transparent border-0 p-0 cursor-pointer text-accent-amber text-xs font-semibold hover:underline"
               >
                 Đọc tất cả
-              </Link>
+              </button>
             )}
           </div>
 

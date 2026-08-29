@@ -1,28 +1,22 @@
 import { type ReactElement } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/format/utils';
-import { useRole } from '@/hooks/auth/useRole';
-import { getPrimaryNavItems } from './navItems';
+import { getPrimaryNavItems, isNavItemActive } from './navItems';
 
 /**
  * Bottom tab bar shown only on mobile (`md:hidden`) where the desktop
- * `LeftRail` is hidden. Mirrors the primary nav entries via `getPrimaryNavItems`.
+ * `LeftRail` is hidden. Mirrors the primary nav entries via `getPrimaryNavItems`;
+ * the rail's role consoles move into the profile dropdown at this width.
  */
 export function MobileNav(): ReactElement {
   const location = useLocation();
-  const me = useRole()?.me;
-  const items = getPrimaryNavItems(me);
-
-  function isActive(to: string): boolean {
-    if (to === '/') return location.pathname === '/';
-    return location.pathname === to || location.pathname.startsWith(to);
-  }
+  const items = getPrimaryNavItems();
 
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-[100] bg-canvas-surface/95 border-t border-bdr backdrop-blur-md">
       <div className="flex items-stretch justify-around px-1">
         {items.map((item) => {
-          const active = isActive(item.to);
+          const active = isNavItemActive(item, location.pathname);
           return (
             <Link
               key={item.to}

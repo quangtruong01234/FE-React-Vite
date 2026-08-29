@@ -1,6 +1,6 @@
-import { useState, type ReactElement } from 'react';
+import { Fragment, useState, type ReactElement } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Search, Plus, MessageSquare, ShoppingCart, Heart } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { useCart } from '@/hooks/data/useCart';
@@ -9,6 +9,7 @@ import { useChatPresence } from '@/features/chat/useChat';
 import { NotificationBell } from './NotificationBell';
 import { ProfileMenu } from './ProfileMenu';
 import { openCreatePost } from '@/features/social/composerEvents';
+import { HEADER_ICON_ITEMS } from './navItems';
 
 export function Header(): ReactElement {
   const navigate = useNavigate();
@@ -64,43 +65,29 @@ export function Header(): ReactElement {
             <span className="hidden sm:inline">Tạo bài viết</span>
           </GradientButton>
 
-          {/* Messages */}
-          <Link
-            to="/messages"
-            aria-label="Tin nhắn"
-            className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-tb-input p-2.5 grid place-items-center hover:border-accent-amber transition-colors overflow-visible"
-          >
-            <MessageSquare size={20} className="shrink-0" />
-          </Link>
-
-          <NotificationBell />
-
-          {/* Wishlist */}
-          <Link
-            to="/wishlist"
-            aria-label="Yêu thích"
-            className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-tb-input p-2.5 grid place-items-center hover:border-accent-amber transition-colors"
-          >
-            <Heart size={20} className="shrink-0" />
-          </Link>
-
-          {/* Cart */}
-          <Link
-            to="/cart"
-            aria-label="Giỏ hàng"
-            className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-tb-input p-2.5 grid place-items-center hover:border-accent-amber transition-colors overflow-visible"
-          >
-            <ShoppingCart size={20} className="shrink-0" />
-            {totalCount > 0 && (
-              <span className={cn(
-                'absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1',
-                'bg-tb-gradient text-white font-body font-bold text-[10px]',
-                'rounded-full border-2 border-tb-base flex items-center justify-center leading-none',
-              )}>
-                {totalCount}
-              </span>
-            )}
-          </Link>
+          {/* Messages · [bell] · wishlist · cart — destinations come from the shared
+              registry so no other menu can claim one of them. */}
+          {HEADER_ICON_ITEMS.map((item, i) => (
+            <Fragment key={item.to}>
+              <Link
+                to={item.to}
+                aria-label={item.label}
+                className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-tb-input p-2.5 grid place-items-center hover:border-accent-amber transition-colors overflow-visible"
+              >
+                <item.icon size={20} className="shrink-0" />
+                {item.to === '/cart' && totalCount > 0 && (
+                  <span className={cn(
+                    'absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1',
+                    'bg-tb-gradient text-white font-body font-bold text-[10px]',
+                    'rounded-full border-2 border-tb-base flex items-center justify-center leading-none',
+                  )}>
+                    {totalCount}
+                  </span>
+                )}
+              </Link>
+              {i === 0 && <NotificationBell />}
+            </Fragment>
+          ))}
 
           <ProfileMenu />
         </div>
