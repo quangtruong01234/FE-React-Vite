@@ -10,6 +10,8 @@ import {
   changePasswordSchema,
   changePasswordError,
   changePasswordPayload,
+  isAuthFailure,
+  isSessionAlive,
   type ChangePasswordFormData,
 } from './changePassword';
 
@@ -45,7 +47,10 @@ export function ChangePasswordForm({ onCancel }: ChangePasswordFormProps): React
       reset();
       setDone(true);
     } catch (err: unknown) {
-      const { field, message } = changePasswordError(err);
+      // A 401/403 here is ambiguous by contract, so ask the server which of the
+      // two it was before choosing where to hang the message.
+      const sessionAlive = isAuthFailure(err) ? await isSessionAlive() : true;
+      const { field, message } = changePasswordError(err, sessionAlive);
       setError(field, { message });
     }
   }

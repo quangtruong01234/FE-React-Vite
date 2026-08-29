@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { changePasswordSchema, changePasswordError, changePasswordPayload } from './changePassword';
+import { http, HttpResponse } from 'msw';
+import { server } from '@/test/msw/server';
+import { API_BASE } from '@/test/msw/handlers';
+import {
+  changePasswordSchema,
+  changePasswordError,
+  changePasswordPayload,
+  isAuthFailure,
+  isSessionAlive,
+} from './changePassword';
 
 const valid = {
   currentPassword: 'oldpass1',
@@ -70,15 +79,18 @@ describe('changePasswordError', () => {
     });
   });
 
-  it('reads a dead session out of the guard’s own 401 wording', () => {
+  it('moves the 401 to the form once the probe says the session is dead', () => {
     expect(
-      changePasswordError({ statusCode: 401, status: 401, message: 'Access token is required' }),
+      changePasswordError({ statusCode: 401, status: 401, message: 'Unauthorized' }, false),
     ).toEqual({ field: 'root', message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.' });
-    expect(changePasswordError({ statusCode: 401, message: 'Unauthorized' }).field).toBe('root');
   });
 
-  it('keeps a reworded wrong-password 401 on the password field', () => {
-    expect(changePasswordError({ statusCode: 401, message: 'Mật khẩu cũ sai' }).field).toBe(
+  it('ignores the message — production sends the same body for both 401s', () => {
+    // Prod (2026-08-29) flattens both to `{"error":"Unauthorized","message":"Unauthorized"}`,
+    // so only the probe result may move the message off the password field.
+    const prodBody = { statusCode: 401, status: 401, message: 'Unauthorized' };
+    expect(changePasswordError(prodBody, true).field).toBe('currentPassword');
+    expect(changePasswordError({ statusCode: 401, message: 'Access token is required' }, true).field).toBe(
       'currentPassword',
     );
     expect(changePasswordError({ statusCode: 401 }).field).toBe('currentPassword');
@@ -119,5 +131,45 @@ describe('changePasswordError', () => {
 
   it('reads `status` when `statusCode` is absent', () => {
     expect(changePasswordError({ status: 401 }).field).toBe('currentPassword');
+  });
+});
+
+describe('isAuthFailure', () => {
+  it('covers both statuses the endpoint answers an auth problem with', () => {
+    expect(isAuthFailure({ statusCode: 401 })).toBe(true);
+    expect(isAuthFailure({ status: 403 })).toBe(true);
+  });
+
+  it('leaves every other failure alone — no probe, no extra request', () => {
+    expect(isAuthFailure({ statusCode: 400 })).toBe(false);
+    expect(isAuthFailure({ statusCode: 429 })).toBe(false);
+    expect(isAuthFailure(new TypeError('Failed to fetch'))).toBe(false);
+  });
+});
+
+describe('isSessionAlive', () => {
+  it('is alive when /user/me still answers', async () => {
+    server.use(
+      http.get(`${API_BASE}/user/me`, () =>
+        HttpResponse.json({ id: 1, username: 'user1', role: 'user' }),
+      ),
+    );
+    await expect(isSessionAlive()).resolves.toBe(true);
+  });
+
+  it('is dead when the probe itself is rejected as unauthorized', async () => {
+    server.use(
+      http.get(`${API_BASE}/user/me`, () =>
+        HttpResponse.json({ message: 'Unauthorized' }, { status: 401 }),
+      ),
+    );
+    await expect(isSessionAlive()).resolves.toBe(false);
+  });
+
+  it('stays alive when the probe fails for a non-auth reason', async () => {
+    // A 500 or a dropped connection says nothing about the cookie; guessing
+    // "dead" there would tell a user with a typo'd password to log in again.
+    server.use(http.get(`${API_BASE}/user/me`, () => HttpResponse.error()));
+    await expect(isSessionAlive()).resolves.toBe(true);
   });
 });

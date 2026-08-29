@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { api } from '@/api';
 import type { ApiError, ChangePasswordDto } from '@/types';
 
 /**
@@ -8,9 +9,13 @@ import type { ApiError, ChangePasswordDto } from '@/types';
  * - `POST /user/change-password` `{ currentPassword, newPassword }`, JWT cookie
  *   identifies the account → `201 { success: true }`. The cookie is left alone
  *   on every outcome, so the session survives both success and failure.
- * - `401` → the supplied current password is wrong. This is the one 401 in the
- *   app that is NOT a dead session, so the call sets `skipUnauthorizedRedirect`
- *   and this module maps it to a field-level message instead.
+ * - `401` → normally the supplied current password is wrong. This is the one
+ *   401 in the app that is NOT a dead session, so the call sets
+ *   `skipUnauthorizedRedirect` and this module maps it to a field-level message
+ *   instead. Verified on production 2026-08-29: the wrong-password 401 and the
+ *   guard's own no-token 401 come back byte-identical
+ *   (`{"error":"Unauthorized","message":"Unauthorized"}`), so telling them apart
+ *   costs a `GET /user/me` probe — see `isSessionAlive()`.
  * - `400` → DTO validation (new password shorter than 6 chars, equal to the
  *   current one, or an unwhitelisted field in the body). Client-side zod
  *   prevents the first two, so a 400 means the server rejected something the
@@ -51,24 +56,34 @@ function statusOf(error: unknown): number | undefined {
   return err?.statusCode ?? err?.status;
 }
 
-function messageOf(error: unknown): string {
-  const err = error as ApiError | undefined;
-  return typeof err?.message === 'string' ? err.message : '';
+/**
+ * True for the two responses this endpoint cannot tell apart on its own: a
+ * wrong current password and a dead session. Both arrive as 401/403 and, on
+ * production, with byte-identical bodies — the gateway's exception filter
+ * flattens `message` to "Unauthorized" for either one, so no amount of message
+ * sniffing separates them. `isSessionAlive()` is what actually decides.
+ */
+export function isAuthFailure(error: unknown): boolean {
+  const status = statusOf(error);
+  return status === 401 || status === 403;
 }
 
 /**
- * Two different 401s reach this call and the body's `message` is the only thing
- * that tells them apart: "Current password is incorrect" (the guard passed, the
- * password was wrong) vs the JwtAuthGuard's own "Access token is required" /
- * "Unauthorized" (the session really is dead).
+ * Asks the server whether the cookie is still good. Called only after a
+ * 401/403 from the change-password call, to place the message on the right
+ * field.
  *
- * Matched the narrow way round on purpose: only the guard's own wording counts
- * as an expired session, so if the backend ever reworks the wrong-password
- * message the common case still lands on the right field.
+ * A failed probe only counts as a dead session when it is itself a 401/403 —
+ * a network blip mid-probe proves nothing, and the far more common cause of
+ * the original 401 is simply a mistyped current password.
  */
-function isExpiredSession(error: unknown): boolean {
-  const message = messageOf(error).toLowerCase();
-  return message.includes('access token') || message === 'unauthorized';
+export async function isSessionAlive(): Promise<boolean> {
+  try {
+    await api.auth.me();
+    return true;
+  } catch (probeError: unknown) {
+    return !isAuthFailure(probeError);
+  }
 }
 
 /** Which form field a failed change-password response belongs to. */
@@ -81,14 +96,17 @@ export interface ChangePasswordError {
 
 /**
  * Maps a failed change-password response to the field that should show it.
- * A 401 is normally the wrong-current-password case and belongs on that input
- * (see `isExpiredSession` for the one 401 that does not); anything else is a
- * form-level message.
+ * A 401 is normally the wrong-current-password case and belongs on that input;
+ * anything else is a form-level message.
+ *
+ * `sessionAlive` is the caller's answer to "is the cookie still good?" — the
+ * response body cannot say (see `isAuthFailure`). It defaults to `true` so the
+ * common case stays correct if a caller has no probe result to hand.
  */
-export function changePasswordError(error: unknown): ChangePasswordError {
+export function changePasswordError(error: unknown, sessionAlive = true): ChangePasswordError {
   const status = statusOf(error);
-  if (status === 401 || status === 403) {
-    if (isExpiredSession(error)) {
+  if (isAuthFailure(error)) {
+    if (!sessionAlive) {
       return { field: 'root', message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.' };
     }
     return { field: 'currentPassword', message: 'Mật khẩu hiện tại không đúng.' };
