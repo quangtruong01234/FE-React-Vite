@@ -7,6 +7,47 @@
 
 ## Maintenance
 
+### CHG-PW-02 · hai loại `401` của đổi mật khẩu giống hệt nhau trên prod — bỏ đọc `message`, hỏi thẳng server (2026-08-29)
+
+Verify CHG-PW-01 **trên prod** (sau khi user push `f809197..ce02013`, tài khoản dùng-một-lần
+`e2eprod0806`) lộ ra một bug **chỉ prod mới có**: nhập **sai mật khẩu hiện tại** thì form in
+*"Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại."* — câu sai hoàn toàn, phiên vẫn sống.
+
+**Vì sao local đúng mà prod sai.** `isExpiredSession()` phân biệt hai loại `401` bằng `message`
+(*"Access token is required"* / *"Unauthorized"* ⇒ hết phiên; còn lại ⇒ sai mật khẩu). Trên prod,
+exception filter của gateway **dẹp `message` xuống đúng tên HTTP error**, nên cả hai loại về
+byte-identical:
+
+```
+401 {"statusCode":401,"status":"error","error":"Unauthorized","message":"Unauthorized", …}
+```
+
+Nghĩa là câu sai-mật-khẩu rơi trúng nhánh hẹp của `isExpiredSession()`. Đo bằng cách so **lần
+submit sai thật** (reqid=314, cookie sống) với một probe `credentials: 'omit'` (không cookie —
+guard tự chặn): hai body giống nhau từng ký tự. Không có cách nào sniff `message` mà đúng được.
+
+**Sửa: bỏ hẳn việc đoán, hỏi server.** `isExpiredSession()` và `messageOf()` **xoá**; thay bằng
+
+- `isAuthFailure(error)` — đúng nghĩa đen: status là `401`/`403`, không đọc chữ.
+- `isSessionAlive()` — gọi `GET /user/me`; `200` ⇒ phiên còn sống ⇒ `401` vừa rồi là **sai mật
+  khẩu**; `401`/`403` ⇒ phiên chết thật. Lỗi mạng ⇒ trả `true`, tức **thiên về giữ user ở lại**:
+  đá một phiên đang sống ra `/login` vì rớt mạng tệ hơn là in nhầm câu lỗi.
+
+`changePasswordError(error, sessionAlive = true)` nhận thêm tham số thay vì tự đọc `message`;
+`ChangePasswordForm` chỉ trả giá một request phụ **trên nhánh lỗi 401/403**, đường thành công và
+mọi status khác (`429`/`400`/`404`) không đụng tới. Mặc định `true` giữ hàm dùng được trong test
+mà không cần dựng probe.
+
+Đây là **contract gap của BE chứ không phải của FE** — đã ghi `../.agent-local/backend-handoff.md`
+→ `CHG-PW-02` (3 cách sửa nhận được: giữ nguyên `message` gốc, thêm `errorCode` ổn định, hoặc trả
+`400`/`422` cho sai mật khẩu). Có một trong ba là FE bỏ được probe.
+
+**Gates:** `npm run build` ✓ · **921 test / 115 file** (riêng `changePassword.test.ts` **21 test**
+— +5: 2 case đổi sang probe, `describe('isAuthFailure')` 2 case, `describe('isSessionAlive')` 3
+case dùng `msw` chặn `/user/me`).
+
+---
+
 ### CHG-PW-01 · đổi mật khẩu khi đang đăng nhập — tab "Bảo mật" (2026-08-29)
 
 User: *"test change password chưa?"* → *"BE đã done CHG-PW-01 tiep tuc"*. FE đã dựng sẵn form từ
