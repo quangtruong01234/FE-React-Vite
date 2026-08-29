@@ -70,8 +70,18 @@ seller là **"Mã giảm giá shop"**.
 helper thành `voucherRules.*` chứ không đổi tên component.
 
 **Không làm:** không đụng `evaluateVoucher`/luật ở `voucherRules.ts` (tách là tách, không kèm
-refactor luật); không thêm cột `scope` cho bảng admin trong lượt này; **chưa verify runtime trên
-prod** — cần một tài khoản `shop` tạo mã thật, mà tạo mã trên prod thì phải dọn, để lượt sau.
+refactor luật); không thêm cột `scope` cho bảng admin trong lượt này.
+
+**✅ Verify runtime trên prod 2026-08-29** (`shop1`, FE origin thật, sau khi CD ship `1b5ceb7` —
+trang render được chính là bằng chứng deploy): guard role đúng (`user1` → `/`, ẩn danh → `/login`);
+`GET /order/vouchers/mine` → 200, `total 3`, **mọi dòng** `sellerId usr_xU2Q7pGhhFpduGWz`;
+`POST /order/vouchers` → **201**, body **không có khoá `sellerId`**, code tự hoa (`shopfe0829` →
+`SHOPFE0829`), optional rỗng bị bỏ hẳn, sau đó **đúng một** lượt refetch list; form sửa hydrate
+khoá đúng code/loại/mức giảm; `PATCH /order/vouchers/8/deactivate` → **200**. Mã test `SHOPFE0829`
+để lại ở trạng thái **tắt**, `usedCount 0`; không đặt đơn, không đụng mã nào có sẵn. **Hai nhánh
+chưa chạy qua UI** (thao tác bị permission classifier chặn, không phải lỗi sản phẩm): **403 chạm mã
+shop khác** và **nhánh lưu** của form sửa — cả hai đã verify ở tầng API 2026-08-26, câu chữ 403 có
+test trong `voucherConsoleBinding.test.ts`.
 
 **Gates:** `npm run build` ✓ · `npm run lint` 0 problem · +36 test / +1 file → **882 test / 113 file**.
 
