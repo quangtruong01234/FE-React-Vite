@@ -21,7 +21,10 @@ import { validateUploadFile, MAX_IMAGE_BYTES } from '@/lib/http/uploadValidation
 import { cn } from '@/lib/format/utils';
 import { credentialConflictError } from '@/lib/domain/credentialConflict';
 import { replacePendingAvatar, discardedAvatarOrphan, type PendingAvatar } from './avatarUpload';
+import { ChangePasswordForm } from './ChangePasswordForm';
 import type { User } from '@/types';
+
+type Tab = 'profile' | 'security';
 
 const schema = z.object({
   name: z.string().min(1, 'Tên không được trống'),
@@ -43,6 +46,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
   const [pendingAvatar, setPendingAvatar] = useState<PendingAvatar | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('profile');
 
   const { register, handleSubmit, setValue, setError, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -76,6 +80,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
     if (orphan) void deleteMedia(orphan);
     setPendingAvatar(null);
     setUploadError(null);
+    setTab('profile');
     onClose();
   }
 
@@ -125,10 +130,43 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
         <DialogHeader className="px-5 pt-5 pb-0">
           <DialogTitle className="font-display text-lg text-ink-pri">Chỉnh sửa hồ sơ</DialogTitle>
           <DialogDescription className="sr-only">
-            Cập nhật ảnh đại diện và thông tin cá nhân của bạn.
+            Cập nhật ảnh đại diện, thông tin cá nhân, hoặc đổi mật khẩu.
           </DialogDescription>
         </DialogHeader>
 
+        {/* Tabs — the two panels are separate <form>s rendered one at a time;
+            they must never nest, which rules out one form wrapping both. */}
+        <div role="tablist" aria-label="Mục cài đặt" className="flex gap-1 px-5 pt-4 border-b border-bdr">
+          {([
+            { id: 'profile', label: 'Hồ sơ' },
+            { id: 'security', label: 'Bảo mật' },
+          ] as const).map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              onClick={() => setTab(id)}
+              className={cn(
+                // index.css styles every <button> with a border + amber hover
+                // border, so the active underline is an ::after bar instead of
+                // a border-b that the global rule would fight.
+                'relative px-3 py-2 text-sm font-semibold bg-transparent rounded-none cursor-pointer transition-colors',
+                'border border-transparent hover:border-transparent',
+                'after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-full',
+                tab === id
+                  ? 'text-ink-pri after:bg-accent-amber'
+                  : 'text-ink-muted hover:text-ink-sec after:bg-transparent',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'security' ? (
+          <ChangePasswordForm onCancel={handleClose} />
+        ) : (
         <form onSubmit={(e) => void handleSubmit(onSubmit)(e)} className="flex flex-col gap-4 p-5">
           {/* Avatar upload */}
           <div className="flex flex-col items-center gap-2">
@@ -211,6 +249,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
             </GradientButton>
           </div>
         </form>
+        )}
       </DialogContent>
     </Dialog>
   );

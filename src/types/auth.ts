@@ -25,3 +25,13 @@ export interface ResetPasswordDto {
   code: string; // exactly 6 digits
   newPassword: string; // min 6 chars
 }
+
+// Change password while signed in (authenticated; the JWT cookie identifies the
+// account, so no email/id in the body). Distinct from the reset flow above:
+// possession of the current password is the proof, not an emailed code.
+// These two fields are the WHOLE body: the gateway validates with
+// `forbidNonWhitelisted`, so slipping `confirmPassword` in makes the call a 400.
+export interface ChangePasswordDto {
+  currentPassword: string;
+  newPassword: string; // min 6 chars, must differ from currentPassword
+}
