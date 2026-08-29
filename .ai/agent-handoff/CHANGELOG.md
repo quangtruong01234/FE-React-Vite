@@ -7,6 +7,87 @@
 
 ## Maintenance
 
+### CHG-PW-01 · đổi mật khẩu khi đang đăng nhập — tab "Bảo mật" (2026-08-29)
+
+User: *"test change password chưa?"* → *"BE đã done CHG-PW-01 tiep tuc"*. FE đã dựng sẵn form từ
+trước nhưng endpoint chưa có nên **chưa test thật được** (mọi lần submit ra `404`); lượt này BE
+code xong `POST /user/change-password` ở local, nên làm nốt phần verify thật + hai chỗ contract
+mà chỉ chạy thật mới lộ ra.
+
+---
+
+**Chỗ đặt:** `EditProfileModal` thêm cặp tab **"Hồ sơ" / "Bảo mật"**. Hai `<form>` render **luân
+phiên**, không lồng nhau — form lồng form là HTML không hợp lệ và submit của form trong sẽ kích
+luôn form ngoài.
+
+**Hai cạnh sắc của contract, cả hai đẩy vào helper thuần có test chứ không để inline trong form:**
+
+- **Body đúng hai field** `currentPassword` + `newPassword`. `confirmPassword` là của form, không
+  phải của API — gateway validate bằng `forbidNonWhitelisted` nên để nó lọt xuống dây là **biến
+  một lần đổi hợp lệ thành `400`**. `changePasswordPayload()` thu ba field xuống hai, có test chốt
+  `not.toContain('confirmPassword')` để lần sau ai nối thẳng `data` vào body thì gãy ở test.
+- **Hai loại `401` cùng về một call, chỉ `message` phân biệt được:** sai mật khẩu hiện tại (guard
+  đã qua, cookie **còn sống**) vs. `JwtAuthGuard` tự chặn (*"Access token is required"* /
+  *"Unauthorized"* — phiên chết thật). Call đặt `skipUnauthorizedRedirect` nên loại thứ nhất
+  không còn bị interceptor đá về `/login`; `isExpiredSession()` match **theo chiều hẹp** — chỉ
+  đúng câu chữ của guard mới tính là hết phiên. Cố ý ngược đời: BE mà đổi lời văn câu
+  sai-mật-khẩu thì case phổ biến vẫn rơi đúng ô, còn nếu match chiều kia thì một lần BE sửa copy
+  là user bị đá ra khỏi phiên đang sống.
+
+Phần còn lại của `changePasswordError()`: `429` (rate limit 5 lần/60s ở gateway) → câu ở form,
+`400` → ô mật khẩu mới, `404` → *"Tính năng chưa sẵn sàng"* (nói thẳng thay vì để rơi vào nhánh
+lỗi mạng — đây chính là cái đã che mất sự thật "endpoint chưa có" ở lượt trước).
+
+**`PasswordField` dời `features/auth/` → `components/shared/`** vì giờ hai feature folder dùng
+(`auth` + `user`), đúng ngưỡng DRY của `core.md`; thêm prop `autoComplete` để ô mật khẩu hiện tại
+khai `current-password`. Hai chỗ gọi cũ (`LoginPage`, `ForgotPasswordForm`) đổi import, giữ
+nguyên hành vi.
+
+**Verify runtime thật** (FE `localhost:5174`, BE local, Chrome DevTools MCP, tài khoản dùng-một-lần
+`chgpw_test` trên **dev DB** — không đụng prod): submit rỗng → 3 lỗi field; nhập lại lệch → lỗi ở
+ô confirm; mật khẩu mới trùng mật khẩu cũ → chặn **client-side**, không có request nào bay đi;
+sai mật khẩu hiện tại → **401**, câu lỗi nằm dưới ô "Mật khẩu hiện tại", vẫn ở nguyên trang và
+`GET /user/me` sau đó **200** (chứng minh `skipUnauthorizedRedirect` chạy đúng); đổi hợp lệ →
+**201**, form clear, phiên còn sống; đăng nhập lại bằng mật khẩu cũ → **401**, bằng mật khẩu mới
+→ **201**.
+
+**Chưa push:** đây là item lớp **C** — `POST /user/change-password` phía BE **mới chỉ ở working
+tree**, `origin/main` của `api` vẫn `97fec7b` (đo bằng `git ls-remote`, không đọc ref local). Đẩy
+FE trước là giao cho user một tab bấm vào ra `404`. Xem `../.agent-local/release-gate.md`.
+
+**Gates:** `npm run build` ✓ · `npm run lint` 0 problem · **916 test / 115 file** (riêng
+`changePassword.test.ts` **16 test**).
+
+---
+
+### NAV-DEDUP-01 · mỗi mục điều hướng một trang, không mục nào trùng mục nào (2026-08-29)
+
+Header, `LeftRail` và dropdown avatar lớn dần thành **ba bản sao chồng lên nhau** của cùng một tập
+link: thông báo vừa ở rail vừa sau cái chuông, "Đơn mua" + trang cá nhân vừa ở rail vừa ở
+dropdown, "Đăng sản phẩm" ở rail trong khi chính console người bán đã có nút đó. Hai mục trỏ một
+trang thì user không phân biệt được, và cái họ không bấm trông như hỏng.
+
+**`navItems.ts` thành registry duy nhất, mỗi đích nằm ở đúng một nhóm:** header icon (tin nhắn,
+yêu thích, giỏ — cộng cái chuông sở hữu `/notifications` vì nó còn mang badge + preview),
+dropdown cho **mọi thứ thuộc về cá nhân** (trang cá nhân, đơn mua, trả hàng, sổ địa chỉ), rail cho
+những chỗ **không thuộc về một người** (bảng tin, chợ, console shop/admin). Dưới `md` rail bị ẩn
+nên dropdown gánh nốt console theo role — **chỉ ở đó**, nên không bề rộng nào hiện hai mục cho một
+trang.
+
+**`isNavItemActive` dùng chung** thay vì mỗi surface tự suy: `exact` cho mục cha có con riêng
+(`/admin`), `excludes` cho route con đã có mục riêng, `includes` cho trang **đi vào từ mục này mà
+không có mục riêng** — `/sell` giờ chỉ làm sáng "Kênh người bán" chứ không còn là lối vào thứ hai.
+
+**`chromeDestinations()` tồn tại để test kiểm được:** `navItems.test.ts` chốt luật một-đích-một-chỗ
+trên cả bốn tổ hợp role. Đây đúng là tính chất cứ review xong lại hỏng, nên nay để test giữ chứ
+không giữ bằng mắt. Logo brand **cố ý đứng ngoài** danh sách: đó là affordance về trang chủ mà
+site nào cũng có, không phải một mục menu.
+
+**Gates:** `npm run build` ✓ · `npm run lint` 0 problem · +1 file test (`navItems.test.ts`) → nằm
+trong **916 test / 115 file** cùng CHG-PW-01.
+
+---
+
 ### VOUCHER-SHOP-FE-01 · màn voucher cho seller — một màn hình, hai role (2026-08-29)
 
 User: *"check xem bên handoff có nói về nó không nếu có thì làm"*. Có: `frontend-handoff.md` §F3,
