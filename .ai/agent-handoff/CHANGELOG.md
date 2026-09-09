@@ -7,6 +7,180 @@
 
 ## Maintenance
 
+### SWEEP-0909 · CHAT-REJOIN-01 — phòng chat sống ở server, `Set` của client thì không biết điều đó (2026-09-09)
+
+User: `/sweep` với phạm vi *"task về chat room"*. Item chat duy nhất còn mở trong `snapshot.md` là
+**CHAT-ROOM-01**, và việc đầu tiên là đo lại xem nó hết chặn chưa.
+
+#### Bước 0 — CHAT-ROOM-01 vẫn bị chặn, mitigation ở lại
+
+Đo bằng `git ls-remote` (không đọc ref local — bài học VOUCHER-BE-01):
+
+| Đo | Kết quả |
+|---|---|
+| `api` `origin/main` | `d08244c9e92dd30627323b0eb8e9acddc35b6431` |
+| `git merge-base --is-ancestor 1ea9ed6 d08244c` | **NO** |
+| `git grep chatMessageRooms d08244c` | không hit |
+
+⇒ union emit (`user:{id}` + `conv:{id}`) **chưa lên prod**. `joinAll()` + re-join theo query cache
+vẫn là thứ duy nhất làm presence socket nhận được `new_message`. Không dọn. Entry giữ nguyên trong
+`snapshot.md`, chỉ bổ sung ghi chú cho lượt dọn sau.
+
+#### Bug thật nằm ngay trong mitigation đó
+
+`chatPresenceSocket.ts` giữ `const joined = new Set<string>()` ở **module scope** và chỉ xoá nó
+trong `onDestroy` (khi ref-count về 0). `joinConversation()` bỏ qua id nào đã có trong `joined`.
+
+Nhưng **phòng sống trên socket phía server**, không phải trên client. Reconnect (rớt wifi, sleep/wake,
+BE restart, LB xoay) cấp một socket server **hoàn toàn mới, không mang phòng nào** — gateway không
+đặt `connectionStateRecovery` (đọc `api/apps/gateway/src/chat/chat.ws-gateway.ts`, read-only).
+socket.io thì **tái dùng cùng một client instance** và bắn lại `connect`.
+
+Hậu quả: sau lần reconnect đầu tiên, mọi id vẫn "đã joined" ⇒ `joinAll` lọc sạch ⇒ **không emit
+một `join` nào** ⇒ socket ngồi ngoài mọi phòng cho tới khi user F5. Mất tiếng chuông + mất
+preview/badge cho **mọi** hội thoại không mở. Không lỗi nào in ra, không request nào đỏ — chỉ là
+tin nhắn thôi tới.
+
+Sửa đúng một dòng, ngay đầu handler `connect`:
+
+```ts
+socket.on('connect', () => {
+  joined.clear();   // server-side rooms are gone; every id must be re-joined
+  ...
+});
+```
+
+`useChat.ts` (socket của thread đang mở) **không dính**: nó `emit('join')` vô điều kiện trong
+`on('connect')`, không qua `Set` nào.
+
+#### Bẫy đo đạc: máy local không tái hiện được bug này
+
+Negative control lần đầu **không** reproduce — tắt fix mà tin vẫn tới. Lý do tìm ra khi đọc working
+tree của `api/`: BE **local** đã merge union emit của CHAT-ROOM-01 (`chatMessageRooms()` có mặt),
+nên nó bắn cả vào phòng `user:{id}` mà **server tự join lúc connect** — che mất đúng cái failure
+mode. Đây là bug **chỉ prod mới lộ** (prod `d08244c` không có `chatMessageRooms`).
+
+Bằng chứng vì thế phải lấy ở tầng WebSocket frame. Ba thứ đã thử và hỏng, ghi lại để khỏi mất thời
+gian lần sau:
+
+1. `localStorage.debug = 'socket.io-client:*'` → **vô dụng**: socket.io ship bản browser ESM đã
+   tước hết debug.
+2. Recorder lọc URL chứa `/chat/` → **rỗng**: mọi namespace **ghép chung một** engine.io socket
+   `ws://host/socket.io/?EIO=4&transport=websocket`; namespace nằm trong *payload* (`40/chat,`),
+   không nằm trong URL.
+3. `emulate networkConditions: Offline` 7s → **không đứt**: engine.io ping 25s + timeout 20s, nên
+   cửa sổ offline ngắn hơn thế thì socket sống nguyên. Ép đứt bằng `ws.close()` thật trên instance
+   đã bắt được.
+
+Công thức chạy được: patch `window.WebSocket` qua `navigate_page initScript`, log mọi
+`new`/`open`/`close`/`send` + giữ ref instance, rồi đóng tay socket `:3000/socket.io/`.
+
+| | có `joined.clear()` | bỏ `joined.clear()` (negative control) |
+|---|---|---|
+| `close conn2` | ✓ | ✓ |
+| `new` + `open conn3` | ✓ | ✓ |
+| `40/chat,` | ✓ | ✓ |
+| `42/chat,["join",{"conversationId":"conv_GcOODSkmePJCuY72"}]` | **✓** | **không có frame nào** |
+
+Đúng cái bug, đo được, ở tầng thấp nhất mà local cho phép.
+
+#### Verify runtime + test
+
+Runtime (FE `localhost:5174` + BE local, MCP, `chgpw_test` ↔ `quang5552013` qua script peer chạy
+bằng node để browser giữ **một** session, `conv_GcOODSkmePJCuY72`): mở **danh sách hội thoại, không
+mở thread nào** — chọn đúng chỗ này vì khi đó preview + badge **chỉ** đến từ presence socket, thread
+socket của `useChat` không tham gia. PING-1 → preview + badge "1" lên live; reconnect; PING-2 →
+preview + badge "2". Không regression, không double-delivery.
+
+Test: `chatPresenceSocket.test.ts` (mới) — FakeSocket qua `vi.hoisted` + `vi.mock('socket.io-client')`,
+`vi.resetModules()` + dynamic import để reset state ở module scope, MSW cho
+`GET /chat/conversations`. Ca regression bắn `connect` **hai lần** trên cùng instance; không có fix
+thì assert ra `[]` (zero join). Ba ca: join lúc connect · **re-join sau reconnect** · chỉ join thread
+mới khi list dài ra.
+
+Gates: `npm run build` ✓ · `npm run lint` 0 problem · `npm run test:run` **931 test / 116 file**
+all pass (+3 test / +1 file). Class **A** thuần FE, không đụng contract ⇒ không có entry
+`backend-handoff.md`.
+
+---
+
+### SWEEP-0908 · MAIL-UI-01 + MAIL-UI-02 — nói ra hai sự thật mà response không mang, và đóng băng ba route bị email deep-link (2026-09-08)
+
+User: `/sweep` với phạm vi *"task về forget Password và MAIL-UI-02"*. Hai entry **Open** của
+`frontend-handoff.md`; cả hai **thuần FE**, không đụng contract nào.
+
+---
+
+#### MAIL-UI-01 — mã reset: client phải nói hộ những gì `400` không nói
+
+BE bật SMTP ở dev (2026-08-29) và nhờ FE làm ba việc: throttle nút gửi lại 60s có đếm ngược, nói
+rõ **chỉ mã trong email mới nhất** dùng được, và sau 3 lần sai thì cảnh báo *"Nhập sai quá nhiều
+lần sẽ phải xin mã mới"*.
+
+**Việc thứ nhất đã có sẵn từ 2026-07-11** (`RESEND_COOLDOWN_SECONDS` + `resendCooldownRemaining` +
+nút disabled in `Gửi lại mã (Ns)`) — đọc code trước rồi mới biết, không viết lại.
+
+Hai việc còn lại có cùng một gốc: **backend cố tình không phân biệt được**. Mọi nguyên nhân hỏng
+của `POST /user/reset-password` đều là một `400 "Invalid or expired verification code"` — kể cả
+trường hợp tệ nhất: sau **5** lần sai, server **xoá mã trong Redis** và vẫn trả đúng câu đó. Từ
+giây phút ấy người dùng gõ gì cũng sai, mà màn hình không hề đổi lời. Response sẽ **không bao giờ**
+mang tin này, nên client phải tự đếm:
+
+- `nextResetAttempts(current, error)` — **chỉ `400` mới tính**. `429` (rate limit) hay lỗi mạng
+  chưa hề tới bước verify; đếm chúng là đẩy người dùng đi xin mã mới trong khi mã cũ vẫn tốt.
+- `resetAttemptHint(failed)` — `null` dưới 3, câu cảnh báo từ 3, câu *"mã này không còn dùng được"*
+  từ 5. **Cố ý mơ hồ về số lần còn lại**: biến đếm chỉ thấy những gì **tab này** gửi, và một lần
+  gửi lại (từ bất kỳ đâu) reset biến đếm phía server — hứa "còn 2 lần" là hứa điều không kiểm
+  chứng được. Có test riêng pin điều này (`not.toMatch(/còn \d+ lần/)`).
+- Reset biến đếm ở **cả ba** chỗ server reset nó: gửi mã lần đầu, gửi lại thành công, và (hiển
+  nhiên) khi đổi email.
+
+Copy của banner gửi-lại nói thẳng cái thứ hai: *"Hãy dùng mã trong email mới nhất — mã cũ không còn
+dùng được."* Hint hiện trong banner hổ phách (`tb-amber`) **dưới** banner lỗi đỏ, chỉ ở bước 2.
+
+**Verify runtime trên dev** (Vite `localhost:5173` → gateway local, MCP): tài khoản dùng-một-lần
+`mailui0908` trên domain giả. Chạy đủ: `POST /user/forgot-password` → **201**, bước 2 hiện đúng
+email + nút `Gửi lại mã (59s)` disabled và đếm lùi thật; sai mã lần 1, lần 2 → **không** có hint
+(3 request `400` đếm được trong network panel); lần 3 → hint hổ phách hiện; hết cooldown, bấm gửi
+lại → **201**, banner xanh đúng câu mới, **hint biến mất** (biến đếm về 0) đồng thời
+`user:pwreset:attempts:31` **đã bị xoá** trong Redis ⇒ client và server reset khớp nhau; nhập mã
+thật → **201**, về form đăng nhập kèm *"Đặt lại mật khẩu thành công"*; đăng nhập bằng mật khẩu mới
+→ **201**.
+
+**Cách đọc mã mà không cần SMTP** (đã ghi vào snapshot): `user.service.ts` ghi mã vào Redis
+**trước** khi gửi mail và không rollback khi SMTP ném ⇒ `docker exec redis redis-cli GET
+user:pwreset:code:<userId>` vẫn ra mã dù domain là giả. Nhờ vậy không phải đụng hộp thư thật
+`quang5552013@gmail.com` mà BE đưa. **Không chạy nhánh này trên prod** — prod không cấu hình SMTP,
+đúng lời BE dặn.
+
+**Bẫy nhỏ, đáng nhớ:** form đăng nhập nhận **username**, không nhận email — đăng nhập lại bằng
+`mailui0908@example.com` ra `401 "Invalid username or password"`, tưởng reset hỏng.
+
+---
+
+#### MAIL-UI-02 — không có gì để code, có thứ để đóng băng
+
+Entry ghi rõ *"FE action needed: không có"*: mail đơn hàng nay là HTML có nút CTA trỏ về
+`/order/<publicId>` (fallback `/orders`) và `/sell/orders`, origin lấy từ `FRONTEND_URL[0]`. Việc
+thật là **xác minh** rồi **ghi lại ràng buộc**: cả ba route có trong `router.tsx` (`/sell/orders`
+bọc `ProtectedRoute requiredRole="shop"`), nên không sửa gì.
+
+Ràng buộc vào snapshot §*Guard cố ý giữ*: **mail đã gửi thì không sửa lại được**, đổi tên hay bỏ
+một trong ba route là làm chết link trong hộp thư người dùng — và redirect phía FE cũng không cứu
+được vì BE còn đọc chính path đó để dựng URL cho mail sau. Muốn đổi ⇒ báo BE, đổi hai phía cùng lượt.
+
+---
+
+**Không làm:** route `/reset-password?email=...` mà BE đề nghị (họ sẽ gắn nút CTA vào mail reset
+nếu FE có route đó). Thêm route công khai mới là quyết định của user, không phải drive-by của sweep
+— đã nêu để user quyết.
+
+**Gates:** `npm run build` ✓ · `npm run lint` 0 problem · **928 test / 115 file** (+7: 6 unit cho
+`nextResetAttempts`/`resetAttemptHint`, 1 integration MSW trong `LoginPage.test.tsx` chốt hint chỉ
+xuất hiện từ lần sai thứ 3).
+
+---
+
 ### CHG-PW-02 · hai loại `401` của đổi mật khẩu giống hệt nhau trên prod — bỏ đọc `message`, hỏi thẳng server (2026-08-29)
 
 Verify CHG-PW-01 **trên prod** (sau khi user push `f809197..ce02013`, tài khoản dùng-một-lần
