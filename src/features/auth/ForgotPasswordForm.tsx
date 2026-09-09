@@ -16,6 +16,8 @@ import {
   forgotPasswordErrorMessage,
   resetPasswordErrorMessage,
   resendCooldownRemaining,
+  nextResetAttempts,
+  resetAttemptHint,
 } from './forgotPassword';
 import { PasswordField } from '@/components/shared/PasswordField';
 
@@ -47,8 +49,12 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
   // the window silently send nothing) — mirror it on the resend button.
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  // Wrong-code attempts on the code currently in the user's inbox. The server
+  // destroys the code after 5 of them without saying so, so we count our own.
+  const [failedResets, setFailedResets] = useState(0);
 
   const remaining = resendCooldownRemaining(cooldownUntil, now);
+  const attemptHint = resetAttemptHint(failedResets);
 
   useEffect(() => {
     if (cooldownUntil === null) return;
@@ -83,6 +89,7 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
       await sendCode(data);
       setEmail(data.email);
       startCooldown();
+      setFailedResets(0);
       setStep('reset');
     } catch (error: unknown) {
       setApiError(forgotPasswordErrorMessage(error));
@@ -95,6 +102,9 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
     try {
       await sendCode({ email });
       startCooldown();
+      // A successful resend overwrites the code in Redis and resets the
+      // server's attempt counter — our count has to follow it.
+      setFailedResets(0);
       setResendNotice(true);
     } catch (error: unknown) {
       setApiError(forgotPasswordErrorMessage(error));
@@ -107,6 +117,7 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
       await resetPassword(data);
       onResetSuccess();
     } catch (error: unknown) {
+      setFailedResets((count) => nextResetAttempts(count, error));
       setApiError(resetPasswordErrorMessage(error));
     }
   }
@@ -133,7 +144,12 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
           )}
           {resendNotice && !apiError && (
             <div className="bg-accent-green/15 border border-accent-green/30 rounded-tb-input text-accent-green text-[13px] px-3.5 py-2.5 text-center">
-              Đã gửi lại mã (nếu email tồn tại).
+              Đã gửi lại mã (nếu email tồn tại). Hãy dùng mã trong email mới nhất — mã cũ không còn dùng được.
+            </div>
+          )}
+          {step === 'reset' && attemptHint && (
+            <div className="bg-tb-amber/10 border border-tb-amber/40 rounded-tb-input text-tb-amber text-[13px] px-3.5 py-2.5 text-center">
+              {attemptHint}
             </div>
           )}
 

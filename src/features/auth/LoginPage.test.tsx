@@ -181,6 +181,43 @@ describe('LoginPage — forgot-password flow', () => {
     // Still on the code step so the user can retry / resend
     expect(screen.getByLabelText('Mã xác nhận')).toBeInTheDocument();
   });
+
+  // MAIL-UI-01: the backend destroys the code after 5 wrong attempts and keeps
+  // answering with the identical 400 — the user is stuck with no way to tell.
+  it('warns after the third wrong code that a new one will be needed', async () => {
+    let resetCalls = 0;
+    server.use(
+      meUnauthenticated(),
+      http.post(`${API_BASE}/user/forgot-password`, () =>
+        HttpResponse.json({ message: 'ok' }, { status: 201 }),
+      ),
+      http.post(`${API_BASE}/user/reset-password`, () => {
+        resetCalls += 1;
+        return HttpResponse.json({ message: 'Invalid or expired verification code' }, { status: 400 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderLogin();
+    await openForgot(user);
+
+    await user.type(screen.getByLabelText('Email'), 'buyer@example.com');
+    await user.click(screen.getByRole('button', { name: /Gửi mã xác nhận/ }));
+
+    await user.type(await screen.findByLabelText('Mã xác nhận'), '000000');
+    await user.type(screen.getByLabelText('Mật khẩu mới'), 'newpass1');
+    await user.type(screen.getByLabelText('Nhập lại mật khẩu mới'), 'newpass1');
+
+    const submit = screen.getByRole('button', { name: /Đặt lại mật khẩu/ });
+    await user.click(submit);
+    await waitFor(() => expect(resetCalls).toBe(1));
+    await user.click(submit);
+    await waitFor(() => expect(resetCalls).toBe(2));
+    // Two failures is still ordinary mistyping — no scare copy yet.
+    expect(screen.queryByText(/xin mã mới/)).not.toBeInTheDocument();
+
+    await user.click(submit);
+    expect(await screen.findByText(/Nhập sai quá nhiều lần sẽ phải xin mã mới/)).toBeInTheDocument();
+  });
 });
 
 describe('LoginPage — register flow', () => {
