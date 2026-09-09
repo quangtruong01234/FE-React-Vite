@@ -7,6 +7,46 @@
 
 ## Maintenance
 
+### RESET-TTL-01 · bỏ con số khỏi câu "mã có hiệu lực trong 10 phút" (2026-09-10)
+
+BE rút `PASSWORD_RESET_CODE_TTL_SECONDS` **600 → 60** (`frontend-handoff.md` → `RESET-TTL-01`,
+2026-09-09) và HOLD cả chuyến push vì **một chuỗi bên FE**: `ForgotPasswordForm.tsx:135` nói
+*"Mã có hiệu lực trong 10 phút."* trong khi mã chết sau 60 giây. Contract không vỡ chỗ nào —
+lớp C ở đây là **ý nghĩa của một giá trị FE đang khẳng định hộ BE**.
+
+Grep `"10 phút"` toàn `src` + `.ai`: **đúng một hit**. Handoff cho hai lựa chọn (`1 phút` hoặc bỏ
+hẳn con số); user chọn **bỏ**:
+
+```
+Nếu email tồn tại, mã xác nhận đã được gửi tới {email}.
+Mã hết hiệu lực rất nhanh — hãy nhập ngay, thời hạn cụ thể ghi trong email.
+```
+
+Lý do chọn cách này thay vì hardcode `1 phút`: TTL là hằng số của **server**, và email do BE render
+**từ chính hằng số đó**. FE nhắc lại con số nghĩa là mỗi lần BE đổi TTL thì FE lại nói sai và lại
+phải mở một entry gate nữa. Không nói con số thì câu này **đúng vĩnh viễn**, và cửa sổ giữa hai lần
+deploy trở nên vô hại theo cả hai chiều (FE mới đúng dù TTL đang là 600s hay 60s).
+
+**Không đụng logic.** Ba thứ dễ tưởng là dính, đã kiểm là không:
+
+| Thứ | Vì sao không dính |
+|---|---|
+| đồng hồ nút *Gửi lại mã* | `resendCooldown` đọc cooldown gửi lại (60s), không đọc TTL mã |
+| `nextResetAttempts()` / `resetAttemptHint()` (MAIL-UI-01) | đếm số lần gõ sai, không liên quan tuổi thọ mã |
+| ánh xạ `400` → một câu chung | BE vẫn gộp 4 nguyên nhân vào cùng một `message`; chỉ nghĩa của "hết hạn" đổi từ 10 phút thành 1 phút |
+
+**Test:** không thêm case mới — thêm một assertion vào case sẵn có *"posts the email, advances to
+the code step"* (`LoginPage.test.tsx`), pin câu bước 2 `not.toMatch(/\d+\s*(phút|giây)/)`. Nó chặn
+đúng loại hồi quy sẽ xảy ra: người sau ghi lại một con số vào chỗ này. `npm run build` xanh ·
+`npm run lint` 0 problem · `npm run test:run` **931 test / 116 file** (số không đổi, đúng như mong
+đợi khi assertion gắn vào case cũ).
+
+**Gate:** ô `frontend` của entry RESET-TTL-01 flip **✅ ready 2026-09-10**; `api` đã ✅ từ
+2026-09-09, `web-flow-GHN` n/a ⇒ entry chuyển **Holding → Ready to release**, Holding hiện **trống**.
+Cả hai repo **chưa commit, chưa push** — thứ tự vẫn BE trước, FE ngay sau.
+
+---
+
 ### SWEEP-0909 · CHAT-REJOIN-01 — phòng chat sống ở server, `Set` của client thì không biết điều đó (2026-09-09)
 
 User: `/sweep` với phạm vi *"task về chat room"*. Item chat duy nhất còn mở trong `snapshot.md` là
@@ -126,6 +166,18 @@ reconnect. Nhánh fix vì thế đã chạy thật, không chỉ ở unit test v
 
 **Không ghi gì vào DB prod:** chỉ login → join room → logout (`POST /user/logout` → 201). Không gửi
 tin nhắn nào, không tạo hội thoại nào, không đụng mật khẩu tài khoản seed.
+
+#### Lượt 2 — đo tới tận hành vi người dùng thấy, và đưa vào guide phỏng vấn
+
+Lượt trên dừng ở frame `join`. Lượt này chạy nốt: sau khi ép `conn1` đứt và `conn2` gửi lại `join`,
+một peer (`shop1`, chạy bằng node để trình duyệt giữ đúng một phiên) gửi một tin thật →
+`conn2` nhận `42/chat,["new_message",…]`, preview trong danh sách đổi ngay, badge chưa đọc lên `1`,
+mốc thời gian *Vừa xong*, **không** F5. Đây là chuỗi mà trước bản vá sẽ im lặng đứt.
+
+Hành vi này giờ là **Phần 8 Bước 4** của guide phỏng vấn (`../.agent-local/interview/`, không
+commit) — kèm ảnh `08-rt-07-reconnect-new-message.png`, các bước 4·5·6 cũ dời thành 5·6·7, PDF
+build lại: 85 trang · 75 ảnh · 252 link. **Dữ liệu để lại trên prod lần này:**
+`msg_sHsg6UpGSqnbzmQC` trong `conv_D8OiOgvWNu6DZRAO`, cố ý **để nguyên chưa đọc** vì ảnh cần badge.
 
 ---
 
