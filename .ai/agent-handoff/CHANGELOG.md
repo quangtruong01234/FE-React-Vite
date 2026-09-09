@@ -102,6 +102,31 @@ Gates: `npm run build` ✓ · `npm run lint` 0 problem · `npm run test:run` **9
 all pass (+3 test / +1 file). Class **A** thuần FE, không đụng contract ⇒ không có entry
 `backend-handoff.md`.
 
+#### ✅ Verify trên prod — 2026-09-10
+
+Push `7d5cdda..fa26d79` (user tự chạy), CD Cloudflare Workers xong, bundle entry đổi
+`index-D3m4-E1f.js` → **`index-DzpnwmNm.js`**. Presence socket nằm trong **entry chunk** nên hash
+entry đổi là bằng chứng bundle mới đã lên (chunk lazy đổi thì entry không đổi — nhớ điều này lần
+sau khi chọn tín hiệu đo CD).
+
+Đo bằng đúng recorder `window.WebSocket` như ở local, trên origin thật, `user1`,
+`conv_D8OiOgvWNu6DZRAO`, trang `/messages` **không mở thread nào**:
+
+```
+conn1  new wss://…/socket.io/?EIO=4&transport=websocket → open → 40/notifications, → 40/chat,
+       → 42/chat,["join",{"conversationId":"conv_D8OiOgvWNu6DZRAO"}]
+close conn1 (ép đứt)
+conn2  new → open → 40/notifications, → 40/chat,
+       → 42/chat,["join",{"conversationId":"conv_D8OiOgvWNu6DZRAO"}]   ← nhánh fix
+```
+
+**Đây mới là nơi bug thật sự cắn** — prod chưa có union emit của CHAT-ROOM-01 nên không có phòng
+`user:{id}` nào đỡ hộ; frame `join` thứ hai chính là thứ giữ cho tiếng chuông + preview sống sau
+reconnect. Nhánh fix vì thế đã chạy thật, không chỉ ở unit test và ở local.
+
+**Không ghi gì vào DB prod:** chỉ login → join room → logout (`POST /user/logout` → 201). Không gửi
+tin nhắn nào, không tạo hội thoại nào, không đụng mật khẩu tài khoản seed.
+
 ---
 
 ### SWEEP-0908 · MAIL-UI-01 + MAIL-UI-02 — nói ra hai sự thật mà response không mang, và đóng băng ba route bị email deep-link (2026-09-08)
