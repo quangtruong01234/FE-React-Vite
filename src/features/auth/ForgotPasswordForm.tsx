@@ -132,7 +132,7 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
           <p className="mt-1.5 mb-0 font-body text-[14px] text-tb-secondary">
             {step === 'email'
               ? 'Nhập email đã đăng ký để nhận mã xác nhận 6 chữ số.'
-              : `Nếu email tồn tại, mã xác nhận đã được gửi tới ${email}. Mã có hiệu lực trong 10 phút.`}
+              : `Nếu email tồn tại, mã xác nhận đã được gửi tới ${email}. Mã hết hiệu lực rất nhanh — hãy nhập ngay, thời hạn cụ thể ghi trong email.`}
           </p>
         </div>
 

@@ -118,7 +118,12 @@ describe('LoginPage — forgot-password flow', () => {
     // Step 2: neutral anti-enumeration copy + code form
     expect(await screen.findByLabelText('Mã xác nhận')).toBeInTheDocument();
     expect(forgotBody).toEqual({ email: 'buyer@example.com' });
-    expect(screen.getByText(/Nếu email tồn tại/)).toBeInTheDocument();
+    const sentCopy = screen.getByText(/Nếu email tồn tại/);
+    expect(sentCopy).toBeInTheDocument();
+    // RESET-TTL-01: the code's lifetime belongs to the server (it moved 10 phút →
+    // 1 phút and the email renders it from the constant). This screen must never
+    // state a duration of its own, or the next TTL change makes it lie.
+    expect(sentCopy.textContent).not.toMatch(/\d+\s*(phút|giây)/);
 
     // Resend is on a 60s cooldown right after the send
     const resend = screen.getByRole('button', { name: /Gửi lại mã \(\d+s\)/ });
