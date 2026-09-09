@@ -57,6 +57,12 @@ function joinAll(convs: Conversation[]): void {
 const presenceSocket = createRefCountedSocket<PresenceSocket>(CHAT_SOCKET_URL, {
   onCreate: (socket) => {
     socket.on('connect', () => {
+      // Rooms live on the *server-side* socket, and a reconnect gets a brand new
+      // one holding none of them (the gateway sets no `connectionStateRecovery`).
+      // Without this reset every id still looks joined, `joinAll` filters them
+      // all out, and the socket silently sits in no conversation room at all —
+      // no sound and no list preview until a full page reload.
+      joined.clear();
       const cached = queryClient.getQueryData<Conversation[]>(queryKeys.conversations.all);
       if (cached) joinAll(cached);
       void api.chat.getConversations().then((convs) => {
