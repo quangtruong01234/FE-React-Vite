@@ -7,6 +7,92 @@
 
 ## Maintenance
 
+### CHAT-ROOM-01 · presence socket thôi join phòng — xoá `joinAll()` + `joined` (2026-09-10)
+
+`/sweep CHAT-ROOM-01`. Item nằm ở §Chờ backend của snapshot từ 2026-08-2x: gateway ngày đó chỉ
+emit `new_message` vào phòng `conv:{id}`, nên presence socket (app-scoped, một kết nối cho cả app)
+muốn nghe được tin của **mọi** hội thoại thì phải tự join từng cái một. Mitigation gồm ba mảnh:
+`joinAll()` duyệt danh sách hội thoại trong cache, một `Set` `joined` ở **module scope** để khỏi
+join lại, và một subscription vào `queryCache` để join nốt những hội thoại mới xuất hiện sau khi
+socket đã connect.
+
+BE đã đóng phần của mình: `git ls-remote origin main` (trong `api/`) = **`4954974`**,
+`git merge-base --is-ancestor 1ea9ed6 origin/main` → **YES**, `chatMessageRooms` có mặt ở
+`apps/gateway/src/chat/chat.ws-gateway.ts` + `chat.types.ts` tại đúng sha đó. Đọc thêm để chắc
+nhánh union thật sự chạy chứ không rơi vào fallback: `handleConnection` cho mọi socket vào
+`user:{userId}`, `handleSendMessage` emit tới `chatMessageRooms(participantIds, convId)` =
+phòng `user:` của **cả hai** người ∪ `conv:{id}`, và chat service **có** gửi `participantIds`
+(`apps/chat/src/chat.service.ts:303`) nên nhánh fallback "chỉ conv-room" không bao giờ chạy.
+socket.io union các phòng nên một socket nằm trong nhiều phòng vẫn chỉ nhận **đúng một** emit.
+
+#### Verify trên prod trước khi xoá — vì local không chứng minh được gì
+
+Snapshot dặn đúng một câu: *"verify trên prod trước khi xoá — local không phân biệt được hai
+nhánh"*. Lý do là BE **local** đã có union emit từ lâu, nên ở local cả bản có mitigation lẫn bản
+đã dọn đều chạy đúng; chạy local xanh **không** phải bằng chứng.
+
+Cách đo không cần deploy gì: từ chính trang prod đang đăng nhập `user1`, mở một WebSocket **thô**
+tới `wss://…/socket.io/?EIO=4&transport=websocket`, gửi **đúng một** frame `40/chat,` (connect
+namespace) và **không join gì cả**, rồi để `shop1` gửi một tin thật từ một browser context riêng
+(`new_page` với `isolatedContext: "shop1ctx"` — đăng nhập shop1 ở cùng context sẽ đè cookie và
+giết luôn tab recorder). Kết quả:
+
+```
+sent:     ["40/chat,"]
+received: 42/chat,["new_message",{"id":"msg_kbd7dPh6G8b41Vve",
+           "conversationId":"conv_D8OiOgvWNu6DZRAO",
+           "senderId":"usr_xU2Q7pGhhFpduGWz","content":"CHAT-ROOM-01 verify prod 10/09 …"}]
+```
+
+Một socket **chưa từng join phòng nào** vẫn nhận được tin — đó đúng là tính chất mà bản dọn dựa
+vào, và nó đã đúng trên prod. (Cùng công thức recorder WebSocket của SWEEP-0909; socket.io bản
+browser bị tước debug nên `localStorage.debug` vô dụng.)
+
+#### Xoá gì, giữ gì
+
+Xoá khỏi `chatPresenceSocket.ts`: `joined`, `joinConversation`, `joinAll`, subscription
+`queryCache`, và cả lần `getQueryData` đọc cache chỉ để lấy danh sách đi join. Xoá
+`unjoinedConversationIds` khỏi `chatPresence.ts` (chỉ `shouldPlayPresenceSound` còn lại) + 3 test
+của nó. Đúng như snapshot dặn: xoá **cả** `joined` lẫn `joinAll`, không bỏ mỗi `joinAll` —
+`joined.clear()` của CHAT-REJOIN-01 là fix cho chính cái Set này, hết mitigation thì hết luôn cả
+fix, và để `joined` lại là để lại một biến không ai đọc.
+
+**Giữ** refetch danh sách hội thoại trong handler `connect`. Nó dễ bị tưởng là một mảnh của
+mitigation nhưng không phải: tin gửi trong lúc socket chết **không bao giờ** được deliver lại, nên
+preview/badge trong cache là cũ ngay khi socket sống lại — và `useConversations` tự nó sẽ không
+hỏi lại (`queryClient.ts`: `staleTime` 60s, `refetchOnWindowFocus: false`), một danh sách mounted
+liên tục thì đứng im. Đây là vá khoảng trống offline, không phải chuyện phòng.
+
+`useChat` vẫn `emit('join')`/`leave` cho thread đang mở. Thừa cho việc nhận tin (phòng `user:` đã
+phủ) nhưng vô hại — gateway vẫn giữ phòng `conv:{id}` — và `join` mới là chỗ chạy **membership
+check**, nên để nguyên.
+
+Comment ở đầu module ghi lại cả cái bẫy: đừng dựng lại vòng join-mọi-hội-thoại, vì nó kéo theo một
+Set ở module scope phải clear mỗi lần reconnect, và quên clear thì socket ngồi ngoài mọi phòng —
+im lặng, không lỗi nào in ra, cho tới khi F5 (CHAT-REJOIN-01).
+
+#### Test
+
+`chatPresenceSocket.test.ts` viết lại: 3 test cũ (join tất cả / join hội thoại mới / re-join sau
+reconnect) thay bằng 3 test mới —
+
+- *never emits a join, on connect or reconnect*: bắn `connect` **hai lần** rồi
+  `expect(socket.emit).not.toHaveBeenCalled()`. Đây là test chốt hành vi mới, và cũng là cái sẽ
+  đỏ nếu ai đó thêm lại một `emit('join')`.
+- *updates the list preview and badge for a conversation it never joined*: `new_message` cho
+  `CONV_B` → `lastMessage.content` + `unreadCount = 1` + `playMessageReceived` đúng một lần.
+- *refetches the conversation list on every connect to repair the offline gap*: đổi handler msw
+  rồi bắn `connect` lần nữa, assert preview "missed while offline" về tới cache.
+
+**931 → 928 test / 116 file** (net −3: mất 3 test `unjoinedConversationIds`, 3 test socket cũ đổi
+lấy 3 test mới). Gates: `npm run build` ✓ · `npm run lint` 0 problem · `npm run test:run` all pass.
+
+Doc: `.ai/context/realtime.md` mục presence socket đổi từ *"joins every conversation + re-join
+theo cache"* sang **"It joins nothing"**, kèm một gạch đầu dòng nói rõ refetch lúc connect là vá
+offline chứ không phải join, và một đoạn cuối giải thích vì sao `useChat` vẫn join.
+
+Không có gap contract nào mới ⇒ không thêm entry `backend-handoff.md`.
+
 ### RESET-TTL-01 · bỏ con số khỏi câu "mã có hiệu lực trong 10 phút" (2026-09-10)
 
 BE rút `PASSWORD_RESET_CODE_TTL_SECONDS` **600 → 60** (`frontend-handoff.md` → `RESET-TTL-01`,

@@ -1,4 +1,4 @@
-import type { Conversation, Message } from '@/types';
+import type { Message } from '@/types';
 
 /**
  * Whether the app-wide presence listener should play the "message received"
@@ -17,12 +17,4 @@ export function shouldPlayPresenceSound(
   if (viewerId === undefined) return false;
   if (message.senderId === viewerId) return false;
   return message.conversationId !== activeConversationId;
-}
-
-/** Conversation ids present in the list but not yet joined on the socket. */
-export function unjoinedConversationIds(
-  convs: Pick<Conversation, 'id'>[],
-  joined: ReadonlySet<string>,
-): string[] {
-  return convs.map((c) => c.id).filter((id) => !joined.has(id));
 }

@@ -7,20 +7,15 @@ import { resolveSocketUrl } from '@/lib/realtime/socketUrl';
 import { playMessageReceived } from '@/lib/realtime/chatSound';
 import { applyIncomingMessage } from './chatConversations';
 import { appendMessageToCache, type MessagesInfiniteData } from './chatMessages';
-import { shouldPlayPresenceSound, unjoinedConversationIds } from './chatPresence';
+import { shouldPlayPresenceSound } from './chatPresence';
 import type { Conversation, Message } from '@/types';
 
 const CHAT_SOCKET_URL = resolveSocketUrl(import.meta.env.VITE_CHAT_URL as string | undefined, '/chat');
 
-type PresenceSocket = Socket<
-  { new_message: (msg: Message) => void },
-  { join: (payload: { conversationId: string }) => void }
->;
+type PresenceSocket = Socket<{ new_message: (msg: Message) => void }, Record<string, never>>;
 
 let viewerId: string | undefined;
 let activeConversationId: string | null = null;
-const joined = new Set<string>();
-let unsubscribeCache: (() => void) | null = null;
 
 /**
  * Register the conversation the viewer currently has open. Its own socket
@@ -31,17 +26,6 @@ export function setActiveConversation(id: string | null): void {
   activeConversationId = id;
 }
 
-function joinConversation(id: string): void {
-  const socket = presenceSocket.current();
-  if (!socket || joined.has(id)) return;
-  socket.emit('join', { conversationId: id });
-  joined.add(id);
-}
-
-function joinAll(convs: Conversation[]): void {
-  unjoinedConversationIds(convs, joined).forEach(joinConversation);
-}
-
 /**
  * Single app-scoped chat socket so an online viewer hears a sound for any
  * incoming message — even on a thread they are not looking at, or while on
@@ -49,25 +33,24 @@ function joinAll(convs: Conversation[]): void {
  * notification socket): one connection for the whole app, opened by the first
  * consumer and closed by the last.
  *
- * The documented chat contract is room-based (the server delivers `new_message`
- * only for conversations the socket has `join`ed), so on connect we join every
- * conversation the viewer has, and re-join whenever the conversation list cache
- * grows (e.g. a new thread is started while online).
+ * This socket joins **nothing**. The gateway puts every chat socket into
+ * `user:{id}` on connect and emits `new_message` to both participants' user
+ * rooms (backend CHAT-ROOM-01, live on prod since 2026-09-10), so every message
+ * the viewer is party to arrives here with no `join` round trip — including on
+ * threads created after connect. Do not reintroduce the old
+ * join-every-conversation loop: it needed a module-scope Set of joined ids that
+ * had to be cleared on every reconnect, and missing that clear left the socket
+ * sitting in no room at all, silently, until a full page reload.
  */
 const presenceSocket = createRefCountedSocket<PresenceSocket>(CHAT_SOCKET_URL, {
   onCreate: (socket) => {
+    // Messages that arrived while the socket was down were never delivered, so
+    // the cached previews/badges are stale once it comes back — refetch on every
+    // connect. `useConversations` would not do it: staleTime is 60s and
+    // `refetchOnWindowFocus` is off, so a list that stays mounted never re-asks.
     socket.on('connect', () => {
-      // Rooms live on the *server-side* socket, and a reconnect gets a brand new
-      // one holding none of them (the gateway sets no `connectionStateRecovery`).
-      // Without this reset every id still looks joined, `joinAll` filters them
-      // all out, and the socket silently sits in no conversation room at all —
-      // no sound and no list preview until a full page reload.
-      joined.clear();
-      const cached = queryClient.getQueryData<Conversation[]>(queryKeys.conversations.all);
-      if (cached) joinAll(cached);
       void api.chat.getConversations().then((convs) => {
         queryClient.setQueryData(queryKeys.conversations.all, convs);
-        joinAll(convs);
       });
     });
 
@@ -89,19 +72,8 @@ const presenceSocket = createRefCountedSocket<PresenceSocket>(CHAT_SOCKET_URL, {
         );
       }
     });
-
-    // Join threads created after connect (e.g. the viewer starts a new chat).
-    const convKey = queryKeys.conversations.all[0];
-    unsubscribeCache = queryClient.getQueryCache().subscribe((event) => {
-      if (event.query.queryKey[0] !== convKey || !presenceSocket.current()?.connected) return;
-      const convs = queryClient.getQueryData<Conversation[]>(queryKeys.conversations.all);
-      if (convs) joinAll(convs);
-    });
   },
   onDestroy: () => {
-    unsubscribeCache?.();
-    unsubscribeCache = null;
-    joined.clear();
     viewerId = undefined;
     activeConversationId = null;
   },

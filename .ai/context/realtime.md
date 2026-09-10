@@ -62,10 +62,15 @@ in the Header (always rendered when authenticated).
 
 - **Ref-counted**: first consumer opens the connection, last consumer closes it —
   mirrors the notification socket. Never more than one socket.
-- The chat contract is **room-based**: the server only delivers `new_message` for
-  conversations the socket has `join`ed. So on connect it joins **every** conversation
-  the viewer has, and re-joins when the conversation-list cache grows (a new thread
-  started while online) via a `queryCache.subscribe`.
+- **It joins nothing.** The gateway puts every chat socket into `user:{id}` at connect
+  and emits `new_message` to *both participants' user rooms* plus the legacy
+  `conv:{id}` room (backend CHAT-ROOM-01, live on prod 2026-09-10), so this socket
+  receives every message the viewer is party to — including on threads created after
+  connect — with no `join` round trip. The old "join every conversation + re-join on
+  cache growth" loop was removed 2026-09-10; do not bring it back.
+- On connect it **refetches the conversation list** into the cache. That is not about
+  rooms: messages sent while the socket was down were never delivered, and
+  `useConversations` alone would not re-ask (staleTime 60s, `refetchOnWindowFocus` off).
 - On `new_message`: plays the received sound (unless it's the active thread or the
   viewer's own message) and updates `lastMessage` / `unreadCount` in the cached list.
 - Purpose: an online viewer hears a ping for **any** incoming message, on any thread,
@@ -107,6 +112,10 @@ Infinite query pages 10 messages at a time; `hasNextPage` scrolls older history.
 Pure list helpers (`applyIncomingMessage`, `sortByActivity`, `markConversationReadInList`)
 live in `chatConversations.ts`; presence sound gating in `chatPresence.ts`; connection
 banner in `chatConnection.ts`. Each has a colocated `*.test.ts`.
+
+`useChat` still emits `join`/`leave` for the open thread. That is now redundant for
+delivery (the user room already covers it) but harmless — the gateway keeps the
+`conv:{id}` room — and `join` is what runs the membership check, so it stays.
 
 ---
 

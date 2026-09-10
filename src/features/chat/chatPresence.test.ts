@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldPlayPresenceSound, unjoinedConversationIds } from './chatPresence';
+import { shouldPlayPresenceSound } from './chatPresence';
 
 describe('shouldPlayPresenceSound', () => {
   const msg = { senderId: 'usr_2', conversationId: 'conv_10' };
@@ -19,22 +19,5 @@ describe('shouldPlayPresenceSound', () => {
 
   it('stays silent when the viewer id is unknown', () => {
     expect(shouldPlayPresenceSound(msg, undefined, null)).toBe(false);
-  });
-});
-
-describe('unjoinedConversationIds', () => {
-  it('returns ids not yet in the joined set', () => {
-    const convs = [{ id: 'conv_1' }, { id: 'conv_2' }, { id: 'conv_3' }];
-    expect(unjoinedConversationIds(convs, new Set(['conv_2']))).toEqual(['conv_1', 'conv_3']);
-  });
-
-  it('returns an empty array when all are joined', () => {
-    const convs = [{ id: 'conv_1' }, { id: 'conv_2' }];
-    expect(unjoinedConversationIds(convs, new Set(['conv_1', 'conv_2']))).toEqual([]);
-  });
-
-  it('returns every id when none are joined', () => {
-    const convs = [{ id: 'conv_5' }, { id: 'conv_6' }];
-    expect(unjoinedConversationIds(convs, new Set())).toEqual(['conv_5', 'conv_6']);
   });
 });
