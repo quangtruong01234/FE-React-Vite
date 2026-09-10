@@ -42,8 +42,25 @@ the code step"* (`LoginPage.test.tsx`), pin câu bước 2 `not.toMatch(/\d+\s*(
 đợi khi assertion gắn vào case cũ).
 
 **Gate:** ô `frontend` của entry RESET-TTL-01 flip **✅ ready 2026-09-10**; `api` đã ✅ từ
-2026-09-09, `web-flow-GHN` n/a ⇒ entry chuyển **Holding → Ready to release**, Holding hiện **trống**.
-Cả hai repo **chưa commit, chưa push** — thứ tự vẫn BE trước, FE ngay sau.
+2026-09-09, `web-flow-GHN` n/a ⇒ entry chuyển **Holding → Ready to release**, rồi **→ Released**
+ngay trong ngày khi cả hai repo đã push. FE đi trước (`eaa8065..422bf30`), `api` theo sau
+(`9398e51`) — ngược thứ tự dự kiến mà **vẫn an toàn**, đúng lý do đã ghi lúc mở khoá: câu FE mới
+không khẳng định con số nào nên nó đúng dù TTL prod là 600s hay 60s.
+
+**Verify prod đầu-cuối bằng mail thật (cùng ngày).** Gửi mã tới `quang5552013@gmail.com` (tài khoản
+prod tạo mới cho phép thử, `usr_zQbY9pbzOU4Metbf`): email **tới thật**, nội dung *"Mã có hiệu lực
+trong **1 phút** và chỉ dùng được một lần."* — mail render con số từ hằng số BE, nên đây là bằng
+chứng TTL=60 đã chạy trên prod, và FE mới không mâu thuẫn với nó.
+
+**Một cái bẫy tài liệu đáng ghi lại.** `../.agent-local/frontend-handoff.md:506` (§MAIL-UI-01) vẫn
+viết *"On prod nothing changed: no email will arrive there"*. Tin dòng đó, tôi đã viết vào tài liệu
+dùng thử gửi interviewer câu "ở bản dùng thử email sẽ không tới" — **sai**, phải sửa lại sau khi
+thử thật. Dòng ghi chú đó có từ trước ngày prod cắm SMTP; BE đã tự sửa trong repo của họ
+(`9398e51 … correct the prod SMTP go-live date`) nhưng **không sửa dòng ở inbox**. Đã ghi lại vào
+`backend-handoff.md` §Open. Bài học: một ghi chú "prod không có X" chỉ đúng tại thời điểm viết —
+với thứ đo được trong 30 giây thì **đo lại**, đừng trích dẫn. Ở đây cách đo là **thời gian**, vì
+`forgot-password` luôn trả `201` trung lập: lần có gửi mail **4325 ms** so với **159 ms** ở nhánh
+không gửi.
 
 ---
 
