@@ -26,7 +26,6 @@ import type {
   PriceSuggestionParams,
 } from '@/types';
 import { request, toQuery } from './client';
-import { fetchBatchTolerant } from '@/lib/http/fetchBatchTolerant';
 import chunk from 'lodash/chunk';
 
 // Gateway DTO whitelist only knows the plural array keys `categoryIds`/`brandIds`,
@@ -70,23 +69,28 @@ export const productsApi = {
   getWithInventory: (id: string): Promise<ProductWithInventory> =>
     request<ProductWithInventory>(`/products/${id}/with-inventory`),
 
-  // P2-06: the "backend 404s the whole batch" story was wrong — BE re-measured on
-  // 2026-08-27 (SHAPE-01 hậu kiểm) and the gateway swallows product-service errors
-  // into `200 []`, so a stale cart id silently empties the batch today on prod.
-  // fetchBatchTolerant now treats that empty answer as unverified and fans out.
+  // BATCH-STATUS-01 (BE, live on prod since `d8275b4`): this endpoint can no
+  // longer lose a batch quietly. A product-service failure is a real status —
+  // unreachable `502`, timeout `408`, declared business error as-is — and the
+  // keyword matcher that used to guess a `404` out of the words "not found" is
+  // switched off at this call site. So `[]` now means exactly one thing: the
+  // catalog resolved none of the ids we sent.
+  //
+  // Both `fetchBatchTolerant` triggers are therefore gone. Fanning out on `[]`
+  // would spend N requests re-confirming a truthful answer, and catching the
+  // `404` would turn a catchable error back into a silent empty cart — the exact
+  // lie BATCH-FAIL-01 / BATCH-STATUS-01 were filed to end. Errors propagate so
+  // React Query can surface and retry them.
+  //
   // SEC-H2 (2026-07-09): backend rejects batches >50 ids with 400 — batchProductIds
   // dedupes and chunks so an oversized cart hydration can't 400 the whole batch.
   getMultipleWithInventory: async (productIds: string[]): Promise<ProductWithInventory[]> => {
     const batches = await Promise.all(
-      batchProductIds(productIds).map((batch) =>
-        fetchBatchTolerant(
-          batch,
-          (ids) => request<ProductWithInventory[]>('/products/with-inventory/multiple', {
-            method: 'POST',
-            body: JSON.stringify({ productIds: ids }),
-          }),
-          (id) => request<ProductWithInventory>(`/products/${id}/with-inventory`),
-        ),
+      batchProductIds(productIds).map((ids) =>
+        request<ProductWithInventory[]>('/products/with-inventory/multiple', {
+          method: 'POST',
+          body: JSON.stringify({ productIds: ids }),
+        }),
       ),
     );
     return batches.flat();
