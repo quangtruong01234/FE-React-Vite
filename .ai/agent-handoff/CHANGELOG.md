@@ -7,6 +7,237 @@
 
 ## Maintenance
 
+### GHN-FAIL-NTF-01 · notification "giao hàng hụt một lần" có icon/màu/nhãn riêng + deep-link (2026-09-11)
+
+`/sweep` (không tham số) → lấy mục cao nhất trong backlog. Mục đó là **GHN-FAIL-NTF-01**, entry
+`frontend-handoff.md` §Open viết cùng ngày: BE thêm một `type` notification mới,
+`order_delivery_attempt_failed`, bắn khi GHN báo `delivery_fail` (shipper tới mà không giao được).
+Mọi mục §Open còn lại hoặc không cần FE làm gì, hoặc đang chờ BE push (UPLOAD-SIZE-01), nên đây là
+mục duy nhất vừa mở vừa làm được.
+
+**Đây là item "không bắt buộc phải làm gì" — và vẫn nên làm.** `type` là chuỗi tự do
+(`src/types/notification.ts` khai `type: string`), `getNotificationContent` đã có nhánh fallback
+render thẳng `n.message`, mà `message` của BE đã đủ nghĩa và đã tiếng Việt. Tức trước khi sửa,
+notification này **vẫn hiện đúng chữ** — chỉ là mang icon `Bell` xám mặc định và **không click
+được**. Việc cần làm đúng là điểm 2 của entry: icon/màu riêng + deep-link.
+
+**Một file logic duy nhất.** `src/features/notifications/notificationDisplay.ts` là single source
+of truth cho icon/color/title/body/href của mọi notification; grep toàn repo xác nhận **không**
+còn call site nào khác key theo notification type, nên không có chỗ thứ hai phải sửa và
+`src/types/notification.ts` không đổi một dòng. Thêm entry `TYPE_CONFIG.order_delivery_attempt_failed`
+và thêm type vào `ORDER_TYPES` (Set mà `getNotificationHref` dùng để dựng `/order/${n.orderId}`).
+
+**Icon/màu cố tình khác `order_canceled` — BE dặn thẳng chuyện này và nó đúng.** Chọn
+`AlertTriangle` + `text-accent-amber bg-accent-amber/10`, **không** dùng glyph chữ X: đơn giao hụt
+là **tin xấu nhưng chưa xong**, GHN tự giao lại (~3 lần) rồi mới chuyển sang nhóm return, nên lúc
+này đơn **chưa hủy và status không đổi**. `XCircle` đỏ của `order_canceled` đọc là "việc đã kết
+thúc" — sai nghĩa. Ràng buộc này được pin bằng test so **cả `Icon` lẫn `color`** với
+`getNotificationMeta('order_canceled')` và assert khác nhau, để lần refactor sau không ai gộp hai
+dòng "trông giống nhau" lại.
+
+**Giọng văn pin bằng test, không chỉ bằng comment.** Title *"Giao hàng chưa thành công"*, body
+*"Đơn hàng #<id> giao chưa thành công, đơn vị vận chuyển sẽ giao lại."* — và một test
+`not.toMatch(/thất bại|hủy/)` trên **cả** title và body. Đây là loại hồi quy mà comment không chặn
+được: ai đó rút gọn nhãn thành "Giao hàng thất bại" sẽ nói với người mua rằng đơn đã hỏng trong
+khi đơn vẫn đang chạy. **Không** thêm CTA "đổi địa chỉ" (điểm 3 của entry): sau khi có waybill,
+người mua không tự sửa được người nhận — `update_receiver` là quyền admin/`shipping_manager` ⇒ nút
+đó dẫn vào ngõ cụt.
+
+**Ca `orderId: null` không cần nhánh mới.** `orderBody()` trả `null` khi `n.orderId == null` và
+`getNotificationContent` fallback về `n.message`; `getNotificationHref` cũng đã guard
+`n.orderId != null`. Cả hai ca đã có test. +4 test → **939 test / 117 file** (baseline 935/117,
+không thêm file mới). `npm run build` ✓ · `npm run lint` 0 problem · `npm run test:run` all pass.
+
+**Runtime verify chạy trên local/dev, KHÔNG phải prod — và lý do mới là phần đáng ghi.** Đường
+"bundle local + data prod" của BEQ-0911 không dùng được lượt này vì **gateway prod trả `522`**
+(~19.8s). Đo đúng cách mới ra được con số đó: lần đo đầu từ `localhost` cross-origin chỉ ra
+`"Failed to fetch"` — **đó là CORS, không phải bằng chứng gì cả**; đo lại từ **chính origin prod**
+(mở tab trên URL prod rồi `fetch` cùng origin) mới thấy `522` thật. Quan trọng hơn: áp lại bài học
+đo `api/` bằng `git ls-remote` thì **code BE của entry này chưa commit** — `origin/main` = `d8b7f4e`,
+trong tree đó `notifyFirstDeliveryFailure` **0 hit** và `order_delivery_attempt_failed` chỉ có 1 hit
+**trong doc** (`ai-docs/agent-context/planned-work.md`), `git log --all -S` rỗng, còn working tree
+thì hai file ` M`. Tính năng **chỉ sống trên máy này** ⇒ **không được** claim verify prod, y hệt
+GHN-ETA-01 hôm qua. Verify vì thế chạy: dev server local (bundle chưa commit) → gateway local
+`:3000` (đang chạy working-tree của `api/`).
+
+**Verify bằng dòng thật của BE, không bơm tay.** Buyer `canceltest1779978329`
+(`usr_60ccb4be81c411f1`) sẵn có **2** dòng `order_delivery_attempt_failed` do BE tự phát:
+`ntf_T8IhItvT6wyktApH` (`ord_vzLm2EGPSgHHCpNE`) và `ntf_FdJuDQQmANHbWREt` (`ord_eL9elTVZeYIqR4SZ`
+— trùng **từng byte** với JSON mẫu trong entry), nên không phải dựng `initScript` monkeypatch như
+GHN-ETA-01. Chuông render đúng title/body; icon container
+`size-9 rounded-full flex-none grid place-items-center text-accent-amber bg-accent-amber/10`, svg
+16×16; ảnh chụp cho thấy tam giác cảnh báo **phân biệt được bằng mắt** với các dòng
+`Đặt hàng thành công` cũng màu amber (khác glyph, cùng tông). Click → `/order/ord_vzLm2EGPSgHHCpNE`
+render đúng đơn của chính buyer (không 403), đơn vẫn **`Chờ xác nhận`** — chứng minh tận mắt điều
+BE cảnh báo: cú giao hụt **không** đổi status đơn — và chữ "thất bại" **không xuất hiện** ở đâu
+trên trang. 0 console error/warn.
+
+**Bẫy test đã ghi lại từ entry BE:** BE chỉ báo **lần hụt ĐẦU TIÊN** của mỗi đơn, dedupe bằng
+`shipping_history`, và **các dòng `delivery_fail` ghi trước 2026-09-11 cũng tính** ⇒ đơn từng hụt
+trong quá khứ **không bao giờ** nhận notification hồi tố. Bấm demo-status `delivery_fail` hai lần
+mà chỉ thấy một notification là **đúng**, không phải mất tin.
+
+**Release class B** (thuần FE, additive — BE nào chưa có type này thì đơn giản là không có dòng
+nào). **CHƯA PUSH.** Ghi `backend-handoff.md` §Open mục **DEPLOY-0911**: không phải bug contract
+(contract BE viết khớp thực tế FE đo), mà là hai quan sát deploy — code GHN-FAIL-NTF-01 chưa ra
+khỏi máy, và gateway prod đang `522`.
+
+### BEQ-0911 · làm nốt 4 việc BE đề xuất — BATCH-STATUS-01 + ENRICH-FAIL-01 + GHN-ETA-01 + CHG-PW-01 (2026-09-11)
+
+`/sweep làm cả 4`, chạy ngay sau ERRCODE-01 cùng ngày: 4 item mà lượt trước đã liệt kê là
+"BE đề xuất nhưng ngoài phạm vi", user bảo làm hết.
+
+**Bài học của ERRCODE-01 lặp lại lần thứ hai trong một ngày — và lần này nó cắt cả hai chiều.**
+BATCH-STATUS-01 tự ghi *"🚀 Committed locally, not pushed yet"* (viết 2026-08-28). Đo lại theo
+đúng cách đã ghi ở hàng trước (`git ls-remote origin main` trong `api/`, không đọc ref local):
+`origin/main` = `d8b7f4e`; tìm commit thật bằng `git log -S"guessStatusFromMessage"` ra `d8275b4`
+("fix(gateway): stop guessing a 404 out of a broken batch product read"); `merge-base
+--is-ancestor d8275b4 d8b7f4e` → **YES**. Dòng cảnh báo đó stale, y hệt CHG-PW-02 sáng nay.
+Nhưng cùng phép đo đó lại **xác nhận** GHN-ETA-01 (entry viết chính hôm nay) là **chưa** lên prod
+thật: `git grep expectedDeliveryTime d8b7f4e -- apps/gateway/src/order/order.types.ts` rỗng, và
+migration `20260911-001-add-expected-delivery-time-to-orders.sql` không có trong tree đó. Giá trị
+của việc đo không phải là "mọi cảnh báo đều stale" — mà là **không phải đoán bên nào**.
+
+**BATCH-STATUS-01 — bỏ cả hai trigger, rồi xoá luôn helper.** Gateway giờ không còn đường mất
+batch âm thầm: product-service chết → `502`, timeout → `408`, business error khai báo → giữ
+nguyên status, và matcher đoán `404` từ chữ "not found" đã tắt ở call site này. Nghĩa là `[]`
+chỉ còn **một** nghĩa: catalog không resolve được id nào. Fan-out trên `[]` sẽ tốn N request để
+xác nhận lại một câu trả lời trung thực, còn bắt `404` sẽ biến lỗi bắt được thành giỏ rỗng im
+lặng — đúng lời nói dối mà BATCH-FAIL-01 / BATCH-STATUS-01 được mở ra để chấm dứt. Vì
+`getMultipleWithInventory` là caller **duy nhất**, `src/lib/http/fetchBatchTolerant.ts` + test của
+nó bị **xoá hẳn** thay vì để code chết nằm đó. 3 test thay thế trong `src/api/index.test.ts` pin
+lại hành vi: `[]` tốn **đúng 1** request và **0** lần fan-out (trigger 2 cũ tốn N), `502`
+**reject** chứ không resolve `[]`, list rỗng không gửi request nào. (Guard `length === 0` viết
+thêm rồi bỏ đi: `batchProductIds` là `chunk([...new Set(ids)], 50)`, lodash `chunk([])` → `[]`,
+nên `Promise.all([])` vốn đã gửi 0 request — không để lại dòng code trông như load-bearing mà
+không phải.)
+
+**ENRICH-FAIL-01 — bỏ `?? 'Shop Official'`, và lòi ra một mâu thuẫn trong source.** Hai call site
+đọc **ngược thứ tự nhau**: `ProductDetail.tsx` đọc `brand?.name ?? user?.name`, `useProducts.ts`
+đọc ngược lại. **Đính chính bản viết đầu (MCP verify 2026-09-11):** đã viết là "cùng một sản phẩm
+có thể hiện Samsung ở trang chi tiết nhưng TechStore ở card" — **sai ở nửa 'nhìn thấy được'**.
+`grep -rn "enrichProductForUI\|EnrichedProduct" src/ e2e/` chỉ ra **đúng phần định nghĩa, 0 call
+site**: hàm chứa nhánh `useProducts.ts` là **code chết**, nên đường card chưa từng render và
+không user nào thấy sự khác biệt. Mâu thuẫn có thật trong source và vẫn đáng gộp (ai wire lại
+hàm đó sẽ dính ngay), nhưng nó là **bug tiềm tàng**, không phải bug đang chạy — bài học: đừng suy
+ra "user thấy X" từ việc đọc code mà chưa đếm call site. Gộp vào `features/product/sellerName.ts`
+(+4 test), thống nhất **user-first** vì chuỗi này
+render cạnh `<Avatar>` của shop — nó là tên **shop**, không phải thuộc tính catalog; `brand` tụt
+xuống hạng nhì trước fallback. **Đây là thay đổi nhìn thấy được mà BE không yêu cầu** (sản phẩm có
+cả shop lẫn brand giờ hiện tên shop ở trang chi tiết) — đã ghi rõ trong handoff và báo user. Ca
+rỗng đọc `Người bán không còn tồn tại`, khớp lối nói `Sản phẩm không còn tồn tại` ở giỏ; có test
+chặn `'Shop Official'` quay lại. `commentAuthor.ts` → `Người dùng` giữ nguyên theo point 2 của BE.
+
+**GHN-ETA-01 — type optional, không chỉ nullable.** `Order.expectedDeliveryTime` khai
+`string | null` **và** `?` — optional vì gateway cũ **vắng key hẳn**, ca thứ ba mà `string | null`
+của BE không phủ. Render ở panel vận chuyển của `OrderDetailPage` qua helper thuần
+`expectedDeliveryLabel()` (+4 test): **chỉ ngày, không giờ** — BE dặn GHN trả `16:59:59Z`
+(= 23:59:59 giờ VN, tức cam kết theo ngày), nên có hẳn test `not.toMatch(/\d{1,2}:\d{2}/)` để sau
+này không ai "cải tiến" thành `23:59`. Absent / `null` / không parse được đều render **không gì
+cả**, không placeholder. Một quyết định BE không nêu: ẩn nhãn khi đơn rời nhóm in-flight
+(`completed`/`canceled`/`return_requested`/`refunded`) — giao xong thì con số là quá khứ, mà GHN
+dời lịch **không** refresh field nếu admin không sync tay, nên hiện lại là nhắc lại một lời hứa có
+thể chưa từng đúng. (`OrderStatus` không có `'delivered'` — viết nhầm rồi đọc `types/order.ts`
+sửa thành set 5 status in-flight.)
+
+**CHG-PW-01 — bỏ ánh xạ chết.** `404` → *"Tính năng đổi mật khẩu chưa sẵn sàng"* đã vô nghĩa từ
+khi endpoint lên prod (sáng nay tận mắt thấy route trả `401` + `errorCode`). Test cũ pin câu đó
+được thay bằng test pin **sự vắng mặt** của nó (`not.toMatch(/chưa sẵn sàng/)`); một `404` lạc giờ
+rơi xuống thông báo lỗi kết nối chung — cách đọc trung thực. Hai point còn lại của entry vốn đã
+đúng: success branch nhận `201`, body gửi đúng `currentPassword` + `newPassword`.
+
+**Chưa verify được tầng UI, và ghi đúng như vậy.** BE local không lên (`evaluate_script` vào
+`localhost:3000` treo >120s ở lượt trước), còn 3/4 item không có đường induce trên prod (cần
+product-service chết / user-service chết / field chưa deploy). Bằng chứng vì thế là unit test +
+đo ancestry, không claim quá.
+
+5 entry `frontend-handoff.md` xuống §Done (BATCH-FAIL-01 đóng ké: point 1 của nó chính là trigger
+2 vừa xoá). Gates: build ✓ · lint 0 · **935 test / 117 file** (+11 mới, −7 theo helper bị xoá).
+
+### ERRCODE-01 · FE đọc `errorCode` của BE thay vì đoán — đóng CHG-PW-02 + MAIL-UI-01 (2026-09-11)
+
+`/sweep làm task BE đề xuất`. Hai entry §Open của `../.agent-local/frontend-handoff.md`, làm
+chung **một** lượt vì chúng chia nhau đúng một gốc — và gốc đó hoá ra nằm ở FE.
+
+**Trước hết: đo xem BE đã lên prod chưa, đừng tin chữ trong entry.** Cả hai entry đều ghi
+*"⚠️ Chưa lên prod: đã code + self-test xong trên local, chưa commit, chưa push"*. Đo bằng
+`git ls-remote origin main` trong `api/` (không đọc ref local — bài học VOUCHER-BE-01):
+`origin/main` = `d8b7f4e`, và `git merge-base --is-ancestor 8d2bfd7 origin/main` → **YES**.
+Tức dòng cảnh báo đó đã stale; BE live từ trước. Điều này đổi hẳn hình dạng việc: không phải
+"viết code chờ BE", mà là "tích hợp một contract đang chạy".
+
+**Gốc chung, và nó là bug FE:** `request()` trong `src/api/client.ts` **dựng lại** error ném ra
+từ đúng ba field `{statusCode, status, message}`. `errorCode` được `res.json()` parse ra rồi
+**bị vứt ngay tại đó**, không caller nào thấy. Hệ quả đáng sợ hơn là chỉ "thiếu tính năng": cả hai
+feature vẫn **xanh ở unit test** — vì test tự tay dựng object lỗi có `errorCode` — trong khi
+**chết hoàn toàn trong app thật**. Không có bước đọc `client.ts` thì lượt sweep này đã "xong" mà
+không chạy được dòng nào trên prod. Sửa:
+
+```ts
+const err = await res.json().catch(() => ({})) as { message?: string; errorCode?: unknown };
+const apiError: ApiError = { statusCode: res.status, status: res.status, message: err.message ?? res.statusText };
+if (typeof err.errorCode === 'string') apiError.errorCode = err.errorCode;
+```
+
+Forward **có điều kiện** là cố ý: BE viết rõ "chỗ không gắn thì key **vắng mặt hẳn**, không phải
+`null`". Gán vô điều kiện sẽ tạo ra key tồn tại-nhưng-vô-nghĩa và phá đúng cái contract đó; một
+`errorCode` không phải string thì bỏ qua thay vì đẩy giá trị rác cho caller.
+
+**CHG-PW-02 — xoá `isSessionAlive()`.** Hai loại `401` của `POST /user/change-password` trên prod
+giống hệt nhau từng byte, nên FE cũ phải bắn thêm một `GET /user/me` để hỏi "phiên còn sống
+không?". Giờ `errorCode` tự khai: `UNAUTHENTICATED` → báo hết phiên ở form; `INVALID_CURRENT_PASSWORD`
+→ lỗi ở ô *mật khẩu hiện tại*. Mỗi lần lỗi auth bớt hẳn một request.
+**Thiên vị có chủ ý:** `401` **không** có tag thì vẫn ở lại ô mật khẩu, **không** redirect. Đá văng
+một phiên còn sống chỉ vì đoán là cái sai tệ hơn trong hai cái — và nó đúng là bug mà entry
+CHG-PW-02 được mở ra để sửa.
+
+**MAIL-UI-01 — xoá biến đếm phía client.** `failedResets`, `nextResetAttempts()`,
+`resetAttemptHint()` và banner hint amber đã bị xoá hẳn. Chúng đoán một trạng thái server mà
+chúng không nhìn thấy: chỉ đếm được cái **một tab này** gửi đi, nên reload, mở tab thứ hai, hay
+gửi lại mã từ nơi khác là lệch ngay. Thay bằng `isResetCodeExhausted()` đọc `RESET_CODE_EXHAUSTED`.
+**Không dựng lại "còn N lần"** — BE cố ý không trả số lượt còn lại vì đó là một kênh dò tài khoản
+nữa; có test pin `not.toMatch(/còn \d+ lần/)` **và** một comment chặn ngay chỗ code cũ từng nằm,
+để lần sau không ai "khôi phục tính năng" một cách thiện chí.
+
+**Verify trên prod, không phải local.** Entry BE dặn đúng chỗ hiểm: *"Trên local `message` vẫn là
+`"Current password is incorrect"` (sanitizer chỉ chạy ở prod), nên test bằng `errorCode`, đừng
+test bằng `message`"*. Chạy `fetch` từ chính trang prod (qua worker proxy, đúng đường mà app đi):
+
+| Gọi | Kết quả trên prod |
+|---|---|
+| `change-password`, chưa đăng nhập | `401` · `errorCode:"UNAUTHENTICATED"` · `message:"Unauthorized"` |
+| `change-password`, phiên sống + sai mật khẩu hiện tại | `401` · `errorCode:"INVALID_CURRENT_PASSWORD"` · `message:"Unauthorized"` |
+| `reset-password`, sai mã lần 1–5 | `400` · **không có key `errorCode`** · `message:"Invalid or expired verification code"` |
+| `reset-password`, lần 6 | `400` · `errorCode:"RESET_CODE_EXHAUSTED"` · `message` **y hệt** 5 lần trên |
+
+Hai dòng đầu là bằng chứng tận mắt cho cả feature: cùng một endpoint, hai nguyên nhân khác nhau,
+`message` **giống hệt** — nên probe `GET /user/me` thật sự thừa, không phải "chắc là thừa". Hai
+dòng cuối cũng vậy: `message` không phân biệt được, chỉ `errorCode` phân biệt được.
+Tài khoản dùng là `quang5552013` (prod, throwaway); mọi lần gọi đều gửi mật khẩu/mã **sai** nên
+**không đổi gì** — mật khẩu vẫn `Test@12345`. Mã reset của tài khoản đó giờ đã chết (cố ý đốt).
+
+**Bắt thêm được từ byte thật của prod:** body lỗi có `"status":"error"` — một **string** — nằm
+ngay cạnh `statusCode` số. `ApiError.status` được khai là `number`. Hiện không rò, vì `client.ts`
+dựng `status` từ `res.status` chứ không spread body; nhưng **không có gì pin điều đó**. Một lần
+refactor thành `{ ...err, statusCode: res.status }` sẽ âm thầm nhét chuỗi `'error'` vào `status`
+và làm sai mọi so sánh của `statusOf()`. Đã thêm test regression dùng **nguyên văn** body prod.
+
+**UX:** nhánh hết lượt **giữ user ở bước nhập mã** thay vì đá về bước email — nút *Gửi lại mã* đã
+nằm sẵn trên màn đó, còn đá về bước email là bắt gõ lại địa chỉ đang có trong state.
+
+**Không làm trong lượt này (cố ý, đều độc lập):** BATCH-STATUS-01 (gỡ 2 chỗ gọi
+`fetchBatchTolerant`), ENRICH-FAIL-01 (gỡ `?? 'Shop Official'`), GHN-ETA-01 (entry mới cùng ngày),
+và phần đuôi của CHG-PW-01 (gỡ ánh xạ `404` → *"chưa sẵn sàng"*, giờ là code chết — xem dưới).
+
+**Phát hiện phụ, đã sửa vào `snapshot.md`:** mục §Chờ backend ghi CHG-PW-01 *"chờ `api` push,
+`origin/main` vẫn `97fec7b`"* từ 2026-08-29 — stale. Route đã sống trên prod: chính lượt verify
+trên trả `401`, không phải `404`. Mục đã đóng, và cây làm việc không còn bị mục đó kéo xuống lớp C.
+
+**Files:** `src/types/common.ts` (thêm `errorCode?: string` + doc contract), `src/api/client.ts`,
+`src/features/user/changePassword.ts`, `src/features/user/ChangePasswordForm.tsx`,
+`src/features/auth/forgotPassword.ts`, `src/features/auth/ForgotPasswordForm.tsx`, +4 file test.
+Gates: build ✓ · lint 0 · **931 test / 116 file** (+3).
+
 ### CHAT-ROOM-01 · presence socket thôi join phòng — xoá `joinAll()` + `joined` (2026-09-10)
 
 `/sweep CHAT-ROOM-01`. Item nằm ở §Chờ backend của snapshot từ 2026-08-2x: gateway ngày đó chỉ
