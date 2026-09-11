@@ -1,7 +1,7 @@
 import { useState, type ReactElement } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Check, Truck, MapPin, Wallet, CreditCard, XCircle, RotateCcw,
+  ArrowLeft, Check, Truck, MapPin, Wallet, CreditCard, XCircle, RotateCcw, CalendarClock,
 } from 'lucide-react';
 import { useOrder } from './useOrder';
 import { orderLoadError } from './orderDetailError';
@@ -17,6 +17,7 @@ import { useRole } from '@/hooks/auth/useRole';
 import { ShippingAddressBlock } from './ShippingAddressBlock';
 import { orderPriceBreakdown } from './orderSummary';
 import { isAwaitingPayment } from './orderPayment';
+import { expectedDeliveryLabel } from './expectedDelivery';
 import { ApiErrorState } from '@/components/shared/ApiErrorState';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ProductThumb } from '@/components/shared/ProductThumb';
@@ -30,6 +31,11 @@ import type { OrderStatus } from '@/types';
 import { PAYMENT_LABEL } from './orderConstants';
 import { useCreateReview } from '@/hooks/data/useProductReviews';
 import { reviewErrorMessage, REVIEW_COMMENT_MAX } from '@/features/product/productReview';
+
+/** Statuses where a delivery date is still a forecast rather than a record. */
+const ORDER_IN_FLIGHT: ReadonlySet<OrderStatus> = new Set<OrderStatus>([
+  'pending', 'confirmed', 'processing', 'shipped', 'delivering',
+]);
 
 function OrderItemReviewForm({ productId }: { productId: string }) {
   const [rating, setRating] = useState(5);
@@ -148,6 +154,12 @@ export default function OrderDetailPage(): ReactElement {
   // heuristic only survives as a fallback for responses that predate the field.
   const needsPayment = isAwaitingPayment(order);
   const progressPct = curStep >= 0 ? (curStep / (TIMELINE.length - 1)) * 100 : 0;
+  // Only a promise while the parcel is still in flight. After delivery the date
+  // is history, and GHN-ETA-01 does not refresh it when GHN reschedules, so a
+  // post-delivery order would restate a quote that may never have held.
+  const etaLabel = ORDER_IN_FLIGHT.has(order.status)
+    ? expectedDeliveryLabel(order.expectedDeliveryTime)
+    : null;
   const returnRequest = findReturnRequestForOrder(myReturns?.data ?? [], order.id);
   // A rejected request restores the order to delivering/completed — the buyer may re-request.
   const canSubmitReturn = returnEligible && returnRequest?.status !== 'pending_review';
@@ -204,10 +216,20 @@ export default function OrderDetailPage(): ReactElement {
               />
             </div>
           </div>
-          {order.ghnOrderCode && (
-            <div className="mt-4 pt-4 border-t border-bdr flex items-center gap-2 text-sm text-ink-sec">
-              <Truck size={15} className="text-accent-amber" />
-              Mã vận đơn GHN: <span className="font-mono text-ink-pri">{order.ghnOrderCode}</span>
+          {(order.ghnOrderCode || etaLabel) && (
+            <div className="mt-4 pt-4 border-t border-bdr flex flex-col gap-2 text-sm text-ink-sec">
+              {order.ghnOrderCode && (
+                <div className="flex items-center gap-2">
+                  <Truck size={15} className="shrink-0 text-accent-amber" />
+                  Mã vận đơn GHN: <span className="font-mono text-ink-pri">{order.ghnOrderCode}</span>
+                </div>
+              )}
+              {etaLabel && (
+                <div className="flex items-center gap-2">
+                  <CalendarClock size={15} className="shrink-0 text-accent-amber" />
+                  <span className="text-ink-pri">{etaLabel}</span>
+                </div>
+              )}
             </div>
           )}
         </div>

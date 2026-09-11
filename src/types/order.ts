@@ -84,6 +84,19 @@ export interface Order {
   shippingAddress: string;
   codAmount: number | null;
   ghnOrderCode: string | null;
+  /**
+   * GHN-ETA-01: the delivery date GHN quoted when the waybill was cut, ISO-8601
+   * UTC. Optional as well as nullable — orders created before the backend
+   * shipped this are permanently `null`, and a gateway that predates it omits
+   * the key entirely.
+   *
+   * `null` means one of two things the response cannot tell apart: no waybill
+   * yet (check `ghnOrderCode`), or GHN quoted no date. It is a calendar
+   * commitment, not an appointment — GHN returns `16:59:59Z` (23:59:59 VN), so
+   * render the date only. Never cleared once set, and a GHN reschedule does not
+   * refresh it without a manual admin sync, so do not poll.
+   */
+  expectedDeliveryTime?: string | null;
   /** F3 voucher redeemed at checkout, or null/absent. `total` is already net of the discount. */
   voucherCode?: string | null;
   /** Decimal column — may arrive as a string ("50000.00") on older responses. */
