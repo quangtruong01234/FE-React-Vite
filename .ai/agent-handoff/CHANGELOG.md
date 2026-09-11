@@ -78,9 +78,45 @@ trong quá khứ **không bao giờ** nhận notification hồi tố. Bấm demo
 mà chỉ thấy một notification là **đúng**, không phải mất tin.
 
 **Release class B** (thuần FE, additive — BE nào chưa có type này thì đơn giản là không có dòng
-nào). **CHƯA PUSH.** Ghi `backend-handoff.md` §Open mục **DEPLOY-0911**: không phải bug contract
-(contract BE viết khớp thực tế FE đo), mà là hai quan sát deploy — code GHN-FAIL-NTF-01 chưa ra
-khỏi máy, và gateway prod đang `522`.
+nào). Ghi `backend-handoff.md` §Open mục **DEPLOY-0911**: không phải bug contract (contract BE
+viết khớp thực tế FE đo), mà là hai quan sát deploy — code GHN-FAIL-NTF-01 chưa ra khỏi máy, và
+gateway prod đang `522`.
+
+**ĐÃ PUSH 2026-09-11** — `main` `cc7d186..388b036`, 6 commit gộp cả ba lượt sweep của ngày
+(`9915e90` errorCode · `becd26d` bỏ `fetchBatchTolerant` · `dd16098` sellerName · `d9bcea7` ETA ·
+`97cd7bf` notification giao hụt · `388b036` docs); user tự chạy `git push origin main`. CI
+`34613668863` ✅ 1m50s → Deploy `34613860974` ✅ *Publish to Cloudflare*. Gate chạy lại **sau khi
+commit**, trên đúng cây được push: build ✓ · lint 0 · **939/117**.
+
+**Sửa lại một lần trước khi push (chưa đẩy gì nên không ai thấy):** lượt stage đầu tiên để sẵn hai
+file `fetchBatchTolerant` ở trạng thái `D ` trong index, nên `git commit` của nhóm **errorCode**
+nuốt luôn hai file xoá đó — commit mang một thay đổi mà message không nói. `git reset --mixed
+cc7d186` rồi dựng lại 6 commit theo đúng nhóm (vì thế hash khác hai hash báo giữa lượt). Bài học
+cụ thể: `git add <paths>` **không** dọn những gì đã nằm trong index từ trước, và `git add` sẽ
+**fail toàn bộ** nếu một pathspec trỏ vào file đã xoá khỏi đĩa — dùng `git add -A -- <path>` cho
+ca xoá.
+
+**Verify prod: tầng bundle ✅, tầng chức năng KHÔNG chạy được** — gateway prod trả `522` sau
+**21.1s**, đo lại sau deploy qua **chính proxy `/api` của worker** (same-origin, không CORS làm
+nhiễu); worker FE thì khoẻ (`/` → 200 trong 497ms). Không login được ⇒ không verify chức năng
+được. **Đây không phải sự cố:** agent BE trả lời cùng ngày — prod EC2 chạy lịch **bật ~08:00, tắt
+~18:00** để giữ free tier, máy **không có Elastic IP** nên bản ghi DDNS trỏ vào IP của lần chạy
+trước; cả hai lần FE đo đều sau 22:00 giờ VN nên khớp. Luật phân biệt cho lượt sau: `522` + ping
+fail + TCP 443 fail ⇒ **máy tắt theo lịch, đừng mở incident**; `522`/`502` mà **443 vẫn mở** ⇒ lúc
+đó mới là chuyện của BE.
+
+**Bẫy đo đạc mới — HTML prod bị edge-cache.** Đọc `/` ngay trước và ngay sau deploy đều ra **cùng**
+hash `index-CaYDeydG.js` (`cf-cache-status: HIT`), trông y như CD không ship gì. Thêm cache-buster
+(`/?cb=<timestamp>`) mới thấy hash thật: **`index-CrU-auXq.js`**. Lần sau đọc bundle prod thì
+**luôn cache-bust**; đừng kết luận "chưa deploy" từ một lần fetch trơn. Quét **cả 83 chunk** entry
+tham chiếu, sáu dấu vết đều đúng chiều: `Giao hàng chưa thành công` + `order_delivery_attempt_failed`
+**có** trong entry · `Người bán không còn tồn tại` **có** trong `ProductDetail-9SKbVr3B.js` ·
+`Dự kiến giao` **có** trong `OrderDetailPage-BOIldiBg.js` · `Shop Official` **biến mất khỏi mọi
+chunk** · `chưa sẵn sàng` **biến mất** · `Nhập sai quá nhiều lần` **biến mất**.
+
+**Còn treo:** verify chức năng GHN-FAIL-NTF-01 trên prod — chờ **BE push** (7 commit của họ đã
+commit nhưng chưa đẩy; họ sẽ ping `frontend-handoff.md` → GHN-FAIL-NTF-01 khi lên) **và** chờ giờ
+EC2 đang bật.
 
 ### BEQ-0911 · làm nốt 4 việc BE đề xuất — BATCH-STATUS-01 + ENRICH-FAIL-01 + GHN-ETA-01 + CHG-PW-01 (2026-09-11)
 
@@ -153,6 +189,12 @@ product-service chết / user-service chết / field chưa deploy). Bằng chứ
 
 5 entry `frontend-handoff.md` xuống §Done (BATCH-FAIL-01 đóng ké: point 1 của nó chính là trigger
 2 vừa xoá). Gates: build ✓ · lint 0 · **935 test / 117 file** (+11 mới, −7 theo helper bị xoá).
+
+**Đã push cuối ngày 2026-09-11** trong cụm `cc7d186..388b036` (`becd26d` + `dd16098` + `d9bcea7`),
+CI `34613668863` → Deploy `34613860974` ✅. Verify prod tầng bundle: `Người bán không còn tồn tại`
+có trong `ProductDetail-9SKbVr3B.js`, `Dự kiến giao` có trong `OrderDetailPage-BOIldiBg.js`,
+`Shop Official` và `chưa sẵn sàng` biến mất khỏi cả 83 chunk. Chi tiết cách đo (kể cả bẫy
+edge-cache) ở mục GHN-FAIL-NTF-01 trên.
 
 ### ERRCODE-01 · FE đọc `errorCode` của BE thay vì đoán — đóng CHG-PW-02 + MAIL-UI-01 (2026-09-11)
 
@@ -237,6 +279,10 @@ trên trả `401`, không phải `404`. Mục đã đóng, và cây làm việc 
 `src/features/user/changePassword.ts`, `src/features/user/ChangePasswordForm.tsx`,
 `src/features/auth/forgotPassword.ts`, `src/features/auth/ForgotPasswordForm.tsx`, +4 file test.
 Gates: build ✓ · lint 0 · **931 test / 116 file** (+3).
+
+**Đã push cuối ngày 2026-09-11** — commit `9915e90` trong cụm `cc7d186..388b036`, CI
+`34613668863` → Deploy `34613860974` ✅. Verify prod tầng bundle: `Nhập sai quá nhiều lần`
+(chuỗi banner đếm-lượt cũ) không còn ở bất kỳ chunk nào trong 83 chunk.
 
 ### CHAT-ROOM-01 · presence socket thôi join phòng — xoá `joinAll()` + `joined` (2026-09-10)
 
