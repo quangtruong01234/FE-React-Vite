@@ -18,6 +18,7 @@ import { GradientButton } from '@/components/shared/GradientButton';
 import { Avatar } from '@/components/shared/Avatar';
 import { WishlistButton } from '@/components/shared/WishlistButton';
 import { ProductReviews } from './ProductReviews';
+import { sellerName } from './sellerName';
 
 const trustItems = [
   { Icon: Truck,     label: 'Giao 24h',          sub: 'Toàn quốc'  },
@@ -115,7 +116,7 @@ export default function ProductDetail(): ReactElement {
   const isLowStock = hasVariants ? false : (inventory?.isLowStock ?? false);
   const maxQty = available != null ? Math.min(available, 99) : 99;
   const inCart     = cart?.items.find(i => i.productId === detail.id);
-  const sellerName = detail.brand?.name ?? detail.user?.name ?? 'Shop Official';
+  const sellerLabel = sellerName(detail);
   const gallery: string[] = (detail.imageUrls?.length ?? 0) > 0
     ? (detail.imageUrls as string[])
     : detail.imageUrl
@@ -391,9 +392,9 @@ export default function ProductDetail(): ReactElement {
             {!isOwner && (
               <>
                 <div className="flex items-center gap-3.5 p-[18px] bg-canvas-surface border border-bdr rounded-2xl">
-                  <Avatar alt={sellerName} size={48} />
+                  <Avatar alt={sellerLabel} size={48} />
                   <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                    <span className="font-body font-semibold text-sm text-white truncate">{sellerName}</span>
+                    <span className="font-body font-semibold text-sm text-white truncate">{sellerLabel}</span>
                     <span className="font-body text-xs text-tb-muted">Người bán</span>
                   </div>
                   <button

@@ -3,6 +3,7 @@ import { api } from '@/api';
 import { formatPrice } from '@/lib/format/utils';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import type { ProductParams, ProductWithInventory, PaginatedResponse } from '@/types';
+import { sellerName } from './sellerName';
 
 const getRelativeTime = (dateString?: string): string => {
   if (!dateString) return 'Vừa xong';
@@ -27,7 +28,7 @@ export interface EnrichedProduct extends ProductWithInventory {
 }
 
 export function enrichProductForUI(product: ProductWithInventory): EnrichedProduct {
-  const seller = product.user?.name ?? product.brand?.name ?? 'Shop Official';
+  const seller = sellerName(product);
   const sellerAvatar = product.user?.avatar ?? '';
   return {
     ...product,
