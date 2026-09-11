@@ -62,6 +62,29 @@ describe('getNotificationContent', () => {
     }
   });
 
+  it('renders the delivery-attempt-failed type as "chưa xong", never as a failure (GHN-FAIL-NTF-01)', () => {
+    const content = getNotificationContent(notif({
+      type: 'order_delivery_attempt_failed',
+      message: 'Đơn hàng #ord_0000000000000042 giao chưa thành công, đơn vị vận chuyển sẽ giao lại trong thời gian tới',
+    }));
+    expect(content.title).toBe('Giao hàng chưa thành công');
+    expect(content.body)
+      .toBe('Đơn hàng #ord_0000000000000042 giao chưa thành công, đơn vị vận chuyển sẽ giao lại.');
+    // The order is NOT canceled and its status has not changed — GHN redelivers
+    // on its own, so wording that reads as final is a regression.
+    expect(content.title).not.toMatch(/thất bại|hủy/);
+    expect(content.body).not.toMatch(/thất bại|hủy/);
+  });
+
+  it('falls back to the raw message when a delivery-attempt row has no orderId', () => {
+    const content = getNotificationContent(notif({
+      type: 'order_delivery_attempt_failed',
+      orderId: null,
+    }));
+    expect(content.title).toBe('Giao hàng chưa thành công');
+    expect(content.body).toBe('raw backend message');
+  });
+
   it('falls back to the raw message when an order type has no orderId', () => {
     const content = getNotificationContent(notif({ type: 'order_canceled', orderId: null }));
     expect(content.title).toBe('Đơn hàng đã hủy');
@@ -162,6 +185,12 @@ describe('getNotificationHref', () => {
     expect(getNotificationHref(notif({ type: 'new_order', orderId: null }))).toBe('/sell/orders');
   });
 
+  it('deep-links a delivery-attempt-failed row to the order detail page (GHN-FAIL-NTF-01)', () => {
+    expect(getNotificationHref(notif({ type: 'order_delivery_attempt_failed', orderId: 'ord_eL9elTVZeYIqR4SZ' })))
+      .toBe('/order/ord_eL9elTVZeYIqR4SZ');
+    expect(getNotificationHref(notif({ type: 'order_delivery_attempt_failed', orderId: null }))).toBeNull();
+  });
+
   it('links comment/reply to the post when postId is present', () => {
     expect(getNotificationHref(notif({ type: 'comment', orderId: null, postId: 'post_0000000000000008' }))).toBe('/post/post_0000000000000008');
     expect(getNotificationHref(notif({ type: 'reply', orderId: null, postId: 'post_0000000000000008' }))).toBe('/post/post_0000000000000008');
@@ -184,12 +213,21 @@ describe('getNotificationMeta', () => {
       'order_created', 'payment_completed', 'order_placed', 'order_shipped', 'order_canceled',
       'new_order', 'order_confirmed', 'order_processing', 'order_delivering', 'order_completed',
       'order_return_requested', 'order_return_approved', 'order_return_rejected',
+      'order_delivery_attempt_failed',
       'comment', 'reply', 'brand_approved', 'brand_rejected',
       'category_approved', 'category_rejected',
     ];
     for (const type of types) {
       expect(getNotificationMeta(type).Icon, type).not.toBe(Bell);
     }
+  });
+
+  it('does not reuse the canceled-order icon for a missed delivery (GHN-FAIL-NTF-01)', () => {
+    // BE asked for this explicitly: a missed attempt is bad-news-but-not-over,
+    // so it must not look like a cancellation in the bell list.
+    const attempt = getNotificationMeta('order_delivery_attempt_failed');
+    expect(attempt.Icon).not.toBe(getNotificationMeta('order_canceled').Icon);
+    expect(attempt.color).not.toBe(getNotificationMeta('order_canceled').color);
   });
 
   it('falls back to the bell for unknown types', () => {

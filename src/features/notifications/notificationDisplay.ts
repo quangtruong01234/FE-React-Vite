@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
-  BadgeCheck, Ban, Bell, CheckCircle, ClipboardCheck, FolderTree, MessageCircle,
+  AlertTriangle, BadgeCheck, Ban, Bell, CheckCircle, ClipboardCheck, FolderTree, MessageCircle,
   Package, PackageCheck, Reply, RotateCcw, ShoppingBag, Tag, Truck, XCircle,
 } from 'lucide-react';
 import { userSummaryLabel } from '@/lib/format/user';
@@ -108,6 +108,19 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
     title: 'Giao hàng thành công',
     body: (n) => orderBody(n, (id) => `Đơn hàng #${id} đã giao thành công.`),
   },
+  // GHN-FAIL-NTF-01: shipper tới mà không giao được. Đơn **chưa** hủy và status
+  // không đổi — GHN tự giao lại (~3 lần) trước khi chuyển sang nhóm return, nên
+  // giọng văn là "chưa xong", không phải "thất bại", và icon/màu phải khác
+  // `order_canceled` (XCircle đỏ = việc đã kết thúc). BE chỉ báo lần hụt ĐẦU
+  // TIÊN của mỗi đơn; không có notification lần 2, lần 3.
+  order_delivery_attempt_failed: {
+    Icon: AlertTriangle, color: 'text-accent-amber bg-accent-amber/10',
+    title: 'Giao hàng chưa thành công',
+    body: (n) => orderBody(
+      n,
+      (id) => `Đơn hàng #${id} giao chưa thành công, đơn vị vận chuyển sẽ giao lại.`,
+    ),
+  },
   order_canceled: {
     Icon: XCircle, color: 'text-accent-red bg-accent-red/10',
     title: 'Đơn hàng đã hủy',
@@ -173,7 +186,7 @@ export function getNotificationContent(n: Notification): NotificationContent {
 const ORDER_TYPES = new Set([
   'order_created', 'payment_completed', 'order_placed', 'order_confirmed',
   'order_processing', 'order_shipped', 'order_delivering', 'order_completed',
-  'order_canceled',
+  'order_canceled', 'order_delivery_attempt_failed',
   'order_return_requested', 'order_return_approved', 'order_return_rejected',
 ]);
 
