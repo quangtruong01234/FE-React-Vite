@@ -8,14 +8,19 @@ import type { ApiError } from '@/types';
  *   (anti-enumeration); malformed email → `400`; rate limit 5/60s → `429`.
  *   Server-side resend cooldown: 60s per account.
  * - `POST /user/reset-password` `{ email, code, newPassword }` → `201 { success }`.
- *   Every verification failure (wrong/expired code, unknown email, too many
- *   attempts) is the SAME `400 "Invalid or expired verification code"` by
- *   design; rate limit 10/60s → `429`. Code: 6 digits, valid 10 min, single-use.
+ *   Four of the five verification failures (wrong code, expired code, unknown
+ *   email, no code ever requested) share the SAME `400 "Invalid or expired
+ *   verification code"` by design — splitting them would turn this endpoint
+ *   into an account prober. Rate limit 10/60s → `429`. The code is 6 digits,
+ *   single-use, and short-lived (the exact TTL is the server's to state — the
+ *   email says it; see RESET-TTL-01).
  *
- * MAIL-UI-01 handoff (2026-08-29) added two facts the response never carries:
- * after 5 wrong attempts the code is destroyed server-side with no change in
- * the message, and a successful resend overwrites the previous code (only the
- * newest email works). Both are surfaced client-side — see `resetAttemptHint`.
+ * The fifth cause is the one the response DOES name (MAIL-UI-01): after 5 wrong
+ * attempts the server destroys the code and tags every later attempt with
+ * `errorCode: RESET_CODE_EXHAUSTED` — including an attempt that types the old
+ * code correctly, because that code is genuinely dead. The tag survives reloads
+ * and other tabs (the server records it, we do not count), and clears only when
+ * a new code is actually sent. See `isResetCodeExhausted`.
  */
 
 export const RESEND_COOLDOWN_SECONDS = 60;
@@ -36,15 +41,33 @@ export function forgotPasswordErrorMessage(error: unknown): string {
   return CONNECTION_MESSAGE;
 }
 
+/** The server destroyed the code after too many wrong attempts (MAIL-UI-01). */
+const RESET_CODE_EXHAUSTED = 'RESET_CODE_EXHAUSTED';
+
 /**
- * Friendly message for a failed reset-password request. All verification
- * failures arrive as the same 400 (indistinguishable by design), so every 400
- * maps to the invalid/expired-code message — client-side zod validation
- * prevents the DTO-shaped 400s from ever being sent.
+ * True when the server says this code is dead for good. Only an explicit
+ * `errorCode` counts: an untagged 400 is one of the four pooled causes, where
+ * re-reading the email is still worth a try.
+ */
+export function isResetCodeExhausted(error: unknown): boolean {
+  return (error as ApiError | undefined)?.errorCode === RESET_CODE_EXHAUSTED;
+}
+
+/**
+ * Friendly message for a failed reset-password request.
+ *
+ * The exhausted case gets its own copy because it is the one failure where
+ * retrying is pointless — no code the user can type will work until they ask
+ * for a new one. Every other 400 stays pooled behind the shared message, since
+ * the backend deliberately does not say which of the four it was. Client-side
+ * zod prevents the DTO-shaped 400s from ever being sent.
  */
 export function resetPasswordErrorMessage(error: unknown): string {
   const status = statusOf(error);
   if (status === 429) return RATE_LIMIT_MESSAGE;
+  if (isResetCodeExhausted(error)) {
+    return 'Bạn đã nhập sai quá nhiều lần — mã này không còn dùng được. Hãy bấm "Gửi lại mã" để nhận mã mới.';
+  }
   if (status === 400) {
     return 'Mã xác nhận không đúng hoặc đã hết hạn. Vui lòng kiểm tra lại hoặc gửi lại mã.';
   }
@@ -60,35 +83,10 @@ export function resendCooldownRemaining(cooldownUntil: number | null, now: numbe
   return Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
 }
 
-/** Wrong-code attempts after which we start warning the user (MAIL-UI-01). */
-export const RESET_ATTEMPTS_BEFORE_HINT = 3;
-/** Server destroys the code after this many wrong attempts — silently. */
-export const RESET_ATTEMPT_LIMIT = 5;
-
-/**
- * Attempt counter for the reset step. Only a `400` is a wrong/expired code —
- * a `429` or a dead connection never reached the verification, so counting it
- * would push the user toward asking for a new code they don't need.
- */
-export function nextResetAttempts(current: number, error: unknown): number {
-  return statusOf(error) === 400 ? current + 1 : current;
-}
-
-/**
- * Warning to show above the reset form. The backend answers all five failure
- * causes with the same `400` and, after `RESET_ATTEMPT_LIMIT` wrong attempts,
- * destroys the code server-side **without changing the message** — from then on
- * the user is stuck no matter what they type. So the client counts its own
- * failures and says out loud what the response never will. Deliberately vague
- * about the exact number left: this counter only tracks what THIS tab sent, and
- * a resend (from anywhere) resets the server's counter.
- */
-export function resetAttemptHint(failedAttempts: number): string | null {
-  if (failedAttempts >= RESET_ATTEMPT_LIMIT) {
-    return 'Bạn đã nhập sai quá nhiều lần — mã này không còn dùng được. Hãy bấm "Gửi lại mã" để nhận mã mới.';
-  }
-  if (failedAttempts >= RESET_ATTEMPTS_BEFORE_HINT) {
-    return 'Nhập sai quá nhiều lần sẽ phải xin mã mới. Hãy kiểm tra lại mã trong email mới nhất, hoặc bấm "Gửi lại mã".';
-  }
-  return null;
-}
+// The client-side attempt counter that used to live here (`nextResetAttempts` /
+// `resetAttemptHint`, MAIL-UI-01 first draft) is deliberately gone: it guessed
+// at server state it could not see — it only ever counted what one tab sent, so
+// a reload, a second tab, or a resend from elsewhere desynced it. The server now
+// answers with `RESET_CODE_EXHAUSTED` instead. Do not reintroduce a "còn N lần"
+// countdown either: the backend does not return the remaining count, on purpose,
+// because that is another way to probe an account.

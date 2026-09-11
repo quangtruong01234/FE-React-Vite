@@ -1,18 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import {
   RESEND_COOLDOWN_SECONDS,
-  RESET_ATTEMPTS_BEFORE_HINT,
-  RESET_ATTEMPT_LIMIT,
   forgotPasswordErrorMessage,
   resetPasswordErrorMessage,
   resendCooldownRemaining,
-  nextResetAttempts,
-  resetAttemptHint,
+  isResetCodeExhausted,
 } from './forgotPassword';
 import type { ApiError } from '@/types';
 
 function apiError(statusCode: number, message = ''): ApiError {
   return { statusCode, status: statusCode, message };
+}
+
+/** A 400 the backend tagged as "this code is dead for good" (MAIL-UI-01). */
+function exhausted(): ApiError {
+  return { ...apiError(400, 'Invalid or expired verification code'), errorCode: 'RESET_CODE_EXHAUSTED' };
 }
 
 describe('forgotPasswordErrorMessage', () => {
@@ -31,10 +33,20 @@ describe('forgotPasswordErrorMessage', () => {
 });
 
 describe('resetPasswordErrorMessage', () => {
-  it('maps every 400 to the invalid/expired-code message (causes are indistinguishable by design)', () => {
+  it('maps an untagged 400 to the pooled invalid/expired-code message', () => {
     expect(resetPasswordErrorMessage(apiError(400, 'Invalid or expired verification code'))).toMatch(
       /không đúng hoặc đã hết hạn/,
     );
+  });
+
+  it('tells the user to ask for a new code once the server says this one is dead', () => {
+    const message = resetPasswordErrorMessage(exhausted());
+    expect(message).toMatch(/không còn dùng được/);
+    expect(message).toMatch(/Gửi lại mã/);
+  });
+
+  it('never promises an exact number of attempts left — the backend does not return one', () => {
+    expect(resetPasswordErrorMessage(exhausted())).not.toMatch(/còn \d+ lần/);
   });
 
   it('maps 429 to the rate-limit message', () => {
@@ -43,6 +55,28 @@ describe('resetPasswordErrorMessage', () => {
 
   it('falls back to the connection message for unknown errors', () => {
     expect(resetPasswordErrorMessage(new Error('boom'))).toMatch(/kết nối/);
+  });
+});
+
+describe('isResetCodeExhausted', () => {
+  it('is true only for the tagged 400', () => {
+    expect(isResetCodeExhausted(exhausted())).toBe(true);
+  });
+
+  it('is false for an untagged 400 — that is one of the four pooled causes', () => {
+    // The whole point of the field: an ordinary wrong code still deserves
+    // "check the email and try again", not "this code is dead".
+    expect(isResetCodeExhausted(apiError(400, 'Invalid or expired verification code'))).toBe(false);
+  });
+
+  it('is false for every non-400 failure and for a non-HTTP error', () => {
+    expect(isResetCodeExhausted(apiError(429))).toBe(false);
+    expect(isResetCodeExhausted(new TypeError('fetch failed'))).toBe(false);
+    expect(isResetCodeExhausted(undefined)).toBe(false);
+  });
+
+  it('does not match a different errorCode value', () => {
+    expect(isResetCodeExhausted({ ...apiError(400), errorCode: 'SOMETHING_ELSE' })).toBe(false);
   });
 });
 
@@ -67,41 +101,3 @@ describe('resendCooldownRemaining', () => {
   });
 });
 
-describe('nextResetAttempts', () => {
-  it('counts a 400 — the only status that means the code was rejected', () => {
-    expect(nextResetAttempts(0, apiError(400, 'Invalid or expired verification code'))).toBe(1);
-    expect(nextResetAttempts(4, apiError(400))).toBe(5);
-  });
-
-  it('does not count a 429 or a connection failure — neither reached verification', () => {
-    expect(nextResetAttempts(2, apiError(429))).toBe(2);
-    expect(nextResetAttempts(2, new TypeError('fetch failed'))).toBe(2);
-    expect(nextResetAttempts(2, undefined)).toBe(2);
-  });
-});
-
-describe('resetAttemptHint', () => {
-  it('stays silent below the hint threshold', () => {
-    for (let attempts = 0; attempts < RESET_ATTEMPTS_BEFORE_HINT; attempts += 1) {
-      expect(resetAttemptHint(attempts)).toBeNull();
-    }
-  });
-
-  it('warns from the third failure that a new code will be needed', () => {
-    const hint = resetAttemptHint(RESET_ATTEMPTS_BEFORE_HINT);
-    expect(hint).toMatch(/xin mã mới/);
-    expect(hint).toMatch(/Gửi lại mã/);
-  });
-
-  it('says the code is dead once the server limit is reached', () => {
-    const hint = resetAttemptHint(RESET_ATTEMPT_LIMIT);
-    expect(hint).toMatch(/không còn dùng được/);
-    expect(resetAttemptHint(RESET_ATTEMPT_LIMIT + 3)).toBe(hint);
-  });
-
-  it('never promises an exact number of attempts left (our count only sees this tab)', () => {
-    for (const attempts of [3, 4, 5, 9]) {
-      expect(resetAttemptHint(attempts)).not.toMatch(/còn \d+ lần/);
-    }
-  });
-});

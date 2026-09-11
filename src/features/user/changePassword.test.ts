@@ -1,13 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { http, HttpResponse } from 'msw';
-import { server } from '@/test/msw/server';
-import { API_BASE } from '@/test/msw/handlers';
 import {
   changePasswordSchema,
   changePasswordError,
   changePasswordPayload,
   isAuthFailure,
-  isSessionAlive,
 } from './changePassword';
 
 const valid = {
@@ -79,21 +75,45 @@ describe('changePasswordError', () => {
     });
   });
 
-  it('moves the 401 to the form once the probe says the session is dead', () => {
+  it('moves the 401 to the form when the server names the session as the cause', () => {
     expect(
-      changePasswordError({ statusCode: 401, status: 401, message: 'Unauthorized' }, false),
+      changePasswordError({
+        statusCode: 401,
+        status: 401,
+        message: 'Unauthorized',
+        errorCode: 'UNAUTHENTICATED',
+      }),
     ).toEqual({ field: 'root', message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.' });
+  });
+
+  it('keeps the tagged wrong-password 401 on the password field', () => {
+    expect(
+      changePasswordError({
+        statusCode: 401,
+        status: 401,
+        message: 'Unauthorized',
+        errorCode: 'INVALID_CURRENT_PASSWORD',
+      }).field,
+    ).toBe('currentPassword');
   });
 
   it('ignores the message — production sends the same body for both 401s', () => {
     // Prod (2026-08-29) flattens both to `{"error":"Unauthorized","message":"Unauthorized"}`,
-    // so only the probe result may move the message off the password field.
+    // so `errorCode` is the only thing that may move the message off the field.
     const prodBody = { statusCode: 401, status: 401, message: 'Unauthorized' };
-    expect(changePasswordError(prodBody, true).field).toBe('currentPassword');
-    expect(changePasswordError({ statusCode: 401, message: 'Access token is required' }, true).field).toBe(
+    expect(changePasswordError(prodBody).field).toBe('currentPassword');
+    expect(changePasswordError({ statusCode: 401, message: 'Access token is required' }).field).toBe(
       'currentPassword',
     );
     expect(changePasswordError({ statusCode: 401 }).field).toBe('currentPassword');
+  });
+
+  it('stays on the password field for an untagged 401 — never bounce a live session on a guess', () => {
+    // An older gateway, or any 401 the backend chose not to tag. Guessing
+    // "session dead" here would sign out a user who merely typed a typo.
+    expect(changePasswordError({ statusCode: 401, errorCode: 'SOMETHING_NEW' }).field).toBe(
+      'currentPassword',
+    );
   });
 
   it('treats 403 the same as 401', () => {
@@ -115,11 +135,14 @@ describe('changePasswordError', () => {
     );
   });
 
-  it('explains a 404 as the feature not being live yet', () => {
-    expect(changePasswordError({ statusCode: 404, status: 404, message: 'Not Found' })).toEqual({
-      field: 'root',
-      message: 'Tính năng đổi mật khẩu chưa sẵn sàng. Vui lòng thử lại sau.',
-    });
+  // CHG-PW-01 shipped and is live on prod (verified 2026-09-11: the route answers
+  // 401 with an `errorCode`, not 404), so the "chưa sẵn sàng" mapping is gone. A
+  // 404 here is now an ordinary unexpected status and must not claim the feature
+  // is missing — that message would send a user away from a working form.
+  it('no longer claims the feature is unavailable on a 404', () => {
+    const result = changePasswordError({ statusCode: 404, status: 404, message: 'Not Found' });
+    expect(result.field).toBe('root');
+    expect(result.message).not.toMatch(/chưa sẵn sàng/);
   });
 
   it('falls back to a connection message for a non-HTTP failure', () => {
@@ -140,36 +163,9 @@ describe('isAuthFailure', () => {
     expect(isAuthFailure({ status: 403 })).toBe(true);
   });
 
-  it('leaves every other failure alone — no probe, no extra request', () => {
+  it('leaves every other failure alone', () => {
     expect(isAuthFailure({ statusCode: 400 })).toBe(false);
     expect(isAuthFailure({ statusCode: 429 })).toBe(false);
     expect(isAuthFailure(new TypeError('Failed to fetch'))).toBe(false);
-  });
-});
-
-describe('isSessionAlive', () => {
-  it('is alive when /user/me still answers', async () => {
-    server.use(
-      http.get(`${API_BASE}/user/me`, () =>
-        HttpResponse.json({ id: 1, username: 'user1', role: 'user' }),
-      ),
-    );
-    await expect(isSessionAlive()).resolves.toBe(true);
-  });
-
-  it('is dead when the probe itself is rejected as unauthorized', async () => {
-    server.use(
-      http.get(`${API_BASE}/user/me`, () =>
-        HttpResponse.json({ message: 'Unauthorized' }, { status: 401 }),
-      ),
-    );
-    await expect(isSessionAlive()).resolves.toBe(false);
-  });
-
-  it('stays alive when the probe fails for a non-auth reason', async () => {
-    // A 500 or a dropped connection says nothing about the cookie; guessing
-    // "dead" there would tell a user with a typo'd password to log in again.
-    server.use(http.get(`${API_BASE}/user/me`, () => HttpResponse.error()));
-    await expect(isSessionAlive()).resolves.toBe(true);
   });
 });

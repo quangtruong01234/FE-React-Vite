@@ -31,8 +31,12 @@ export async function request<T>(path: string, init?: RequestInit & { skipUnauth
     if (shouldRedirectToLogin(res.status, skipUnauthorizedRedirect)) {
       handleUnauthorized(buildLoginRedirect(window.location.pathname));
     }
-    const err = await res.json().catch(() => ({})) as { message?: string };
+    const err = await res.json().catch(() => ({})) as { message?: string; errorCode?: unknown };
     const apiError: ApiError = { statusCode: res.status, status: res.status, message: err.message ?? res.statusText };
+    // Forwarded only when the body really carries one, so callers can keep
+    // testing `errorCode === '...'` and get `undefined` for every other error
+    // rather than a key that exists but means nothing.
+    if (typeof err.errorCode === 'string') apiError.errorCode = err.errorCode;
     throw apiError;
   }
   if (res.status === 204 || res.headers.get('content-length') === '0') {

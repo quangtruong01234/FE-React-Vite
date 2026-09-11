@@ -187,9 +187,11 @@ describe('LoginPage — forgot-password flow', () => {
     expect(screen.getByLabelText('Mã xác nhận')).toBeInTheDocument();
   });
 
-  // MAIL-UI-01: the backend destroys the code after 5 wrong attempts and keeps
-  // answering with the identical 400 — the user is stuck with no way to tell.
-  it('warns after the third wrong code that a new one will be needed', async () => {
+  // MAIL-UI-01: the backend destroys the code after 5 wrong attempts and from
+  // then on tags every answer `RESET_CODE_EXHAUSTED`. The wording follows the
+  // server's tag — the client no longer counts attempts, so the copy must not
+  // escalate on its own before the tag arrives.
+  it('escalates to "ask for a new code" only once the server tags the code as dead', async () => {
     let resetCalls = 0;
     server.use(
       meUnauthenticated(),
@@ -198,7 +200,13 @@ describe('LoginPage — forgot-password flow', () => {
       ),
       http.post(`${API_BASE}/user/reset-password`, () => {
         resetCalls += 1;
-        return HttpResponse.json({ message: 'Invalid or expired verification code' }, { status: 400 });
+        // The server only destroys the code on the 3rd try in this fixture;
+        // the real threshold is 5 and is the server's business, not ours.
+        const body =
+          resetCalls >= 3
+            ? { message: 'Invalid or expired verification code', errorCode: 'RESET_CODE_EXHAUSTED' }
+            : { message: 'Invalid or expired verification code' };
+        return HttpResponse.json(body, { status: 400 });
       }),
     );
     const user = userEvent.setup();
@@ -217,11 +225,16 @@ describe('LoginPage — forgot-password flow', () => {
     await waitFor(() => expect(resetCalls).toBe(1));
     await user.click(submit);
     await waitFor(() => expect(resetCalls).toBe(2));
-    // Two failures is still ordinary mistyping — no scare copy yet.
-    expect(screen.queryByText(/xin mã mới/)).not.toBeInTheDocument();
+    // Untagged 400s stay on the pooled message — re-reading the email may work.
+    expect(await screen.findByText(/Mã xác nhận không đúng hoặc đã hết hạn/)).toBeInTheDocument();
+    expect(screen.queryByText(/không còn dùng được/)).not.toBeInTheDocument();
 
     await user.click(submit);
-    expect(await screen.findByText(/Nhập sai quá nhiều lần sẽ phải xin mã mới/)).toBeInTheDocument();
+    expect(await screen.findByText(/mã này không còn dùng được/)).toBeInTheDocument();
+    // Still on the code step: "Gửi lại mã" is right there, and going back to
+    // the email step would make the user retype an address we already have.
+    expect(screen.getByLabelText('Mã xác nhận')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Gửi lại mã/ })).toBeInTheDocument();
   });
 });
 

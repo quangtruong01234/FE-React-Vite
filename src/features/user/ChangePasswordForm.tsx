@@ -10,8 +10,6 @@ import {
   changePasswordSchema,
   changePasswordError,
   changePasswordPayload,
-  isAuthFailure,
-  isSessionAlive,
   type ChangePasswordFormData,
 } from './changePassword';
 
@@ -47,10 +45,9 @@ export function ChangePasswordForm({ onCancel }: ChangePasswordFormProps): React
       reset();
       setDone(true);
     } catch (err: unknown) {
-      // A 401/403 here is ambiguous by contract, so ask the server which of the
-      // two it was before choosing where to hang the message.
-      const sessionAlive = isAuthFailure(err) ? await isSessionAlive() : true;
-      const { field, message } = changePasswordError(err, sessionAlive);
+      // The response now names its own cause (`errorCode`, CHG-PW-02), so a
+      // 401 no longer costs a `GET /user/me` probe to disambiguate.
+      const { field, message } = changePasswordError(err);
       setError(field, { message });
     }
   }
