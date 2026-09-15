@@ -11,6 +11,14 @@ vi.mock('@/hooks/auth/useRole', () => ({ useRole: () => null }));
 vi.mock('@/features/chat/useChat', () => ({ useChatPresence: () => undefined }));
 vi.mock('./NotificationBell', () => ({ NotificationBell: () => null }));
 vi.mock('./ProfileMenu', () => ({ ProfileMenu: () => null }));
+// The suggestion dropdown has its own test; here it would only drag a
+// QueryClientProvider into a render that is about the plain submit path.
+vi.mock('@/features/search/useSearchSuggestions', () => {
+  // One frozen result for every render: the real hook memoizes `suggestions`,
+  // and the dropdown resets its cursor whenever that array changes identity.
+  const stub = { suggestions: [], isLoading: false, isError: false, enabled: false };
+  return { useSearchSuggestions: () => stub };
+});
 
 function LocationProbe() {
   const location = useLocation();

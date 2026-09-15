@@ -1,8 +1,9 @@
-import { Fragment, useState, type ReactElement } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Search, Plus } from 'lucide-react';
+import { Fragment, type ReactElement } from 'react';
+import { Link } from 'react-router-dom';
+import { Plus } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
 import { GradientButton } from '@/components/shared/GradientButton';
+import { HeaderSearch } from '@/features/search/HeaderSearch';
 import { useCart } from '@/hooks/data/useCart';
 import { useRole } from '@/hooks/auth/useRole';
 import { useChatPresence } from '@/features/chat/useChat';
@@ -12,19 +13,11 @@ import { openCreatePost } from '@/features/social/composerEvents';
 import { HEADER_ICON_ITEMS } from './navItems';
 
 export function Header(): ReactElement {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') ?? '');
   const { data: cart } = useCart();
   const totalCount = cart?.items.length ?? 0;
 
   // App-wide chat sound: play a beep for any incoming message while online.
   useChatPresence(useRole()?.me?.id);
-
-  function handleSearchSubmit(e: React.FormEvent): void {
-    e.preventDefault();
-    void navigate(`/marketplace?search=${encodeURIComponent(searchQuery.trim())}`);
-  }
 
   return (
     <header className="sticky top-0 z-[100] bg-canvas-surface/85 border-b border-bdr backdrop-blur-md">
@@ -35,25 +28,7 @@ export function Header(): ReactElement {
           </span>
         </Link>
 
-        <form
-          onSubmit={handleSearchSubmit}
-          className="relative hidden md:block flex-1 max-w-[520px]"
-        >
-          <button
-            type="submit"
-            aria-label="Tìm kiếm"
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 cursor-pointer"
-          >
-            <Search size={18} className="text-ink-muted pointer-events-none shrink-0" />
-          </button>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Tìm sản phẩm, bài viết, seller…"
-            className="w-full bg-canvas-elevated border border-bdr rounded-tb-input py-3 pl-11 pr-4 text-ink-pri font-body text-[15px] placeholder:text-ink-muted outline-none focus:border-accent-amber/50 transition-colors"
-          />
-        </form>
+        <HeaderSearch />
 
         <div className="flex items-center gap-2 sm:gap-3 ml-auto">
           <GradientButton
