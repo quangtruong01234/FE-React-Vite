@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { Eye, EyeOff, FlagOff, Trash2, ShieldCheck, ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
 import { formatDateTime } from '@/lib/format/time';
-import { userSummaryLabel } from '@/lib/format/user';
+import { userDisplayName, userSummaryLabel } from '@/lib/format/user';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { Avatar } from '@/components/shared/Avatar';
@@ -74,7 +74,7 @@ function ReportedPostCard({
               to={`/profile/${post.author.id}`}
               className="font-body font-semibold text-sm text-ink-pri hover:text-accent-amber transition-colors truncate block"
             >
-              {post.author.name ?? post.author.username}
+              {userDisplayName(post.author)}
             </Link>
             <span className="font-body text-xs text-ink-muted">@{post.author.username}</span>
           </div>
