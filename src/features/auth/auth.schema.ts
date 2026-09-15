@@ -8,7 +8,14 @@ export type LoginFormData = z.infer<typeof loginSchema>;
 
 export const registerSchema = z
   .object({
-    username: z.string().min(1, 'Username là bắt buộc'),
+    // `.trim()` BEFORE `.min(1)` — the other order validates the raw string and
+    // then hands back `''`, so `"   "` would pass. Since NAME-TRIM-01 (backend,
+    // 2026-09-15) `POST /user/register` trims and 400s on a blank username, so
+    // trimming here turns a round-trip into an inline error. It also keeps the
+    // auto-login right after register working: the backend stores `"  john  "`
+    // as `"john"`, and login is deliberately NOT trimmed server-side, so
+    // submitting the padded value would register fine and then fail to log in.
+    username: z.string().trim().min(1, 'Username là bắt buộc'),
     email: z.string().email('Email không hợp lệ'),
     password: z.string().min(8, 'Tối thiểu 8 ký tự'),
     confirmPassword: z.string().min(1, 'Vui lòng nhập lại mật khẩu'),

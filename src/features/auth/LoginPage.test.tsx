@@ -334,4 +334,61 @@ describe('LoginPage — register flow', () => {
       }),
     );
   });
+
+  // NAME-TRIM-01: the backend now trims `username` and 400s on a blank one.
+  // A whitespace-only username has to fail under the field — spending a
+  // round-trip to be told what the client already knows is the bug.
+  it('rejects a whitespace-only username inline, without calling register', async () => {
+    let registerCalls = 0;
+    server.use(
+      meUnauthenticated(),
+      http.post(`${API_BASE}/user/register`, () => {
+        registerCalls += 1;
+        return HttpResponse.json({ data: { id: 1, username: 'x' } });
+      }),
+    );
+    const user = userEvent.setup();
+    renderLogin();
+    await openRegister(user);
+
+    await fillRegister(user, { username: '   ', email: 'new@b.com', password: 'password123' });
+    await user.click(screen.getByRole('button', { name: /Đăng ký ngay/ }));
+
+    expect(await screen.findByText('Username là bắt buộc')).toBeInTheDocument();
+    expect(registerCalls).toBe(0);
+  });
+
+  // The padded value must not survive to either call: the backend stores the
+  // trimmed name, and login is deliberately NOT trimmed server-side — so
+  // sending `"  newbie  "` to login would 401 right after a successful register.
+  it('sends the trimmed username to both register and the auto-login', async () => {
+    let registerBody: unknown;
+    let loginBody: unknown;
+    const account = { id: 42, username: 'newbie' };
+    server.use(
+      meUnauthenticated(),
+      http.post(`${API_BASE}/user/register`, async ({ request }) => {
+        registerBody = await request.json();
+        return HttpResponse.json({ data: account });
+      }),
+      http.post(`${API_BASE}/user/login`, async ({ request }) => {
+        loginBody = await request.json();
+        return HttpResponse.json({ data: account });
+      }),
+    );
+    const user = userEvent.setup();
+    renderLogin();
+    await openRegister(user);
+
+    await fillRegister(user, { username: '  newbie  ', email: 'new@b.com', password: 'password123' });
+    await user.click(screen.getByRole('button', { name: /Đăng ký ngay/ }));
+
+    await waitFor(() => expect(loginBody).toBeDefined());
+    expect(registerBody).toEqual({
+      username: 'newbie',
+      email: 'new@b.com',
+      password: 'password123',
+    });
+    expect(loginBody).toEqual({ username: 'newbie', password: 'password123' });
+  });
 });
