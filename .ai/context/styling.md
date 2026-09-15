@@ -101,6 +101,24 @@ Nút icon `<button>` sized (`size-*`) **BẮT BUỘC** dùng `<IconButton>` (`sr
 - Mở element thật bằng MCP, đọc box model: nút icon tròn phải `width === height`.
 - So `git diff` để chắc không thêm border / ring / padding ngoài scope.
 
+## Modal / confirm
+
+Native browser dialogs are **banned** (`window.confirm` / `alert` / `prompt`) — hard rule in
+`core.md`. Chúng render bằng chrome của trình duyệt ("localhost:5173 says"), không ăn token nào,
+không có pending/error state, và bị automation (MCP / Playwright) tự động nuốt.
+
+| Cần gì | Dùng |
+|---|---|
+| Hỏi có/không, kể cả hành động phá huỷ | `<ConfirmDialog>` — `components/shared/ConfirmDialog.tsx`, `tone="danger"` cho xoá/huỷ |
+| Form, lựa chọn, preview trong modal | Reuse modal có sẵn: `ReportPostDialog`, `AddressFormModal`, `EditProfileModal`, `CreatePostModal`, `FollowListModal` |
+| Không có cái nào hợp | Modal mới trên `@/components/ui/dialog`, theo đúng idiom `ReportPostDialog.tsx`; lặp lần 2 ⇒ đẩy lên `components/shared/` |
+| Thông báo một chiều (kiểu `alert`) | Toast/notice sẵn có của trang, hoặc prop `error` của chính dialog vừa gây lỗi |
+
+Khung chuẩn của một modal: `<DialogContent className="max-w-sm bg-canvas-surface border-bdr text-ink-pri">`
+· title `font-display text-ink-pri` · description `text-ink-sec` · CTA là `<GradientButton>`
+(hoặc nút `bg-tb-red/15 border-tb-red/40 text-accent-red` cho `tone="danger"` — `tb-*`, **không**
+phải `accent-*`, vì alias `var()` làm Tailwind bỏ luôn class có `/NN`).
+
 ## Token quick-reference
 
 Most-used (full list and system guidance in `.ai/tokens.md`):

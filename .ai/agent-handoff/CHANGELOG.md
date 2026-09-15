@@ -7,6 +7,476 @@
 
 ## Maintenance
 
+### ROLE-ADMIN-01 (tokenRole) · guard FE bám JWT thay vì hàng DB, + banner cho người vừa bị đổi vai trò (2026-09-16)
+
+`/sweep` — đóng món nợ mở từ ROLE-ADMIN-01 (2026-09-15) và là entry đầu tiên trong
+`frontend-handoff.md` §Open lúc quét.
+
+**Bug thật, đã đo chứ không suy diễn.** BE enforce quyền bằng `role` **nướng trong JWT**; FE thì
+`ProtectedRoute` và `useRole` đọc `role.name` từ `/user/me`, tức **hàng DB tươi**. Hai nguồn này
+lệch nhau đúng trong khoảng thời gian giữa "admin đổi vai trò" và "người đó đăng nhập lại". Hệ quả
+đã dựng lại được ở lượt trước: một tài khoản vừa được nâng lên `shop` mà chưa re-login **vào được
+`/sell`**, điền hết form, rồi ăn `403 Insufficient permissions` ở `POST /api/products`. Chiều ngược
+lại êm hơn nhưng cũng sai: người vừa bị hạ quyền thì FE giấu link seller đi trong khi token của họ
+**vẫn** gọi API seller được.
+
+**BE đã bổ sung `tokenRole` + `isRoleStale` vào `GET /user/me`** (entry ROLE-ADMIN-01 trong
+`backend-handoff.md`, 4 mục). FE làm mục 1–3, **cố ý bỏ mục 4**.
+
+**Quyết định trung tâm: toàn bộ gate đi qua đúng một hàm.** `lib/auth/roleAccess.ts` thêm
+
+```ts
+export function sessionRole(me: SessionRoleSource): string { return me.tokenRole ?? me.role.name; }
+export function hasStaleRole(me: SessionRoleSource | null | undefined): boolean { return me?.isRoleStale ?? false; }
+```
+
+`ProtectedRoute` đổi sang `roleSatisfies(sessionRole(me), requiredRole)`, `useRole` đổi
+`roleName` thành `sessionRole(me)`. Đây là điểm mấu chốt về phạm vi: `useRole().roleName` từ giờ là
+**vai trò của phiên**, nên `isSeller`/`isAdmin` — và qua đó rail trái, menu profile, mọi nút "bán
+hàng" đang đọc hook này — tự động đúng theo token mà **không** phải sờ vào từng component. Một
+hàm, một chỗ sai, một chỗ sửa.
+
+**`?? role.name` không phải phòng thủ thừa — bỏ nó là gãy seller ngay sau khi đăng nhập.**
+`useAuth.loginSuccess` seed cache `auth.me` bằng **response của `/login`**, mà route đó **cố ý
+không** trả `tokenRole` (token vừa mint xong thì không thể lệch — BE ghi rõ điều này). Gate cứng
+theo `tokenRole` sẽ nhận `undefined` và đá shop ra khỏi `/sell` cho tới lần refetch `/user/me` đầu
+tiên. Fallback đồng thời lo luôn ca gateway cũ hơn đợt rollout. Cả hai ca đều có test pin, và
+`api/auth.ts` được chú thích tại chỗ để lần sau không ai "dọn" nó đi.
+
+**Banner `components/layout/RoleStaleBanner.tsx`**, đặt trong `AppShell` ngay sau `<Header />` ở
+**cả hai** nhánh (`fixedHeight` + thường) nên hiện ở mọi trang đã đăng nhập, kể cả trang chat khoá
+chiều cao. Ba lựa chọn có chủ ý:
+
+- `role="status"` (polite), **không có nút tắt** — mismatch là **trạng thái** kéo dài tới khi đăng
+  nhập lại, không phải sự kiện thoáng qua; cho tắt là mời người dùng tự bịt mắt rồi lại đâm vào 403.
+  Nó tự biến mất sau re-login vì `isRoleStale` tắt.
+- Câu chữ gọi tên **cả hai** vai trò qua `roleStaleNotice(dbRole, tokenRole)`: "vừa được đổi thành
+  X … phiên hiện tại vẫn chạy bằng quyền Y". Test cấm các cụm gợi ý sai như "đã có hiệu lực" /
+  "đã cấp quyền" — vì đúng lúc banner hiện thì quyền mới **chưa** có hiệu lực.
+- Nút hành động là **"Đăng xuất"** gọi `logout` của `AuthContext` (clear cache + broadcast sang tab
+  khác) chứ không phải reload.
+
+**Cố ý KHÔNG làm mục 4 của entry BE (ép logout khi `isRoleStale`).** Văng người dùng ra giữa lúc họ
+đang điền form là đổi một lỗi rõ ràng lấy một lỗi mất dữ liệu. Banner + nút đăng xuất cho đúng thông
+tin và để họ chọn thời điểm; guard đã chặn đường vào trang cấm rồi nên không còn rủi ro nào phải
+cưỡng chế.
+
+**DRY:** `ROLE_LABELS` / `roleLabel()` dời `features/admin/userRole.ts` → `lib/auth/roleLabels.ts`
+(layout **không được** import từ feature folder), `AdminPage` chỉ đổi đường import. Banner của
+`AdminPage` giữ nguyên, đúng như entry BE dặn — nó nói với *admin*, banner mới nói với *người bị
+đổi*.
+
+**Né sẵn bẫy `/NN` trên alias.** Banner dùng `tb-amber/10|30|40|70` chứ không `accent-amber/NN`
+(alias `var()` ăn opacity modifier là class chết — `/check-tailwind` Check 8), và chứng minh bằng
+`grep -o -F` trong `dist/assets/*.css` sau build (4 class, 2/2/2/1 hit) chứ không tin mắt nhìn.
+
+**Verify runtime — Chrome DevTools MCP, full stack local (Vite :5173 → gateway :3000), 4 chiều.**
+Tài khoản `roleprobe0915` (throwaway) + `testadmin`; `user1`/`shop1`/`admin1` không đụng tới.
+(a) `user`/`user` ⇒ `isRoleStale:false`, không banner. (b) admin nâng lên `shop` **trong khi phiên
+probe đang sống** ⇒ `role.name:"shop"`, `tokenRole:"user"`, `isRoleStale:true`; banner hiện đúng
+chữ, **`/sell` redirect về `/`**, rail không còn link seller — chính là chỗ bug cũ lọt. (c) probe
+logout + login ⇒ `tokenRole:"shop"`, banner mất, `/sell` mở ra "Đăng sản phẩm mới",
+`/sell/orders|returns|vouchers` hiện lại. (d) admin hạ về `user` trên cookie `shop` đang sống ⇒
+banner hiện lại, câu chữ đảo chiều, `/sell` **vẫn vào được** — đúng, vì token mới là thứ API
+honour. Console sạch (chỉ 401 `/user/me` sau logout). Screenshot xác nhận màu amber thật sự lên và
+banner thẳng lề trang; a11y snapshot cho `status atomic live="polite"`. Dọn dẹp: probe trả về role
+`user` (`select.value === "user"`) và đã logout.
+
+**Hai thứ về harness đáng nhớ hơn cả bản thân fix:**
+
+1. Gotcha "Chrome DevTools MCP không nuốt được `window.confirm` của luồng này" **hết hiệu lực** —
+   CONFIRM-UI-01 (cùng ngày) đã thay bằng `ConfirmDialog`, MCP lái `fill_form` trên select rồi
+   click "ĐỔI VAI TRÒ" như nút thường. Không cần Playwright nữa. Đã gạch trong `test-accounts.md`.
+2. MCP giữ được **2 phiên song song** bằng isolated browser context (`isolatedContext=probe` trong
+   `list_pages`): admin ở page này, nạn nhân ở page kia. Đó là điều kiện cần để dựng cảnh "admin đổi
+   role **trong khi** phiên kia đang sống" — một context thì cookie đè nhau và cả kịch bản vô nghĩa.
+
+**Files** — sửa: `src/types/user.ts` (`CurrentUser` + `tokenRole?`/`isRoleStale?`) ·
+`src/api/auth.ts` · `src/lib/auth/roleAccess.ts` · `src/components/auth/ProtectedRoute.tsx` ·
+`src/hooks/auth/useRole.ts` · `src/components/layout/AppShell.tsx` ·
+`src/features/admin/userRole.ts` + `AdminPage.tsx` (import). Mới:
+`src/lib/auth/roleLabels.ts` (+ test) · `src/components/layout/RoleStaleBanner.tsx` (+ test).
+
+**Gate:** `npm run build` ✓ · `npm run lint` 0 · `npm run test:run` **1075 test / 131 file**
+(từ 1056/129). Class **B** thuần FE — nhưng cây `frontend` đang **HOLD** class C vì SEARCH-01-FE nên
+**chưa push**.
+
+🪤 Test của banner phải bọc `<AuthProvider>` và stub `/user/me` qua MSW: `useAuthContext()` throw
+khi thiếu provider, còn `renderWithProviders` **không** dựng AuthContext.
+
+### CONFIRM-UI-01 · modal xác nhận thay `window.confirm` ở cả 7 chỗ, + luật cấm dialog của trình duyệt (2026-09-16)
+
+Hai yêu cầu liên tiếp của user trong cùng một mạch: (1) *"thêm UI modal hỏi để xác nhận khi change
+role"*; (2) sau khi thấy ảnh chụp hộp thoại `localhost:5173 says` — *"thêm rule không cho phép UI
+dạng alert này trong project, nếu muốn thì làm UI modal riêng, nếu có modal rồi thì dùng lại nếu
+phù hợp"*. Làm cả hai, và làm hết: sau lượt này `src/` có **0** lần gọi
+`window.confirm` / `alert` / `prompt`.
+
+**Lý do kỹ thuật, không phải gu thẩm mỹ — và repo đã trả giá đúng một lần.** ROLE-ADMIN-01
+(2026-09-15) không verify được luồng đổi vai trò qua Chrome DevTools MCP: mọi `window.confirm` sau
+lần đầu bị auto-suppress (*"…was suppressed because another browser modal dialog was already
+showing"*) ⇒ trả `false` ⇒ guard no-op hủy đúng luật, và phải chuyển sang Playwright mới chạy được
+chuỗi. Cộng thêm: hộp thoại native render bằng chrome của trình duyệt (không ăn token nào), block
+main thread, và **không thể** hiện pending state hay lỗi — nên một confirm dẫn tới mutation chỉ có
+hai lựa chọn xấu: đóng ngay rồi in lỗi ở nơi khác, hoặc đứng im không phản hồi.
+
+**UI lookup order chạy đúng thứ tự trước khi tạo file mới** (`core.md`): `src/components/ui/` có
+`dialog.tsx` (Radix) nhưng **write-blocked**; `components/shared/` **không** có confirm dialog;
+`features/address/AddressesPage.tsx` thì đã **tự chế sẵn một cái** (37 dòng `Dialog` + 2 nút). Hai
+chỗ cùng một pattern ⇒ luật DRY–UI bắt đẩy lên `shared/`, nên migrate `AddressesPage` là **phần của
+việc**, không phải scope creep.
+
+**`components/shared/ConfirmDialog.tsx` — 2 quyết định đáng giữ**
+
+- `isPending` **khoá cả Esc và overlay click**, không chỉ disable nút: `handleOpenChange` chỉ gọi
+  `onCancel()` khi `!next && !isPending`. Bỏ qua chi tiết này thì người dùng bấm Esc lúc request
+  đang bay sẽ thấy dialog biến mất trong khi mutation vẫn chạy và vẫn ghi.
+- `error` render **bên trong** dialog và dialog **không đóng** khi confirm thất bại. Đây chính là
+  thứ `window.confirm` không có, và là lý do `AddressesPage`/`ShopPage`/`VoucherConsole` không cần
+  `alert()` nữa.
+- Nút `danger` dùng `bg-tb-red/15 border-tb-red/40` chứ **không** `accent-red/15` — alias `var()` ăn
+  `/NN` là class chết (`/check-tailwind` Check 8), và đây là file mới nên không có cớ lặp lại lỗi đó.
+  CTA thường là `<GradientButton size="sm">` để trông giống mọi modal khác trong app; bản nháp đầu
+  override `normal-case tracking-normal` rồi bỏ — nó làm nút này khác mọi nút CTA còn lại.
+
+**7 call site đã chuyển** — admin đổi vai trò · xoá địa chỉ · xoá sản phẩm (`ShopPage`) · xoá bài
+viết (`PostActionMenu`) · xoá bình luận (`CommentNode`) · tắt mã giảm giá + cảnh báo nới lỏng một
+chiều (`VoucherConsole`, 2 chỗ) · xoá phân loại đã tồn tại khi lưu sản phẩm (`CreateProductPage`).
+
+**Bẫy lớn nhất của đợt migrate: 2 chỗ `confirm` nằm giữa một `await`.** `CreateProductPage.onSubmit`
+và `VoucherConsole.VoucherForm.onSubmit` đều dựng payload → hỏi → tiếp tục lưu trong **một** hàm
+async. Modal không trả giá trị được (không có promise để await), nên mỗi handler tách làm hai nửa:
+nửa đầu `setPending…(…)` rồi **`return`**, nửa sau là hàm riêng (`submitProduct(draftMode)` /
+`persist(form)`) do `onConfirm` gọi. Trạng thái pending mang theo đúng những gì nửa sau cần
+(`draftMode`, `form`) — đọc lại từ `form.getValues()` lúc confirm là mời một race vào chỗ không cần.
+
+**Đóng dialog: `onSettled` hay `onSuccess` là quyết định theo từng chỗ, không phải copy-paste.**
+`AdminPage` đóng ở `onSettled` — lời từ chối của BE đã render thành banner **phía trên bảng**, giữ
+dialog lại là in cùng một câu hai lần. `AddressesPage`/`ShopPage`/`VoucherConsole` (form) thì ngược
+lại: đóng ở `onSuccess`, thất bại **giữ dialog** và in vào prop `error`, vì trang không có chỗ nào
+khác để nói. `ShopPage` nhân đó bỏ hẳn `alert('Xóa sản phẩm thất bại')` trong `onError`.
+
+**`AddressesPage` dùng `mutate` chứ không `mutateAsync`** — không còn ai `await` kết quả, và một
+promise bị reject để lơ lửng sẽ nổi lên thành unhandled rejection.
+
+**Copy tách làm hai vì modal có hai khe chữ.** `roleChangeConfirmText()` (một chuỗi, giới hạn của
+`confirm`) → `roleChangeConfirmTitle(displayName, nextRole)` (câu hỏi, dùng **nhãn** tiếng Việt chứ
+không tên role thô) + `ROLE_CHANGE_CONFIRM_BODY` (hệ quả: phải đăng xuất/đăng nhập lại). Câu
+re-login vẫn được nói **hai lần** như ROLE-ADMIN-01 đã chốt — lần này ở description của modal, và
+vẫn ở banner sau khi đổi.
+
+**Test** — `ConfirmDialog.test.tsx` mới, **7 test**: nhãn "Hủy" mặc định, `open=false` không render
+gì, confirm/cancel báo riêng, Esc = cancel, `isPending` khoá **cả hai** nút **và** nuốt Esc, có
+`error` thì dialog **vẫn ở trên màn**, `error: null` thì không có slot lỗi.
+`AdminPage.userRole.test.tsx` bỏ hẳn `confirmSpy` (`vi.spyOn(window, 'confirm')`) — thay bằng helper
+`pickRole()` trả về chính `role="dialog"`, và test pin thứ **không** kiểm được hồi còn dùng native:
+modal hiện đúng câu hỏi + câu hệ quả **trước khi có bất kỳ request nào** (`expect(bodies).toEqual([])`),
+bấm Hủy thì `<select>` **về đúng role cũ**. Thêm một test mới: nâng lên `admin` **cũng** phải hỏi —
+không có đường cấp quyền admin im lặng. Không có test cũ nào pin hành vi `window.confirm` (đã grep
+trước khi migrate) nên 7 lần chuyển không làm đỏ gì.
+
+**Luật ghi vào 3 chỗ, mỗi chỗ một vai**
+
+| File | Nội dung |
+|---|---|
+| `.ai/context/core.md` | Hard rule (always-loaded): cấm native dialog trong `src/`, kèm thứ tự bắt buộc `ConfirmDialog` → reuse modal có sẵn → dựng mới trên `ui/dialog`, và ghi luôn cách tách handler async |
+| `.ai/workflows/review.md` §10 | 2 dòng checklist (1 dòng 🔴) để `/review` bắt được, có `> Rule source:` trỏ về `core.md` |
+| `.ai/context/styling.md` | §Modal / confirm — bảng quyết định 4 hàng + khung `DialogContent` chuẩn + cảnh báo `tb-*` chứ không `accent-*` cho nút danger |
+
+**Gate:** `npm run build` ✓ · `npm run lint` **0 problem** · `npm run test:run` **1056 test / 129
+file** (+9 test / +1 file so với 1047/128).
+
+**Chưa verify runtime lượt này** — thuần FE, không đụng contract (lớp **A**), cây vẫn HOLD lớp C vì
+SEARCH-01-FE + ROLE-ADMIN-01 nằm chung. Nợ đó nay **rẻ hơn hẳn**: modal là DOM thật nên Chrome
+DevTools MCP click được bình thường, không còn phải đổi sang Playwright chỉ để trả `true` cho một
+hộp thoại native.
+
+### ROLE-ADMIN-01 (dư nợ FE) · 2 class chết + 1 ô trống, và một guard tĩnh cho 249 site còn lại (2026-09-16)
+
+`/sweep ROLE-ADMIN-01` — không phải feature mới, mà là trả đúng những gì item ROLE-ADMIN-01 tự ghi
+là nợ trong `snapshot.md`. Hai món còn lại của item đó (**verify prod** và **guard FE lệch JWT**)
+đều **chặn ở BE**, không làm được trong lượt này ⇒ chỉ nhặt 3 dòng FE tự đóng được.
+
+**Đo trước, sửa sau — và phép đo mới là phần đáng giữ lại.**
+`tailwind.config.js` khai `accent.{pri,sec,cyan,green,red,amber}`, `canvas-*`, `ink-*`, `bdr` là
+`var(--…)`. Tailwind v3 cần `<alpha-value>` mới chèn được alpha, nên gặp `/NN` trên các alias đó nó
+**bỏ luôn cả class** — đây **không** phải "màu ra nhạt hơn mong đợi" mà là **không có khai báo nào**
+trong CSS build ra. Chạy `npm run build` rồi `grep -o -F` trong `dist/assets/*.css`:
+
+| Class | Hit trong CSS build ra |
+|---|---|
+| `accent-amber\/50` | **0** |
+| `accent-amber\/15` | **0** |
+| `accent-red\/15` | **0** |
+| `accent-violet\/20` (hex literal `#8b5cf6`) | 1 |
+| `tb-red\/10` | 3 |
+| `accent-amber{` (không modifier) | 4 |
+
+Hàng cuối là đối chứng quan trọng: alias **vẫn chạy bình thường** khi không kèm modifier, nên đừng
+"sửa" `text-accent-amber` thành `text-tb-amber` khắp nơi — chỉ đúng chỗ có `/NN` mới hỏng.
+
+**Ba dòng đã sửa**
+
+1. `components/shared/SelectField.tsx` — `focus:border-accent-amber/50` → `focus:border-tb-amber/50`.
+   Đây là class mà ROLE-ADMIN-01 **cố ý dời nguyên văn** từ `features/address/AddressSelect.tsx` để
+   phép dời file không lẫn thay đổi hành vi; giờ mới trả. Hệ quả cũ: ô select **không có** viền focus
+   nhìn thấy được, ở **mọi** consumer (form địa chỉ + bảng `/admin`).
+2. `features/admin/AdminPage.tsx` badge role read-only — `bg-accent-red/15` → `bg-tb-red/15`,
+   `bg-accent-amber/15` → `bg-tb-amber/15`. Hai pill này trước đó render **không nền**.
+3. `features/admin/AdminPage.tsx` cột USERNAME — `{user.username}` → `{nonBlank(user.username) ?? '—'}`.
+
+**Điểm dễ làm sai nhất, và snapshot đã ghi sẵn lời khuyên sai.** Mục backlog đề nghị cho cột đó đi
+qua `userDisplayName(user)` "như các màn khác". Không làm theo: helper đó trả
+`name → username → 'Người dùng'`, tức **ưu tiên tên hiển thị**, trong khi cột này **nhãn là
+USERNAME** và admin đọc nó để **định danh tài khoản**. Đi qua helper thì hàng `usr_bob` sẽ in
+"Bob Tran" — không phải fallback đẹp hơn, mà là **in sai field**, ở đúng cột người ta dùng để tra.
+Em dash khớp ô `createdAt` ngay bên cạnh, và hàng vẫn định danh được bằng cột ID + `aria-label` của
+ô chọn role (ROLE-ADMIN-01 đã cho rơi về `user.id`). Test pin **cả hai chiều**: `usr_blank` ra `—`,
+**và** `queryByText('Bob Tran')` không tồn tại ⇒ ai đó "cải tiến" sang `userDisplayName()` sẽ đỏ.
+
+**CSS build ra không đổi một byte — và đó là bằng chứng, không phải build hỏng.** Sau khi sửa,
+`dist/assets/index-C3vgEJGO.css` giữ **nguyên hash**. Lý do đo được: cả 3 class mới đã có consumer
+khác từ trước (`TextField.tsx`, `PaymentResultPage.tsx`, `CheckoutPage.tsx`, `AnalyticsDashboard.tsx`)
+nên không thêm rule nào, còn 3 class cũ thì **vốn không sinh ra gì** nên xoá đi cũng không bớt rule.
+Kiểm chứng rule thật có trong file: `bg-tb-red\/15{background-color:#ef444426}`,
+`bg-tb-amber\/15{background-color:#f59e0b26}`, `border-tb-amber\/50:focus{border-color:#f59e0b80}`.
+
+**Verify runtime** — full stack local (`vite` `:5173` proxy `/api` → gateway `:3000`), Chrome
+DevTools MCP. Đăng nhập bằng **`testadmin` / `Admin@1234`**: `admin1`/`Pass@1234` là seed **prod-only**,
+gọi local trả 401 (đã ghi vào `../.agent-local/test-accounts.md`). Bảng `/admin` 19 hàng:
+
+- `usr_p4wMRyPlPJkXY17b` (hàng `username` toàn khoảng trắng, có thật trên stack đang chạy) in `—`,
+  **không** in `name` của nó (`"NAME-TRIM-01 probe account"`) ⇒ chứng minh tận mắt là không rơi vào
+  `userDisplayName()`. 18 hàng còn lại vẫn in username của chính mình.
+- Badge `testadmin` nền `rgba(239, 68, 68, 0.15)`; 2 hàng role GHN read-only nền `rgb(28,28,30)`.
+- Viền focus của ô chọn role: `rgba(245, 158, 11, 0.5)`, và tìm được rule
+  `.border-tb-amber\/50 { border-color: rgba(245, 158, 11, 0.5); }` trong stylesheet đang phục vụ.
+- `tableOverflows: false`, `bodyOverflows: false`; console chỉ còn đúng dòng
+  `A form field element should have an id or name attribute (count: 17)` — autofill hint đã phân
+  loại là **non-bug** ở lượt trước.
+
+**Bẫy đo phải nhớ:** `getComputedStyle` gọi ngay sau `.focus()` trả **màu frame 0** vì control mang
+`transition-colors` — lần đầu đọc ra `rgb(39,39,42)` (viền `bdr` cũ), trông y hệt "fix trượt". Chờ
+~400ms mới ra màu thật. Suýt nữa thì revert một bản sửa đúng.
+
+**Một nhánh sửa đúng nhưng KHÔNG demo được, nói thẳng thay vì claim:** `roleEditability()` chỉ trả
+read-only cho (a) hàng của chính admin đang đăng nhập hoặc (b) role GHN không gán được ⇒ badge chỉ
+render với `admin` hoặc role GHN, **không bao giờ** `shop`. Nhánh `shop` vẫn đổi token cho nhất quán
+nhưng là **code không tới được lúc chạy** — đã ghi vào §Còn lại phía FE.
+
+**Phần lớn hơn cố ý không làm.** Cùng lỗi còn **249 site / 50 file / 34 class** khắp `src/`. Sửa hết
+không thuộc diff tối thiểu của item này, cần verify runtime riêng, và repo có tiền lệ xấu: lần
+regex mass-convert 2026-08-14 làm hỏng **92 file**. Thay vì sửa ẩu, đặt **guard tĩnh** ở đúng nơi
+repo giữ luật class-level — `.ai/workflows/check-tailwind.md` **Check 8** (🔴): pattern scan cho cả
+`bg|border|text|ring|divide|from|via|to|outline|placeholder|shadow|fill|stroke` trên nhóm alias,
+bảng ánh xạ sang token hex-literal (`tb-amber` #F59E0B · `tb-red` #EF4444 · `tb-green` #10B981 ·
+`tb-cyan` #06B6D4 · `tb-base`/`tb-surface`/`tb-elevated`/`tb-border`/`tb-muted`/`tb-secondary`),
+ghi chú `accent-violet`/`accent-blue` là hex literal nên **không** phải violation, và lệnh tự kiểm
+chứng rẻ nhất (`npm run build` + `grep -o -F 'accent-amber\/50' dist/assets/*.css` → 0 hit là chết).
+Thêm dòng ví dụ vào Output Format + ô đếm `🔴 Dead /NN on alias` vào Summary.
+
+**Không viết test class-level:** repo có **0** tiền lệ `toHaveClass`; luật kiểu "class này không sinh
+CSS" thuộc scan tĩnh, nhét vào unit test là đặt sai chỗ và sẽ mục.
+
+**Sửa ké doc drift cùng file:** bảng Check 4 ghi `#06b6d4`/`#10b981` là "**no `tb-*`** — alias only",
+sai — `tb-cyan`/`tb-green` có thật (`tailwind.config.js:33,35`); nếu để nguyên thì Check 8 và Check 4
+mâu thuẫn nhau ngay trong một trang.
+
+**Files:** `src/components/shared/SelectField.tsx` · `src/features/admin/AdminPage.tsx` ·
+`src/features/admin/AdminPage.userRole.test.tsx` (+1 test) · `.ai/workflows/check-tailwind.md`.
+**Gate:** `npm run build` ✓ 11,10s · `npm run lint` 0 problem · `npm run test:run` **1047 test /
+128 file** (từ 1046). **Không phát sinh gap BE mới** — 3 dòng này thuần FE.
+**Release:** class **A**, nhưng cây làm việc vẫn **HOLD class C** vì SEARCH-01-FE nằm chung cây,
+chờ `api` đẩy SEARCH-01 + `PATCH /user/:id/role` lên prod. **Chưa push.**
+
+### NAME-TRIM-01 (phần FE) · trim `username` ở form đăng ký (2026-09-15)
+
+Entry BE: `POST /user/register` từ nay **trim trước rồi 400** nếu `username` rỗng sau trim; FE
+"optional", chỉ điểm `auth.schema.ts:4,11`.
+
+**Điểm số 4 là code chết — không sửa.** `loginSchema` grep ra **0** call site: `LoginPage` validate
+nhánh đăng nhập bằng tay, chỉ `registerSchema` đi qua `zodResolver`. Thêm `.trim()` ở đó là vá giả,
+và còn **ngược ý BE** — entry ghi rõ *login is not trimmed* để account bẩn tạo lúc test còn đăng
+nhập được. Đã ghi vào §Còn lại phía FE của `snapshot.md` như một món dọn riêng.
+
+**Sửa đúng một dòng thật:** `registerSchema.username` → `z.string().trim().min(1, …)`.
+
+**Thứ tự không phải chuyện thẩm mỹ, đã đo:** `.trim().min(1)` chặn `"   "`; `.min(1).trim()` **cho
+lọt** rồi trả về `''` — zod validate chuỗi **thô** trước, transform sau.
+
+**Lý do mạnh hơn "đỡ một round-trip", và entry BE không nêu: đợt này tạo ra một break thật.**
+`zodResolver` đưa **giá trị đã transform** vào `onSubmit`, và `LoginPage` sau khi register thành
+công thì **tự đăng nhập luôn** bằng chính `data.username`. Không trim ⇒ `"  john  "` register OK
+(BE lưu `john`) rồi auto-login gửi `"  john  "` vào một route **cố ý không trim** ⇒ **đăng ký xong
+không vào được**. Trim ở FE khớp hai đầu lại.
+
+**Cố ý không làm:** `password` **không** trim (khoảng trắng có thể là phần của mật khẩu thật — có
+test pin); `email` không cần (`z.string().email()` đã chặn); `profileForm.ts` và `userDisplayName()`
+giữ nguyên (AUTHOR-NAME-01 đã xử); hàng cũ **không** backfill (BE nói vậy) ⇒ xem mục "bảng `/admin`
+có hàng USERNAME trống" ở `snapshot.md`.
+
+**Test — +11 / +1 file:**
+
+- `auth.schema.test.ts` (8, mới) — `it.each(['   ', '\t', '\n \t ', ''])` phải `success: false`
+  với `path: ['username']` và đúng câu `Username là bắt buộc`; `'  john  '` → `'john'`;
+  `'  jo hn  '` → `'jo hn'` (chỉ trim hai đầu); password `'  password123  '` giữ **nguyên văn**;
+  happy path vẫn qua.
+- `LoginPage.test.tsx` (+2, MSW) — `"   "` báo lỗi **inline** với **0** lần gọi `register`; và
+  `'  newbie  '` gửi `{username:'newbie', …}` ở **cả** `register` **lẫn** auto-login. Test thứ hai
+  là cái duy nhất chứng minh được đoạn "đăng ký xong không vào được" ở trên đã đóng.
+
+**Gate:** `npm run build` ✓ · `npm run lint` **0 problem** · `npm run test:run` **1046 test /
+128 file** (từ 1035/127 — gồm cả +1 test a11y của mục *ROLE-ADMIN-01 · trả nợ runtime verify* bên
+dưới).
+
+---
+
+### ROLE-ADMIN-01 · admin đổi vai trò người dùng ngay trên bảng `/admin` (2026-09-15, `/sweep`)
+
+Mục cao nhất còn mở của `../.agent-local/frontend-handoff.md`: BE mở
+`PATCH /api/user/:id/role` (admin-only) và yêu cầu *"whatever admin screen lists users gets a role
+control"*. **Không dựng màn mới** — grep `users.getPaginated` ra **đúng một** call site
+(`AdminPage.tsx`), bảng đó đã có cột "Vai trò" ⇒ việc là biến một ô chữ thành một ô chọn, không
+phải một trang.
+
+**Điều kiện bắt buộc của entry, và là thứ dễ làm sai nhất:** JWT của BE là **stateless** và nướng
+`role` vào token lúc đăng nhập — đổi vai trò **không** thu hồi token đang sống, nên vai trò mới
+**chỉ có hiệu lực ở lần đăng nhập sau** của chính người đó. Entry dặn thẳng: *"do not show 'đã cấp
+quyền shop' as if it were effective immediately"*. Vì thế câu này được nói **hai lần**, ở hai thời
+điểm khác nhau:
+
+- **Trước** khi đổi — `window.confirm`: *"Đổi vai trò của X thành "Người bán"? … Người dùng cần
+  đăng xuất và đăng nhập lại để vai trò mới có hiệu lực."*
+- **Sau** khi đổi — banner cyan: *"Đã đặt vai trò của X thành "Người bán". Vai trò mới **chỉ có
+  hiệu lực sau khi** người dùng đăng xuất và đăng nhập lại."* Chữ **"Đã đặt"** chứ không phải
+  "đã cấp quyền" là cố ý; test pin `not.toContain('đã cấp quyền')`.
+
+**Ba vai trò, không phải năm.** BE nhận `user` · `shop` · `admin` · `logistics_operator` ·
+`shipping_manager`, nhưng hai cái sau *"belong to the GHN console's world"* ⇒ dropdown storefront
+**chỉ** có 3 tuỳ chọn. Hàng đang giữ vai trò GHN **không** render dropdown (đổi ở GHN console) —
+nếu render, admin sẽ thấy một select mà mọi lựa chọn đều **hạ cấp** tài khoản đó. Nhãn tiếng Việt
+(`Người mua` / `Người bán` / `Quản trị` / `Vận hành GHN` / `Quản lý vận chuyển`), **gửi lên là tên
+thô**; `roleLabel()` fallback về tên thô để một role BE thêm sau này vẫn render được chứ không ra ô
+trống.
+
+**Hàng của chính admin bị khoá client-side** vì BE cũng 400 ca đó — chặn trước để admin không phải
+nhấn rồi ăn lỗi. Nhưng đổi vai trò của **một admin khác** thì **cho phép**, đúng contract; khoá cả
+hai sẽ khoá luôn đường duy nhất để hạ cấp một admin. Cả hai hàng read-only mang `title` = lý do,
+nên vẫn giải thích được bằng chuột thay vì im lặng.
+
+**File:**
+
+- `src/types/user.ts` — `RoleName` union (**cả 5** tên, cho phía *ghi*; `Role.name` vẫn là `string`
+  vì nó đọc từ response bất kỳ).
+- `src/api/users.ts` — `updateRole(id, role)`. **Không** gộp được vào `update()`: route cũ vẫn 400
+  key `role`.
+- `src/features/admin/userRole.ts` — helper thuần, giữ **toàn bộ** quyết định + **toàn bộ** chuỗi:
+  `roleLabel` · `ASSIGNABLE_ROLES`/`ASSIGNABLE_ROLE_OPTIONS` · `isAssignableRole` (type guard) ·
+  `roleEditability` · `roleChangeConfirmText` · `roleChangeSuccessText`.
+- `src/features/admin/useUpdateUserRole.ts` — `useMutation` + `invalidateQueries(users.all)`.
+  Invalidate cả prefix chứ không patch một hàng: list phân trang `keepPreviousData`, refetch mới
+  giữ mọi trang cache đúng.
+- `src/features/admin/AdminPage.tsx` — cột "Vai trò" đổi thành `SelectField` / badge read-only,
+  hai banner kết quả, `disabled={roleMutation.isPending}` (khoá **cả bảng** trong lúc bay: thành
+  công là refetch, chọn thêm giữa đường sẽ đua với hàng sắp bị thay). `onSuccess` đọc role **từ
+  response** chứ không echo lại `nextRole`. Chọn lại đúng vai trò hiện tại là **no-op** — endpoint
+  idempotent, nhưng bắn đi thì vẫn pop confirm + banner cho một việc không xảy ra.
+- **Sửa ké 2 bug sẵn có, không liên quan tới role:** hàng "Đang tải..." và "Không có người dùng
+  nào" ghi `colSpan={6}` trong bảng **5 cột** (`TableErrorRow` thì đã đúng `5`) — cell tràn ra
+  ngoài bảng.
+
+**`useRole()` chứ không `useAuthContext()`** cho câu "tôi là ai": context stale ngay sau khi đăng
+nhập trong app (§Known issue của `snapshot.md`, gốc từ SEARCH-01-FE), mà giá trị đó là thứ quyết
+định hàng nào là hàng của chính mình.
+
+**DRY — `SelectField` là extraction, không phải component mới cho vui.** Cần một `<select>` styled
+trong ô bảng, mà `features/address/AddressSelect.tsx` đã là đúng cái đó (Tailwind y hệt, chevron
+tuyệt đối, placeholder disabled). Luật core.md: *"same UI pattern in 2+ places → extract"* ⇒ dời
+lên `src/components/shared/SelectField.tsx`, thêm `size` (`md` cho form / `sm` cho ô bảng) +
+`ariaLabel` (ô bảng không có label nhìn thấy), **xoá** `AddressSelect.tsx`, `AddressFormModal.tsx`
+đổi 3 thẻ JSX (props không đổi). Bản dời giữ **nguyên văn** `focus:border-accent-amber/50` — đó là
+class chết (opacity modifier không chạy trên alias `var()`, xem CHART-SWAP-01) nhưng sửa nó trong
+cùng lượt sẽ biến phép dời thành thay đổi hành vi; đã ghi lại là việc tiếp theo.
+
+**Test — 17 test / 2 file mới**, vì runtime verify không chạy được (dưới):
+
+- `userRole.test.ts` (12) — nhãn từng role + fallback tên thô; `ASSIGNABLE_ROLES` đúng 3 và
+  **không** chứa hai role GHN; narrowing; `roleEditability` cho hàng khác / hàng mình / admin khác
+  / role GHN / `currentUserId` chưa resolve; hai câu copy.
+- `AdminPage.userRole.test.tsx` (5, MSW) — pin đúng những gì browser mới thấy: dropdown **chỉ** 3
+  nhãn tiếng Việt; body `PATCH` đúng `{ role: 'shop' }` + confirm nhắc đăng nhập lại + banner nói
+  "chỉ có hiệu lực sau khi…"; **hủy confirm ⇒ 0 request**; hàng mình và hàng GHN **không có**
+  combobox; `400` hiện `message` của server và **không** hiện banner thành công.
+  Hai chi tiết để lần sau không mất thời gian lại: `statusDistribution: {}` giữ `ChartFrame` ở
+  trạng thái rỗng nên chart.js không mount trong test; và hai badge read-only phải assert qua
+  `getByTitle()` — `getByText('Quản trị')` khớp **nhiều** phần tử vì "Quản trị" cũng là một
+  `<option>` trong mọi select của hàng khác.
+
+**Gate:** `npm run build` ✓ · `npm run lint` **0 problem** · `npm run test:run` **1035 test /
+127 file** (từ 1018/125).
+
+**Runtime verify: lúc viết là CÒN NỢ, đã trả cùng ngày — xem mục kế tiếp.** Lý do nợ đã đo chứ
+không đoán: route chưa lên prod — `api` `git ls-remote origin main` = **`d8b7f4e`**,
+`git show d8b7f4e:apps/gateway/src/user/user.controller.ts` **không có** `@Patch(":id/role")` (route
+chỉ sống ở working tree local của `api`, y hệt SEARCH-01). Chrome DevTools MCP không kết nối trong
+phiên này, và `curl` bị permission classifier chặn 3 lần ⇒ không dựng được cả đường "bundle local +
+data prod". Test MSW ở trên là bù cho đúng những assertion mà browser sẽ chạy.
+
+---
+
+### ROLE-ADMIN-01 · trả nợ runtime verify + vá lỗi a11y mà chỉ browser thấy (2026-09-15, "run mcp để test")
+
+Lượt tiếp theo trong ngày, khi `api` local đã có route: chạy **full stack local** (dev server
+`:5173` proxy `/api` → gateway `:3000`). **Đây vẫn không phải prod** — `PATCH /user/:id/role` chưa
+lên `origin/main` của `api`, nên release class của ROLE-ADMIN-01 **giữ nguyên C** và cây vẫn HOLD.
+
+**Dữ liệu dùng:** tài khoản dùng-một-lần `roleprobe0915` / `roleprobe0915@example.com` /
+`Test@1234` → `usr_0SjHPm1a8McsCBTs`. **Không** đụng `user1`/`shop1`/`admin1`. Đã **trả role về
+`user`** sau khi đo (kiểm hai lần, lần cuối đọc từ chính `<select>` đã render).
+
+**6 assertion đang nợ, đo được cả 6:**
+
+- Body `PATCH` là `{"role":"shop"}` — **tên thô**, không phải nhãn tiếng Việt → **200**.
+- Banner cyan đọc nguyên văn: *Đã đặt vai trò của roleprobe0915 thành "Người bán". Vai trò mới chỉ
+  có hiệu lực sau khi người dùng đăng xuất và đăng nhập lại.*
+- Hàng của chính `admin1` + **cả hai** hàng role GHN không render dropdown.
+- `scrollW === clientW` — bảng 5 cột không tràn ngang sau khi thêm select.
+- Console `/admin` sạch, 8/8 request **200**. Dòng `401 GET /user/me` **có thật nhưng bắn ở trang
+  login lúc còn ẩn danh** — đúng hành vi; `includePreservedRequests: true` mới thấy được nó thuộc
+  về page nào, và đó là lý do lần đầu tôi tưởng `/admin` lỗi.
+- **Điều kiện re-login — chứng minh ở tầng BE chứ không phải suy từ code.** Token cũ của
+  `roleprobe0915` gửi `POST /api/products` → **403 `Insufficient permissions`**; đăng xuất-đăng
+  nhập lại rồi gửi **đúng cùng body** → **400 `categoryIds must contain at least 1 ele…`** ⇒ role
+  check đã qua, và **không** tạo ra sản phẩm nào.
+
+**Bug thật, trong chính code lượt trước, chỉ browser mới lộ.** `aria-label` dựng bằng
+`Vai trò của ${user.username}`, mà stack đang chạy **có** hàng `username` toàn khoảng trắng (tạo
+trước NAME-TRIM-01; BE **không** backfill) ⇒ select đọc ra `Vai trò của ` — không có chủ ngữ.
+Sửa: `Vai trò của ${nonBlank(user.username) ?? user.id}` (dùng `nonBlank` sẵn có của
+AUTHOR-NAME-01, không viết mới), chọn `user.id` vì public id **chính là thứ cột đầu của hàng đó
+đang in** ⇒ người nghe screen reader nối được về hàng nhìn thấy. +1 fixture `usr_blank` + 1 test
+pin (**+1 test → 1036/127** tại thời điểm đó; con số cuối ở mục NAME-TRIM-01).
+
+**Một lệch FE↔BE tìm được nhờ đi verify, FE không tự đóng được.** `ProtectedRoute`/`useRole` đọc
+`GET /user/me` = **DB-fresh**, trong khi quyền thật nằm trong **JWT đã nướng role lúc login** ⇒
+người vừa được nâng lên `shop` mà **chưa** đăng nhập lại **vẫn vào được `/sell`**, thấy nguyên form
+người bán, bấm lưu mới ăn 403. FE không có đường nào đọc role trong token (cookie `httpOnly`) ⇒ ghi
+`../.agent-local/backend-handoff.md`. Đây **không** phải bug do ROLE-ADMIN-01 tạo ra — nó có sẵn từ
+trước, chỉ là trước đây không ai đổi role được nên không ai chạm tới.
+
+**Bẫy harness, nhớ cho lần sau.** Chrome DevTools MCP **không** trả `true` được cho
+`window.confirm`: sau lần chặn đầu tiên, mọi dialog tiếp theo bị auto-suppress
+(*"…was suppressed because another browser modal dialog was already showing"*) ⇒ `confirm` trả
+`false` và no-op guard hủy đúng luật — trông y như bug UI. Thử `fill` + `handle_dialog`, native
+setter + `dispatchEvent('change')` với `dialogAction: 'accept'`, reload rồi thử lại: **đều** bị
+suppress. Đường đi được: Playwright với dialog thật, hoặc gọi thẳng `fetch` từ chính phiên admin.
+Một confirm còn kẹt trong hàng đợi có nổi lên ở screenshot sau đó — đã **dismiss** (không accept)
+để nó không âm thầm đổi role rồi reload kiểm lại.
+
+**Non-bug đã phân loại, đừng churn:** 17 field không có `id`/`name` trên `/admin` (16 select của
+lượt này + 1 ô search sẵn có ở header). Đó là issue **autofill** của Chrome, không phải a11y —
+accessible name của cả 17 đến từ `aria-label` và đã đúng.
+
 ### LOGO-01 · favicon: thay logo mặc định của Vite bằng mark của TryBuy (2026-09-15)
 
 Yêu cầu user: *"tạo cái logo cho app ở đây"* + ảnh chụp tab trình duyệt — tab vẫn đang đeo

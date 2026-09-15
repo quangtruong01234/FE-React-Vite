@@ -105,8 +105,8 @@ Known replacements (preferred alias listed first; see `.ai/tokens.md` "Which Sys
 | `#A1A1AA` | `text-ink-sec` | `text-tb-secondary` |
 | `#F59E0B` | `text-accent-amber` | `text-tb-amber` |
 | `#EF4444` | `text-accent-red` | `text-tb-red` |
-| `#06b6d4` | `text-accent-cyan` | **no `tb-*`** — alias only |
-| `#10b981` | `text-accent-green` | **no `tb-*`** — alias only |
+| `#06B6D4` | `text-accent-cyan` | `text-tb-cyan` |
+| `#10B981` | `text-accent-green` | `text-tb-green` |
 | `#0B0B0E` | `bg-canvas-base` | `bg-tb-base` (close — verify with designer) |
 
 ### Check 5 — raw Tailwind palette colors
@@ -145,6 +145,23 @@ Scope: src/**/*.tsx
 
 Severity: 🟡 yellow — heuristic, KHÔNG phải mọi case đều sai (vd badge/pill cố ý dài). grep không biết element có vuông lúc render hay không → phải verify visual bằng `/verify-ui` hoặc screenshot qua Chrome DevTools MCP trước khi sửa.
 
+### Check 8 — opacity modifier trên alias `var()` (class **chết**, không sinh CSS)
+
+`canvas-*`, `ink-*`, `bdr`, và `accent-{pri,sec,cyan,green,red,amber}` đều map sang `var(--…)` trong `tailwind.config.js`. Tailwind v3 cần `<alpha-value>` để chèn alpha, nên gặp `/NN` trên các alias đó nó **bỏ luôn cả class** — không phải "sai màu" mà là **không có khai báo nào** trong CSS build ra.
+
+**Đã đo (2026-09-16, `dist/assets/*.css` sau `npm run build`):** `accent-amber\/50` → **0** hit, `accent-amber\/10` → **0** hit; còn `accent-violet\/20` (hex literal `#8b5cf6`) → 1 hit, `tb-red\/10` → 3 hit, `accent-amber{` (không có modifier) → 4 hit. Tức alias vẫn chạy bình thường **khi không có** modifier.
+
+```
+Pattern: \b(bg|border|text|ring|divide|from|via|to|outline|placeholder|shadow|fill|stroke)-(canvas-(base|surface|elevated)|ink-(pri|sec|muted)|bdr|accent-(pri|sec|cyan|green|red|amber))/[0-9]+
+Scope: src/**/*.tsx, src/**/*.ts
+```
+
+Fix: đổi sang token hex-literal cùng màu — `tb-amber` (#F59E0B = `accent-amber`/`accent-pri`), `tb-red` (#EF4444 = `accent-red`/`accent-sec`), `tb-green` (#10B981 = `accent-green`), `tb-cyan` (#06B6D4 = `accent-cyan`), `tb-base`/`tb-surface`/`tb-elevated`/`tb-border`/`tb-muted`/`tb-secondary` cho nhóm canvas/ink/bdr. Giữ nguyên alias ở phần **không** có modifier (`text-accent-amber`), chỉ đổi đúng chỗ có `/NN`.
+
+`accent-violet` + `accent-blue` là hex literal ⇒ **không** phải violation.
+
+Severity: 🔴 red — nhìn code tưởng có nền/viền mờ, render ra **không có gì**. Cách tự kiểm chứng rẻ nhất: `npm run build` rồi `grep -o -F 'accent-amber\/50' dist/assets/*.css` — 0 hit là chết.
+
 ---
 
 ## Output Format
@@ -157,6 +174,7 @@ Severity: 🟡 yellow — heuristic, KHÔNG phải mọi case đều sai (vd bad
 [🔴 VIOLATION] src/features/order/OrderHistoryPage.tsx:24 — raw palette text-gray-500 (use text-ink-muted)
 [🟡 WARN]      src/features/product/ProductDetail.tsx:88 — arbitrary value w-[437px]
 [🟡 WARN]      src/features/user/FollowListModal.tsx:31 — rounded-full + w-/h- (use size-* grid place-items-center)
+[🔴 VIOLATION] src/features/shop/ShopPage.tsx:182 — hover:border-accent-amber/50 on a var() alias → no CSS emitted (use tb-amber/50)
 ```
 
 If clean:
@@ -175,8 +193,9 @@ If clean:
   🔴 .css imports      : c
   🔴 Hardcoded hex     : d
   🔴 Raw palette       : e
+  🔴 Dead /NN on alias : h
   🟡 Arbitrary values  : f
   🟡 Circular non-size : g
-  Total violations     : a+b+c+d+e+f+g
+  Total violations     : a+b+c+d+e+f+g+h
 ────────────────────────────────────────────────
 ```

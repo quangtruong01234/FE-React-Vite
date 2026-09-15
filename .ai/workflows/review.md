@@ -89,6 +89,9 @@ DESIGN DECISIONS — không thay đổi:
 - [ ] Color contrast meets WCAG AA (dark theme makes this easier to miss)
 
 ### 10. General
+> Rule source: core.md "No native browser dialogs"
+- [ ] 🔴 No `window.confirm` / `window.alert` / `window.prompt` (or bare `confirm()` / `alert()` / `prompt()`) anywhere in `src/` — a confirm question uses `<ConfirmDialog>` (`components/shared/`), a richer question reuses an existing modal, and a one-way notice uses the page's toast/notice or the dialog's `error` prop
+- [ ] A new modal is only built after `ui/` → `shared/` → feature folder came up empty, and it follows the `ReportPostDialog.tsx` idiom (`ui/dialog` + `GradientButton`)
 - [ ] Business logic in hooks, not inline JSX
 - [ ] Loading states use `<Skeleton />`, not spinners or empty renders
 - [ ] Error states handled explicitly — not silently ignored
