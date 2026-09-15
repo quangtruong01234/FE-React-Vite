@@ -7,9 +7,9 @@ import { server } from '@/test/msw/server';
 import { API_BASE } from '@/test/msw/handlers';
 import { ProtectedRoute } from './ProtectedRoute';
 import type { RequiredRole } from '@/lib/auth/roleAccess';
-import type { User, Role } from '@/types';
+import type { CurrentUser, Role } from '@/types';
 
-function stubMe(user: User): void {
+function stubMe(user: CurrentUser): void {
   server.use(
     http.get(`${API_BASE}/user/me`, () => HttpResponse.json({ data: user })),
   );
@@ -23,13 +23,14 @@ function stubMeUnauthenticated(): void {
   );
 }
 
-function makeUser(roleName: Role['name']): User {
+function makeUser(roleName: Role['name'], session?: Partial<CurrentUser>): CurrentUser {
   return {
     id: 'usr_0000000000000001',
     username: 'tester',
     email: 'tester@test.com',
     role: { id: 3, name: roleName },
     isActive: true,
+    ...session,
   };
 }
 
@@ -86,5 +87,29 @@ describe('ProtectedRoute', () => {
 
     expect(await screen.findByText('trang chủ')).toBeInTheDocument();
     expect(screen.queryByText('nội dung bảo vệ')).not.toBeInTheDocument();
+  });
+
+  // ROLE-ADMIN-01 (2026-09-16): the guard follows the JWT, not the DB row.
+  it('redirects a promoted user who has not signed in again — the token is still `user`', async () => {
+    stubMe(makeUser('shop', { tokenRole: 'user', isRoleStale: true }));
+    renderProtected('shop');
+
+    expect(await screen.findByText('trang chủ')).toBeInTheDocument();
+    // Without the token role this page rendered fine and 403'd on submit.
+    expect(screen.queryByText('nội dung bảo vệ')).not.toBeInTheDocument();
+  });
+
+  it('still lets in a demoted user whose token is the one the API honours', async () => {
+    stubMe(makeUser('user', { tokenRole: 'shop', isRoleStale: true }));
+    renderProtected('shop');
+
+    expect(await screen.findByText('nội dung bảo vệ')).toBeInTheDocument();
+  });
+
+  it('falls back to the stored role when the response carries no tokenRole', async () => {
+    stubMe(makeUser('shop'));
+    renderProtected('shop');
+
+    expect(await screen.findByText('nội dung bảo vệ')).toBeInTheDocument();
   });
 });

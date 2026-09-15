@@ -1,5 +1,6 @@
 import type {
   User,
+  CurrentUser,
   LoginDto,
   RegisterDto,
   ForgotPasswordDto,
@@ -36,6 +37,8 @@ export const authApi = {
   logout: (): Promise<void> =>
     request('/user/logout', { method: 'POST' }),
 
-  me: (): Promise<User> =>
-    request<User>('/user/me', { skipUnauthorizedRedirect: true }),
+  // The only route carrying `tokenRole`/`isRoleStale` — login mints the token in
+  // the same call, so it has nothing to compare (ROLE-ADMIN-01, 2026-09-16).
+  me: (): Promise<CurrentUser> =>
+    request<CurrentUser>('/user/me', { skipUnauthorizedRedirect: true }),
 };

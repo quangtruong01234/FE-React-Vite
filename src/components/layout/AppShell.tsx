@@ -4,6 +4,7 @@ import { Header } from './Header';
 import { LeftRail } from './LeftRail';
 import { MobileNav } from './MobileNav';
 import { RightRail } from './RightRail';
+import { RoleStaleBanner } from './RoleStaleBanner';
 import { RouteErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { GlobalCreatePost } from '@/features/social/GlobalCreatePost';
 
@@ -18,6 +19,7 @@ export function AppShell({ children, rightRail, fixedHeight }: AppShellProps): R
     return (
       <div className="h-screen overflow-hidden bg-canvas-base flex flex-col">
         <Header />
+        <RoleStaleBanner />
         <div className="flex-1 overflow-hidden grid md:grid-cols-[210px_minmax(0,1fr)] px-5 pt-6 gap-6 min-h-0 items-stretch">
           <LeftRail fullHeight />
           <main className="min-w-0 min-h-0 overflow-hidden">
@@ -32,6 +34,7 @@ export function AppShell({ children, rightRail, fixedHeight }: AppShellProps): R
   return (
     <div className="min-h-screen bg-canvas-base">
       <Header />
+      <RoleStaleBanner />
       <div
         className={cn(
           'w-full px-5 pt-6 pb-24 grid gap-6 items-start',
