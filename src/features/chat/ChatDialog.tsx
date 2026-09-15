@@ -6,6 +6,7 @@ import { api } from '@/api';
 import { queryClient } from '@/lib/query/queryClient';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { cn } from '@/lib/format/utils';
+import { userDisplayName } from '@/lib/format/user';
 import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
 import { ChatThread } from './ChatThread';
 import type { Conversation, User } from '@/types';
@@ -56,7 +57,7 @@ export function ChatDialog({ otherUser, open, onClose }: ChatDialogProps): React
           )}
         >
           <DialogPrimitive.Title className="sr-only">
-            Chat với {otherUser.name ?? otherUser.username}
+            Chat với {userDisplayName(otherUser)}
           </DialogPrimitive.Title>
           <DialogPrimitive.Description className="sr-only">
             Cửa sổ trò chuyện. Đọc tin nhắn và soạn tin trả lời.

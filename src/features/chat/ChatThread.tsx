@@ -6,6 +6,7 @@ import { useRole } from '@/hooks/auth/useRole';
 import { useChat } from './useChat';
 import { chatConnectionBanner } from './chatConnection';
 import { cn } from '@/lib/format/utils';
+import { userDisplayName } from '@/lib/format/user';
 import type { Conversation, PublicUser } from '@/types';
 
 function formatMessageTime(iso: string): string {
@@ -105,6 +106,10 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+  // Empty fallback on purpose: the peer embed is absent while its query is in
+  // flight, and the header then falls back to the conversation id below.
+  const peerName = userDisplayName(otherUser, '');
+
   function handleSend(): void {
     const trimmed = text.trim();
     if (!trimmed || meId === undefined) return;
@@ -125,12 +130,12 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
         <Avatar
           size={40}
           src={otherUser?.avatar ?? undefined}
-          alt={otherUser?.name ?? otherUser?.username ?? ''}
-          initials={(otherUser?.name ?? otherUser?.username ?? '?').charAt(0).toUpperCase()}
+          alt={peerName}
+          initials={(peerName || '?').charAt(0).toUpperCase()}
         />
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm text-ink-pri truncate">
-            {otherUser?.name ?? otherUser?.username ?? `Hội thoại #${conversation.id}`}
+            {peerName || `Hội thoại #${conversation.id}`}
           </div>
           {otherUser?.username && (
             <div className="text-xs text-ink-muted">@{otherUser.username}</div>

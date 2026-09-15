@@ -11,6 +11,7 @@ import { queryClient } from '@/lib/query/queryClient';
 import { useConversations, useMarkConversationRead } from './useChat';
 import { ChatThread } from './ChatThread';
 import { cn } from '@/lib/format/utils';
+import { userDisplayName } from '@/lib/format/user';
 import { relativeTimeShort } from '@/lib/format/time';
 import type { Conversation, PublicUser } from '@/types';
 
@@ -84,7 +85,7 @@ export default function MessagesPage(): ReactElement {
     ? conversations.filter((c) => {
         const otherId = otherUserId(c);
         const u = userMap.get(otherId);
-        const label = u?.name ?? u?.username ?? String(otherId);
+        const label = userDisplayName(u, String(otherId));
         return label.toLowerCase().includes(search.trim().toLowerCase());
       })
     : conversations;
@@ -136,7 +137,7 @@ export default function MessagesPage(): ReactElement {
             const isActive = c.id === selectedId;
             const otherId = otherUserId(c);
             const otherUser = userMap.get(otherId);
-            const displayName = otherUser?.name ?? otherUser?.username ?? `Người dùng #${otherId}`;
+            const displayName = userDisplayName(otherUser, `Người dùng #${otherId}`);
             const initials = displayName.charAt(0).toUpperCase();
             const hasUnread = c.unreadCount > 0;
             const preview = c.lastMessage
