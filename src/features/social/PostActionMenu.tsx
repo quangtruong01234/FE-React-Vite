@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { MoreHorizontal, Link2, Loader2, Trash2, Pencil, Flag } from 'lucide-react';
 import { IconButton } from '@/components/shared/IconButton';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { cn } from '@/lib/format/utils';
 import { useDeletePost } from './useFeed';
 import { ReportPostDialog } from './ReportPostDialog';
@@ -22,8 +23,9 @@ interface PostActionMenuProps {
 export function PostActionMenu({ postId, isOwner, canReport = false, onCopyLink, onEdit, onDeleted }: PostActionMenuProps) {
   const [open, setOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const { mutate: deletePost, isPending } = useDeletePost();
+  const { mutate: deletePost, isPending, error: deleteError } = useDeletePost();
 
   useEffect(() => {
     function handleClick(e: MouseEvent): void {
@@ -54,9 +56,13 @@ export function PostActionMenu({ postId, isOwner, canReport = false, onCopyLink,
   function handleDelete(e: React.MouseEvent): void {
     e.stopPropagation();
     if (isPending) return;
-    if (!window.confirm('Xóa bài viết này? Hành động không thể hoàn tác.')) return;
+    setConfirmOpen(true);
+  }
+
+  function confirmDelete(): void {
     deletePost(postId, {
       onSuccess: () => {
+        setConfirmOpen(false);
         setOpen(false);
         onDeleted?.();
       },
@@ -126,6 +132,18 @@ export function PostActionMenu({ postId, isOwner, canReport = false, onCopyLink,
       )}
 
       <ReportPostDialog postId={postId} open={reportOpen} onClose={() => setReportOpen(false)} />
+
+      <ConfirmDialog
+        open={confirmOpen}
+        tone="danger"
+        title="Xóa bài viết"
+        description="Hành động này không thể hoàn tác."
+        confirmLabel="Xóa bài viết"
+        isPending={isPending}
+        error={deleteError ? 'Xóa bài viết thất bại. Vui lòng thử lại.' : null}
+        onConfirm={confirmDelete}
+        onCancel={() => { setConfirmOpen(false); }}
+      />
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { Pagination } from '@/components/shared/Pagination';
 import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
 import { ToggleSwitch } from '@/components/shared/ToggleSwitch';
 import { GradientButton } from '@/components/shared/GradientButton';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { IconButton } from '@/components/shared/IconButton';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePageParam } from '@/hooks/ui/usePageParam';
@@ -131,6 +132,11 @@ function VoucherForm({
   const isActive = useWatch({ control, name: 'isActive' });
   const toggleCopy = voucherActiveToggleCopy(isEdit, isActive);
 
+  /** The one-way edit waiting on its confirm modal, plus the form it will save. */
+  const [loosening, setLoosening] = useState<
+    { message: string; form: VoucherFormData } | null
+  >(null);
+
   const saveVoucher = useMutation({
     mutationFn: (form: VoucherFormData) =>
       voucher
@@ -151,11 +157,19 @@ function VoucherForm({
         setError('root', { message: blocked });
         return;
       }
-      // …and make the one-way edits an explicit decision.
+      // …and make the one-way edits an explicit decision. The answer comes back
+      // from the modal, which resumes the save through `persist`.
       const confirmation = voucherLooseningConfirm(dto, voucher);
-      if (confirmation && !window.confirm(confirmation)) return;
+      if (confirmation) {
+        setLoosening({ message: confirmation, form });
+        return;
+      }
     }
 
+    await persist(form);
+  }
+
+  async function persist(form: VoucherFormData): Promise<void> {
     try {
       const saved = await saveVoucher.mutateAsync(form);
       // A new code lands at the top of the newest-first list, so every cached
@@ -398,6 +412,20 @@ function VoucherForm({
           </GradientButton>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={loosening !== null}
+        title="Nới lỏng điều kiện?"
+        description={loosening?.message ?? ''}
+        confirmLabel="Tiếp tục"
+        isPending={saveVoucher.isPending}
+        onConfirm={() => {
+          const pending = loosening;
+          setLoosening(null);
+          if (pending) void persist(pending.form);
+        }}
+        onCancel={() => { setLoosening(null); }}
+      />
     </form>
   );
 }
@@ -506,6 +534,8 @@ export function VoucherConsole({ binding }: { binding: VoucherConsoleBinding }):
   // can diff against the exact values the user was looking at.
   const [editing, setEditing] = useState<Voucher | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  /** The row waiting on the deactivate confirm modal. */
+  const [pendingDeactivate, setPendingDeactivate] = useState<Voucher | null>(null);
 
   const { data, isLoading, isFetching, error } = useQuery({
     queryKey: binding.listPageKey(page, LIMIT),
@@ -544,11 +574,11 @@ export function VoucherConsole({ binding }: { binding: VoucherConsoleBinding }):
     },
   });
 
-  function handleDeactivate(voucher: Voucher): void {
-    if (!window.confirm(`Tắt mã ${voucher.code}? Người mua sẽ không dùng được cho tới khi bật lại.`)) {
-      return;
-    }
-    deactivate.mutate(voucher);
+  function confirmDeactivate(): void {
+    if (!pendingDeactivate) return;
+    deactivate.mutate(pendingDeactivate, {
+      onSettled: () => { setPendingDeactivate(null); },
+    });
   }
 
   function handleEdit(voucher: Voucher): void {
@@ -674,7 +704,7 @@ export function VoucherConsole({ binding }: { binding: VoucherConsoleBinding }):
                     deactivatePending={deactivate.isPending && deactivate.variables?.id === voucher.id}
                     reactivatePending={reactivate.isPending && reactivate.variables?.id === voucher.id}
                     onEdit={handleEdit}
-                    onDeactivate={handleDeactivate}
+                    onDeactivate={setPendingDeactivate}
                     onReactivate={(row) => reactivate.mutate(row)}
                   />
                 ))}
@@ -692,6 +722,17 @@ export function VoucherConsole({ binding }: { binding: VoucherConsoleBinding }):
           onPageChange={setPage}
         />
       )}
+
+      <ConfirmDialog
+        open={pendingDeactivate !== null}
+        tone="danger"
+        title={pendingDeactivate ? `Tắt mã ${pendingDeactivate.code}?` : ''}
+        description="Người mua sẽ không dùng được cho tới khi bật lại."
+        confirmLabel="Tắt mã"
+        isPending={deactivate.isPending}
+        onConfirm={confirmDeactivate}
+        onCancel={() => { setPendingDeactivate(null); }}
+      />
     </div>
   );
 }

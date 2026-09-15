@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { IconButton } from '@/components/shared/IconButton';
 import { ToggleSwitch } from '@/components/shared/ToggleSwitch';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { useAuthContext } from '@/context/useAuthContext';
@@ -70,6 +71,10 @@ export default function CreateProductPage(): ReactElement {
   const queryClient = useQueryClient();
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  /** The SKU-removal warning waiting on its modal, and the save it will resume. */
+  const [pendingSkuRemoval, setPendingSkuRemoval] = useState<
+    { count: number; draftMode: boolean } | null
+  >(null);
   const submitSuccessRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timerRef.current), []);
@@ -261,21 +266,23 @@ export default function CreateProductPage(): ReactElement {
     if (Object.keys(errs).length > 0) return;
 
     // Warn before an edit removes SKU combinations that already exist on the
-    // saved product — those rows may be referenced by orders or carts.
+    // saved product — those rows may be referenced by orders or carts. The
+    // answer arrives from the modal, so the save resumes in `submitProduct`.
     if (isEditMode && originalTierIdx.size > 0) {
       const nextTierIdx = new Set(
         form.fields.hasVariations ? form.combos.map(c => c.tierIdx) : [],
       );
       const removed = [...originalTierIdx].filter(t => !nextTierIdx.has(t));
       if (removed.length > 0) {
-        const ok = window.confirm(
-          `Bạn sắp xóa ${removed.length} phân loại (SKU) đã tồn tại trên sản phẩm. ` +
-            `Đơn hàng hoặc giỏ hàng đang tham chiếu các SKU này có thể bị ảnh hưởng. Tiếp tục?`,
-        );
-        if (!ok) return;
+        setPendingSkuRemoval({ count: removed.length, draftMode });
+        return;
       }
     }
 
+    await submitProduct(draftMode);
+  }
+
+  async function submitProduct(draftMode: boolean): Promise<void> {
     const payload = form.buildPayload();
     if (draftMode) payload.isActive = false;
 
@@ -549,6 +556,26 @@ export default function CreateProductPage(): ReactElement {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={pendingSkuRemoval !== null}
+        tone="danger"
+        title="Xóa phân loại đã tồn tại?"
+        description={
+          pendingSkuRemoval
+            ? `Bạn sắp xóa ${pendingSkuRemoval.count} phân loại (SKU) đã tồn tại trên sản phẩm. ` +
+              'Đơn hàng hoặc giỏ hàng đang tham chiếu các SKU này có thể bị ảnh hưởng.'
+            : ''
+        }
+        confirmLabel="Tiếp tục lưu"
+        isPending={isPending}
+        onConfirm={() => {
+          const draftMode = pendingSkuRemoval?.draftMode ?? false;
+          setPendingSkuRemoval(null);
+          void submitProduct(draftMode);
+        }}
+        onCancel={() => { setPendingSkuRemoval(null); }}
+      />
     </div>
   );
 }

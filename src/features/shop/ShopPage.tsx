@@ -13,6 +13,7 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ToggleSwitch } from "@/components/shared/ToggleSwitch";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/format/utils";
@@ -307,15 +308,18 @@ export default function ShopPage() {
     undefined,
   );
   const [search, setSearch] = useState("");
+  /** The row waiting on the delete confirm modal. */
+  const [pendingDelete, setPendingDelete] =
+    useState<ProductWithInventory | null>(null);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.products.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.products.all });
+      setPendingDelete(null);
     },
-    onError: () => {
-      alert("Xóa sản phẩm thất bại. Vui lòng thử lại.");
-    },
+    // No `onError`: the failure is rendered inside the confirm modal, which
+    // stays open so the seller can retry on the same row.
   });
 
   const SHOP_QUERY_KEY = queryKeys.products.list(shopParams);
@@ -357,9 +361,9 @@ export default function ShopPage() {
     navigate(`/sell/${id}`);
   }
 
-  function handleDelete(id: string): void {
-    if (!window.confirm("Xóa sản phẩm này?")) return;
-    deleteMutation.mutate(id);
+  function confirmDelete(): void {
+    if (!pendingDelete) return;
+    deleteMutation.mutate(pendingDelete.id);
   }
 
   const filteredProducts = useMemo(
@@ -648,7 +652,11 @@ export default function ShopPage() {
                       key={p.id}
                       product={p}
                       onEdit={() => handleEdit(p.id)}
-                      onDelete={() => handleDelete(p.id)}
+                      onDelete={() => {
+                        // Clear a previous row's failure before asking again.
+                        deleteMutation.reset();
+                        setPendingDelete(p);
+                      }}
                       onToggleActive={() =>
                         toggleActiveMutation.mutate({
                           id: p.id,
@@ -671,6 +679,26 @@ export default function ShopPage() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        tone="danger"
+        title="Xóa sản phẩm"
+        description={
+          pendingDelete
+            ? `Xóa "${pendingDelete.name}" khỏi gian hàng? Hành động này không thể hoàn tác.`
+            : ""
+        }
+        confirmLabel="Xóa sản phẩm"
+        isPending={deleteMutation.isPending}
+        error={
+          deleteMutation.isError
+            ? "Xóa sản phẩm thất bại. Vui lòng thử lại."
+            : null
+        }
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

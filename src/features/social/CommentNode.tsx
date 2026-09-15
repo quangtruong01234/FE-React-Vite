@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Avatar } from '@/components/shared/Avatar';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRole } from '@/hooks/auth/useRole';
 import { useReplies, useCreateReply, useDeleteComment } from './useComments';
@@ -36,6 +37,7 @@ export function CommentNode({
 
   const [replying, setReplying] = useState(false);
   const [showReplies, setShowReplies] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const { data: repliesData, isLoading: repliesLoading } = useReplies(comment.id, showReplies);
   const createReply = useCreateReply();
@@ -56,13 +58,11 @@ export function CommentNode({
     setShowReplies(true);
   }
 
-  function handleDelete(): void {
-    if (!window.confirm('Xoá bình luận này?')) return;
-    deleteComment.mutate({
-      commentId: comment.id,
-      postId,
-      parentCommentId,
-    });
+  function confirmDelete(): void {
+    deleteComment.mutate(
+      { commentId: comment.id, postId, parentCommentId },
+      { onSuccess: () => { setConfirmingDelete(false); } },
+    );
   }
 
   const replies = repliesData?.children ?? [];
@@ -102,7 +102,7 @@ export function CommentNode({
             {isOwn && (
               <button
                 type="button"
-                onClick={handleDelete}
+                onClick={() => setConfirmingDelete(true)}
                 disabled={deleteComment.isPending}
                 className="bg-transparent border-0 cursor-pointer p-0 hover:text-accent-red transition-colors flex items-center gap-1"
               >
@@ -179,6 +179,18 @@ export function CommentNode({
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        tone="danger"
+        title="Xoá bình luận"
+        description="Hành động này không thể hoàn tác."
+        confirmLabel="Xoá"
+        isPending={deleteComment.isPending}
+        error={deleteComment.error ? 'Xoá bình luận thất bại. Vui lòng thử lại.' : null}
+        onConfirm={confirmDelete}
+        onCancel={() => { setConfirmingDelete(false); }}
+      />
     </div>
   );
 }

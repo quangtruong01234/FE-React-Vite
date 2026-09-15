@@ -1,16 +1,9 @@
 import { useState, type ReactElement } from 'react';
 import { MapPin, Plus, Pencil, Trash2, Star, Loader2 } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { IconButton } from '@/components/shared/IconButton';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/format/utils';
 import { AddressFormModal } from './AddressFormModal';
 import { useAddresses, useSetDefaultAddress, useDeleteAddress } from './useAddresses';
 import { formatAddressSummary } from './addressUtils';
@@ -102,10 +95,14 @@ export default function AddressesPage(): ReactElement {
     setFormOpen(true);
   }
 
-  async function confirmDelete(): Promise<void> {
+  function confirmDelete(): void {
     if (!pendingDelete) return;
-    await deleteAddress.mutateAsync(pendingDelete.id);
-    setPendingDelete(null);
+    // `mutate`, not `mutateAsync`: nothing here awaits the result, and a
+    // rejected promise left floating surfaces as an unhandled rejection. The
+    // failure is rendered inside the dialog instead, which stays open.
+    deleteAddress.mutate(pendingDelete.id, {
+      onSuccess: () => { setPendingDelete(null); },
+    });
   }
 
   return (
@@ -180,43 +177,21 @@ export default function AddressesPage(): ReactElement {
         />
       )}
 
-      <Dialog open={!!pendingDelete} onOpenChange={(o) => { if (!o) setPendingDelete(null); }}>
-        <DialogContent className="max-w-sm bg-canvas-surface border-bdr text-ink-pri">
-          <DialogHeader>
-            <DialogTitle className="font-display text-lg text-ink-pri">Xóa địa chỉ</DialogTitle>
-            <DialogDescription className="text-sm text-ink-sec">
-              {pendingDelete
-                ? `Bạn có chắc muốn xóa địa chỉ của ${pendingDelete.recipientName}? Hành động này không thể hoàn tác.`
-                : ''}
-            </DialogDescription>
-          </DialogHeader>
-          {deleteAddress.error && (
-            <p className="text-sm text-accent-red">Xóa địa chỉ thất bại. Vui lòng thử lại.</p>
-          )}
-          <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={() => setPendingDelete(null)}
-              className="flex-1 bg-canvas-elevated border border-bdr rounded-tb-cta py-2.5 text-sm font-semibold text-ink-sec cursor-pointer hover:border-accent-amber/50 transition-colors"
-            >
-              Hủy
-            </button>
-            <button
-              type="button"
-              onClick={() => void confirmDelete()}
-              disabled={deleteAddress.isPending}
-              className={cn(
-                'flex-1 rounded-tb-cta py-2.5 text-sm font-semibold cursor-pointer transition-colors',
-                'bg-accent-red/15 border border-accent-red/40 text-accent-red hover:bg-accent-red/25',
-                'disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2',
-              )}
-            >
-              {deleteAddress.isPending && <Loader2 size={14} className="animate-spin shrink-0" />}
-              Xóa
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        tone="danger"
+        title="Xóa địa chỉ"
+        description={
+          pendingDelete
+            ? `Bạn có chắc muốn xóa địa chỉ của ${pendingDelete.recipientName}? Hành động này không thể hoàn tác.`
+            : ''
+        }
+        confirmLabel="Xóa"
+        isPending={deleteAddress.isPending}
+        error={deleteAddress.error ? 'Xóa địa chỉ thất bại. Vui lòng thử lại.' : null}
+        onConfirm={confirmDelete}
+        onCancel={() => { setPendingDelete(null); }}
+      />
     </div>
   );
 }
