@@ -7,6 +7,260 @@
 
 ## Maintenance
 
+### LOGO-01 · favicon: thay logo mặc định của Vite bằng mark của TryBuy (2026-09-15)
+
+Yêu cầu user: *"tạo cái logo cho app ở đây"* + ảnh chụp tab trình duyệt — tab vẫn đang đeo
+`vite.svg` bên cạnh chữ "TryBuy".
+
+`public/favicon.svg` (~1.3 KB, hình học thuần, **không** font ngoài, **không** raster nhúng,
+không cần bước build). Gradient lấy đúng `bg-tb-gradient` của wordmark (135° `#F59E0B` →
+`#EF4444`, `tailwind.config.js:40`) — tab và chữ "Buy" ở `Header.tsx:27` phải là **một** thương
+hiệu, nên sửa thì sửa cả hai chỗ hoặc không sửa chỗ nào.
+
+**Chọn chữ `T` chứ không phải túi mua sắm — đo chứ không đoán.** Favicon sống ở **16px**, nên đã
+raster 6 phương án ra canvas 16/20/24/32 rồi phóng 7× bằng `imageSmoothingEnabled = false` để nhìn
+đúng thứ trình duyệt vẽ:
+
+| Phương án | Ở 16px |
+| --- | --- |
+| Túi + quai (2 biến thể độ dày quai) | **đọc ra ổ khoá** — quai cung + thân bo tròn cho đúng cái silhouette đó. Biểu tượng ổ khoá trên thanh tab là thứ không được phép nhầm |
+| Túi với quai khoét âm bản | quai đứt rời khỏi thân, trông như hình lỗi |
+| Chữ `TB` | hai chữ ~7px mỗi chữ ⇒ bết |
+| Dấu tick | sắc nét, nhưng không nói gì về TryBuy |
+| **Chữ `T` đậm** | **sắc nét ở cả 16px**, và nối thẳng với wordmark |
+
+Chữ `T` cắt theo tỉ lệ Barlow Condensed Black (`font-display`), chân chữ phẳng và toạ độ đặt ở số
+nguyên để nét dọc không rơi lệch pixel grid khi raster ở 16px. Verify: nền tab sáng **và** tối,
+`GET /favicon.svg` → **200 `image/svg+xml`**, `dist/` sau build có `favicon.svg` + `index.html` trỏ
+đúng. Xoá luôn `public/vite.svg` — sau lượt này không còn ai tham chiếu.
+
+### AUTHOR-NAME-01 · tên hiển thị của tác giả, và một `nonBlank` duy nhất (2026-09-15)
+
+Yêu cầu user: *"BE đã làm xong AUTHOR-NAME-01 => làm xong task này run mcp test các task từ nãy
+giờ"*. Gốc của task là ảnh user gửi hôm trước: header bài viết in `canceltest1779978329` thay vì
+tên người dùng. Lượt đó user chọn **chờ BE thêm `name`** thay vì để FE bịa; giờ BE đã thả field.
+
+**Contract BE (`frontend-handoff.md`, 2026-09-15):** `name` được thêm vào embed `author` của
+post / comment / reply và **mọi route dùng chung `fetchAuthorMap`** — danh sách post, post detail,
+comments, replies, followers/following/feed, và admin reports (`post.author` + `reports[].reporter`).
+Key **luôn có mặt**, giá trị `string | null`; BE tự trim và quy chuỗi toàn khoảng trắng về `null`.
+Release class **B** (additive), BE push độc lập.
+
+**BE ghi "FE optional" — nhưng việc là thật, vì hai lý do đo được:**
+
+1. Ba chỗ đang viết `name ?? username` trần. `??` **không** bắt `''`: một account có
+   `name: "   "` (`PATCH /user/:id` nhận) sẽ render nhãn trống. BE chỉ normalize ở embed này,
+   không phải ở mọi nơi, nên FE không được dựa vào đó.
+2. `nonBlank` đang tồn tại **ba bản sao** ở ba feature folder — `searchSuggestions.ts`,
+   `sellerName.ts`, `commentAuthor.ts`. Luật DRY–Logic của `core.md` bắt gom lại.
+
+⇒ Gom vào `src/lib/format/user.ts`: `nonBlank()`, `USER_FALLBACK` (`'Người dùng'`, cố ý không
+kèm id thô) và `userDisplayName(user, fallback = USER_FALLBACK)` = `name → username → fallback`.
+
+Tên helper là `user*` chứ không phải `author*` vì phạm vi **không** dừng ở embed social: cái bẫy
+`name ?? username` nằm ở mọi màn có nhãn người. Sau khi user bảo *"làm luôn đi"*, đã quét sạch —
+`grep` giờ không còn chỗ nào viết `name ?? username` trần:
+
+| Người tiêu thụ | Nguồn dữ liệu |
+| --- | --- |
+| `PostCard`, `PostDetailPage`, `ReportedPostsPage`, `commentAuthor.ts` | embed `author` (BE đã normalize) |
+| `searchSuggestions.ts` (cả hàng seller lẫn hàng bài viết) | `GET /user/search` |
+| `LeftRail`, `ProfileMenu`, `ProfilePage`, `EditProfileModal` | `/user/me`, `GET /user/:id` |
+| `RightRail` | featured sellers |
+| `ChatThread`, `ChatDialog`, `MessagesPage` (nhãn hàng **và** bộ lọc tìm kiếm) | embed user của chat |
+| `AdminPage` (cột người mua) | `order.buyer` |
+
+Tham số `fallback` sinh ra cho đúng nhóm chat: ở đó embed user có thể **vắng hẳn** (query chưa về,
+hoặc account đã xoá), và màn cần phân biệt hai hàng chưa resolve ⇒ `MessagesPage` truyền
+`Người dùng #${otherId}`, `ChatThread` truyền `''` để tự thay bằng số hội thoại. Mặc định vẫn là
+hằng trung tính, không kèm id thô.
+
+**Bịt luôn đầu nguồn, không chỉ chỗ hiển thị:** schema của form "Chỉnh sửa hồ sơ" — màn **duy
+nhất** trong app ghi `name` — trước đây là `z.string().min(1)`, mà `"   "` dài 3 nên lọt, rồi
+`PATCH /user/:id` lưu nguyên. Tách schema ra `features/user/profileForm.ts` và đổi thành
+`z.string().trim().min(1)`: khoảng trắng bị từ chối, và cái được lưu là bản đã trim
+(`" Quang "` → `"Quang"`). Prefill của form cố ý dùng `nonBlank(user.name) ?? user.username`
+**chứ không** `userDisplayName()` — fallback `'Người dùng'` mà lọt vào ô nhập sẽ bị lưu thành tên
+thật khi user bấm Lưu.
+
+**Cái bẫy đắt nhất của task này, và nó đã được khoá bằng comment + test:** `user.name` mang **hai
+nghĩa ngược nhau** ở hai embed. Ở embed **product**, `user.name` chứa chính **username**
+(ENRICH-BATCH-01 làm vậy để field không bao giờ null); ở embed **social**, `name` là tên hiển thị
+thật và **nullable**. BE nói thẳng trong handoff: *"Đừng viết helper dùng chung cho hai chỗ."*
+Nên `sellerName.ts` **chỉ** mượn `nonBlank`, giữ nguyên thứ tự `user.name → brand.name →
+SELLER_FALLBACK` của nó, và mang một đoạn doc giải thích vì sao nó **không** gọi
+`userDisplayName()`. Cùng lý do, `ProductRiskPage` (`product.user?.name`) được cố ý để nguyên.
+
+`PostAuthor.name` khai báo `name?: string | null` — nullable vì BE cho phép null, **optional** vì
+một response do gateway cũ hơn đợt rollout phục vụ sẽ thiếu hẳn key. Nhờ vậy FE không cần chờ BE
+lên prod: thiếu key ⇒ rơi về username, đúng y hành vi cũ ⇒ **không nâng release class**.
+
+**Đo trên browser thật (dev server + gateway local, MCP)** — tài khoản `canceltest1779978329`
+(`name: "API Test User"`), `test1` / `testuser_403` (`name: null`) nên cả hai nhánh đều có dữ liệu
+thật, không phải mock:
+
+| Mặt | Kết quả |
+| --- | --- |
+| Feed `/` | **10/10 card** khớp `(name ?? username)`; `hasNameKey: true` ở mọi hàng |
+| `/post/post_8vMXZYoMaRkjQ0J7` | header "API Test User" |
+| `/post/post_5734f08981d811f1` | header `test1` (null) + comment "API Test User" + reply `test1` cùng một trang |
+| `/admin/reports?status=dismissed` | "API Test User" + dòng phụ `@canceltest1779978329` |
+| `/admin/reports?status=resolved` | `test1` + `@test1` — nhánh fallback |
+| Dropdown search | hàng SELLER đọc "API Test User", dưới là `@canceltest1779978329` |
+
+Không chỗ nào rò `usr_` ra text; console **0 error / 0 warning** qua toàn bộ lượt điều hướng.
+
+**Gates:** `build` ✓ · `lint` 0 problem · `test:run` **1018 test / 125 file** xanh (+10 test cho
+`nonBlank` / `userDisplayName` — gồm `name` toàn khoảng trắng, gateway cũ thiếu key, và tham số
+`fallback`; +6 test cho `profileForm.ts`, trong đó có case `"   "` bị từ chối).
+
+### SEARCH-01-FE · dropdown gợi ý ở header chuyển sang search thật của BE (2026-09-15)
+
+Yêu cầu user: *"BE đã xong task SEARCH-01 triển khai bên FE"*. Đây là nửa sau của dropdown đa
+nhóm dựng hôm 2026-09-14 — lượt đó nhóm **Bài viết** và **Seller** phải lọc client-side vì BE
+chưa có endpoint; giờ cả ba nhóm đều là search server-side.
+
+**Đo contract trước khi viết một dòng nào** (gateway local, tài khoản `canceltest1779978329`):
+`GET /user/search?q=&limit=` — JWT bắt buộc, rate limit 60/phút, trả `{id, username, name,
+avatar}[]`, `name` **nullable**, `q` rỗng/trắng → **400** (không phải `[]`), `limit` > 20 → 400,
+ẩn danh → 401. `GET /social/posts?search=` — public, cùng shape `PaginatedResponse<Post>`, bỏ dấu
++ bỏ hoa thường ở tầng DB (`ban phim` ra `bàn phím`), chuỗi không khớp → `total: 0`.
+
+**FE bỏ hẳn phần mitigate:** `matches()`, `sellerCandidates()` và `SellerCandidate` biến mất khỏi
+`searchSuggestions.ts`; file giờ chỉ **cắt, xếp, đặt nhãn, gắn link** cho thứ BE đã khớp sẵn.
+`foldText` ở lại **chỉ** để đo độ dài tối thiểu của query (2 ký tự), không còn dùng để lọc.
+
+**Ba quyết định đáng ghi:**
+
+1. **`queryKeys.search.posts` không nằm dưới `social.feed`.** `social.feed` là key của một
+   infinite query; nhét một lượt đọc trang 1 vào đó sẽ phá cấu trúc `pages` của nó.
+2. **`searchUsers` đặt `skipUnauthorizedRedirect: true`.** `request()` mặc định đá về `/login`
+   khi gặp 401 — cookie hết hạn giữa chừng mà đá người ta khỏi trang họ đang gõ dở là không
+   chấp nhận được với một cái ô search.
+3. **Nhóm seller gate theo phiên đăng nhập**, không bắn 401 mỗi phím với khách vãng lai.
+
+**Cái bẫy của lượt này — và nó chỉ lộ ra ở browser thật, không lộ ở test.** Bản đầu gate bằng
+`useAuthContext().currentUser`. Test xanh, mà trên dev server sau khi **đăng nhập trong app**
+(không reload) thì `/api/user/search` **không bao giờ được gọi**: chỉ có products + posts. Loại
+trừ lần lượt module cũ của Vite (đã fetch source do Vite phục vụ để đọc tận mắt), phiên chết
+(`/api/user/me` → 200 ngay trong tab đó) và lỗi JS (console sạch). Nguyên nhân thật:
+`useAuth.loginSuccess` gọi `queryClient.clear()` rồi mới `setQueryData(auth.me, user)` —
+`clear()` **không** notify observer đang sống, nên observer của `AuthProvider` giữ nguyên `null`
+cho tới khi cả trang reload. Vỏ app vẫn hiện đúng tên người dùng chỉ vì sidebar/`ProtectedRoute`
+đọc **query** `auth.me` bằng observer mới mount, chứ không đọc context.
+
+⇒ Gate đổi sang `useRole()` (chính là query `auth.me`, đúng nguồn mà `ProtectedRoute` đang đọc).
+Đo lại trên browser sau khi sửa: đăng xuất → đăng nhập trong app → gõ `techs` ⇒
+`GET /api/user/search?q=techs&limit=3` **200**, nhóm "Seller" render `techstore_demo`. Vì đây là
+lỗi của **context**, không phải của riêng ô search, nó còn ảnh hưởng mọi nơi đọc
+`useAuthContext().currentUser` ngay sau đăng nhập — đã ghi vào `snapshot.md` làm việc còn treo,
+lượt này cố ý **không** sửa `useAuth` để giữ diff nhỏ.
+
+`renderWithProviders` quay lại đúng hình dạng cũ (bỏ option `currentUser` thêm giữa chừng, không
+còn ai dùng); `HeaderSearch.test.tsx` giả lập phiên bằng handler MSW `/user/me` — và test "groups
+suggestions by kind" cố ý **không** bọc `AuthContext`, tức là nó khoá luôn cái bug ở trên.
+
+**Một điểm chưa khớp, cố ý để nguyên chờ user quyết:** `GET /user/search` trả **mọi tài khoản
+đang hoạt động**, không riêng seller, nhưng nhãn nhóm vẫn là "Seller" (thiết kế user chốt hôm
+trước). Trên dev, gõ `test` cho ra `apitest` / `API Test User` / `chgpw_test` — toàn user thường
+nằm dưới chữ "Seller". Đổi nhãn sang "Người dùng" là một dòng ở `GROUP_LABELS`.
+
+**Gates:** `build` ✓ · `lint` 0 problem · `test:run` **1002 test / 124 file** xanh.
+**Release class C — chưa push được:** `api` `origin/main` = `d8b7f4e` **không** có `@Get("search")`
+lẫn `search` trong `get-posts-query.dto.ts` (đo bằng `git show`, không tin ref local). Gateway bật
+`forbidNonWhitelisted` — đo thật: `?bogusparam=1` → **400 "property bogusparam should not exist"**
+⇒ FE lên trước thì mỗi phím gõ ra một **400** và nhóm Bài viết chết hẳn. Xem `release-gate.md`
+→ Holding → SEARCH-01.
+
+### CHART-SWAP-01 · recharts → Chart.js, và chart mọc ra 3 trang nữa (2026-09-14)
+
+Yêu cầu user: *"install library chart để thay thế UI về đồ thị hiện có trên all web"*.
+
+**Tiền đề của yêu cầu đã sai, và nói ra là phần việc đầu tiên.** `recharts@3.9.2` đã nằm trong
+`package.json` từ trước và đã đang chạy — không có gì để "install". Báo lại bằng một bảng hiện
+trạng thay vì bịa ra việc, rồi hỏi hướng. User chốt hai thứ: **đổi hẳn sang thư viện khác** (sau
+đó nói rõ *"đổi sang bên chartjs"*) và **thêm đồ thị ở ShopPage / AdminPage / OrderHistoryPage**.
+
+**Khảo sát trước khi viết:** toàn app có **đúng một** chart surface — `AnalyticsDashboard`, dùng
+chung bởi `/shop/analytics` và `/admin/analytics` — và **không** chart tự vẽ nào. Ba chỗ
+`style={{ width }}` (`ApiErrorState`, `OrderDetailPage`, `CreatePostModal`) là progress bar,
+không phải chart, nên cố ý không đụng.
+
+**Hạ tầng mới `src/lib/chart/`:**
+
+- `chartTheme.ts` — **file duy nhất trong `src/` được phép giữ hex của chart.** Chart.js vẽ lên
+  `<canvas>`, Tailwind không với tới được, nên màu buộc phải là chuỗi literal truyền vào thư
+  viện. Gom hết vào một chỗ ⇒ **đóng luôn AN-01(c)** (item vốn ghi là "chỉ làm nếu có chart thứ
+  2" — giờ có 4). Đã whitelist ở `.ai/workflows/check-tailwind.md` §Check 4.
+- `chartSetup.ts` — register tree-shaken (không dùng `chart.js/auto`), idempotent, import
+  side-effect. **Cố ý KHÔNG register `Legend`:** legend vẽ trong canvas thì screen reader không
+  đọc được và không style bằng Tailwind được ⇒ dùng `ChartLegend` DOM thay thế.
+- `chartOptions.ts` — tooltip/tick style dùng chung, `verticalFillGradient`, `truncateLabel`.
+  Gradient phải chịu được `chartArea == null` ở frame đầu, không thì phần fill biến mất.
+- `chartSeries.ts` — `ChartSlice` + `orderStatusSlices` / `sliceTotal` / `slicePercent`.
+
+**Component dùng chung `src/components/shared/charts/`:** `ChartFrame` (khung card + khung vẽ
+cao cố định — **bắt buộc**, vì Chart.js lấy kích thước từ parent nên canvas trần co về 0px),
+`ChartLegend`, `TrendAreaChart` (đa series, trục phải tùy chọn), `DoughnutChart`,
+`RankedBarChart` (`indexAxis: 'y'`).
+
+**Hai cái bẫy đáng nhớ nhất:**
+
+1. `orderStatusSlices` duyệt hằng `ORDER_STATUSES` chứ **không** `Object.entries(counts)`.
+   `OrderStatusCounts` có thêm key `all` — `Object.entries` sẽ biến nó thành một lát bằng tổng
+   cả vòng tròn, và biểu đồ vẫn "trông có vẻ đúng".
+2. Dashboard cũ mang sẵn `border-accent-amber/50` và `bg-accent-amber/10`. **Opacity modifier
+   không chạy trên alias nền `var()`** — class đó sinh ra rỗng, tức nút range preset đang được
+   *chọn* nhìn không khác nút không chọn, hỏng âm thầm từ trước lượt này. Sửa sang `tb-amber/50`
+   / `tb-amber/10` (token hex literal).
+
+**Quyết định khác:** top-products dựng bằng **một** lần sort trả về cả `slices` lẫn `revenues`
+(hai lần sort độc lập thì một cột có thể ghép với doanh thu của sản phẩm khác); key là
+`productId ?? deleted-<i>` vì IDLEAK-02 cho `productId: null` ở sản phẩm đã xoá, hai dòng `null`
+sẽ trùng key. Trend chart dùng scale **`category`** trên chuỗi `period` mà BE đã format sẵn ⇒
+**né được 2 dependency** (`chartjs-adapter-date-fns` + `date-fns`). Chart ở `OrderHistoryPage`
+đọc `useOrderStatusCounts` (server count toàn lịch sử) nên vòng tròn **không** phụ thuộc số
+trang infinite-list đã load, cũng không phụ thuộc tab đang chọn — có ghi rõ ở subtitle.
+`stockHealthSlices` sàn số "đủ hàng" ở 0 (endpoint low-stock không phân trang còn danh sách sản
+phẩm thì có) và phát một lát xám khi catalogue rỗng để vòng tròn không biến mất.
+
+**Bundle nhỏ đi thật:** chunk chart 402,1 kB / gzip 116,0 kB (recharts) → **178,5 kB / gzip
+62,9 kB** (Chart.js).
+
+**Gates:** `build` ✓ · `lint` 0 problem · `test:run` **983 test / 122 file** (+44). Lỗi type duy
+nhất phải sửa là `ctx.parsed.y` kiểu `number | null` trong tooltip của `TrendAreaChart` — series
+có lỗ hổng thì parse ra `null`; bỏ hẳn dòng đó khỏi tooltip thay vì in `null`.
+
+**Chạy `/verify-ui` xong mới dám gọi là xong — và nó bắt được 2 lỗi thật trong chính code lượt
+này.** Cả 4 surface được xác minh bằng cách lấy `getImageData` rồi đếm byte alpha > 8, tức chứng
+minh canvas **có sơn pixel**, không phải chỉ mount được; số trên legend đối chiếu với thẻ thống kê
+cùng trang (`/shop/analytics` legend 9+2=11 khớp "Tổng đơn 11" ⇒ bằng thực nghiệm chứng minh key
+`all` không bao giờ thành lát). Hai lỗi:
+
+1. **Doughnut `/admin` tổng 18 trong khi thẻ ngay trên đầu ghi "Tổng đơn hàng 170".** Không phải
+   lỗi số — endpoint analytics mặc định 30 ngày còn thẻ kia là all-time — mà là **lỗi nhãn**:
+   biểu đồ không nói phạm vi của nó, người đọc chỉ có thể kết luận là một trong hai sai. Thêm
+   `subtitle="30 ngày gần nhất"` + mở rộng `aria-label`.
+2. **Một điểm dữ liệu ⇒ chart trắng.** Đoạn thẳng cần 2 điểm; với `pointRadius: 0` thì khoảng có
+   đúng một kỳ vẽ ra trục và không gì khác (đo được: painted = 26 ≈ chỉ trục). Thêm
+   `trendPointRadius(pointCount, compact)` ở `chartOptions.ts` — 1 điểm thì đánh dấu, từ 2 trở
+   lên vẫn ẩn (một chấm mỗi ngày trên dải 90 ngày là nhiễu), compact luôn ẩn. Sau sửa: painted
+   69, chấm amber hiện ở `2026-09-08`.
+
+Cả hai sửa xong đo lại trên trình duyệt. Ngoài ra `/verify-ui` phần alignment sạch: không tràn
+ngang (`scrollW === clientW === 1425`), không canvas nào vượt parent, không icon méo; empty state
+của revenue / top-products / low-stock đều đúng (`ChartFrame` rỗng không render canvas nào).
+
+**Gate:** cả cây là **lớp B** — FE nhìn thấy được (UI chart đổi hẳn, 3 trang có chart mới) nhưng
+**không đụng contract nào**: không field mới, không route mới, không đổi request. `AdminPage` gọi
+`GET /order/analytics/admin` vốn đã live (`AdminAnalyticsPage` dùng từ trước) với đúng param cũ.
+BE không cần biết lượt này có tồn tại; **Holding** đang trống.
+
+**`recharts` đã gỡ hẳn** — user tự chạy `npm uninstall recharts` (`npm uninstall` bị chặn trong
+`.claude/settings.json`), removed 33 package. Kiểm lại: 0 hit trong `package.json` +
+`package-lock.json`, `node_modules/recharts` không còn, build/test vẫn xanh sau khi gỡ. Chưa
+push — đã báo gate, chờ user duyệt.
+
 ### GHN-FAIL-NTF-01 · notification "giao hàng hụt một lần" có icon/màu/nhãn riêng + deep-link (2026-09-11)
 
 `/sweep` (không tham số) → lấy mục cao nhất trong backlog. Mục đó là **GHN-FAIL-NTF-01**, entry

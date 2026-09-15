@@ -56,7 +56,8 @@ Current sanctioned usages — do NOT flag these, and do NOT "fix" them into arbi
 | `components/shared/ApiErrorState.tsx` | `width: ${pct}%` | retry progress bar |
 | `features/order/OrderDetailPage.tsx` | `width: ${progressPct}%` | order progress bar |
 | `features/social/CreatePostModal.tsx` | `width: ${upload.percent}%` | upload progress bar |
-| `features/order/analytics/AnalyticsDashboard.tsx` | `background: STATUS_CHART_COLOR[status]` | data-driven chart color |
+| `components/shared/charts/ChartFrame.tsx` | `--h` + `[height:var(--h)]` | chart plot height — Chart.js sizes from its parent, a bare canvas collapses to 0px |
+| `components/shared/charts/ChartLegend.tsx` | `--dot` + `bg-[var(--dot)]` | data-driven legend swatch color |
 
 New dynamic values should use the CSS-custom-property form
 (`style={{ '--p': \`${n}%\` } as CSSProperties}` + `className="[width:var(--p)]"`), not raw
@@ -86,6 +87,12 @@ Project uses `tb-*` tokens and semantic aliases (`canvas-*`, `ink-*`, `accent-*`
 Pattern: \[#[0-9a-fA-F]{3,8}\]
 Scope: src/**/*.tsx
 ```
+
+**Sanctioned exception — `src/lib/chart/chartTheme.ts`.** Chart.js paints to `<canvas>`, which
+Tailwind cannot reach, so every chart color must be a literal string passed to the library. That
+one file is the *only* place in `src/` allowed to hold chart hex; charts import from it and never
+inline a hex of their own. It is a `.ts` file, so the scope above already skips it — do not widen
+the scope to "fix" it.
 
 Known replacements (preferred alias listed first; see `.ai/tokens.md` "Which System to Use"):
 | Hex | Preferred token | `tb-*` alternative |
