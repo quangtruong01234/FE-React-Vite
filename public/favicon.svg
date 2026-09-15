@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="TryBuy">
+  <title>TryBuy</title>
+  <!--
+    App mark. Two things are deliberate:
+
+    1. The gradient is literally the wordmark's — `bg-tb-gradient` in
+       tailwind.config.js, 135° #F59E0B → #EF4444, the same fill the "Buy" of
+       `Try·Buy` carries in Header.tsx. Tab icon and header have to read as one
+       brand, so this must be changed in both places or neither.
+    2. A single heavy `T`, cut to the proportions of Barlow Condensed Black
+       (`font-display`), rather than a bag or a `TB` pair. A favicon lives at
+       16px: rasterised there, a bag + handle collapses into a padlock, and two
+       letters into mush — measured, not assumed. Flat terminals and whole-unit
+       coordinates keep the stem on the pixel grid at 16px.
+
+    Plain geometry on purpose — no external font, no embedded raster, so this
+    stays a couple of hundred bytes and needs no build step.
+  -->
+  <defs>
+    <linearGradient id="tb" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F59E0B" />
+      <stop offset="1" stop-color="#EF4444" />
+    </linearGradient>
+  </defs>
+
+  <rect width="32" height="32" rx="7" fill="url(#tb)" />
+  <path fill="#FFFFFF" d="M8 7.6h16v4.8h-5.6v12h-4.8v-12H8z" />
+</svg>
