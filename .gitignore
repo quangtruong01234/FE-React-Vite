@@ -32,3 +32,9 @@ public/*.jpeg
 # Local session/credential artifacts
 login.json
 *.cookies
+
+# `> nul` is the cmd.exe null device, but the Bash tool runs Git Bash — there it
+# is an ordinary relative path, so the redirect creates a junk file at the repo
+# root instead of discarding the output. Anchored to `/` so it only covers that
+# one spot (`nul` is a reserved name on Windows; nothing legitimate can be there).
+/nul
