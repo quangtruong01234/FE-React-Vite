@@ -29,8 +29,11 @@ export const socialApi = {
   reportPost: (id: string, data: ReportPostDto): Promise<unknown> =>
     request(`/social/posts/${id}/report`, { method: 'POST', body: JSON.stringify(data) }),
 
-  getFeed: (page = 1, limit = 20): Promise<PaginatedResponse<Post>> => {
-    const qs = toQuery({ page, limit });
+  // SEARCH-01: `search` filters on post content server-side, case- and
+  // accent-insensitively ("ban phim" matches "bàn phím"). Omitted or blank
+  // returns the full feed, which is what every existing caller gets.
+  getFeed: (page = 1, limit = 20, search?: string): Promise<PaginatedResponse<Post>> => {
+    const qs = toQuery({ page, limit, search });
     return request<PaginatedResponse<Post>>(`/social/posts${qs}`);
   },
 

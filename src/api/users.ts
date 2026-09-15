@@ -4,6 +4,7 @@ import type {
   UpdateUserDto,
   PaginatedResponse,
   FeaturedSeller,
+  UserSearchResult,
   Address,
   CreateAddressDto,
   UpdateAddressDto,
@@ -25,6 +26,17 @@ export const usersApi = {
   getFeaturedSellers: (limit = 5): Promise<FeaturedSeller[]> => {
     const qs = toQuery({ limit });
     return request<FeaturedSeller[]>(`/user/featured-sellers${qs}`);
+  },
+
+  // SEARCH-01: matches username OR display name, active accounts only. Auth
+  // required; the gateway rejects a blank `q` with 400 and caps `limit` at 20.
+  // `skipUnauthorizedRedirect` — this feeds the header dropdown, where a lapsed
+  // cookie must not bounce the visitor off the page they are typing on.
+  searchUsers: (q: string, limit = 5): Promise<UserSearchResult[]> => {
+    const qs = toQuery({ q, limit });
+    return request<UserSearchResult[]>(`/user/search${qs}`, {
+      skipUnauthorizedRedirect: true,
+    });
   },
 
   getPaginated: (page = 1, limit = 20): Promise<PaginatedResponse<User>> => {

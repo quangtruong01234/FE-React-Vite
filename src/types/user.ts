@@ -58,3 +58,15 @@ export interface FeaturedSeller {
   name: string | null;
   avatar: string | null;
 }
+
+/**
+ * One row of `GET /user/search` (SEARCH-01) — any active account, not just
+ * shops. `name` is null when the account never set a display name, so render
+ * `username` as the label in that case.
+ */
+export interface UserSearchResult {
+  id: string;
+  username: string;
+  name: string | null;
+  avatar: string | null;
+}

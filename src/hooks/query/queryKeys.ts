@@ -138,6 +138,16 @@ export const queryKeys = {
     adminReportsList: (status: string, page: number) =>
       ["social", "admin-reports", status, page] as const,
   },
+  // Header suggestion dropdown — the server-side searches behind SEARCH-01.
+  // Posts deliberately do NOT live under `social.feed`: that key holds an
+  // infinite query, and a plain page-1 read stored there would corrupt its
+  // page structure.
+  search: {
+    posts: (query: string, limit: number) =>
+      ["search", "posts", query, limit] as const,
+    users: (query: string, limit: number) =>
+      ["search", "users", query, limit] as const,
+  },
   notifications: {
     list: (page: number) => ["notifications", "list", page] as const,
     unreadCount: ["notifications", "unread"] as const,
