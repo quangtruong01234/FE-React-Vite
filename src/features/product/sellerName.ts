@@ -1,3 +1,4 @@
+import { nonBlank } from '@/lib/format/user';
 import type { Product } from '@/types';
 
 /**
@@ -12,11 +13,6 @@ import type { Product } from '@/types';
  */
 export const SELLER_FALLBACK = 'Người bán không còn tồn tại';
 
-function nonBlank(value: string | null | undefined): string | null {
-  const trimmed = value?.trim() ?? '';
-  return trimmed.length > 0 ? trimmed : null;
-}
-
 /**
  * Display name for a product's seller.
  *
@@ -24,6 +20,11 @@ function nonBlank(value: string | null | undefined): string | null {
  * shop avatar and the "xem shop" affordance. `brand` is a catalog attribute
  * ("Samsung"), so it is a last resort before the neutral fallback rather than
  * the preferred answer.
+ *
+ * Deliberately NOT `userDisplayName()`: here `user.name` carries the
+ * *username* (ENRICH-BATCH-01 made the batch route return it so the field is
+ * never null), the opposite of the social embed where `name` is a real, nullable
+ * display name. Same key, two meanings — one helper for both would be a bug.
  */
 export function sellerName(product: Pick<Product, 'user' | 'brand'>): string {
   return (
