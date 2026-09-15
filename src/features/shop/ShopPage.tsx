@@ -20,13 +20,35 @@ import { formatPrice } from "@/lib/format/utils";
 import { useProducts } from "../product/useProducts";
 import { productCategoryNames } from "../product/productCategories";
 import { buildLowStockRows } from "./lowStock";
+import { lowStockSeries, stockHealthSlices } from "./stockChartData";
 import { filterProductsByQuery } from "./productSearch";
+import { ChartFrame } from "@/components/shared/charts/ChartFrame";
+import { ChartLegend } from "@/components/shared/charts/ChartLegend";
+import { DoughnutChart } from "@/components/shared/charts/DoughnutChart";
+import { RankedBarChart } from "@/components/shared/charts/RankedBarChart";
+import {
+  CHART_AMBER,
+  CHART_INK_MUTED,
+  CHART_RED,
+} from "@/lib/chart/chartTheme";
+import type { ChartSlice } from "@/lib/chart/chartSeries";
 import { IconButton } from "@/components/shared/IconButton";
 import { ProductThumb } from "@/components/shared/ProductThumb";
 import { api } from "@/api";
 import { queryKeys } from "@/hooks/query/queryKeys";
 import { useAuthContext } from "@/context/useAuthContext";
 import type { ProductWithInventory } from "@/types";
+
+/**
+ * Fixed legend for the low-stock bars: the bar colours encode severity
+ * (`lowStockSeries`), so the legend must name those two states plus the
+ * threshold series rather than sample whichever row happens to be first.
+ */
+const LOW_STOCK_LEGEND: ChartSlice[] = [
+  { key: "low", label: "Sắp hết", value: 0, color: CHART_AMBER },
+  { key: "out", label: "Hết hàng", value: 0, color: CHART_RED },
+  { key: "minimum", label: "Mức tối thiểu", value: 0, color: CHART_INK_MUTED },
+];
 
 const CONDITION_LABEL: Record<string, string> = {
   new: "Mới",
@@ -358,6 +380,12 @@ export default function ShopPage() {
     shopStats?.lowStockCount ??
     products.filter((p) => p.inventory?.isLowStock).length;
 
+  const stockHealth = useMemo(
+    () => stockHealthSlices(productCount, lowStockCount),
+    [productCount, lowStockCount],
+  );
+  const lowStockChart = useMemo(() => lowStockSeries(lowStockRows), [lowStockRows]);
+
   return (
     <div className="min-h-screen bg-canvas-base">
       <div className="max-w-5xl mx-auto px-6 py-8">
@@ -417,6 +445,62 @@ export default function ShopPage() {
             icon={AlertTriangle}
             danger={lowStockCount > 0}
           />
+        </div>
+
+        {/* Stock charts */}
+        <div className="grid md:grid-cols-2 gap-4 mb-7">
+          <ChartFrame
+            title="Tình trạng tồn kho"
+            subtitle={`${productCount} sản phẩm · ${totalStock} đơn vị tồn`}
+            height={180}
+            isLoading={showSkeleton}
+          >
+            <div className="flex items-center gap-5 size-full">
+              <div className="w-1/2 h-full shrink-0">
+                <DoughnutChart
+                  slices={stockHealth}
+                  ariaLabel="Biểu đồ tỉ lệ sản phẩm đủ hàng và sắp hết hàng"
+                  centerValue={String(productCount)}
+                  centerLabel="sản phẩm"
+                  valueFormatter={(v) => `${v} sản phẩm`}
+                />
+              </div>
+              <ChartLegend
+                slices={stockHealth}
+                showPercent
+                className="flex-1 min-w-0"
+              />
+            </div>
+          </ChartFrame>
+
+          <ChartFrame
+            title="Sản phẩm sắp hết hàng"
+            subtitle="Tồn hiện tại so với mức tối thiểu"
+            height={180}
+            isLoading={showSkeleton}
+            isEmpty={lowStockChart.slices.length === 0}
+            emptyLabel="Không có sản phẩm nào sắp hết hàng."
+            footer={
+              <ChartLegend
+                layout="inline"
+                className="mt-3"
+                showValues={false}
+                slices={LOW_STOCK_LEGEND}
+              />
+            }
+          >
+            <RankedBarChart
+              slices={lowStockChart.slices}
+              valueLabel="Tồn hiện tại"
+              ariaLabel="Biểu đồ tồn kho các sản phẩm sắp hết hàng"
+              labelWidth={120}
+              comparison={{
+                label: "Mức tối thiểu",
+                color: CHART_INK_MUTED,
+                values: lowStockChart.minimums,
+              }}
+            />
+          </ChartFrame>
         </div>
 
         {/* Low-stock list */}
