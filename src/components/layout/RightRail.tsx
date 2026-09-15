@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Store, TrendingUp, BadgeCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/format/utils';
+import { userDisplayName } from '@/lib/format/user';
 import { Avatar } from '@/components/shared/Avatar';
 import { PriceText } from '@/components/shared/PriceText';
 import { ProductThumb } from '@/components/shared/ProductThumb';
@@ -63,7 +64,7 @@ export function RightRail(): ReactElement {
               <Avatar src={s.avatar ?? undefined} alt={s.username} size={36} />
               <div className="min-w-0 flex-1">
                 <div className={cn('text-sm font-semibold text-ink-pri truncate flex items-center gap-1')}>
-                  {s.name ?? s.username}
+                  {userDisplayName(s)}
                   <BadgeCheck size={13} className="text-accent-amber flex-none" />
                 </div>
                 <div className="text-[11px] text-ink-muted truncate">@{s.username}</div>

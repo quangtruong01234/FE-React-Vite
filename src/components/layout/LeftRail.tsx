@@ -1,6 +1,7 @@
 import { type ReactElement } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/format/utils';
+import { userDisplayName } from '@/lib/format/user';
 import { Avatar } from '@/components/shared/Avatar';
 import { useRole } from '@/hooks/auth/useRole';
 import {
@@ -71,7 +72,7 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
         <div className="flex items-center gap-3 px-3 py-2.5 mb-1">
           <Avatar src={me.avatar ?? undefined} alt={me.username} size={38} />
           <div className="min-w-0">
-            <div className="font-body font-semibold text-sm text-ink-pri truncate">{me.name ?? me.username}</div>
+            <div className="font-body font-semibold text-sm text-ink-pri truncate">{userDisplayName(me)}</div>
             <div className="text-xs text-ink-muted truncate">
               {isAdmin ? 'Quản trị sàn' : isSeller ? 'Người bán' : `@${me.username}`}
             </div>
