@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { commentAuthorView, COMMENT_AUTHOR_FALLBACK } from './commentAuthor';
+import { USER_FALLBACK as COMMENT_USER_FALLBACK } from '@/lib/format/user';
+import { commentAuthorView } from './commentAuthor';
 import type { PostAuthor } from '@/types';
 
 const author = (over: Partial<PostAuthor> = {}): PostAuthor => ({
@@ -21,7 +22,7 @@ describe('commentAuthorView', () => {
   it('never renders the raw user id when the author is missing', () => {
     for (const missing of [null, undefined]) {
       const view = commentAuthorView(missing);
-      expect(view.displayName).toBe(COMMENT_AUTHOR_FALLBACK);
+      expect(view.displayName).toBe(COMMENT_USER_FALLBACK);
       expect(view.displayName).not.toContain('usr_');
       expect(view.avatarSrc).toBeUndefined();
     }
@@ -30,7 +31,7 @@ describe('commentAuthorView', () => {
   it('treats a blank name or username as absent', () => {
     expect(commentAuthorView(author({ name: '   ' })).displayName).toBe('test1');
     expect(commentAuthorView(author({ name: '', username: '  ' })).displayName).toBe(
-      COMMENT_AUTHOR_FALLBACK,
+      COMMENT_USER_FALLBACK,
     );
   });
 
