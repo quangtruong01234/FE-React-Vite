@@ -3,7 +3,7 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Users, ShoppingBag } from 'lucide-react';
 import { cn, formatPrice, formatVnd } from '@/lib/format/utils';
 import { formatDate } from '@/lib/format/time';
-import { userDisplayName } from '@/lib/format/user';
+import { nonBlank, userDisplayName } from '@/lib/format/user';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { toApiError } from '@/lib/http/apiError';
@@ -17,7 +17,20 @@ import { TrendAreaChart, type TrendSeries } from '@/components/shared/charts/Tre
 import { orderStatusSlices, sliceTotal } from '@/lib/chart/chartSeries';
 import { CHART_AMBER } from '@/lib/chart/chartTheme';
 import { revenueTrend } from '@/features/order/analytics/analyticsChartData';
-import type { AnalyticsQueryParams } from '@/types';
+import { SelectField } from '@/components/shared/SelectField';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { useRole } from '@/hooks/auth/useRole';
+import { useUpdateUserRole } from './useUpdateUserRole';
+import {
+  ASSIGNABLE_ROLE_OPTIONS,
+  ROLE_CHANGE_CONFIRM_BODY,
+  isAssignableRole,
+  roleChangeConfirmTitle,
+  roleChangeSuccessText,
+  roleEditability,
+} from './userRole';
+import { roleLabel } from '@/lib/auth/roleLabels';
+import type { AnalyticsQueryParams, RoleName, User } from '@/types';
 
 const USERS_PER_PAGE = 20;
 
@@ -31,6 +44,14 @@ const OVERVIEW_RANGE: AnalyticsQueryParams = { interval: 'day' };
 
 export default function AdminPage(): ReactElement {
   const [usersPage, setUsersPage] = useState(1);
+  const [roleNotice, setRoleNotice] = useState<string | null>(null);
+  /** The pick waiting on the confirm modal — set by the select, cleared by both buttons. */
+  const [pendingRole, setPendingRole] = useState<{ user: User; nextRole: RoleName } | null>(null);
+
+  // `useRole()` and not `useAuthContext()`: the context value is stale right
+  // after an in-app login, and this decides which row is the admin's own.
+  const currentUserId = useRole()?.me.id;
+  const roleMutation = useUpdateUserRole();
 
   const {
     data: ordersData,
@@ -93,6 +114,36 @@ export default function AdminPage(): ReactElement {
   const users = usersData?.data ?? [];
   const userTotal = usersData?.total ?? 0;
   const userTotalPages = usersData?.totalPages ?? 1;
+
+  const roleError = toApiError(roleMutation.error);
+
+  function handleRoleChange(user: User, nextRole: string): void {
+    // A no-op pick is not a request: the endpoint is idempotent, but firing it
+    // would still pop a confirm and a "đã đặt" notice for nothing.
+    if (!isAssignableRole(nextRole) || nextRole === user.role.name) return;
+    setPendingRole({ user, nextRole });
+  }
+
+  function confirmRoleChange(): void {
+    if (!pendingRole) return;
+    const { user, nextRole } = pendingRole;
+    const displayName = userDisplayName(user);
+
+    setRoleNotice(null);
+    roleMutation.mutate(
+      { userId: user.id, role: nextRole },
+      {
+        // Read the role back off the response rather than echoing `nextRole` —
+        // the server's answer is what the row now holds.
+        onSuccess: (updated) => {
+          setRoleNotice(roleChangeSuccessText(displayName, updated.role.name));
+        },
+        // Closes on failure too: the refusal is already rendered above the
+        // table, and leaving the dialog up would print it twice.
+        onSettled: () => { setPendingRole(null); },
+      },
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto py-8 px-4 space-y-8">
@@ -239,6 +290,21 @@ export default function AdminPage(): ReactElement {
             {!usersLoading && <span className="ml-2 font-normal text-ink-muted text-sm">({userTotal})</span>}
           </h2>
         </div>
+
+        {/* Role-change outcome. The success copy names the re-login requirement:
+            the JWT bakes the role at login and nothing revokes it, so the new
+            role does nothing until the target signs in again (ROLE-ADMIN-01). */}
+        {roleNotice && (
+          <p className="bg-tb-cyan/10 border border-tb-cyan/30 rounded-tb-input px-3 py-2 font-body text-xs text-accent-cyan">
+            {roleNotice}
+          </p>
+        )}
+        {roleError && (
+          <p className="bg-tb-red/10 border border-tb-red/30 rounded-tb-input px-3 py-2 font-body text-xs text-accent-red">
+            {roleError.message}
+          </p>
+        )}
+
         <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -253,7 +319,7 @@ export default function AdminPage(): ReactElement {
             <tbody>
               {usersLoading && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
+                  <td colSpan={5} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
                     Đang tải...
                   </td>
                 </tr>
@@ -263,37 +329,78 @@ export default function AdminPage(): ReactElement {
               )}
               {!usersLoading && !usersError && !users.length && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
+                  <td colSpan={5} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
                     Không có người dùng nào.
                   </td>
                 </tr>
               )}
-              {users.map((user, idx) => (
-                <tr
-                  key={user.id}
-                  className={cn(
-                    'transition-colors hover:bg-canvas-elevated',
-                    idx < (users.length - 1) && 'border-b border-bdr',
-                  )}
-                >
-                  <td className="px-4 py-3 font-mono text-ink-sec text-xs">{user.id}</td>
-                  <td className="px-4 py-3 font-body text-ink-pri text-sm">{user.username}</td>
-                  <td className="px-4 py-3 font-body text-ink-sec text-sm">{user.email}</td>
-                  <td className="px-4 py-3">
-                    <span className={cn(
-                      'inline-flex items-center px-2 py-0.5 rounded-tb-pill font-body font-medium text-xs',
-                      user.role.name === 'admin' && 'bg-accent-red/15 text-accent-red',
-                      user.role.name === 'shop'  && 'bg-accent-amber/15 text-accent-amber',
-                      user.role.name !== 'admin' && user.role.name !== 'shop' && 'bg-canvas-elevated text-ink-sec',
-                    )}>
-                      {user.role.name}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-body text-ink-sec text-sm">
-                    {user.createdAt ? formatDate(user.createdAt) : '—'}
-                  </td>
-                </tr>
-              ))}
+              {users.map((user, idx) => {
+                const editability = roleEditability(
+                  { id: user.id, roleName: user.role.name },
+                  currentUserId,
+                );
+                return (
+                  <tr
+                    key={user.id}
+                    className={cn(
+                      'transition-colors hover:bg-canvas-elevated',
+                      idx < (users.length - 1) && 'border-b border-bdr',
+                    )}
+                  >
+                    <td className="px-4 py-3 font-mono text-ink-sec text-xs">{user.id}</td>
+                    {/* Accounts created before NAME-TRIM-01 can hold a whitespace
+                        `username` and the backend does not backfill them, so the raw
+                        field rendered an empty cell. Deliberately NOT
+                        `userDisplayName()`: that prefers the display name, and this
+                        column is labelled USERNAME — an admin reads it to identify the
+                        account, so substituting `name` would print the wrong field.
+                        Em dash matches the `createdAt` cell below; the ID column and
+                        the role control's `aria-label` already identify the row. */}
+                    <td className="px-4 py-3 font-body text-ink-pri text-sm">
+                      {nonBlank(user.username) ?? '—'}
+                    </td>
+                    <td className="px-4 py-3 font-body text-ink-sec text-sm">{user.email}</td>
+                    <td className="px-4 py-3">
+                      {editability.canEdit ? (
+                        <SelectField
+                          size="sm"
+                          value={user.role.name}
+                          options={ASSIGNABLE_ROLE_OPTIONS}
+                          // Rows written before NAME-TRIM-01 can carry a
+                          // whitespace `username`, which left this control
+                          // announced as "Vai trò của " with no subject. The
+                          // public id is what the row's first column shows, so
+                          // it ties the announcement back to the visible row.
+                          ariaLabel={`Vai trò của ${nonBlank(user.username) ?? user.id}`}
+                          // Every row locks during the request: the list is
+                          // refetched on success, so a second pick mid-flight
+                          // would race a row that is about to be replaced.
+                          disabled={roleMutation.isPending}
+                          onChange={(next) => { handleRoleChange(user, next); }}
+                        />
+                      ) : (
+                        <span
+                          title={editability.reason}
+                          className={cn(
+                            'inline-flex items-center px-2 py-0.5 rounded-tb-pill font-body font-medium text-xs',
+                            // Tints use the literal-hex tokens: `accent-*` is a `var()`
+                            // and Tailwind emits nothing for `/15` on it, so these
+                            // pills were rendering with no background at all.
+                            user.role.name === 'admin' && 'bg-tb-red/15 text-accent-red',
+                            user.role.name === 'shop' && 'bg-tb-amber/15 text-accent-amber',
+                            user.role.name !== 'admin' && user.role.name !== 'shop' && 'bg-canvas-elevated text-ink-sec',
+                          )}
+                        >
+                          {roleLabel(user.role.name)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 font-body text-ink-sec text-sm">
+                      {user.createdAt ? formatDate(user.createdAt) : '—'}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {!usersLoading && userTotalPages > 1 && (
@@ -321,6 +428,20 @@ export default function AdminPage(): ReactElement {
           )}
         </div>
       </section>
+
+      <ConfirmDialog
+        open={pendingRole !== null}
+        title={
+          pendingRole
+            ? roleChangeConfirmTitle(userDisplayName(pendingRole.user), pendingRole.nextRole)
+            : ''
+        }
+        description={ROLE_CHANGE_CONFIRM_BODY}
+        confirmLabel="Đổi vai trò"
+        isPending={roleMutation.isPending}
+        onConfirm={confirmRoleChange}
+        onCancel={() => { setPendingRole(null); }}
+      />
     </div>
   );
 }

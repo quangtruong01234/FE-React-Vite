@@ -2,6 +2,7 @@ import type {
   User,
   PublicUser,
   UpdateUserDto,
+  RoleName,
   PaginatedResponse,
   FeaturedSeller,
   UserSearchResult,
@@ -18,6 +19,16 @@ export const usersApi = {
 
   update: (id: string, data: UpdateUserDto): Promise<User> =>
     request<User>(`/user/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  // ROLE-ADMIN-01: the only write path for `role` — `update` above still 400s a
+  // `role` key, so the two calls cannot be folded into one. Admin only; the
+  // backend also 400s an admin changing its own role. Returns the updated user,
+  // but the new role reaches the target's stateless JWT only at their NEXT login.
+  updateRole: (id: string, role: RoleName): Promise<User> =>
+    request<User>(`/user/${id}/role`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    }),
 
   // Note: the admin-only `GET /user/all` was removed backend-side (2026-07-06);
   // use `getPaginated` (admin list) or `getFeaturedSellers` (feed right-rail).
