@@ -1,7 +1,6 @@
 import { useRef, useState, type ReactElement } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { useMutation } from '@tanstack/react-query';
 import { Camera, Loader2 } from 'lucide-react';
 import {
@@ -19,19 +18,14 @@ import { api } from '@/api';
 import { uploadAvatar, deleteMedia } from '@/lib/http/cloudinary';
 import { validateUploadFile, MAX_IMAGE_BYTES } from '@/lib/http/uploadValidation';
 import { cn } from '@/lib/format/utils';
+import { nonBlank, userDisplayName } from '@/lib/format/user';
 import { credentialConflictError } from '@/lib/domain/credentialConflict';
 import { replacePendingAvatar, discardedAvatarOrphan, type PendingAvatar } from './avatarUpload';
+import { profileFormSchema, type ProfileFormData } from './profileForm';
 import { ChangePasswordForm } from './ChangePasswordForm';
 import type { User } from '@/types';
 
 type Tab = 'profile' | 'security';
-
-const schema = z.object({
-  name: z.string().min(1, 'Tên không được trống'),
-  email: z.string().email('Email không hợp lệ'),
-  avatar: z.string().optional(),
-});
-type FormData = z.infer<typeof schema>;
 
 interface EditProfileModalProps {
   open: boolean;
@@ -48,17 +42,19 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('profile');
 
-  const { register, handleSubmit, setValue, setError, formState: { errors, isSubmitting } } = useForm<FormData>({
-    resolver: zodResolver(schema),
+  const { register, handleSubmit, setValue, setError, formState: { errors, isSubmitting } } = useForm<ProfileFormData>({
+    resolver: zodResolver(profileFormSchema),
     values: {
-      name: user.name ?? user.username,
+      // Deliberately NOT `userDisplayName()`: its 'Người dùng' fallback would be
+      // prefilled into an editable field and saved as a literal name on submit.
+      name: nonBlank(user.name) ?? user.username,
       email: user.email,
       avatar: user.avatar ?? undefined,
     },
   });
 
   const updateUser = useMutation({
-    mutationFn: (data: FormData) => api.users.update(user.id, {
+    mutationFn: (data: ProfileFormData) => api.users.update(user.id, {
       name: data.name,
       email: data.email,
       avatar: data.avatar,
@@ -111,7 +107,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
     }
   }
 
-  async function onSubmit(data: FormData): Promise<void> {
+  async function onSubmit(data: ProfileFormData): Promise<void> {
     try {
       await updateUser.mutateAsync(data);
     } catch (err: unknown) {
@@ -171,7 +167,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
           {/* Avatar upload */}
           <div className="flex flex-col items-center gap-2">
             <div className="relative">
-              <Avatar src={displayAvatar} alt={user.name ?? user.username} size={84} />
+              <Avatar src={displayAvatar} alt={userDisplayName(user)} size={84} />
               <button
                 type="button"
                 disabled={uploading}

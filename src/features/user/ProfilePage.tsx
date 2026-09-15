@@ -19,6 +19,7 @@ import { Pagination } from '@/components/shared/Pagination';
 import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
 import { api } from '@/api';
 import { cn } from '@/lib/format/utils';
+import { userDisplayName } from '@/lib/format/user';
 
 const PAGE_SIZE = 10;
 
@@ -124,6 +125,8 @@ export default function ProfilePage(): ReactElement {
     );
   }
 
+  const displayName = userDisplayName(user);
+
   const TABS: { key: TabKey; label: string }[] = [
     { key: 'posts', label: `Bài viết${postsTotal > 0 ? ` (${postsTotal})` : ''}` },
     { key: 'following', label: `Đang theo dõi${followingCount > 0 ? ` (${followingCount})` : ''}` },
@@ -139,10 +142,10 @@ export default function ProfilePage(): ReactElement {
       {/* Avatar + name row */}
       <div className="px-4 -mt-12 relative">
         <div className="flex items-end gap-4 mb-3">
-          <Avatar src={user.avatar ?? undefined} alt={user.name ?? user.username} size={96} />
+          <Avatar src={user.avatar ?? undefined} alt={displayName} size={96} />
           <div className="flex-1 min-w-0 pb-1">
             <h1 className="font-display font-black text-2xl text-ink-pri m-0 truncate">
-              {user.name ?? user.username}
+              {displayName}
             </h1>
             <p className="text-sm text-ink-muted m-0">@{user.username}</p>
             {/* Follower / following counts */}
