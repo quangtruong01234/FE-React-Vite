@@ -5,7 +5,14 @@ import type { UserSummary } from "./user";
 export interface PostAuthor {
   id: string;
   username: string;
-  name?: string;
+  /**
+   * Display name the account set (AUTHOR-NAME-01, backend 2026-09-15). Nullable
+   * — most accounts never set one — and still **optional** because a response
+   * served by a gateway older than that rollout omits the key entirely. Render
+   * it through `userDisplayName()`, never with a bare `??`: the backend
+   * normalises a whitespace-only name to `null`, but only in this embed.
+   */
+  name?: string | null;
   avatar: string | null;
 }
 
