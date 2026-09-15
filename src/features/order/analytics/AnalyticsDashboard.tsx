@@ -1,42 +1,19 @@
-import type { ReactElement } from 'react';
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { useMemo, type ReactElement } from 'react';
 import { DollarSign, Package, Receipt, TrendingUp } from 'lucide-react';
 import { cn, formatPrice, formatVnd } from '@/lib/format/utils';
 import { toApiError } from '@/lib/http/apiError';
 import { ApiErrorState } from '@/components/shared/ApiErrorState';
-import { ORDER_STATUS_META } from '@/lib/domain/orderStatus';
+import { ChartFrame } from '@/components/shared/charts/ChartFrame';
+import { ChartLegend } from '@/components/shared/charts/ChartLegend';
+import { DoughnutChart } from '@/components/shared/charts/DoughnutChart';
+import { RankedBarChart } from '@/components/shared/charts/RankedBarChart';
+import { TrendAreaChart, type TrendSeries } from '@/components/shared/charts/TrendAreaChart';
+import { orderStatusSlices, sliceTotal, type ChartSlice } from '@/lib/chart/chartSeries';
+import { CHART_AMBER, CHART_CYAN } from '@/lib/chart/chartTheme';
 import { rangePresetDates } from './analyticsRange';
+import { revenueTrend, topProductSeries } from './analyticsChartData';
 import type { AnalyticsFilters } from './useAnalyticsFilters';
-import type { OrderAnalytics, OrderStatus } from '@/types';
-
-/** Literal hex values (recharts renders SVG — Tailwind classes do not apply). */
-const STATUS_CHART_COLOR: Record<OrderStatus, string> = {
-  pending: '#F59E0B',
-  confirmed: '#06b6d4',
-  processing: '#8b5cf6',
-  shipped: '#3b82f6',
-  delivering: '#3b82f6',
-  completed: '#10b981',
-  canceled: '#EF4444',
-  return_requested: '#F59E0B',
-  refunded: '#8b5cf6',
-};
-
-const CHART_GRID_COLOR = '#27272A';
-const CHART_AXIS_COLOR = '#A1A1AA';
+import type { OrderAnalytics } from '@/types';
 
 type RangePreset = '7d' | '30d' | '90d';
 
@@ -78,7 +55,14 @@ function StatCard({
   );
 }
 
-export function AnalyticsDashboard({ data, isLoading, error, onRetry, filters, onFiltersChange }: AnalyticsDashboardProps): ReactElement {
+export function AnalyticsDashboard({
+  data,
+  isLoading,
+  error,
+  onRetry,
+  filters,
+  onFiltersChange,
+}: AnalyticsDashboardProps): ReactElement {
   // The filter bar stays mounted on failure so the user can narrow the range and
   // retry; only the charts are replaced. Without this the page rendered nothing
   // at all below the heading — indistinguishable from "chưa có dữ liệu".
@@ -92,9 +76,51 @@ export function AnalyticsDashboard({ data, isLoading, error, onRetry, filters, o
     onFiltersChange({ ...filters, from: undefined, to: undefined });
   }
 
-  const statusEntries = data
-    ? (Object.entries(data.statusDistribution) as [OrderStatus, number][]).filter(([, count]) => count > 0)
-    : [];
+  const statusSlices = useMemo(
+    () => orderStatusSlices(data?.statusDistribution),
+    [data?.statusDistribution],
+  );
+
+  const trend = useMemo(
+    () => revenueTrend(data?.revenueOverTime ?? []),
+    [data?.revenueOverTime],
+  );
+
+  const topProducts = useMemo(
+    () => topProductSeries(data?.topProducts ?? []),
+    [data?.topProducts],
+  );
+
+  const trendSeries = useMemo<TrendSeries[]>(
+    () => [
+      {
+        id: 'revenue',
+        label: 'Doanh thu',
+        color: CHART_AMBER,
+        values: trend.revenue,
+        formatter: formatPrice,
+      },
+      {
+        id: 'orderCount',
+        label: 'Số đơn',
+        color: CHART_CYAN,
+        values: trend.orderCount,
+        fill: false,
+        axis: 'right',
+        formatter: (value) => String(value),
+      },
+    ],
+    [trend],
+  );
+
+  const statusTotal = sliceTotal(statusSlices);
+
+  // Names the two lines of the trend chart; the numbers live on its axes, so the
+  // legend renders keys only.
+  const trendLegend: ChartSlice[] = [
+    { key: 'revenue', label: 'Doanh thu', value: 0, color: CHART_AMBER },
+    { key: 'orders', label: 'Số đơn', value: 0, color: CHART_CYAN },
+  ];
 
   return (
     <div className="space-y-6">
@@ -104,7 +130,9 @@ export function AnalyticsDashboard({ data, isLoading, error, onRetry, filters, o
           onClick={clearRange}
           className={cn(
             'px-3 py-1.5 rounded-tb-input border font-body text-xs transition-colors',
-            !filters.from ? 'border-accent-amber/50 bg-accent-amber/10 text-accent-amber' : 'border-bdr bg-canvas-elevated text-ink-sec hover:border-accent-amber/40',
+            !filters.from
+              ? 'border-tb-amber/50 bg-tb-amber/10 text-accent-amber'
+              : 'border-bdr bg-canvas-elevated text-ink-sec hover:border-tb-amber/40',
           )}
         >
           30 ngày (mặc định)
@@ -113,7 +141,7 @@ export function AnalyticsDashboard({ data, isLoading, error, onRetry, filters, o
           <button
             key={preset.key}
             onClick={() => applyRangePreset(preset.days)}
-            className="px-3 py-1.5 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec font-body text-xs hover:border-accent-amber/40 transition-colors"
+            className="px-3 py-1.5 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec font-body text-xs hover:border-tb-amber/40 transition-colors"
           >
             {preset.label}
           </button>
@@ -125,7 +153,9 @@ export function AnalyticsDashboard({ data, isLoading, error, onRetry, filters, o
             onClick={() => onFiltersChange({ ...filters, interval })}
             className={cn(
               'px-3 py-1.5 rounded-tb-input border font-body text-xs transition-colors',
-              filters.interval === interval ? 'border-accent-amber/50 bg-accent-amber/10 text-accent-amber' : 'border-bdr bg-canvas-elevated text-ink-sec hover:border-accent-amber/40',
+              filters.interval === interval
+                ? 'border-tb-amber/50 bg-tb-amber/10 text-accent-amber'
+                : 'border-bdr bg-canvas-elevated text-ink-sec hover:border-tb-amber/40',
             )}
           >
             {interval === 'day' ? 'Theo ngày' : 'Theo tháng'}
@@ -133,133 +163,94 @@ export function AnalyticsDashboard({ data, isLoading, error, onRetry, filters, o
         ))}
       </div>
 
-      {isLoading && (
-        <div className="py-16 text-center font-body text-sm text-ink-muted">Đang tải dữ liệu...</div>
-      )}
+      {!isLoading && loadError && <ApiErrorState error={loadError} onRetry={onRetry} embedded />}
 
-      {!isLoading && loadError && (
-        <ApiErrorState error={loadError} onRetry={onRetry} embedded />
-      )}
-
-      {!isLoading && !loadError && data && (
+      {!loadError && (
         <>
           {/* Summary cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard label="Doanh thu" value={formatVnd(data.summary.totalRevenue)} icon={DollarSign} />
-            <StatCard label="Đơn hoàn thành" value={String(data.summary.completedOrders)} icon={Package} />
-            <StatCard label="Tổng đơn" value={String(data.summary.totalOrders)} icon={Receipt} />
-            <StatCard label="Giá trị đơn TB" value={formatVnd(data.summary.averageOrderValue)} icon={TrendingUp} />
+            <StatCard
+              label="Doanh thu"
+              value={isLoading || !data ? '—' : formatVnd(data.summary.totalRevenue)}
+              icon={DollarSign}
+            />
+            <StatCard
+              label="Đơn hoàn thành"
+              value={isLoading || !data ? '—' : String(data.summary.completedOrders)}
+              icon={Package}
+            />
+            <StatCard
+              label="Tổng đơn"
+              value={isLoading || !data ? '—' : String(data.summary.totalOrders)}
+              icon={Receipt}
+            />
+            <StatCard
+              label="Giá trị đơn TB"
+              value={isLoading || !data ? '—' : formatVnd(data.summary.averageOrderValue)}
+              icon={TrendingUp}
+            />
           </div>
 
           {/* Revenue over time */}
-          <section className="bg-canvas-surface border border-bdr rounded-tb-card p-5">
-            <h2 className="font-display font-semibold text-sm text-ink-pri mb-4">Doanh thu theo thời gian</h2>
-            {data.revenueOverTime.length === 0 ? (
-              <p className="py-10 text-center font-body text-sm text-ink-muted">Chưa có dữ liệu trong khoảng thời gian này.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <AreaChart data={data.revenueOverTime}>
-                  <defs>
-                    <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.35} />
-                      <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} vertical={false} />
-                  <XAxis dataKey="period" tick={{ fill: CHART_AXIS_COLOR, fontSize: 11 }} axisLine={{ stroke: CHART_GRID_COLOR }} tickLine={false} />
-                  <YAxis
-                    tick={{ fill: CHART_AXIS_COLOR, fontSize: 11 }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v: number) => formatPrice(v)}
-                    width={70}
-                  />
-                  <Tooltip
-                    contentStyle={{ background: '#1C1C1E', border: '1px solid #27272A', borderRadius: 8, fontSize: 12 }}
-                    labelStyle={{ color: '#FFFFFF' }}
-                    formatter={(value, name) => [
-                      name === 'revenue' ? formatVnd(Number(value)) : value,
-                      name === 'revenue' ? 'Doanh thu' : 'Số đơn',
-                    ]}
-                  />
-                  <Area type="monotone" dataKey="revenue" stroke="#F59E0B" fill="url(#revenueFill)" strokeWidth={2} />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </section>
+          <ChartFrame
+            title="Doanh thu theo thời gian"
+            subtitle={data?.interval === 'month' ? 'Theo tháng' : 'Theo ngày'}
+            height={260}
+            isLoading={isLoading}
+            isEmpty={trend.labels.length === 0}
+            emptyLabel="Chưa có dữ liệu trong khoảng thời gian này."
+            footer={
+              <ChartLegend layout="inline" className="mt-4" slices={trendLegend} showValues={false} />
+            }
+          >
+            <TrendAreaChart
+              labels={trend.labels}
+              series={trendSeries}
+              ariaLabel="Biểu đồ doanh thu và số đơn theo thời gian"
+            />
+          </ChartFrame>
 
           <div className="grid md:grid-cols-2 gap-6">
             {/* Status distribution */}
-            <section className="bg-canvas-surface border border-bdr rounded-tb-card p-5">
-              <h2 className="font-display font-semibold text-sm text-ink-pri mb-4">Phân bố trạng thái đơn</h2>
-              {statusEntries.length === 0 ? (
-                <p className="py-10 text-center font-body text-sm text-ink-muted">Chưa có đơn hàng nào.</p>
-              ) : (
-                <div className="flex items-center gap-6">
-                  <ResponsiveContainer width="50%" height={200}>
-                    <PieChart>
-                      <Pie
-                        data={statusEntries.map(([status, count]) => ({ status, count }))}
-                        dataKey="count"
-                        nameKey="status"
-                        innerRadius={45}
-                        outerRadius={80}
-                        paddingAngle={2}
-                      >
-                        {statusEntries.map(([status]) => (
-                          <Cell key={status} fill={STATUS_CHART_COLOR[status]} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{ background: '#1C1C1E', border: '1px solid #27272A', borderRadius: 8, fontSize: 12 }}
-                        formatter={(value, _name, entry) => [value, ORDER_STATUS_META[(entry.payload as { status: OrderStatus }).status].label]}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <ul className="flex-1 space-y-2">
-                    {statusEntries.map(([status, count]) => (
-                      <li key={status} className="flex items-center gap-2 text-xs font-body">
-                        <span className="size-2.5 rounded-full shrink-0" style={{ background: STATUS_CHART_COLOR[status] }} />
-                        <span className="flex-1 text-ink-sec truncate">{ORDER_STATUS_META[status].label}</span>
-                        <span className="font-semibold text-ink-pri">{count}</span>
-                      </li>
-                    ))}
-                  </ul>
+            <ChartFrame
+              title="Phân bố trạng thái đơn"
+              height={200}
+              isLoading={isLoading}
+              isEmpty={statusSlices.length === 0}
+              emptyLabel="Chưa có đơn hàng nào."
+            >
+              <div className="flex items-center gap-6 size-full">
+                <div className="w-1/2 h-full shrink-0">
+                  <DoughnutChart
+                    slices={statusSlices}
+                    ariaLabel="Biểu đồ phân bố trạng thái đơn hàng"
+                    centerValue={String(statusTotal)}
+                    centerLabel="đơn"
+                  />
                 </div>
-              )}
-            </section>
+                <ChartLegend slices={statusSlices} showPercent className="flex-1 min-w-0" />
+              </div>
+            </ChartFrame>
 
             {/* Top products */}
-            <section className="bg-canvas-surface border border-bdr rounded-tb-card p-5">
-              <h2 className="font-display font-semibold text-sm text-ink-pri mb-4">Sản phẩm bán chạy</h2>
-              {data.topProducts.length === 0 ? (
-                <p className="py-10 text-center font-body text-sm text-ink-muted">Chưa có sản phẩm nào được bán.</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={data.topProducts} layout="vertical" margin={{ left: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} horizontal={false} />
-                    <XAxis type="number" tick={{ fill: CHART_AXIS_COLOR, fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis
-                      type="category"
-                      dataKey="productName"
-                      tick={{ fill: CHART_AXIS_COLOR, fontSize: 11 }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={110}
-                      tickFormatter={(v: string) => (v.length > 16 ? `${v.slice(0, 16)}…` : v)}
-                    />
-                    <Tooltip
-                      contentStyle={{ background: '#1C1C1E', border: '1px solid #27272A', borderRadius: 8, fontSize: 12 }}
-                      formatter={(value, name) => [
-                        name === 'quantitySold' ? value : formatVnd(Number(value)),
-                        name === 'quantitySold' ? 'Đã bán' : 'Doanh thu',
-                      ]}
-                    />
-                    <Bar dataKey="quantitySold" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </section>
+            <ChartFrame
+              title="Sản phẩm bán chạy"
+              height={200}
+              isLoading={isLoading}
+              isEmpty={topProducts.slices.length === 0}
+              emptyLabel="Chưa có sản phẩm nào được bán."
+            >
+              <RankedBarChart
+                slices={topProducts.slices}
+                valueLabel="Đã bán"
+                ariaLabel="Biểu đồ sản phẩm bán chạy theo số lượng"
+                labelWidth={110}
+                tooltipExtra={(index) => {
+                  const revenue = topProducts.revenues[index];
+                  return revenue == null ? undefined : `Doanh thu: ${formatVnd(revenue)}`;
+                }}
+              />
+            </ChartFrame>
           </div>
         </>
       )}

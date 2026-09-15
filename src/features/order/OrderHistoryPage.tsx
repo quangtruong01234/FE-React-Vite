@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Search } from 'lucide-react';
 import { useAuthContext } from '@/context/useAuthContext';
@@ -12,6 +12,10 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ProductThumb } from '@/components/shared/ProductThumb';
 import type { Order } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ChartFrame } from '@/components/shared/charts/ChartFrame';
+import { ChartLegend } from '@/components/shared/charts/ChartLegend';
+import { DoughnutChart } from '@/components/shared/charts/DoughnutChart';
+import { orderStatusSlices, sliceTotal } from '@/lib/chart/chartSeries';
 import { cn, formatVnd } from '@/lib/format/utils';
 import { formatDateTime } from '@/lib/format/time';
 
@@ -59,6 +63,10 @@ export default function OrderHistoryPage(): ReactElement {
     : null;
 
   const counts = orderFilterCounts(statusCounts);
+
+  // Built from the server-side counts, so the ring covers the WHOLE history —
+  // not just the pages the infinite list has loaded, and not just the active tab.
+  const statusSlices = useMemo(() => orderStatusSlices(statusCounts), [statusCounts]);
 
   // The search box lags the typed value by the debounce — say so instead of
   // flashing "no orders" against the previous term's result set.
@@ -129,6 +137,29 @@ export default function OrderHistoryPage(): ReactElement {
             />
           </div>
         </div>
+
+        {/* Status overview — whole history, independent of the active tab */}
+        {statusSlices.length > 0 && (
+          <ChartFrame
+            title="Tổng quan đơn hàng"
+            subtitle="Toàn bộ lịch sử, không phụ thuộc bộ lọc đang chọn"
+            height={160}
+            className="mb-6"
+          >
+            <div className="flex items-center gap-6 size-full">
+              <div className="w-[45%] h-full shrink-0">
+                <DoughnutChart
+                  slices={statusSlices}
+                  ariaLabel="Biểu đồ phân bố trạng thái đơn hàng của bạn"
+                  centerValue={String(sliceTotal(statusSlices))}
+                  centerLabel="đơn"
+                  valueFormatter={(v) => `${v} đơn`}
+                />
+              </div>
+              <ChartLegend slices={statusSlices} showPercent className="flex-1 min-w-0" />
+            </div>
+          </ChartFrame>
+        )}
 
         {/* Skeleton */}
         {loading && (
