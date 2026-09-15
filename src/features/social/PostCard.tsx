@@ -18,6 +18,7 @@ import { AttachedProduct } from './AttachedProduct';
 import { PostImage } from './PostImage';
 import { openEditPost } from './composerEvents';
 import { relativeTimeShort } from '@/lib/format/time';
+import { userDisplayName } from '@/lib/format/user';
 import type { Post } from '@/types';
 
 interface PostCardProps {
@@ -105,7 +106,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
   }
 
   const time = relativeTimeShort(post.createdAt);
-  const authorName = post.author.name ?? post.author.username;
+  const authorName = userDisplayName(post.author);
 
   return (
     <article className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden transition-all duration-300 hover:border-bdr/80">
