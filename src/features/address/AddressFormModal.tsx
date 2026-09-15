@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { cn } from '@/lib/format/utils';
-import { AddressSelect } from './AddressSelect';
+import { SelectField } from '@/components/shared/SelectField';
 import { useProvinces, useDistricts, useWards } from './useShippingLocations';
 import { useCreateAddress, useUpdateAddress } from './useAddresses';
 import type { Address, CreateAddressDto } from '@/types';
@@ -209,7 +209,7 @@ export function AddressFormModal({
           </div>
 
           <div className="grid sm:grid-cols-3 gap-4">
-            <AddressSelect
+            <SelectField
               label="Tỉnh/thành phố"
               placeholder="Chọn tỉnh/thành"
               value={province ? String(province.id) : ''}
@@ -217,7 +217,7 @@ export function AddressFormModal({
               options={(provinces.data ?? []).map((p) => ({ value: String(p.id), label: p.name }))}
               onChange={handleProvinceChange}
             />
-            <AddressSelect
+            <SelectField
               label="Quận/huyện"
               placeholder="Chọn quận/huyện"
               value={district ? String(district.id) : ''}
@@ -226,7 +226,7 @@ export function AddressFormModal({
               options={(districts.data ?? []).map((d) => ({ value: String(d.id), label: d.name }))}
               onChange={handleDistrictChange}
             />
-            <AddressSelect
+            <SelectField
               label="Phường/xã"
               placeholder="Chọn phường/xã"
               value={ward ? ward.code : ''}
