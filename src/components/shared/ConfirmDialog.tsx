@@ -66,7 +66,14 @@ export function ConfirmDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-sm bg-canvas-surface border-bdr text-ink-pri">
         <DialogHeader>
-          <DialogTitle className="font-display text-lg text-ink-pri">{title}</DialogTitle>
+          {/*
+            `pr-6` keeps the title clear of the close button `DialogContent`
+            parks at `right-4 top-4`. The title box ends 24px from the dialog
+            edge, the X starts at 32px — so a title long enough to wrap runs
+            under it. `ui/dialog.tsx` is write-blocked, and the title here is
+            caller-supplied, so the padding belongs on this side.
+          */}
+          <DialogTitle className="pr-6 font-display text-lg text-ink-pri">{title}</DialogTitle>
           <DialogDescription className="text-sm text-ink-sec">{description}</DialogDescription>
         </DialogHeader>
 

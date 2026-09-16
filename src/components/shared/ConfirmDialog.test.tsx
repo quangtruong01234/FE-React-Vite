@@ -34,6 +34,16 @@ describe('<ConfirmDialog>', () => {
     expect(screen.getByRole('button', { name: 'Hủy' })).toBeInTheDocument();
   });
 
+  // Found on prod: "Đã đặt E2E Prod Tester làm Người bán?" wrapped under the
+  // close button in the corner. The title is caller-supplied and can be any
+  // length, so it has to reserve the corner rather than hope it stays short.
+  it('keeps the title clear of the close button', () => {
+    setup({ title: 'Đổi vai trò của E2E Prod Tester thành Người bán?' });
+    expect(screen.getByText('Đổi vai trò của E2E Prod Tester thành Người bán?')).toHaveClass(
+      'pr-6',
+    );
+  });
+
   it('renders nothing while closed', () => {
     setup({ open: false });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
