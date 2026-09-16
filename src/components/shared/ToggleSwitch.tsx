@@ -38,7 +38,7 @@ export function ToggleSwitch({
       onClick={() => !disabled && onChange(!checked)}
       className={cn(
         "relative inline-flex rounded-full border-2 border-transparent p-0 shrink-0",
-        "transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-accent-amber/30",
+        "transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-tb-amber/30",
         s.track,
         disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer",
         disabled

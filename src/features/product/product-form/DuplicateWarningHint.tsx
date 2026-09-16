@@ -16,7 +16,7 @@ interface Props {
 export function DuplicateWarningHint({ warning, onDismiss }: Props): ReactElement | null {
   if (!warning) return null;
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-4 py-3 bg-accent-amber/5 border border-accent-amber/20 rounded-tb-card">
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-4 py-3 bg-tb-amber/5 border border-tb-amber/20 rounded-tb-card">
       <CopyX size={14} className="shrink-0 text-accent-amber" />
       <span className="text-xs font-body text-ink-sec flex-1 min-w-48">{warning.message}</span>
       <Link
@@ -31,7 +31,7 @@ export function DuplicateWarningHint({ warning, onDismiss }: Props): ReactElemen
       <button
         type="button"
         onClick={onDismiss}
-        className="shrink-0 px-2 py-1 rounded-tb-pill bg-accent-amber/15 text-accent-amber text-xs font-body font-semibold hover:bg-accent-amber/25 transition-colors"
+        className="shrink-0 px-2 py-1 rounded-tb-pill bg-tb-amber/15 text-accent-amber text-xs font-body font-semibold hover:bg-tb-amber/25 transition-colors"
       >
         Tiếp tục đăng
       </button>

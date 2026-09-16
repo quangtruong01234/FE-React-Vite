@@ -155,7 +155,7 @@ export function HeaderSearch(): ReactElement {
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
           placeholder="Tìm sản phẩm, bài viết, seller…"
-          className="w-full bg-canvas-elevated border border-bdr rounded-tb-input py-3 pl-11 pr-4 text-ink-pri font-body text-[15px] placeholder:text-ink-muted outline-none focus:border-accent-amber/50 transition-colors"
+          className="w-full bg-canvas-elevated border border-bdr rounded-tb-input py-3 pl-11 pr-4 text-ink-pri font-body text-[15px] placeholder:text-ink-muted outline-none focus:border-tb-amber/50 transition-colors"
         />
       </form>
 

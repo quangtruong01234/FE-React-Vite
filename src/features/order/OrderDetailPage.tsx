@@ -342,7 +342,7 @@ export default function OrderDetailPage(): ReactElement {
           </div>
           );
         })}
-        <div className="px-4 py-3 flex flex-col gap-2 bg-canvas-elevated/40 border-t border-bdr">
+        <div className="px-4 py-3 flex flex-col gap-2 bg-tb-elevated/40 border-t border-bdr">
           <div className="flex justify-between items-center text-sm text-ink-sec">
             <span>Tạm tính</span>
             <span className="font-mono">{formatVnd(breakdown.subtotal)}</span>
@@ -402,7 +402,7 @@ export default function OrderDetailPage(): ReactElement {
         {canSubmitReturn && !returnFormOpen && (
           <button
             onClick={() => setReturnFormOpen(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-tb-input border border-accent-amber/30 bg-accent-amber/5 text-accent-amber font-semibold text-sm cursor-pointer hover:bg-accent-amber/10 transition-colors"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-tb-input border border-tb-amber/30 bg-tb-amber/5 text-accent-amber font-semibold text-sm cursor-pointer hover:bg-tb-amber/10 transition-colors"
           >
             <RotateCcw size={15} />
             Yêu cầu trả hàng

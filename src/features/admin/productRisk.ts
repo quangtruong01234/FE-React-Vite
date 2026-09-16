@@ -19,15 +19,15 @@ export interface RiskScoreMeta {
 /** Score tiers are advisory buckets for triage, not enforcement thresholds. */
 export function riskScoreMeta(score: number): RiskScoreMeta {
   if (score >= 70) {
-    return { label: 'Rủi ro cao', className: 'bg-accent-red/10 text-accent-red border-accent-red/20' };
+    return { label: 'Rủi ro cao', className: 'bg-tb-red/10 text-accent-red border-tb-red/20' };
   }
   if (score >= 40) {
-    return { label: 'Rủi ro trung bình', className: 'bg-accent-amber/10 text-accent-amber border-accent-amber/20' };
+    return { label: 'Rủi ro trung bình', className: 'bg-tb-amber/10 text-accent-amber border-tb-amber/20' };
   }
   if (score >= 1) {
     return { label: 'Rủi ro thấp', className: 'bg-canvas-elevated text-ink-sec border-bdr' };
   }
-  return { label: 'Không có cờ', className: 'bg-accent-green/10 text-accent-green border-accent-green/20' };
+  return { label: 'Không có cờ', className: 'bg-tb-green/10 text-accent-green border-tb-green/20' };
 }
 
 /** Human-readable Vietnamese reason for one advisory flag. */
@@ -77,9 +77,9 @@ export function riskErrorMessage(error: unknown, action: RiskAction): string {
 export function riskStatusMeta(status: RiskScoringStatus): RiskScoreMeta | null {
   switch (status) {
     case 'pending':
-      return { label: 'Đang chờ chấm điểm', className: 'bg-accent-amber/10 text-accent-amber border-accent-amber/20' };
+      return { label: 'Đang chờ chấm điểm', className: 'bg-tb-amber/10 text-accent-amber border-tb-amber/20' };
     case 'failed':
-      return { label: 'Chấm điểm lỗi', className: 'bg-accent-red/10 text-accent-red border-accent-red/20' };
+      return { label: 'Chấm điểm lỗi', className: 'bg-tb-red/10 text-accent-red border-tb-red/20' };
     case 'ready':
       return null;
   }

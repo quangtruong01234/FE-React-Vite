@@ -31,7 +31,7 @@ const inputCls = cn(
   'w-full bg-canvas-elevated border border-bdr rounded-tb-input',
   'px-3.5 py-2.5 text-ink-pri font-body text-sm placeholder:text-ink-muted',
   'outline-none transition-colors',
-  'focus:border-accent-amber/50 focus:ring-2 focus:ring-accent-amber/20',
+  'focus:border-tb-amber/50 focus:ring-2 focus:ring-tb-amber/20',
 );
 
 /** Create sends the full DTO; edit sends only the fields that changed. */
@@ -50,7 +50,7 @@ function SectionHeader({
 }): ReactElement {
   return (
     <div className="flex items-center gap-3 px-6 py-4 border-b border-bdr">
-      <span className="size-7 rounded-full bg-accent-amber/10 grid place-items-center shrink-0">
+      <span className="size-7 rounded-full bg-tb-amber/10 grid place-items-center shrink-0">
         <span className="font-display font-bold text-xs text-accent-amber">{num}</span>
       </span>
       <h2 className="font-display font-semibold text-sm uppercase tracking-wider text-ink-pri">
@@ -447,7 +447,7 @@ export default function CreateProductPage(): ReactElement {
               ) : (
                 <div className="flex flex-col gap-5">
                   {isEditMode && (
-                    <p className="text-sm text-accent-amber font-body px-4 py-3 bg-accent-amber/5 border border-accent-amber/20 rounded-tb-card">
+                    <p className="text-sm text-accent-amber font-body px-4 py-3 bg-tb-amber/5 border border-tb-amber/20 rounded-tb-card">
                       Sửa phân loại sẽ cập nhật lại SKU. Giá/kho hiện tại đã được nạp sẵn —
                       chỉ thay đổi phần cần sửa. Xóa phân loại đã tồn tại sẽ cần xác nhận.
                     </p>
@@ -491,7 +491,7 @@ export default function CreateProductPage(): ReactElement {
       </div>
 
       {/* Fixed bottom action bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-canvas-surface/90 backdrop-blur-md border-t border-bdr">
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-tb-surface/90 backdrop-blur-md border-t border-bdr">
         <div className="max-w-screen-xl mx-auto px-5 py-3 flex items-center gap-3">
           <span className="hidden sm:flex items-center gap-1.5">
             {submitError ? (
@@ -518,7 +518,7 @@ export default function CreateProductPage(): ReactElement {
             <button
               type="button"
               onClick={() => navigate(-1)}
-              className="px-4 py-2 rounded-tb-cta text-sm font-body font-medium text-ink-sec bg-canvas-elevated border border-bdr hover:text-ink-pri hover:border-accent-amber/30 transition-colors"
+              className="px-4 py-2 rounded-tb-cta text-sm font-body font-medium text-ink-sec bg-canvas-elevated border border-bdr hover:text-ink-pri hover:border-tb-amber/30 transition-colors"
             >
               Hủy
             </button>
@@ -527,7 +527,7 @@ export default function CreateProductPage(): ReactElement {
                 type="button"
                 onClick={() => void handleSubmit(true)}
                 disabled={isPending || submitSuccess || !form.fields.name.trim()}
-                className="px-4 py-2 rounded-tb-cta text-sm font-body font-medium text-ink-sec bg-canvas-elevated border border-bdr hover:text-ink-pri hover:border-accent-amber/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 rounded-tb-cta text-sm font-body font-medium text-ink-sec bg-canvas-elevated border border-bdr hover:text-ink-pri hover:border-tb-amber/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isPending ? 'Đang xử lý...' : 'Lưu nháp'}
               </button>

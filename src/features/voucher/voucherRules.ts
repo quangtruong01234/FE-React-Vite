@@ -46,16 +46,16 @@ export function voucherStatusMeta(
   }
   const expiresAt = voucher.expiresAt ? new Date(voucher.expiresAt).getTime() : null;
   if (expiresAt !== null && Number.isFinite(expiresAt) && now > expiresAt) {
-    return { kind: 'expired', label: 'Hết hạn', className: 'bg-accent-red/15 text-accent-red border-accent-red/30' };
+    return { kind: 'expired', label: 'Hết hạn', className: 'bg-tb-red/15 text-accent-red border-tb-red/30' };
   }
   if (voucher.usageLimit !== null && voucher.usedCount >= voucher.usageLimit) {
-    return { kind: 'used_up', label: 'Hết lượt', className: 'bg-accent-red/15 text-accent-red border-accent-red/30' };
+    return { kind: 'used_up', label: 'Hết lượt', className: 'bg-tb-red/15 text-accent-red border-tb-red/30' };
   }
   const startsAt = voucher.startsAt ? new Date(voucher.startsAt).getTime() : null;
   if (startsAt !== null && Number.isFinite(startsAt) && now < startsAt) {
-    return { kind: 'scheduled', label: 'Chưa bắt đầu', className: 'bg-accent-cyan/15 text-accent-cyan border-accent-cyan/30' };
+    return { kind: 'scheduled', label: 'Chưa bắt đầu', className: 'bg-tb-cyan/15 text-accent-cyan border-tb-cyan/30' };
   }
-  return { kind: 'active', label: 'Đang chạy', className: 'bg-accent-green/15 text-accent-green border-accent-green/30' };
+  return { kind: 'active', label: 'Đang chạy', className: 'bg-tb-green/15 text-accent-green border-tb-green/30' };
 }
 
 /** "10%" · "10% (tối đa 50.000 đ)" · "50.000 đ" — formatting stays in the page. */

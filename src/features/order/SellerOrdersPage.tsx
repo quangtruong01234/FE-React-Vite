@@ -117,7 +117,7 @@ function OrderCard({
               className={cn(
                 'px-4 py-2 rounded-tb-input font-body font-semibold text-sm text-ink-pri transition-colors whitespace-nowrap',
                 actionPending
-                  ? 'bg-accent-amber/40 cursor-not-allowed'
+                  ? 'bg-tb-amber/40 cursor-not-allowed'
                   : 'bg-tb-gradient hover:opacity-90 cursor-pointer',
               )}
             >
@@ -184,7 +184,7 @@ function OrderCard({
 
           {/* Items */}
           <div className="md:col-span-2 rounded-tb-input border border-bdr overflow-hidden">
-            <div className="px-3 py-2 border-b border-bdr font-body text-[11px] font-semibold uppercase tracking-wide text-ink-muted bg-canvas-elevated/40">
+            <div className="px-3 py-2 border-b border-bdr font-body text-[11px] font-semibold uppercase tracking-wide text-ink-muted bg-tb-elevated/40">
               Sản phẩm ({items.length})
             </div>
             {detailLoading && !detail ? (

@@ -58,9 +58,9 @@ const CONDITION_LABEL: Record<string, string> = {
 };
 
 const CONDITION_CLASS: Record<string, string> = {
-  new: "bg-accent-green/10 text-accent-green border-accent-green/20",
-  used: "bg-accent-amber/10 text-accent-amber border-accent-amber/20",
-  refurbished: "bg-accent-cyan/10 text-accent-cyan border-accent-cyan/20",
+  new: "bg-tb-green/10 text-accent-green border-tb-green/20",
+  used: "bg-tb-amber/10 text-accent-amber border-tb-amber/20",
+  refurbished: "bg-tb-cyan/10 text-accent-cyan border-tb-cyan/20",
 };
 
 function ProductRow({
@@ -84,7 +84,7 @@ function ProductRow({
   const categoryNames = productCategoryNames(product);
 
   return (
-    <tr className="border-b border-bdr hover:bg-canvas-elevated/40 transition-colors">
+    <tr className="border-b border-bdr hover:bg-tb-elevated/40 transition-colors">
       <td className="py-3 px-4">
         <div className="flex items-center gap-3">
           <ProductThumb
@@ -180,7 +180,7 @@ function ProductRow({
           <IconButton
             onClick={onEdit}
             aria-label={`Sửa ${product.name}`}
-            className="size-7 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec hover:border-accent-amber/50 hover:text-accent-amber transition-colors"
+            className="size-7 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec hover:border-tb-amber/50 hover:text-accent-amber transition-colors"
           >
             <Pencil size={13} className="shrink-0" />
           </IconButton>
@@ -188,7 +188,7 @@ function ProductRow({
             onClick={onDelete}
             disabled={isDeleting}
             aria-label={`Xóa ${product.name}`}
-            className="size-7 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec hover:border-accent-red/50 hover:text-accent-red transition-colors disabled:opacity-40"
+            className="size-7 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec hover:border-tb-red/50 hover:text-accent-red transition-colors disabled:opacity-40"
           >
             <Trash2 size={13} className="shrink-0" />
           </IconButton>
@@ -215,8 +215,8 @@ function StatCard({
         className={cn(
           "size-10 rounded-tb-input grid place-items-center shrink-0",
           danger
-            ? "bg-accent-red/10 text-accent-red"
-            : "bg-accent-amber/10 text-accent-amber",
+            ? "bg-tb-red/10 text-accent-red"
+            : "bg-tb-amber/10 text-accent-amber",
         )}
       >
         <Icon size={18} className="shrink-0" />
@@ -509,7 +509,7 @@ export default function ShopPage() {
 
         {/* Low-stock list */}
         {lowStockRows.length > 0 && (
-          <div className="bg-canvas-surface border border-accent-red/30 rounded-tb-card overflow-hidden mb-7">
+          <div className="bg-canvas-surface border border-tb-red/30 rounded-tb-card overflow-hidden mb-7">
             <div className="px-5 py-4 border-b border-bdr flex items-center gap-2">
               <AlertTriangle size={16} className="shrink-0 text-accent-red" />
               <h2 className="text-sm font-body font-medium text-ink-pri">
@@ -545,7 +545,7 @@ export default function ShopPage() {
                   <IconButton
                     onClick={() => handleEdit(row.productId)}
                     aria-label={`Sửa ${row.name}`}
-                    className="size-7 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec hover:border-accent-amber/50 hover:text-accent-amber transition-colors shrink-0"
+                    className="size-7 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec hover:border-tb-amber/50 hover:text-accent-amber transition-colors shrink-0"
                   >
                     <Pencil size={13} className="shrink-0" />
                   </IconButton>
@@ -577,7 +577,7 @@ export default function ShopPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Tìm tên hoặc SKU..."
-                className="w-full bg-canvas-elevated border border-bdr rounded-tb-input pl-8 pr-3 py-1.5 text-sm font-body text-ink-pri placeholder:text-ink-muted outline-none focus:border-accent-amber/50 focus:ring-1 focus:ring-accent-amber/20 transition-colors"
+                className="w-full bg-canvas-elevated border border-bdr rounded-tb-input pl-8 pr-3 py-1.5 text-sm font-body text-ink-pri placeholder:text-ink-muted outline-none focus:border-tb-amber/50 focus:ring-1 focus:ring-tb-amber/20 transition-colors"
               />
             </div>
           </div>

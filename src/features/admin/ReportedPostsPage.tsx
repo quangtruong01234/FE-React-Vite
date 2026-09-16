@@ -81,13 +81,13 @@ function ReportedPostCard({
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {post.isHidden && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-body font-medium rounded-tb-pill border bg-accent-red/10 text-accent-red border-accent-red/20">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-body font-medium rounded-tb-pill border bg-tb-red/10 text-accent-red border-tb-red/20">
               <EyeOff size={11} className="shrink-0" />
               Đang ẩn khỏi feed
             </span>
           )}
           {group.pendingCount > 0 && (
-            <span className="inline-flex items-center px-2 py-0.5 text-xs font-body font-medium rounded-tb-pill border bg-accent-amber/10 text-accent-amber border-accent-amber/20">
+            <span className="inline-flex items-center px-2 py-0.5 text-xs font-body font-medium rounded-tb-pill border bg-tb-amber/10 text-accent-amber border-tb-amber/20">
               {group.pendingCount} chờ xử lý
             </span>
           )}
@@ -154,8 +154,8 @@ function ReportedPostCard({
                   className={cn(
                     'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed',
                     isDelete
-                      ? 'bg-accent-red/15 text-accent-red hover:bg-accent-red/25'
-                      : 'bg-canvas-elevated border border-bdr text-ink-sec hover:border-accent-amber/50 hover:text-ink-pri',
+                      ? 'bg-tb-red/15 text-accent-red hover:bg-tb-red/25'
+                      : 'bg-canvas-elevated border border-bdr text-ink-sec hover:border-tb-amber/50 hover:text-ink-pri',
                   )}
                 >
                   <ActionIcon action={action} />
@@ -253,17 +253,17 @@ export default function ReportedPostsPage(): ReactElement {
       </div>
 
       {toast && (
-        <div className="bg-accent-green/15 text-accent-green border border-accent-green/30 rounded-tb-card px-4 py-3 font-body text-sm">
+        <div className="bg-tb-green/15 text-accent-green border border-tb-green/30 rounded-tb-card px-4 py-3 font-body text-sm">
           {toast}
         </div>
       )}
       {errorMsg && (
-        <div className="bg-accent-red/10 text-accent-red border border-accent-red/30 rounded-tb-card px-4 py-3 font-body text-sm">
+        <div className="bg-tb-red/10 text-accent-red border border-tb-red/30 rounded-tb-card px-4 py-3 font-body text-sm">
           {errorMsg}
         </div>
       )}
       {actionErrorMsg && (
-        <div className="bg-accent-red/10 text-accent-red border border-accent-red/30 rounded-tb-card px-4 py-3 font-body text-sm">
+        <div className="bg-tb-red/10 text-accent-red border border-tb-red/30 rounded-tb-card px-4 py-3 font-body text-sm">
           {moderate.variables ? <span className="font-mono font-bold">#{moderate.variables.id}</span> : null} · {actionErrorMsg}
         </div>
       )}

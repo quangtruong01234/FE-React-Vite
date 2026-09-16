@@ -57,7 +57,7 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
           isNavItemActive(item, location.pathname) ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
         )}
       >
-        <span className="size-8 rounded-full bg-accent-amber/10 text-accent-amber flex-none grid place-items-center">
+        <span className="size-8 rounded-full bg-tb-amber/10 text-accent-amber flex-none grid place-items-center">
           <item.icon size={16} className="shrink-0" />
         </span>
         <span className="flex-1 font-body font-semibold text-sm text-ink-pri">{item.label}</span>

@@ -82,7 +82,7 @@ function RequestCard({
                 type="button"
                 disabled={busy}
                 onClick={() => onApprove(request.id)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-tb-cta bg-accent-green/90 text-canvas-base font-body font-semibold text-sm transition-opacity disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed hover:opacity-90"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-tb-cta bg-tb-green/90 text-canvas-base font-body font-semibold text-sm transition-opacity disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed hover:opacity-90"
               >
                 <BadgeCheck size={15} className="shrink-0" />
                 {pendingAction === 'approve' ? 'Đang duyệt...' : 'Duyệt & hoàn tiền'}

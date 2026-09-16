@@ -149,7 +149,7 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
           className={cn(
             'px-4 py-1.5 text-xs font-medium text-center flex-none border-b border-bdr',
             banner.tone === 'error'
-              ? 'bg-accent-red/10 text-accent-red'
+              ? 'bg-tb-red/10 text-accent-red'
               : 'bg-canvas-elevated text-ink-sec',
           )}
         >
@@ -210,7 +210,7 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
                   m.status === 'error' && 'opacity-60',
                 )}>
                   {m.content}
-                  <div className={cn('text-[10px] mt-0.5', isMe ? 'text-ink-pri/70' : 'text-ink-muted')}>
+                  <div className={cn('text-[10px] mt-0.5', isMe ? 'text-white/70' : 'text-ink-muted')}>
                     {formatMessageTime(m.createdAt)}
                   </div>
                 </div>

@@ -211,7 +211,7 @@ export default function OrderHistoryPage(): ReactElement {
               <Link
                 key={order.id}
                 to={`/order/${order.id}`}
-                className="bg-canvas-surface border border-bdr rounded-xl overflow-hidden hover:border-tb-amber/30 hover:bg-canvas-elevated/40 transition-colors block"
+                className="bg-canvas-surface border border-bdr rounded-xl overflow-hidden hover:border-tb-amber/30 hover:bg-tb-elevated/40 transition-colors block"
               >
                 <div className="p-5 grid grid-cols-[72px_1fr_auto_auto] gap-6 items-center">
                   {/* Thumbnail */}

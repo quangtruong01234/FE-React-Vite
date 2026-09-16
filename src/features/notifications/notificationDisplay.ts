@@ -67,29 +67,29 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
     body: (n) => orderBody(n, (id) => `Đơn hàng #${id} đã được đặt thành công.`),
   },
   payment_completed: {
-    Icon: CheckCircle, color: 'text-accent-green bg-accent-green/10',
+    Icon: CheckCircle, color: 'text-accent-green bg-tb-green/10',
     title: 'Thanh toán thành công',
     body: (n) => orderBody(n, (id) => `Đơn hàng #${id} đã được thanh toán thành công.`),
   },
   order_placed: {
-    Icon: ShoppingBag, color: 'text-accent-amber bg-accent-amber/10',
+    Icon: ShoppingBag, color: 'text-accent-amber bg-tb-amber/10',
     title: 'Đặt hàng thành công',
     body: (n) => orderBody(n, (id) => `Đơn hàng #${id} đã được tạo thành công.`),
   },
   // NOTIF-LIFECYCLE-01: the buyer now gets a notification at every step of the
   // lifecycle, and the seller one for each new order.
   new_order: {
-    Icon: ClipboardCheck, color: 'text-accent-amber bg-accent-amber/10',
+    Icon: ClipboardCheck, color: 'text-accent-amber bg-tb-amber/10',
     title: 'Đơn hàng mới',
     body: (n) => orderBody(n, (id) => `Bạn có đơn hàng mới #${id} cần xác nhận.`),
   },
   order_confirmed: {
-    Icon: BadgeCheck, color: 'text-accent-amber bg-accent-amber/10',
+    Icon: BadgeCheck, color: 'text-accent-amber bg-tb-amber/10',
     title: 'Đơn hàng đã xác nhận',
     body: (n) => orderBody(n, (id) => `Đơn hàng #${id} đã được người bán xác nhận.`),
   },
   order_processing: {
-    Icon: Package, color: 'text-accent-cyan bg-accent-cyan/10',
+    Icon: Package, color: 'text-accent-cyan bg-tb-cyan/10',
     title: 'Đang chuẩn bị hàng',
     body: (n) => orderBody(n, (id) => `Đơn hàng #${id} đang được chuẩn bị để giao.`),
   },
@@ -104,7 +104,7 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
     body: (n) => orderBody(n, (id) => `Đơn hàng #${id} đang trên đường giao đến bạn.`),
   },
   order_completed: {
-    Icon: PackageCheck, color: 'text-accent-green bg-accent-green/10',
+    Icon: PackageCheck, color: 'text-accent-green bg-tb-green/10',
     title: 'Giao hàng thành công',
     body: (n) => orderBody(n, (id) => `Đơn hàng #${id} đã giao thành công.`),
   },
@@ -114,7 +114,7 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
   // `order_canceled` (XCircle đỏ = việc đã kết thúc). BE chỉ báo lần hụt ĐẦU
   // TIÊN của mỗi đơn; không có notification lần 2, lần 3.
   order_delivery_attempt_failed: {
-    Icon: AlertTriangle, color: 'text-accent-amber bg-accent-amber/10',
+    Icon: AlertTriangle, color: 'text-accent-amber bg-tb-amber/10',
     title: 'Giao hàng chưa thành công',
     body: (n) => orderBody(
       n,
@@ -122,52 +122,52 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
     ),
   },
   order_canceled: {
-    Icon: XCircle, color: 'text-accent-red bg-accent-red/10',
+    Icon: XCircle, color: 'text-accent-red bg-tb-red/10',
     title: 'Đơn hàng đã hủy',
     body: (n) => orderBody(n, (id) => `Đơn hàng #${id} đã bị hủy.`),
   },
   order_return_requested: {
-    Icon: RotateCcw, color: 'text-accent-amber bg-accent-amber/10',
+    Icon: RotateCcw, color: 'text-accent-amber bg-tb-amber/10',
     title: 'Yêu cầu trả hàng',
     body: (n) => orderBody(n, (id) => `Đơn hàng #${id} có yêu cầu trả hàng cần bạn duyệt.`),
   },
   order_return_approved: {
-    Icon: BadgeCheck, color: 'text-accent-green bg-accent-green/10',
+    Icon: BadgeCheck, color: 'text-accent-green bg-tb-green/10',
     title: 'Trả hàng được duyệt',
     body: (n) => orderBody(n, (id) => `Yêu cầu trả hàng cho đơn #${id} đã được duyệt và hoàn tiền.`),
   },
   order_return_rejected: {
-    Icon: Ban, color: 'text-accent-red bg-accent-red/10',
+    Icon: Ban, color: 'text-accent-red bg-tb-red/10',
     title: 'Trả hàng bị từ chối',
     body: (n) => orderBody(n, (id) => `Yêu cầu trả hàng cho đơn #${id} đã bị từ chối.`),
   },
   comment: {
-    Icon: MessageCircle, color: 'text-accent-cyan bg-accent-cyan/10',
+    Icon: MessageCircle, color: 'text-accent-cyan bg-tb-cyan/10',
     title: 'Bình luận mới',
     body: (n) => socialBody(n, 'bình luận về bài viết của bạn'),
   },
   reply: {
-    Icon: Reply, color: 'text-accent-cyan bg-accent-cyan/10',
+    Icon: Reply, color: 'text-accent-cyan bg-tb-cyan/10',
     title: 'Phản hồi mới',
     body: (n) => socialBody(n, 'trả lời bình luận của bạn'),
   },
   brand_approved: {
-    Icon: Tag, color: 'text-accent-green bg-accent-green/10',
+    Icon: Tag, color: 'text-accent-green bg-tb-green/10',
     title: 'Thương hiệu được duyệt',
     body: (n) => reviewBody(n, 'Thương hiệu', true),
   },
   brand_rejected: {
-    Icon: Tag, color: 'text-accent-red bg-accent-red/10',
+    Icon: Tag, color: 'text-accent-red bg-tb-red/10',
     title: 'Thương hiệu bị từ chối',
     body: (n) => reviewBody(n, 'Thương hiệu', false),
   },
   category_approved: {
-    Icon: FolderTree, color: 'text-accent-green bg-accent-green/10',
+    Icon: FolderTree, color: 'text-accent-green bg-tb-green/10',
     title: 'Danh mục được duyệt',
     body: (n) => reviewBody(n, 'Danh mục', true),
   },
   category_rejected: {
-    Icon: FolderTree, color: 'text-accent-red bg-accent-red/10',
+    Icon: FolderTree, color: 'text-accent-red bg-tb-red/10',
     title: 'Danh mục bị từ chối',
     body: (n) => reviewBody(n, 'Danh mục', false),
   },

@@ -95,7 +95,7 @@ function SelectFilter({ label, items, selected, onChange }: SelectFilterProps): 
           <button
             type="button"
             onClick={() => onChange([])}
-            className="text-[10px] text-accent-amber hover:text-accent-amber/70 transition-colors cursor-pointer font-body"
+            className="text-[10px] text-accent-amber hover:text-tb-amber/70 transition-colors cursor-pointer font-body"
           >
             Bỏ chọn
           </button>
@@ -109,7 +109,7 @@ function SelectFilter({ label, items, selected, onChange }: SelectFilterProps): 
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder={`Tìm ${label.toLowerCase()}…`}
-          className="w-full bg-canvas-base border border-bdr rounded-tb-input py-1.5 pl-7 pr-7 text-ink-pri text-xs font-body placeholder:text-ink-muted outline-none focus:border-accent-amber/50 transition-colors"
+          className="w-full bg-canvas-base border border-bdr rounded-tb-input py-1.5 pl-7 pr-7 text-ink-pri text-xs font-body placeholder:text-ink-muted outline-none focus:border-tb-amber/50 transition-colors"
         />
         {search && (
           <button
@@ -320,7 +320,7 @@ export default function MarketplacePage(): ReactElement {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Tìm sản phẩm…"
-            className="w-full bg-canvas-elevated border border-bdr rounded-tb-input py-2.5 px-3.5 text-ink-pri text-[13px] font-body placeholder:text-ink-muted outline-none focus:border-accent-amber/50 transition-colors"
+            className="w-full bg-canvas-elevated border border-bdr rounded-tb-input py-2.5 px-3.5 text-ink-pri text-[13px] font-body placeholder:text-ink-muted outline-none focus:border-tb-amber/50 transition-colors"
           />
         </form>
 
@@ -358,7 +358,7 @@ export default function MarketplacePage(): ReactElement {
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                       placeholder="Tìm sản phẩm…"
-                      className="w-full bg-canvas-elevated border border-bdr rounded-tb-input py-2 pl-9 pr-3 text-ink-pri text-xs font-body placeholder:text-ink-muted outline-none focus:border-accent-amber/50 transition-colors"
+                      className="w-full bg-canvas-elevated border border-bdr rounded-tb-input py-2 pl-9 pr-3 text-ink-pri text-xs font-body placeholder:text-ink-muted outline-none focus:border-tb-amber/50 transition-colors"
                     />
                   </form>
 
@@ -409,7 +409,7 @@ export default function MarketplacePage(): ReactElement {
                         value={minPrice > 0 ? minPrice : ''}
                         onChange={(e) => handleMinPriceChange(e.target.value === '' ? 0 : Math.min(Number(e.target.value), maxPrice))}
                         placeholder="Từ"
-                        className="w-full bg-canvas-elevated border border-bdr rounded-tb-input py-1.5 px-2 text-ink-pri text-xs font-mono placeholder:text-ink-muted outline-none focus:border-accent-amber/50 transition-colors"
+                        className="w-full bg-canvas-elevated border border-bdr rounded-tb-input py-1.5 px-2 text-ink-pri text-xs font-mono placeholder:text-ink-muted outline-none focus:border-tb-amber/50 transition-colors"
                       />
                       <span className="text-ink-muted text-xs flex-none">—</span>
                       <input
@@ -420,7 +420,7 @@ export default function MarketplacePage(): ReactElement {
                         value={maxPrice < DEFAULT_MAX_PRICE ? maxPrice : ''}
                         onChange={(e) => handleMaxPriceChange(e.target.value === '' ? DEFAULT_MAX_PRICE : Math.max(Number(e.target.value), minPrice))}
                         placeholder="Đến"
-                        className="w-full bg-canvas-elevated border border-bdr rounded-tb-input py-1.5 px-2 text-ink-pri text-xs font-mono placeholder:text-ink-muted outline-none focus:border-accent-amber/50 transition-colors"
+                        className="w-full bg-canvas-elevated border border-bdr rounded-tb-input py-1.5 px-2 text-ink-pri text-xs font-mono placeholder:text-ink-muted outline-none focus:border-tb-amber/50 transition-colors"
                       />
                     </div>
                     <input
@@ -456,7 +456,7 @@ export default function MarketplacePage(): ReactElement {
           {/* Main grid */}
           <div>
             {error && (
-              <div className="mb-4 px-4 py-3 rounded-tb-ghost bg-accent-red/10 border border-accent-red/30 text-accent-red text-sm font-body">
+              <div className="mb-4 px-4 py-3 rounded-tb-ghost bg-tb-red/10 border border-tb-red/30 text-accent-red text-sm font-body">
                 {(error as { message?: string }).message ?? 'Không thể tải sản phẩm. Vui lòng thử lại.'}
               </div>
             )}

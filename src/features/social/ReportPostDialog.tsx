@@ -74,7 +74,7 @@ export function ReportPostDialog({ postId, open, onClose }: ReportPostDialogProp
               rows={4}
               autoFocus
               placeholder="Ví dụ: spam, hàng giả, nội dung phản cảm…"
-              className="w-full bg-canvas-elevated border border-bdr rounded-tb-input px-3 py-2 text-sm font-body text-ink-pri placeholder:text-ink-muted outline-none resize-none focus:border-accent-red/50"
+              className="w-full bg-canvas-elevated border border-bdr rounded-tb-input px-3 py-2 text-sm font-body text-ink-pri placeholder:text-ink-muted outline-none resize-none focus:border-tb-red/50"
             />
             <div className="flex items-center justify-between">
               <span className="text-xs text-ink-muted font-body">{reason.length}/{MAX_REASON}</span>

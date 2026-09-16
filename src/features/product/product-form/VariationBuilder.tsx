@@ -8,7 +8,7 @@ const inputCls = cn(
   'bg-canvas-elevated border border-bdr rounded-tb-input',
   'px-3 py-2 text-ink-pri font-body text-sm placeholder:text-ink-muted',
   'outline-none transition-colors',
-  'focus:border-accent-amber/50 focus:ring-2 focus:ring-accent-amber/20',
+  'focus:border-tb-amber/50 focus:ring-2 focus:ring-tb-amber/20',
 );
 
 interface Props {
@@ -29,12 +29,12 @@ function OptionChip({
   onRemove: () => void;
 }): ReactElement {
   return (
-    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-accent-amber/10 text-accent-amber rounded-tb-pill text-xs font-body font-medium shrink-0">
+    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-tb-amber/10 text-accent-amber rounded-tb-pill text-xs font-body font-medium shrink-0">
       {label}
       <IconButton
         onClick={onRemove}
         aria-label={`Xóa option ${label}`}
-        className="size-3.5 rounded-full hover:bg-accent-amber/20 transition-colors"
+        className="size-3.5 rounded-full hover:bg-tb-amber/20 transition-colors"
       >
         <X size={9} className="shrink-0" />
       </IconButton>
@@ -125,8 +125,8 @@ function GroupRow({
           aria-label="Thêm option"
           className={cn(
             'size-8 rounded-tb-input shrink-0',
-            'bg-accent-amber/10 text-accent-amber border border-accent-amber/20',
-            'hover:bg-accent-amber/20 transition-colors',
+            'bg-tb-amber/10 text-accent-amber border border-tb-amber/20',
+            'hover:bg-tb-amber/20 transition-colors',
             'disabled:opacity-40 disabled:cursor-not-allowed',
           )}
         >

@@ -57,7 +57,7 @@ export function ProductPicker({ value, onChange }: ProductPickerProps) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-3 py-2 rounded-tb-cta border border-dashed border-bdr text-sm font-body text-ink-sec hover:border-accent-amber/50 hover:text-accent-amber transition-colors w-fit"
+        className="flex items-center gap-2 px-3 py-2 rounded-tb-cta border border-dashed border-bdr text-sm font-body text-ink-sec hover:border-tb-amber/50 hover:text-accent-amber transition-colors w-fit"
       >
         <Tag size={15} className="shrink-0" /> Gắn sản phẩm
       </button>
@@ -78,7 +78,7 @@ export function ProductPicker({ value, onChange }: ProductPickerProps) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Tìm sản phẩm theo tên…"
-            className="w-full bg-canvas-surface border border-bdr rounded-tb-input pl-8 pr-3 py-1.5 text-sm font-body text-ink-pri placeholder:text-ink-muted outline-none focus:border-accent-amber/50"
+            className="w-full bg-canvas-surface border border-bdr rounded-tb-input pl-8 pr-3 py-1.5 text-sm font-body text-ink-pri placeholder:text-ink-muted outline-none focus:border-tb-amber/50"
           />
         </div>
         <IconButton

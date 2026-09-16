@@ -68,8 +68,8 @@ export function AddressBookPicker({
                     'w-full text-left rounded-tb-card border p-3.5 transition-colors cursor-pointer',
                     'flex items-start gap-3',
                     selected
-                      ? 'border-accent-amber bg-accent-amber/5'
-                      : 'border-bdr bg-canvas-base hover:border-accent-amber/40',
+                      ? 'border-accent-amber bg-tb-amber/5'
+                      : 'border-bdr bg-canvas-base hover:border-tb-amber/40',
                   )}
                 >
                   <span
@@ -87,7 +87,7 @@ export function AddressBookPicker({
                       </span>
                       <span className="font-mono text-xs text-ink-muted">{addr.phone}</span>
                       {addr.isDefault && (
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-accent-amber border border-accent-amber/40 rounded-full px-1.5 py-0.5">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-accent-amber border border-tb-amber/40 rounded-full px-1.5 py-0.5">
                           Mặc định
                         </span>
                       )}
@@ -106,7 +106,7 @@ export function AddressBookPicker({
       <button
         type="button"
         onClick={() => setModalOpen(true)}
-        className="flex items-center justify-center gap-2 rounded-tb-card border border-dashed border-bdr py-2.5 text-sm font-medium text-ink-sec hover:border-accent-amber/50 hover:text-ink-pri transition-colors cursor-pointer"
+        className="flex items-center justify-center gap-2 rounded-tb-card border border-dashed border-bdr py-2.5 text-sm font-medium text-ink-sec hover:border-tb-amber/50 hover:text-ink-pri transition-colors cursor-pointer"
       >
         <Plus size={16} className="shrink-0" />
         Thêm địa chỉ mới

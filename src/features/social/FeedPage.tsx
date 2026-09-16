@@ -51,7 +51,7 @@ export default function FeedPage() {
     <div className="max-w-[950px] mx-auto flex flex-col gap-4">
 
         {/* Tabs — sticky with backdrop blur */}
-        <div className="sticky top-[72px] z-40 -mx-1 px-1 py-1 bg-canvas-base/80 backdrop-blur-sm">
+        <div className="sticky top-[72px] z-40 -mx-1 px-1 py-1 bg-tb-base/80 backdrop-blur-sm">
           <div className="flex gap-1 bg-canvas-surface border border-bdr rounded-tb-card p-1">
             {TABS.map((tab) => (
               <button
@@ -91,7 +91,7 @@ export default function FeedPage() {
 
         {/* Error banner */}
         {isError && (
-          <div className="rounded-tb-card border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm font-body text-accent-red">
+          <div className="rounded-tb-card border border-tb-red/30 bg-tb-red/10 px-4 py-3 text-sm font-body text-accent-red">
             {error instanceof Error ? error.message : 'Đã có lỗi xảy ra. Vui lòng thử lại.'}
           </div>
         )}

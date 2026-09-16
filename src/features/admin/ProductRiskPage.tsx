@@ -139,7 +139,7 @@ function RiskProductCard({
       <div className="mt-3 pt-3 border-t border-bdr flex gap-2.5 flex-wrap">
         <Link
           to={`/product/${product.id}`}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr text-ink-sec hover:border-accent-amber/50 hover:text-ink-pri transition-colors"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr text-ink-sec hover:border-tb-amber/50 hover:text-ink-pri transition-colors"
         >
           <ExternalLink size={14} className="shrink-0" />
           Xem sản phẩm
@@ -148,7 +148,7 @@ function RiskProductCard({
           type="button"
           disabled={rescorePending}
           onClick={() => onRescore(product.id)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr text-ink-sec hover:border-accent-amber/50 hover:text-ink-pri transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr text-ink-sec hover:border-tb-amber/50 hover:text-ink-pri transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <RefreshCw size={14} className={cn('shrink-0', rescorePending && 'animate-spin')} />
           {rescorePending ? 'Đang chấm điểm...' : 'Chấm điểm lại'}
@@ -160,7 +160,7 @@ function RiskProductCard({
               type="button"
               disabled={feedbackPending}
               onClick={() => onFeedback(product.id, 'confirmed_duplicate')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr text-accent-red hover:border-accent-red/50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr text-accent-red hover:border-tb-red/50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <CheckCircle2 size={14} className="shrink-0" />
               Xác nhận trùng
@@ -169,7 +169,7 @@ function RiskProductCard({
               type="button"
               disabled={feedbackPending}
               onClick={() => onFeedback(product.id, 'dismissed')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr text-ink-sec hover:border-accent-amber/50 hover:text-ink-pri transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr text-ink-sec hover:border-tb-amber/50 hover:text-ink-pri transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <XCircle size={14} className="shrink-0" />
               Bỏ qua cảnh báo
@@ -259,7 +259,7 @@ export default function ProductRiskPage(): ReactElement {
           type="button"
           disabled={backfill.isPending || backfillDone}
           onClick={() => backfill.mutate()}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr text-ink-sec hover:border-accent-amber/50 hover:text-ink-pri transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr text-ink-sec hover:border-tb-amber/50 hover:text-ink-pri transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
         >
           <ListPlus size={14} className="shrink-0" />
           {backfillButtonLabel(backfillState, backfill.isPending)}
@@ -267,27 +267,27 @@ export default function ProductRiskPage(): ReactElement {
       </div>
 
       {toast && (
-        <div className="bg-accent-green/15 text-accent-green border border-accent-green/30 rounded-tb-card px-4 py-3 font-body text-sm">
+        <div className="bg-tb-green/15 text-accent-green border border-tb-green/30 rounded-tb-card px-4 py-3 font-body text-sm">
           {toast}
         </div>
       )}
       {errorMsg && (
-        <div className="bg-accent-red/10 text-accent-red border border-accent-red/30 rounded-tb-card px-4 py-3 font-body text-sm">
+        <div className="bg-tb-red/10 text-accent-red border border-tb-red/30 rounded-tb-card px-4 py-3 font-body text-sm">
           {errorMsg}
         </div>
       )}
       {rescoreErrorMsg && (
-        <div className="bg-accent-red/10 text-accent-red border border-accent-red/30 rounded-tb-card px-4 py-3 font-body text-sm">
+        <div className="bg-tb-red/10 text-accent-red border border-tb-red/30 rounded-tb-card px-4 py-3 font-body text-sm">
           {rescore.variables !== undefined ? <span className="font-mono font-bold">#{rescore.variables}</span> : null} · {rescoreErrorMsg}
         </div>
       )}
       {backfillErrorMsg && (
-        <div className="bg-accent-red/10 text-accent-red border border-accent-red/30 rounded-tb-card px-4 py-3 font-body text-sm">
+        <div className="bg-tb-red/10 text-accent-red border border-tb-red/30 rounded-tb-card px-4 py-3 font-body text-sm">
           {backfillErrorMsg}
         </div>
       )}
       {feedbackErrorMsg && (
-        <div className="bg-accent-red/10 text-accent-red border border-accent-red/30 rounded-tb-card px-4 py-3 font-body text-sm">
+        <div className="bg-tb-red/10 text-accent-red border border-tb-red/30 rounded-tb-card px-4 py-3 font-body text-sm">
           {feedback.variables !== undefined ? <span className="font-mono font-bold">#{feedback.variables.id}</span> : null} · {feedbackErrorMsg}
         </div>
       )}

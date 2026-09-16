@@ -152,7 +152,7 @@ export default function AdminPage(): ReactElement {
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-canvas-surface border border-bdr rounded-tb-card p-5 flex items-center gap-4">
-          <span className="size-12 rounded-tb-card bg-accent-amber/10 text-accent-amber grid place-items-center shrink-0">
+          <span className="size-12 rounded-tb-card bg-tb-amber/10 text-accent-amber grid place-items-center shrink-0">
             <ShoppingBag size={22} className="shrink-0" />
           </span>
           <div>
@@ -164,7 +164,7 @@ export default function AdminPage(): ReactElement {
         </div>
 
         <div className="bg-canvas-surface border border-bdr rounded-tb-card p-5 flex items-center gap-4">
-          <span className="size-12 rounded-tb-card bg-accent-cyan/10 text-accent-cyan grid place-items-center shrink-0">
+          <span className="size-12 rounded-tb-card bg-tb-cyan/10 text-accent-cyan grid place-items-center shrink-0">
             <Users size={22} className="shrink-0" />
           </span>
           <div>
@@ -412,14 +412,14 @@ export default function AdminPage(): ReactElement {
                 <button
                   onClick={() => setUsersPage(p => Math.max(1, p - 1))}
                   disabled={usersPage === 1}
-                  className="px-3 py-1 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec font-body text-xs hover:border-accent-amber/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 py-1 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec font-body text-xs hover:border-tb-amber/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   Trước
                 </button>
                 <button
                   onClick={() => setUsersPage(p => Math.min(userTotalPages, p + 1))}
                   disabled={usersPage === userTotalPages}
-                  className="px-3 py-1 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec font-body text-xs hover:border-accent-amber/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 py-1 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec font-body text-xs hover:border-tb-amber/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   Tiếp
                 </button>

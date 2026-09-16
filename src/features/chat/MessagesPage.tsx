@@ -115,7 +115,7 @@ export default function MessagesPage(): ReactElement {
           {isLoading && (
             <>
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="flex items-center gap-3 px-3 py-3 border-b border-bdr/50">
+                <div key={i} className="flex items-center gap-3 px-3 py-3 border-b border-tb-border/50">
                   <Skeleton className="w-[46px] h-[46px] rounded-full flex-none bg-canvas-elevated" />
                   <div className="flex-1 flex flex-col gap-1.5">
                     <Skeleton className="h-3.5 w-28 bg-canvas-elevated rounded" />
@@ -149,8 +149,8 @@ export default function MessagesPage(): ReactElement {
                 type="button"
                 onClick={() => selectConversation(c)}
                 className={cn(
-                  'w-full flex items-center gap-3 px-3 py-3 border-b border-bdr/50 cursor-pointer text-left transition-colors',
-                  isActive ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated/50',
+                  'w-full flex items-center gap-3 px-3 py-3 border-b border-tb-border/50 cursor-pointer text-left transition-colors',
+                  isActive ? 'bg-canvas-elevated' : 'hover:bg-tb-elevated/50',
                 )}
               >
                 <Avatar size={46} src={otherUser?.avatar ?? undefined} alt={displayName} initials={initials} />

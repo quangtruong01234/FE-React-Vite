@@ -36,7 +36,7 @@ function ToolbarButton({ onClick, active, title, children }: ToolbarButtonProps)
       className={cn(
         'size-7 rounded-tb-pill transition-colors',
         active
-          ? 'bg-accent-amber/20 text-accent-amber'
+          ? 'bg-tb-amber/20 text-accent-amber'
           : 'text-ink-sec hover:text-ink-pri hover:bg-canvas-elevated',
       )}
     >
@@ -123,7 +123,7 @@ export function RichTextEditor({ value, onChange, placeholder, userId, onUploadI
   const isNearLimit = charCount >= MAX_CHARS * 0.9;
 
   return (
-    <div className="flex flex-col rounded-tb-input border border-bdr bg-canvas-elevated overflow-hidden focus-within:border-accent-amber/50 focus-within:ring-2 focus-within:ring-accent-amber/20 transition-colors">
+    <div className="flex flex-col rounded-tb-input border border-bdr bg-canvas-elevated overflow-hidden focus-within:border-tb-amber/50 focus-within:ring-2 focus-within:ring-tb-amber/20 transition-colors">
       {/* Toolbar */}
       <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-bdr bg-canvas-surface">
         <ToolbarButton

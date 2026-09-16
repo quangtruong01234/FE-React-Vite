@@ -57,7 +57,7 @@ export function ChangePasswordForm({ onCancel }: ChangePasswordFormProps): React
   return (
     <form onSubmit={(e) => void handleSubmit(onSubmit)(e)} className="flex flex-col gap-4 p-5" noValidate>
       {done && (
-        <p className="bg-accent-green/15 border border-accent-green/30 rounded-tb-input text-accent-green text-[13px] px-3.5 py-2.5 text-center">
+        <p className="bg-tb-green/15 border border-tb-green/30 rounded-tb-input text-accent-green text-[13px] px-3.5 py-2.5 text-center">
           Đã đổi mật khẩu thành công.
         </p>
       )}
@@ -94,7 +94,7 @@ export function ChangePasswordForm({ onCancel }: ChangePasswordFormProps): React
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 bg-canvas-elevated border border-bdr rounded-tb-cta py-2.5 text-sm font-semibold text-ink-sec cursor-pointer hover:border-accent-amber/50 transition-colors"
+          className="flex-1 bg-canvas-elevated border border-bdr rounded-tb-cta py-2.5 text-sm font-semibold text-ink-sec cursor-pointer hover:border-tb-amber/50 transition-colors"
         >
           Hủy
         </button>

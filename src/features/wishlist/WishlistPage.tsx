@@ -16,7 +16,7 @@ const PAGE_SIZE = 12;
 function WishlistCard({ item, priority = false }: { item: WishlistItem; priority?: boolean }): ReactElement {
   const cover = item.imageUrl ?? item.imageUrls?.[0] ?? '';
   return (
-    <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden flex flex-col transition-all duration-300 hover:-translate-y-1 hover:border-accent-amber/30 hover:shadow-tb-card">
+    <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden flex flex-col transition-all duration-300 hover:-translate-y-1 hover:border-tb-amber/30 hover:shadow-tb-card">
       <Link to={`/product/${item.id}`} className="relative block">
         {cover ? (
           <img
@@ -34,7 +34,7 @@ function WishlistCard({ item, priority = false }: { item: WishlistItem; priority
           </div>
         )}
         {item.brand && (
-          <span className="absolute top-2.5 left-2.5 inline-flex px-2 py-1 bg-canvas-elevated/90 text-ink-sec text-[10px] font-medium rounded-tb-pill backdrop-blur-sm border border-bdr">
+          <span className="absolute top-2.5 left-2.5 inline-flex px-2 py-1 bg-tb-elevated/90 text-ink-sec text-[10px] font-medium rounded-tb-pill backdrop-blur-sm border border-bdr">
             {item.brand.name}
           </span>
         )}
@@ -89,7 +89,7 @@ export default function WishlistPage(): ReactElement {
         </div>
 
         {error && (
-          <div className="mb-4 px-4 py-3 rounded-tb-ghost bg-accent-red/10 border border-accent-red/30 text-accent-red text-sm font-body">
+          <div className="mb-4 px-4 py-3 rounded-tb-ghost bg-tb-red/10 border border-tb-red/30 text-accent-red text-sm font-body">
             {(error as { message?: string }).message ?? 'Không thể tải danh sách yêu thích. Vui lòng thử lại.'}
           </div>
         )}

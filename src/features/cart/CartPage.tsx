@@ -203,7 +203,7 @@ export default function CartPage(): ReactElement {
                     key={item.id}
                     className={cn(
                       'flex gap-4 p-4 bg-canvas-surface border rounded-xl transition-colors',
-                      checked ? 'border-accent-amber/40' : 'border-bdr',
+                      checked ? 'border-tb-amber/40' : 'border-bdr',
                     )}
                   >
                     {/* Checkbox */}

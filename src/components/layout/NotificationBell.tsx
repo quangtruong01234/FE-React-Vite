@@ -81,7 +81,7 @@ export function NotificationBell(): ReactElement {
                   type="button"
                   onClick={() => handleItemClick(n)}
                   className={cn(
-                    'w-full text-left flex gap-3 px-4 py-3 border-b border-bdr/60 last:border-0',
+                    'w-full text-left flex gap-3 px-4 py-3 border-b border-tb-border/60 last:border-0',
                     'cursor-pointer transition-colors hover:bg-canvas-elevated',
                     !n.isRead && 'bg-accent-amber/[0.04]',
                   )}

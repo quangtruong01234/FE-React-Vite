@@ -17,14 +17,14 @@ export interface OrderStatusMeta {
 }
 
 export const ORDER_STATUS_META: Record<OrderStatus, OrderStatusMeta> = {
-  pending:    { label: 'Chờ xác nhận',     badgeClass: 'bg-accent-amber/10 text-accent-amber border-accent-amber/20',    isActive: true,  isReturn: false },
-  confirmed:  { label: 'Đã xác nhận',      badgeClass: 'bg-accent-cyan/10 text-accent-cyan border-accent-cyan/20',       isActive: true,  isReturn: false },
+  pending:    { label: 'Chờ xác nhận',     badgeClass: 'bg-tb-amber/10 text-accent-amber border-tb-amber/20',    isActive: true,  isReturn: false },
+  confirmed:  { label: 'Đã xác nhận',      badgeClass: 'bg-tb-cyan/10 text-accent-cyan border-tb-cyan/20',       isActive: true,  isReturn: false },
   processing: { label: 'Đang xử lý',       badgeClass: 'bg-accent-violet/10 text-accent-violet border-accent-violet/20', isActive: true,  isReturn: false },
   shipped:    { label: 'Đang vận chuyển',  badgeClass: 'bg-accent-blue/10 text-accent-blue border-accent-blue/20',       isActive: true,  isReturn: false },
   delivering: { label: 'Đang giao',        badgeClass: 'bg-accent-blue/10 text-accent-blue border-accent-blue/20',       isActive: true,  isReturn: false },
-  completed:  { label: 'Hoàn thành',       badgeClass: 'bg-accent-green/10 text-accent-green border-accent-green/20',    isActive: false, isReturn: false },
-  canceled:   { label: 'Đã hủy',           badgeClass: 'bg-accent-red/10 text-accent-red border-accent-red/20',          isActive: false, isReturn: false },
-  return_requested: { label: 'Yêu cầu trả hàng', badgeClass: 'bg-accent-amber/10 text-accent-amber border-accent-amber/20', isActive: false, isReturn: true },
+  completed:  { label: 'Hoàn thành',       badgeClass: 'bg-tb-green/10 text-accent-green border-tb-green/20',    isActive: false, isReturn: false },
+  canceled:   { label: 'Đã hủy',           badgeClass: 'bg-tb-red/10 text-accent-red border-tb-red/20',          isActive: false, isReturn: false },
+  return_requested: { label: 'Yêu cầu trả hàng', badgeClass: 'bg-tb-amber/10 text-accent-amber border-tb-amber/20', isActive: false, isReturn: true },
   refunded:   { label: 'Đã hoàn tiền',     badgeClass: 'bg-accent-violet/10 text-accent-violet border-accent-violet/20', isActive: false, isReturn: true },
 };
 

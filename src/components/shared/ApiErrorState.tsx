@@ -143,7 +143,7 @@ export function ApiErrorState({ error = {} as ApiError, onRetry, embedded = fals
 
         {/* tips — only when non-empty */}
         {cfg.tips.length > 0 && (
-          <div className="w-full bg-canvas-elevated/50 border border-bdr rounded-tb-cta p-4 text-left">
+          <div className="w-full bg-tb-elevated/50 border border-bdr rounded-tb-cta p-4 text-left">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-white uppercase tracking-wide mb-2">
               <Lightbulb size={13} className="text-accent-amber shrink-0" /> Đề xuất
             </div>

@@ -280,8 +280,8 @@ export default function ProductDetail(): ReactElement {
                           unavailable
                             ? 'border-bdr bg-canvas-elevated text-ink-muted opacity-50 cursor-not-allowed'
                             : selectedTiers[tierIdx] === optIdx
-                              ? 'border-accent-amber text-accent-amber bg-accent-amber/10 cursor-pointer'
-                              : 'border-bdr bg-canvas-elevated text-ink-pri hover:border-accent-amber/50 cursor-pointer',
+                              ? 'border-accent-amber text-accent-amber bg-tb-amber/10 cursor-pointer'
+                              : 'border-bdr bg-canvas-elevated text-ink-pri hover:border-tb-amber/50 cursor-pointer',
                         )}
                       >
                         <span>{opt}</span>
@@ -299,7 +299,7 @@ export default function ProductDetail(): ReactElement {
 
             {/* Malformed variation data — no valid SKU to add */}
             {hasVariants && !hasUsableVariants && (
-              <p className="m-0 rounded-lg px-3.5 py-2.5 text-sm font-medium bg-accent-amber/10 border border-accent-amber text-accent-amber">
+              <p className="m-0 rounded-lg px-3.5 py-2.5 text-sm font-medium bg-tb-amber/10 border border-accent-amber text-accent-amber">
                 Phân loại sản phẩm đang được cập nhật. Vui lòng quay lại sau.
               </p>
             )}
@@ -309,8 +309,8 @@ export default function ProductDetail(): ReactElement {
               <div className={cn(
                 'rounded-lg px-3.5 py-2.5 text-sm font-medium',
                 isLowStock
-                  ? 'bg-accent-amber/10 border border-accent-amber text-accent-amber'
-                  : 'bg-accent-green/10 border border-accent-green text-accent-green',
+                  ? 'bg-tb-amber/10 border border-accent-amber text-accent-amber'
+                  : 'bg-tb-green/10 border border-accent-green text-accent-green',
               )}>
                 {available > 0
                   ? `Còn ${available} sản phẩm${isLowStock ? ' (sắp hết)' : ''}`

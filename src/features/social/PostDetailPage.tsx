@@ -253,7 +253,7 @@ export default function PostDetailPage(): ReactElement {
       </article>
 
       {/* Sticky comment composer */}
-      <div className="sticky bottom-0 bg-canvas-base/90 backdrop-blur-sm py-3 flex items-center gap-2.5 mt-1">
+      <div className="sticky bottom-0 bg-tb-base/90 backdrop-blur-sm py-3 flex items-center gap-2.5 mt-1">
         <Avatar size={36} />
         <form
           onSubmit={(e) => void handleSubmit(onCommentSubmit)(e)}

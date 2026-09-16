@@ -27,8 +27,8 @@ const inputCls = (hasError?: boolean) =>
     'w-full bg-canvas-elevated border border-bdr rounded-tb-input',
     'px-3.5 py-2.5 text-ink-pri font-body text-sm placeholder:text-ink-muted',
     'outline-none transition-colors',
-    'focus:border-accent-amber/50 focus:ring-2 focus:ring-accent-amber/20',
-    hasError && 'border-accent-red focus:border-accent-red focus:ring-accent-red/20',
+    'focus:border-tb-amber/50 focus:ring-2 focus:ring-tb-amber/20',
+    hasError && 'border-accent-red focus:border-accent-red focus:ring-tb-red/20',
   );
 
 interface Props {
@@ -213,7 +213,7 @@ export function BasicInfoSection({
       {/* Section 01: Images */}
       <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
         <div className="flex items-center gap-3 px-6 py-4 border-b border-bdr">
-          <span className="size-7 rounded-full bg-accent-amber/10 grid place-items-center shrink-0">
+          <span className="size-7 rounded-full bg-tb-amber/10 grid place-items-center shrink-0">
             <span className="font-display font-bold text-xs text-accent-amber">01</span>
           </span>
           <h2 className="font-display font-semibold text-sm uppercase tracking-wider text-ink-pri">
@@ -231,7 +231,7 @@ export function BasicInfoSection({
                 key={img.url}
                 className={cn(
                   'relative group aspect-square rounded-tb-card overflow-hidden bg-canvas-elevated',
-                  i === 0 && 'ring-2 ring-accent-amber/40',
+                  i === 0 && 'ring-2 ring-tb-amber/40',
                 )}
               >
                 <img src={cldImage(img.url, 400)} alt="" className="w-full h-full object-cover" />
@@ -259,7 +259,7 @@ export function BasicInfoSection({
                 className={cn(
                   'aspect-square rounded-tb-card border-2 border-dashed border-bdr',
                   'grid place-items-center flex-col gap-1 transition-colors',
-                  'hover:border-accent-amber/50 hover:bg-accent-amber/5',
+                  'hover:border-tb-amber/50 hover:bg-tb-amber/5',
                   'disabled:opacity-50 disabled:cursor-not-allowed',
                 )}
               >
@@ -301,7 +301,7 @@ export function BasicInfoSection({
       {/* Section 02: Basic info */}
       <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
         <div className="flex items-center gap-3 px-6 py-4 border-b border-bdr">
-          <span className="size-7 rounded-full bg-accent-amber/10 grid place-items-center shrink-0">
+          <span className="size-7 rounded-full bg-tb-amber/10 grid place-items-center shrink-0">
             <span className="font-display font-bold text-xs text-accent-amber">02</span>
           </span>
           <h2 className="font-display font-semibold text-sm uppercase tracking-wider text-ink-pri">
@@ -364,7 +364,7 @@ export function BasicInfoSection({
                       />
                       <span className="text-sm text-ink-pri font-body">{cat.name}</span>
                       {isPending && (
-                        <span className="text-[10px] font-body px-1.5 py-0.5 rounded-tb-pill bg-accent-amber/15 text-accent-amber shrink-0">
+                        <span className="text-[10px] font-body px-1.5 py-0.5 rounded-tb-pill bg-tb-amber/15 text-accent-amber shrink-0">
                           chờ duyệt
                         </span>
                       )}
@@ -388,7 +388,7 @@ export function BasicInfoSection({
                   type="button"
                   disabled={catCreating || !newCatInput.trim()}
                   onClick={() => void handleCreateCategory()}
-                  className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-tb-pill bg-accent-amber/15 text-accent-amber text-xs font-body font-semibold hover:bg-accent-amber/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-tb-pill bg-tb-amber/15 text-accent-amber text-xs font-body font-semibold hover:bg-tb-amber/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {catCreating ? (
                     <Loader2 size={11} className="shrink-0 animate-spin" />
@@ -417,7 +417,7 @@ export function BasicInfoSection({
                 <div className="flex items-center gap-2 px-3 py-2 bg-canvas-elevated border border-bdr rounded-tb-input">
                   <span className="flex-1 text-sm font-body text-ink-pri truncate">{selectedBrand.name}</span>
                   {pendingBrandIds.has(selectedBrand.id) && (
-                    <span className="text-[10px] font-body px-1.5 py-0.5 rounded-tb-pill bg-accent-amber/15 text-accent-amber shrink-0">
+                    <span className="text-[10px] font-body px-1.5 py-0.5 rounded-tb-pill bg-tb-amber/15 text-accent-amber shrink-0">
                       chờ duyệt
                     </span>
                   )}
@@ -458,7 +458,7 @@ export function BasicInfoSection({
                         >
                           <span className="flex-1 truncate">{b.name}</span>
                           {pendingBrandIds.has(b.id) && (
-                            <span className="text-[10px] font-body px-1.5 py-0.5 rounded-tb-pill bg-accent-amber/15 text-accent-amber shrink-0">
+                            <span className="text-[10px] font-body px-1.5 py-0.5 rounded-tb-pill bg-tb-amber/15 text-accent-amber shrink-0">
                               chờ duyệt
                             </span>
                           )}
@@ -526,7 +526,7 @@ export function BasicInfoSection({
                 className={cn(
                   'size-[42px] rounded-tb-input shrink-0',
                   'bg-canvas-elevated border border-bdr text-ink-sec',
-                  'hover:border-accent-amber/50 hover:text-accent-amber transition-colors',
+                  'hover:border-tb-amber/50 hover:text-accent-amber transition-colors',
                 )}
               >
                 <RefreshCw size={15} className="shrink-0" />

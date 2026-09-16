@@ -20,7 +20,7 @@ export function Header(): ReactElement {
   useChatPresence(useRole()?.me?.id);
 
   return (
-    <header className="sticky top-0 z-[100] bg-canvas-surface/85 border-b border-bdr backdrop-blur-md">
+    <header className="sticky top-0 z-[100] bg-tb-surface/85 border-b border-bdr backdrop-blur-md">
       <div className="w-full px-4 sm:px-6 py-4 flex items-center gap-3 sm:gap-5">
         <Link to="/" className="flex-none">
           <span className="font-display font-black text-[2rem] tracking-tight uppercase text-ink-pri">

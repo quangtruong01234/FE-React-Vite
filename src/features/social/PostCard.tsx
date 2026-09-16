@@ -109,7 +109,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
   const authorName = userDisplayName(post.author);
 
   return (
-    <article className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden transition-all duration-300 hover:border-bdr/80">
+    <article className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden transition-all duration-300 hover:border-tb-border/80">
       {/* header */}
       <div className="flex items-center gap-3 p-4">
         <Link to={`/profile/${post.author.id}`} onClick={(e) => e.stopPropagation()}>
@@ -139,7 +139,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
             className={cn(
               'flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors cursor-pointer disabled:opacity-50',
               isFollowing
-                ? 'bg-canvas-elevated border-bdr text-ink-sec hover:border-accent-red/50 hover:text-accent-red'
+                ? 'bg-canvas-elevated border-bdr text-ink-sec hover:border-tb-red/50 hover:text-accent-red'
                 : 'bg-tb-gradient border-transparent text-white hover:opacity-90',
             )}
           >

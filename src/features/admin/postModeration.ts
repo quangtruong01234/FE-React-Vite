@@ -21,8 +21,8 @@ export interface ReportStatusMeta {
 }
 
 const REPORT_STATUS_META: Record<PostReportStatus, ReportStatusMeta> = {
-  pending:   { label: 'Chờ xử lý',  className: 'bg-accent-amber/10 text-accent-amber border-accent-amber/20' },
-  resolved:  { label: 'Đã xử lý',   className: 'bg-accent-green/10 text-accent-green border-accent-green/20' },
+  pending:   { label: 'Chờ xử lý',  className: 'bg-tb-amber/10 text-accent-amber border-tb-amber/20' },
+  resolved:  { label: 'Đã xử lý',   className: 'bg-tb-green/10 text-accent-green border-tb-green/20' },
   dismissed: { label: 'Đã bỏ qua',  className: 'bg-canvas-elevated text-ink-sec border-bdr' },
 };
 

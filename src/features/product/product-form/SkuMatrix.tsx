@@ -8,7 +8,7 @@ const cellInput = cn(
   'w-full bg-canvas-base border border-bdr rounded-tb-input',
   'px-2.5 py-1.5 text-ink-pri font-mono text-xs placeholder:text-ink-muted',
   'outline-none transition-colors',
-  'focus:border-accent-amber/50 focus:ring-2 focus:ring-accent-amber/20',
+  'focus:border-tb-amber/50 focus:ring-2 focus:ring-tb-amber/20',
 );
 
 interface Props {
@@ -64,7 +64,7 @@ export function SkuMatrix({
             </tr>
 
             {/* Apply-all row */}
-            <tr className="border-b border-bdr bg-canvas-surface/60">
+            <tr className="border-b border-bdr bg-tb-surface/60">
               {validGroups.map((_, gi) => (
                 <td key={gi} className="px-3 py-2">
                   {gi === 0 && (
@@ -98,8 +98,8 @@ export function SkuMatrix({
                   disabled={!applyPrice && !applyStock}
                   className={cn(
                     'size-7 rounded-tb-input',
-                    'bg-accent-amber/10 text-accent-amber border border-accent-amber/20',
-                    'hover:bg-accent-amber/20 transition-colors',
+                    'bg-tb-amber/10 text-accent-amber border border-tb-amber/20',
+                    'hover:bg-tb-amber/20 transition-colors',
                     'disabled:opacity-40 disabled:cursor-not-allowed',
                   )}
                   title="Áp dụng cho tất cả"
@@ -121,7 +121,7 @@ export function SkuMatrix({
                     key={combo.tierIdx}
                     className={cn(
                       'border-b border-bdr last:border-0',
-                      idx % 2 === 1 && 'bg-canvas-surface/20',
+                      idx % 2 === 1 && 'bg-tb-surface/20',
                     )}
                   >
                     <td className="px-3 py-2 text-xs text-ink-pri font-body font-medium whitespace-nowrap">
@@ -162,7 +162,7 @@ export function SkuMatrix({
                   key={combo.tierIdx}
                   className={cn(
                     'border-b border-bdr last:border-0',
-                    idx % 2 === 1 && 'bg-canvas-surface/20',
+                    idx % 2 === 1 && 'bg-tb-surface/20',
                   )}
                 >
                   <td className="px-3 py-2 text-xs text-ink-pri font-body font-medium whitespace-nowrap">

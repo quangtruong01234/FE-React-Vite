@@ -170,7 +170,7 @@ export default function ProfilePage(): ReactElement {
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="flex items-center gap-1.5 bg-canvas-elevated border border-bdr rounded-tb-cta px-3 py-2 text-sm font-semibold text-ink-sec cursor-pointer hover:border-accent-amber/50 transition-colors flex-none mb-1"
+              className="flex items-center gap-1.5 bg-canvas-elevated border border-bdr rounded-tb-cta px-3 py-2 text-sm font-semibold text-ink-sec cursor-pointer hover:border-tb-amber/50 transition-colors flex-none mb-1"
             >
               <Pencil size={13} />
               Sửa hồ sơ
@@ -184,7 +184,7 @@ export default function ProfilePage(): ReactElement {
                   type="button"
                   onClick={() => unfollow()}
                   disabled={isUnfollowPending}
-                  className="flex items-center gap-1.5 bg-canvas-elevated border border-bdr rounded-full px-4 py-2 text-sm font-semibold text-ink-pri cursor-pointer hover:border-accent-red/50 hover:text-accent-red transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 bg-canvas-elevated border border-bdr rounded-full px-4 py-2 text-sm font-semibold text-ink-pri cursor-pointer hover:border-tb-red/50 hover:text-accent-red transition-colors disabled:opacity-50"
                 >
                   <UserCheck size={14} className="shrink-0" />
                   Đang theo dõi
@@ -202,7 +202,7 @@ export default function ProfilePage(): ReactElement {
               <button
                 type="button"
                 onClick={() => void navigate('/messages', { state: { otherUserId: userId } })}
-                className="bg-canvas-elevated border border-bdr rounded-full w-9 h-9 flex items-center justify-center text-ink-sec hover:border-accent-amber/50 transition-colors"
+                className="bg-canvas-elevated border border-bdr rounded-full w-9 h-9 flex items-center justify-center text-ink-sec hover:border-tb-amber/50 transition-colors"
                 aria-label="Nhắn tin"
               >
                 <MessageCircle size={15} className="shrink-0" />
@@ -223,7 +223,7 @@ export default function ProfilePage(): ReactElement {
               'px-4 py-2 rounded-full font-body font-semibold text-[13px] border cursor-pointer transition-colors',
               tab === key
                 ? 'bg-tb-gradient text-ink-pri border-transparent'
-                : 'bg-canvas-elevated border-bdr text-ink-sec hover:border-accent-amber/50',
+                : 'bg-canvas-elevated border-bdr text-ink-sec hover:border-tb-amber/50',
             )}
           >
             {label}

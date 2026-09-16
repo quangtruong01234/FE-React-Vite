@@ -266,7 +266,7 @@ export default function LoginPage(): ReactElement {
 
             <div className="tb-enter tb-stagger flex flex-col gap-3.5">
               {resetNotice && !apiError && (
-                <div className="bg-accent-green/15 border border-accent-green/30 rounded-tb-input text-accent-green text-[13px] px-3.5 py-2.5 text-center">
+                <div className="bg-tb-green/15 border border-tb-green/30 rounded-tb-input text-accent-green text-[13px] px-3.5 py-2.5 text-center">
                   Đặt lại mật khẩu thành công. Hãy đăng nhập với mật khẩu mới.
                 </div>
               )}

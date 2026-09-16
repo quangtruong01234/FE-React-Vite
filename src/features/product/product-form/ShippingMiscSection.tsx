@@ -7,8 +7,8 @@ const inputCls = (hasError?: boolean) =>
     'w-full bg-canvas-elevated border border-bdr rounded-tb-input',
     'px-3.5 py-2.5 text-ink-pri font-body text-sm placeholder:text-ink-muted',
     'outline-none transition-colors',
-    'focus:border-accent-amber/50 focus:ring-2 focus:ring-accent-amber/20',
-    hasError && 'border-accent-red focus:border-accent-red focus:ring-accent-red/20',
+    'focus:border-tb-amber/50 focus:ring-2 focus:ring-tb-amber/20',
+    hasError && 'border-accent-red focus:border-accent-red focus:ring-tb-red/20',
   );
 
 interface Props {
@@ -29,7 +29,7 @@ export function ShippingMiscSection({
   return (
     <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
       <div className="flex items-center gap-3 px-6 py-4 border-b border-bdr">
-        <span className="size-7 rounded-full bg-accent-amber/10 grid place-items-center shrink-0">
+        <span className="size-7 rounded-full bg-tb-amber/10 grid place-items-center shrink-0">
           <span className="font-display font-bold text-xs text-accent-amber">04</span>
         </span>
         <h2 className="font-display font-semibold text-sm uppercase tracking-wider text-ink-pri">

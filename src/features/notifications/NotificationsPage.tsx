@@ -92,7 +92,7 @@ export default function NotificationsPage(): ReactElement {
                 'px-4 py-2 rounded-full font-body font-semibold text-[13px] border cursor-pointer transition-colors',
                 active
                   ? 'bg-tb-gradient text-ink-pri border-transparent'
-                  : 'bg-canvas-elevated border-bdr text-ink-sec hover:border-accent-amber/50',
+                  : 'bg-canvas-elevated border-bdr text-ink-sec hover:border-tb-amber/50',
               )}
             >
               {label}
@@ -145,7 +145,7 @@ export default function NotificationsPage(): ReactElement {
                       type="button"
                       onClick={() => handleClick(n)}
                       className={cn(
-                        'w-full text-left flex gap-3 px-4 py-3.5 border-b border-bdr/60 last:border-0',
+                        'w-full text-left flex gap-3 px-4 py-3.5 border-b border-tb-border/60 last:border-0',
                         'cursor-pointer transition-colors hover:bg-canvas-elevated',
                         !n.isRead && 'bg-accent-amber/[0.04]',
                       )}

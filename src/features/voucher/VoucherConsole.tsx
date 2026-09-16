@@ -214,7 +214,7 @@ function VoucherForm({
       </div>
 
       {errors.root && (
-        <div className="bg-accent-red/10 text-accent-red border border-accent-red/30 rounded-tb-input px-3 py-2 font-body text-sm">
+        <div className="bg-tb-red/10 text-accent-red border border-tb-red/30 rounded-tb-input px-3 py-2 font-body text-sm">
           {errors.root.message}
         </div>
       )}
@@ -491,7 +491,7 @@ function VoucherRow({
           <button
             type="button"
             onClick={() => onEdit(voucher)}
-            className={cn(ROW_ACTION_CLASS, 'text-ink-sec hover:border-accent-amber/50 hover:text-ink-pri')}
+            className={cn(ROW_ACTION_CLASS, 'text-ink-sec hover:border-tb-amber/50 hover:text-ink-pri')}
           >
             <Pencil size={14} className="shrink-0" />
             Sửa
@@ -501,7 +501,7 @@ function VoucherRow({
               type="button"
               disabled={deactivatePending}
               onClick={() => onDeactivate(voucher)}
-              className={cn(ROW_ACTION_CLASS, 'text-accent-red hover:border-accent-red/50')}
+              className={cn(ROW_ACTION_CLASS, 'text-accent-red hover:border-tb-red/50')}
             >
               <PowerOff size={14} className="shrink-0" />
               {deactivatePending ? 'Đang tắt…' : 'Tắt mã'}
@@ -512,7 +512,7 @@ function VoucherRow({
               type="button"
               disabled={reactivatePending}
               onClick={() => onReactivate(voucher)}
-              className={cn(ROW_ACTION_CLASS, 'text-accent-green hover:border-accent-green/50')}
+              className={cn(ROW_ACTION_CLASS, 'text-accent-green hover:border-tb-green/50')}
             >
               <Power size={14} className="shrink-0" />
               {reactivatePending ? 'Đang bật…' : 'Bật lại'}
@@ -607,7 +607,7 @@ export function VoucherConsole({ binding }: { binding: VoucherConsoleBinding }):
           <button
             type="button"
             onClick={() => setIsFormOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr text-ink-sec hover:border-accent-amber/50 hover:text-ink-pri transition-colors cursor-pointer shrink-0"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr text-ink-sec hover:border-tb-amber/50 hover:text-ink-pri transition-colors cursor-pointer shrink-0"
           >
             <Plus size={14} className="shrink-0" />
             Tạo mã mới
@@ -616,17 +616,17 @@ export function VoucherConsole({ binding }: { binding: VoucherConsoleBinding }):
       </div>
 
       {toast && (
-        <div className="bg-accent-green/15 text-accent-green border border-accent-green/30 rounded-tb-card px-4 py-3 font-body text-sm">
+        <div className="bg-tb-green/15 text-accent-green border border-tb-green/30 rounded-tb-card px-4 py-3 font-body text-sm">
           {toast}
         </div>
       )}
       {listErrorMsg && (
-        <div className="bg-accent-red/10 text-accent-red border border-accent-red/30 rounded-tb-card px-4 py-3 font-body text-sm">
+        <div className="bg-tb-red/10 text-accent-red border border-tb-red/30 rounded-tb-card px-4 py-3 font-body text-sm">
           {listErrorMsg}
         </div>
       )}
       {deactivateErrorMsg && (
-        <div className="bg-accent-red/10 text-accent-red border border-accent-red/30 rounded-tb-card px-4 py-3 font-body text-sm">
+        <div className="bg-tb-red/10 text-accent-red border border-tb-red/30 rounded-tb-card px-4 py-3 font-body text-sm">
           {deactivate.variables ? (
             <span className="font-mono font-bold">{deactivate.variables.code}</span>
           ) : null}{' '}
@@ -634,7 +634,7 @@ export function VoucherConsole({ binding }: { binding: VoucherConsoleBinding }):
         </div>
       )}
       {reactivateErrorMsg && (
-        <div className="bg-accent-red/10 text-accent-red border border-accent-red/30 rounded-tb-card px-4 py-3 font-body text-sm">
+        <div className="bg-tb-red/10 text-accent-red border border-tb-red/30 rounded-tb-card px-4 py-3 font-body text-sm">
           {reactivate.variables ? (
             <span className="font-mono font-bold">{reactivate.variables.code}</span>
           ) : null}{' '}

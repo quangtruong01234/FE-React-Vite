@@ -145,7 +145,7 @@ export function AddressFormModal({
     cn(
       'bg-canvas-base border border-bdr rounded-tb-input',
       'px-3.5 py-2.5 text-sm text-ink-pri placeholder:text-ink-muted',
-      'outline-none focus:border-accent-amber/50 transition-colors',
+      'outline-none focus:border-tb-amber/50 transition-colors',
       invalid && 'border-accent-red',
     );
 
@@ -260,7 +260,7 @@ export function AddressFormModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-canvas-elevated border border-bdr rounded-tb-cta py-2.5 text-sm font-semibold text-ink-sec cursor-pointer hover:border-accent-amber/50 transition-colors"
+              className="flex-1 bg-canvas-elevated border border-bdr rounded-tb-cta py-2.5 text-sm font-semibold text-ink-sec cursor-pointer hover:border-tb-amber/50 transition-colors"
             >
               Hủy
             </button>

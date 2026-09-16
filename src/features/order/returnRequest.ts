@@ -43,9 +43,9 @@ export interface ReturnStatusMeta {
 }
 
 const RETURN_STATUS_META: Record<ReturnRequestStatus, ReturnStatusMeta> = {
-  pending_review: { label: 'Chờ duyệt', className: 'bg-accent-amber/10 text-accent-amber border-accent-amber/20' },
-  approved:       { label: 'Đã duyệt',  className: 'bg-accent-green/10 text-accent-green border-accent-green/20' },
-  rejected:       { label: 'Từ chối',   className: 'bg-accent-red/10 text-accent-red border-accent-red/20' },
+  pending_review: { label: 'Chờ duyệt', className: 'bg-tb-amber/10 text-accent-amber border-tb-amber/20' },
+  approved:       { label: 'Đã duyệt',  className: 'bg-tb-green/10 text-accent-green border-tb-green/20' },
+  rejected:       { label: 'Từ chối',   className: 'bg-tb-red/10 text-accent-red border-tb-red/20' },
 };
 
 export function returnStatusMeta(status: ReturnRequestStatus): ReturnStatusMeta {

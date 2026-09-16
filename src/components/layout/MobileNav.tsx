@@ -13,7 +13,7 @@ export function MobileNav(): ReactElement {
   const items = getPrimaryNavItems();
 
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-[100] bg-canvas-surface/95 border-t border-bdr backdrop-blur-md">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-[100] bg-tb-surface/95 border-t border-bdr backdrop-blur-md">
       <div className="flex items-stretch justify-around px-1">
         {items.map((item) => {
           const active = isNavItemActive(item, location.pathname);

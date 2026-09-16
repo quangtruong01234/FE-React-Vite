@@ -44,7 +44,7 @@ function StatCard({
 }): ReactElement {
   return (
     <div className="bg-canvas-surface border border-bdr rounded-tb-card p-4 flex items-center gap-4">
-      <span className="size-10 rounded-tb-input bg-accent-amber/10 text-accent-amber grid place-items-center shrink-0">
+      <span className="size-10 rounded-tb-input bg-tb-amber/10 text-accent-amber grid place-items-center shrink-0">
         <Icon size={18} className="shrink-0" />
       </span>
       <div className="min-w-0">

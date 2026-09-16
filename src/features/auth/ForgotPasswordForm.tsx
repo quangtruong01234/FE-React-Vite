@@ -132,7 +132,7 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
             </div>
           )}
           {resendNotice && !apiError && (
-            <div className="bg-accent-green/15 border border-accent-green/30 rounded-tb-input text-accent-green text-[13px] px-3.5 py-2.5 text-center">
+            <div className="bg-tb-green/15 border border-tb-green/30 rounded-tb-input text-accent-green text-[13px] px-3.5 py-2.5 text-center">
               Đã gửi lại mã (nếu email tồn tại). Hãy dùng mã trong email mới nhất — mã cũ không còn dùng được.
             </div>
           )}

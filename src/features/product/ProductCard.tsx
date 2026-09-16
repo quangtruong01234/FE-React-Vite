@@ -26,7 +26,7 @@ export default function ProductCard({ product, priority = false }: ProductCardPr
   return (
     <div className={cn(
       'bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden flex flex-col',
-      'transition-all duration-300 hover:-translate-y-1 hover:border-accent-amber/30 hover:shadow-tb-card group',
+      'transition-all duration-300 hover:-translate-y-1 hover:border-tb-amber/30 hover:shadow-tb-card group',
     )}>
       <Link to={`/product/${product.id}`} className="relative block">
         {coverImage ? (
@@ -56,14 +56,14 @@ export default function ProductCard({ product, priority = false }: ProductCardPr
             </span>
           )}
           {product.brand && (
-            <span className="inline-flex px-2 py-1 bg-canvas-elevated/90 text-ink-sec text-[10px] font-medium rounded-tb-pill backdrop-blur-sm border border-bdr">
+            <span className="inline-flex px-2 py-1 bg-tb-elevated/90 text-ink-sec text-[10px] font-medium rounded-tb-pill backdrop-blur-sm border border-bdr">
               {product.brand.name}
             </span>
           )}
         </div>
         {outOfStock && (
           <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-            <span className="font-display font-black uppercase text-ink-pri text-sm tracking-wide border border-ink-pri/40 rounded-tb-ghost px-3 py-1.5">
+            <span className="font-display font-black uppercase text-ink-pri text-sm tracking-wide border border-white/40 rounded-tb-ghost px-3 py-1.5">
               Hết hàng
             </span>
           </div>

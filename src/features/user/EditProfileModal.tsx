@@ -197,7 +197,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
               className={cn(
                 'bg-canvas-elevated border border-bdr rounded-tb-input',
                 'px-3.5 py-2.5 text-sm text-ink-pri placeholder:text-ink-muted',
-                'outline-none focus:border-accent-amber/50 transition-colors',
+                'outline-none focus:border-tb-amber/50 transition-colors',
                 errors.name && 'border-accent-red',
               )}
             />
@@ -215,7 +215,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
               className={cn(
                 'bg-canvas-elevated border border-bdr rounded-tb-input',
                 'px-3.5 py-2.5 text-sm text-ink-pri placeholder:text-ink-muted',
-                'outline-none focus:border-accent-amber/50 transition-colors',
+                'outline-none focus:border-tb-amber/50 transition-colors',
                 errors.email && 'border-accent-red',
               )}
             />
@@ -230,7 +230,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
             <button
               type="button"
               onClick={handleClose}
-              className="flex-1 bg-canvas-elevated border border-bdr rounded-tb-cta py-2.5 text-sm font-semibold text-ink-sec cursor-pointer hover:border-accent-amber/50 transition-colors"
+              className="flex-1 bg-canvas-elevated border border-bdr rounded-tb-cta py-2.5 text-sm font-semibold text-ink-sec cursor-pointer hover:border-tb-amber/50 transition-colors"
             >
               Hủy
             </button>

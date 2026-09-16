@@ -55,7 +55,7 @@ export default function PendingBrandsPage(): ReactElement {
       <h1 className="font-display font-bold text-2xl text-ink-pri">Duyệt thương hiệu</h1>
 
       {toast && (
-        <div className="bg-accent-green/15 text-accent-green border border-accent-green/30 rounded-tb-card px-4 py-3 font-body text-sm">
+        <div className="bg-tb-green/15 text-accent-green border border-tb-green/30 rounded-tb-card px-4 py-3 font-body text-sm">
           {toast.msg}
         </div>
       )}
@@ -116,7 +116,7 @@ export default function PendingBrandsPage(): ReactElement {
                         type="button"
                         disabled={reviewMutation.isPending}
                         onClick={() => handleApprove(brand.id)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input bg-accent-green/15 text-accent-green text-xs font-body font-semibold hover:bg-accent-green/25 transition-colors disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input bg-tb-green/15 text-accent-green text-xs font-body font-semibold hover:bg-tb-green/25 transition-colors disabled:opacity-50"
                       >
                         <CheckCircle size={13} className="shrink-0" />
                         Duyệt
@@ -131,8 +131,8 @@ export default function PendingBrandsPage(): ReactElement {
                         className={cn(
                           'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold transition-colors disabled:opacity-50',
                           rejectId === brand.id
-                            ? 'bg-accent-red/25 text-accent-red'
-                            : 'bg-accent-red/15 text-accent-red hover:bg-accent-red/25',
+                            ? 'bg-tb-red/25 text-accent-red'
+                            : 'bg-tb-red/15 text-accent-red hover:bg-tb-red/25',
                         )}
                       >
                         <XCircle size={13} className="shrink-0" />
@@ -150,7 +150,7 @@ export default function PendingBrandsPage(): ReactElement {
                           placeholder="Lý do từ chối (tuỳ chọn)"
                           value={rejectNote}
                           onChange={e => setRejectNote(e.target.value)}
-                          className="flex-1 bg-canvas-base border border-bdr rounded-tb-input px-3 py-1.5 text-sm font-body text-ink-pri placeholder:text-ink-muted focus:outline-none focus:border-accent-amber/60"
+                          className="flex-1 bg-canvas-base border border-bdr rounded-tb-input px-3 py-1.5 text-sm font-body text-ink-pri placeholder:text-ink-muted focus:outline-none focus:border-tb-amber/60"
                         />
                         <button
                           type="button"

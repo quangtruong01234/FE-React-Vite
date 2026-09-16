@@ -32,7 +32,7 @@ function AddressRow({
           </span>
           <span className="font-mono text-xs text-ink-muted">{address.phone}</span>
           {address.isDefault && (
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-accent-amber border border-accent-amber/40 rounded-full px-1.5 py-0.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-accent-amber border border-tb-amber/40 rounded-full px-1.5 py-0.5">
               Mặc định
             </span>
           )}
@@ -45,7 +45,7 @@ function AddressRow({
             type="button"
             onClick={onSetDefault}
             disabled={settingDefault}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-tb-input border border-bdr text-xs font-medium text-ink-sec hover:border-accent-amber/50 hover:text-ink-pri transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-tb-input border border-bdr text-xs font-medium text-ink-sec hover:border-tb-amber/50 hover:text-ink-pri transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {settingDefault ? (
               <Loader2 size={13} className="animate-spin shrink-0" />
@@ -58,14 +58,14 @@ function AddressRow({
         <IconButton
           onClick={onEdit}
           aria-label="Chỉnh sửa địa chỉ"
-          className="size-8 rounded-tb-input border border-bdr text-ink-sec hover:border-accent-amber/50 hover:text-ink-pri transition-colors cursor-pointer"
+          className="size-8 rounded-tb-input border border-bdr text-ink-sec hover:border-tb-amber/50 hover:text-ink-pri transition-colors cursor-pointer"
         >
           <Pencil size={14} className="shrink-0" />
         </IconButton>
         <IconButton
           onClick={onDelete}
           aria-label="Xóa địa chỉ"
-          className="size-8 rounded-tb-input border border-bdr text-ink-sec hover:border-accent-red/50 hover:text-accent-red transition-colors cursor-pointer"
+          className="size-8 rounded-tb-input border border-bdr text-ink-sec hover:border-tb-red/50 hover:text-accent-red transition-colors cursor-pointer"
         >
           <Trash2 size={14} className="shrink-0" />
         </IconButton>
@@ -125,7 +125,7 @@ export default function AddressesPage(): ReactElement {
         </div>
 
         {error && (
-          <div className="mb-4 px-4 py-3 rounded-tb-ghost bg-accent-red/10 border border-accent-red/30 text-accent-red text-sm font-body">
+          <div className="mb-4 px-4 py-3 rounded-tb-ghost bg-tb-red/10 border border-tb-red/30 text-accent-red text-sm font-body">
             {(error as { message?: string }).message ?? 'Không thể tải sổ địa chỉ. Vui lòng thử lại.'}
           </div>
         )}
