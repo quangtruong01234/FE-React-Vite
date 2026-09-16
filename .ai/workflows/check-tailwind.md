@@ -158,7 +158,9 @@ Scope: src/**/*.tsx, src/**/*.ts
 
 Fix: đổi sang token hex-literal cùng màu — `tb-amber` (#F59E0B = `accent-amber`/`accent-pri`), `tb-red` (#EF4444 = `accent-red`/`accent-sec`), `tb-green` (#10B981 = `accent-green`), `tb-cyan` (#06B6D4 = `accent-cyan`), `tb-base`/`tb-surface`/`tb-elevated`/`tb-border`/`tb-muted`/`tb-secondary` cho nhóm canvas/ink/bdr. Giữ nguyên alias ở phần **không** có modifier (`text-accent-amber`), chỉ đổi đúng chỗ có `/NN`.
 
-`accent-violet` + `accent-blue` là hex literal ⇒ **không** phải violation.
+`accent-violet` + `accent-blue` là hex literal ⇒ **không** phải violation. `ink-pri` (#FFFFFF) **không có** token `tb-*` nào — bản vá là `white/NN`.
+
+**Check này đã được tự động hoá (ALIAS-ALPHA-01, 2026-09-16):** `src/test/aliasAlpha.test.ts` quét cả `src/` mỗi lần `npm run test:run`, và `src/test/aliasAlpha.ts` giữ regex + bảng map dùng chung. Chạy tay ở đây chỉ để giải thích/định vị; muốn biết `src/` có sạch không thì chạy test, đừng grep lại.
 
 Severity: 🔴 red — nhìn code tưởng có nền/viền mờ, render ra **không có gì**. Cách tự kiểm chứng rẻ nhất: `npm run build` rồi `grep -o -F 'accent-amber\/50' dist/assets/*.css` — 0 hit là chết.
 

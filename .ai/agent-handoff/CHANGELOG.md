@@ -7,6 +7,102 @@
 
 ## Maintenance
 
+### ALIAS-ALPHA-01 · 265 class `/NN` trên alias `var()` đang chết im, swap sang token hex literal (2026-09-16)
+
+`/sweep` — item 🔴 duy nhất còn lại trong snapshot. Trước khi nhận việc đã rà hết §Open của
+`frontend-handoff.md`: 5 entry ghi sẵn "MOVED TO Done", ENRICH-BATCH-01 / VOUCHER-NULL-01 /
+VOUCHER-CANCEL-01 / F3 / REPORT-TOTAL-01 / OVERFETCH-01 không cần FE làm gì, SHAPE-01 mục 1
+(bỏ fan-out theo từng id) **đã làm rồi** — có test pin ở `src/api/index.test.ts:177` — và nửa
+`?bytes=` của UPLOAD-SIZE-01 còn chờ BE push. Không có mục nào khả thi ⇒ 🔴 của snapshot thắng.
+
+**Lỗi là gì.** Tailwind v3 chỉ chèn được alpha vào màu nào có placeholder `<alpha-value>`.
+`canvas-base/-surface/-elevated`, `ink-pri/-sec/-muted`, `bdr` và
+`accent-{pri,sec,cyan,green,red,amber}` đều map ra `var(--…)` **trần** trong `tailwind.config.js`,
+không có placeholder — nên khi Tailwind gặp `/NN` trên chúng, nó **bỏ luôn cả class**. Đây không
+phải "ra sai màu" mà là **không sinh khai báo nào**: `border-accent-amber/50` không vẽ viền mờ, nó
+không vẽ gì, phần tử giữ nguyên thứ nó đang có. Mọi cổng đều xanh trong lúc đó — `tsc`, eslint,
+vitest, cả `vite build` — vì class chết vẫn là chuỗi hợp lệ trong `className`.
+
+**Đo trước khi sửa.** Build baseline (`dist/assets/index-DaKQ8gK6.css`, 52 971 byte) rồi
+`grep -oF` thẳng vào CSS phát ra: `accent-amber\/50` **0** hit · `accent-red\/10` **0** ·
+`canvas-surface\/85` **0** · `ink-pri\/70` **0** · `bdr\/60` **0**; đối chứng
+`tb-amber\/50` **4** · `tb-red\/10` **3** · `white\/70` **1**. Class chết đúng là chết, dạng thay
+thế đúng là sống. `accent-violet` (#8b5cf6) và `accent-blue` (#3b82f6) là **hex literal** nên `/NN`
+chạy bình thường — cố ý **không** đụng tới.
+
+**Né bẫy 92-file của 2026-08-14.** Lần quét regex trước làm hỏng 92 file vì `\[` trong chuỗi
+`node -e` bị bash nuốt thành character class (`top-0` → `top-px0.5.5`). Lần này:
+
+- script viết ra **file** (`scratchpad/fix-alias-alpha.mjs`), không nhét regex qua bash;
+- regex có biên **hai đầu**: `(?<=-)(alias…)(?=/\d)` ⇒ alias trần (`text-accent-amber`,
+  `border-bdr`) không bị đụng, chỉ dạng có modifier mới bị đổi;
+- **11 case self-test gate việc ghi** — sai một case là `process.exit(1)` trước khi chạm byte nào.
+  Trong đó có idempotence (`bg-tb-amber/50` giữ nguyên), miễn trừ hex literal
+  (`bg-accent-violet/20` giữ nguyên) và alias trần đứng cạnh alias có modifier
+  (`bg-accent-green/15 text-accent-green` → chỉ vế đầu đổi);
+- chạy dry-run trước, rồi mới `--write`;
+- kiểm lại sau khi ghi: alias-có-modifier còn sót trong `src/` = **0**, `git diff --stat` = 56 file
+  / 196 dòng, và lọc mọi dòng `+` không nằm trong ngữ cảnh class string ⇒ **rỗng**.
+
+Kết quả: **265 chỗ / 56 file**. Dày nhất: `notificationDisplay.ts` 17 · `ShopPage.tsx` 15 ·
+`ProductRiskPage.tsx` 15 · `VoucherConsole.tsx` 14 · `BasicInfoSection.tsx` 14 ·
+`ReportedPostsPage.tsx` 13 · `orderStatus.ts` 10 · `productRisk.ts` 10.
+
+**Từng cặp swap là màu y hệt**, đối chiếu `src/index.css`: `--bg-base` #09090B=`tb-base` ·
+`--bg-surface` #111113=`tb-surface` · `--bg-elevated` #1C1C1E=`tb-elevated` · `--border`
+#27272A=`tb-border` · `--text-secondary` #A1A1AA=`tb-secondary` · `--text-muted`
+#52525B=`tb-muted` · `--accent-primary`/`--accent-amber` #F59E0B=`tb-amber` ·
+`--accent-secondary`/`--accent-red` #EF4444=`tb-red` · `--accent-cyan` #06b6d4=`tb-cyan` ·
+`--accent-green` #10b981=`tb-green`. Không có pixel nào đổi màu — chỉ có những chỗ **trước đây
+không vẽ gì** bây giờ vẽ đúng thứ code vẫn luôn yêu cầu.
+
+**`ink-pri` (#FFFFFF) không có token `tb-*`** — bảng map trong Check 8 thiếu hẳn ô này. Chọn
+`white/NN` thay vì đẻ token `tb-white`: repo đã có sẵn 5 site dùng dạng đó (`LoginPage.tsx:51`
+`border-white/40`, 4 chỗ trong `PostCard.tsx`), baseline build xác nhận `white\/70` sinh 1 khai
+báo, và cách này không phải sửa `tailwind.config.js` lẫn `tokens.md`. Luật "`text-white` không nên
+dùng" trong `tokens.md` nói về ca **đặc**, nơi `text-ink-pri` chạy tốt; nó không áp được cho ca
+alpha vì ở đó **không alias nào** chạy.
+
+**Test — không phải unit suông.** `src/test/aliasAlpha.ts` giữ detector thuần
+(`findAliasAlphaViolations` / `suggestAliasAlphaFix` + bảng map); `aliasAlpha.test.ts` có 6 unit
+test **và** một guard quét **cả `src/`**. Đặt ở `src/test/` chứ không `src/lib/` vì đây là luật
+lint của repo, không phải logic sản phẩm. Hai lần đi sai đường đáng ghi lại:
+
+- `fast-glob` — bị loại vì nó chỉ là transitive dep của Vite, không khai báo trong `package.json`,
+  mà `npm install` thì bị chặn.
+- `node:fs` + `process.cwd()` — chạy được dưới vitest nhưng **`npm run build` gãy**: `src/` không
+  nạp `@types/node` (`tsconfig.json` không có `types`, mà thêm vào là kéo global Node vào toàn bộ
+  app code) ⇒ 6 lỗi TS2591/TS7006. Ngoài ra `fileURLToPath(import.meta.url)` **ném** dưới jsdom
+  ("The URL must be of scheme file").
+
+Chốt bằng `import.meta.glob('../**/*.{ts,tsx}', { query: '?raw', import: 'default', eager: true })`
+— Vite đã typed sẵn qua `vite/client`, không thêm dep, không đụng tsconfig. Guard tự loại trừ hai
+file của chính nó (chúng chứa violation làm fixture/tài liệu) và assert `files.length > 100` để
+một glob hụt không lặng lẽ pass. **Đã chứng minh guard fail đúng**: thả tạm
+`src/__alias_probe.ts` chứa `'bg-canvas-surface/85'` ⇒ test đỏ với thông điệp
+`canvas-surface/85 → use tb-surface/85`, rồi xoá file mồi.
+
+**Verify runtime (Chrome DevTools MCP, dev server `localhost:5173`).** Ô username lúc focus render
+`borderTopColor: rgba(245, 158, 11, 0.5)` — đúng #F59E0B@50%; ô còn lại (chưa focus) vẫn
+`rgb(39,39,42)`, tức chính cái state mà **trước đây** ô focus cũng bị kẹt lại vì class không sinh
+ra. Đọc thẳng `document.styleSheets` đếm được **44 rule** alpha hợp lệ chỉ riêng trên route
+`/login` (`.border-tb-amber\/50 { border-color: rgba(245,158,11,.5) }`, `.border-tb-border\/60`,
+…). Screenshot `/login` bố cục nguyên vẹn.
+
+**Gates:** `npm run build` ✓ · `npm run lint` 0 problem · `npm run test:run` **1082 test / 132
+file** (+7 test / +1 file). CSS bundle 52 971 → **55 250** byte: +2 279 byte khai báo trước đây
+không hề tồn tại. Sau build, `tb-surface\/85` · `tb-border\/60` · `white\/40` · `tb-cyan\/10` ·
+`tb-green\/15` đều từ 0 lên ≥1.
+
+**Không đụng tới, có chủ đích:** cột căn chữ trong object literal của `src/lib/domain/orderStatus.ts`
+xê dịch nhẹ vì tên `tb-*` ngắn hơn — bảng đó vốn đã so le sẵn (mấy hàng `accent-violet`/
+`accent-blue` dài hơn), căn lại là drive-by ngoài diff tối thiểu.
+
+**Không push** — cây vẫn **HOLD class C** vì SEARCH-01-FE chờ `api` đẩy SEARCH-01 lên prod. Bản
+thân thay đổi này là **class A** (chỉ đổi tên class trong `className`, BE không nhìn thấy).
+
+**Không có backend gap** — thuần FE, không đụng contract nào.
+
 ### ROLE-ADMIN-01 (tokenRole) · guard FE bám JWT thay vì hàng DB, + banner cho người vừa bị đổi vai trò (2026-09-16)
 
 `/sweep` — đóng món nợ mở từ ROLE-ADMIN-01 (2026-09-15) và là entry đầu tiên trong
