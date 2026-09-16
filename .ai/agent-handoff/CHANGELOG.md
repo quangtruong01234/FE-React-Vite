@@ -5,7 +5,55 @@
 > Current state (readiness, open/blocked tasks, known issues) lives in `snapshot.md`.
 > Newest first. Việc trước **2026-07-10** đã dời sang `CHANGELOG.archive.md` (cùng thư mục).
 
+> ✅ **RELEASED 2026-09-16 — dòng này đè lên mọi chữ "chưa push" / "HOLD class C" trong các entry
+> từ `CHART-SWAP-01` (2026-09-14) tới `ALIAS-ALPHA-01` (2026-09-16).** Cả cây đã lên `origin/main`
+> của `frontend` (**`2c65b1d`**, đo bằng `git ls-remote`) và phía `api` đã lên prod (**`87fc2f8`,
+> 14:39Z**) sau khi DEPLOY-PG-01 được khôi phục bằng run `35109797956`; SEARCH-01 và
+> `PATCH /user/:id/role` đều probe được trên chính prod. Những câu "chưa push" bên dưới là **ảnh
+> chụp lúc viết entry**, giữ nguyên văn để không sửa lại lịch sử — đừng đọc chúng như trạng thái
+> hiện tại. Trạng thái hiện tại nằm ở `../../.agent-local/release-gate.md`.
+
 ## Maintenance
+
+### CONFIRM-PAD-01 + DOC-STALE-0916 · title `ConfirmDialog` chui dưới nút X, và dọn "CHƯA push" đã cũ (2026-09-16)
+
+Hai việc rời nhau, gộp một entry vì cùng sinh ra từ một buổi verify prod bằng Chrome DevTools MCP
+sau khi `2c65b1d` lên sóng.
+
+**A · `ConfirmDialog` — title đè lên nút đóng.** Chụp được trên prod ở luồng admin đổi vai trò:
+tiêu đề *"Đổi vai trò của E2E Prod Tester thành Người bán?"* wrap xuống dòng và chữ chạy thẳng
+dưới chữ X ở góc. Không phải cảm tính — đo ra số: `DialogContent` là `p-6` (24px), nút đóng
+`ui/dialog.tsx` neo ở `absolute right-4 top-4` với icon 16px ⇒ mép trái chữ X cách mép phải hộp
+**32px**, trong khi khung title kết thúc ở **24px** ⇒ **chồng 8px**. Title ngắn thì không lộ, nên
+lỗi sống sót qua 8 consumer.
+
+Sửa bằng `pr-6` trên chính `DialogTitle` trong `ConfirmDialog.tsx` (24px > 32px − 16px = clearance
+16px). **Không** sửa `ui/dialog.tsx`: thư mục `src/components/ui/` write-blocked (core.md), và
+đằng nào title cũng là prop do caller truyền — độ dài không kiểm soát được từ primitive, nên chỗ
+chừa góc đúng là ở consumer. Có comment tại chỗ giải thích phép đo để lần sau không ai gỡ.
+
+Test pin kèm: `ConfirmDialog.test.tsx` → `keeps the title clear of the close button`, dựng đúng
+title dài đã thấy trên prod và assert `pr-6`. Class `A` thuần FE.
+
+**B · dọn state cũ trong `snapshot.md` + file này.** 8 dòng còn ghi "CHƯA push" / "HOLD class C vì
+SEARCH-01-FE" — đúng lúc viết, sai từ lúc user push `388b036..2c65b1d` và `api` lên prod
+`87fc2f8`. Đây **không phải lỗi chính tả**: chiều nay chính mấy dòng đó làm tôi kết luận prod BE
+vẫn là `d8b7f4e` và **loại 3 tính năng (SEARCH-01, ROLE-ADMIN-01, CONFIRM-UI-01) khỏi tài liệu
+dùng thử** — user hỏi lại mới lòi ra. Doc nói dối được vì nó không tự già đi; phép đo đúng là
+`git ls-remote` + probe runtime trên prod.
+
+- `snapshot.md`: 3 hàng sửa sang "đã push + released 2026-09-16", 2 hàng sửa lẻ, xóa 5 hàng
+  `2026-09-14/15` để Recent closes về đúng mức 5 hàng như convention của chính file (ngoại lệ
+  "giữ hàng chưa push" hết hiệu lực). 5 hàng rời đi vẫn nguyên văn ở file này — đã grep xác nhận
+  trước khi xóa, nên không mất dữ liệu. Kèm một đoạn ⚠️ ghi lại bài học ở trên.
+- File này: thêm banner ✅ RELEASED ở đầu đè lên 6 câu "chưa push" nằm rải trong các entry
+  `CHART-SWAP-01` → `ALIAS-ALPHA-01`. **Giữ nguyên văn các câu đó** — chúng là ảnh chụp lúc viết,
+  sửa lại là viết lại lịch sử. Tiền lệ: DOC-STALE-0813.
+
+**Cổng:** `npm run build` ✅ · `npm run lint` ✅ · `npm run test:run` **1083 test / 132 file** ✅.
+Lần chạy gộp đầu tiên (build+lint+test cùng một shell nền) báo 2 test fail ở 1 file nhưng `tail`
+cắt mất tên; chạy lại sạch **2 lần liên tiếp đều xanh đủ 1083** ⇒ ghi nhận là flake do tải máy,
+chưa tái hiện được, chưa định danh được file. Nếu nó quay lại thì đây là manh mối đầu tiên.
 
 ### ALIAS-ALPHA-01 · 265 class `/NN` trên alias `var()` đang chết im, swap sang token hex literal (2026-09-16)
 
