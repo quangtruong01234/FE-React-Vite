@@ -8,8 +8,16 @@
  * `/socket.io` is here for the same reason as `/api`: the gateway sets a
  * host-only auth cookie, so a socket that dials the gateway origin directly
  * handshakes with no cookie at all and the server drops the namespace.
+ *
+ * `/health` is here because the gateway's liveness route is NOT under `/api` —
+ * it calls `setGlobalPrefix('api', { exclude: [...] })` with `health` excluded,
+ * so the route is `GET /health` at the root. The demo-mode probe
+ * (`src/lib/demo/probeBackend.ts`) needs it, and without this entry the request
+ * never leaves the edge: it falls through to the assets, where
+ * `not_found_handling = "single-page-application"` answers 200 with index.html
+ * and the probe reads a dead gateway as live.
  */
-export const PROXY_PREFIXES = ['/api', '/socket.io'] as const;
+export const PROXY_PREFIXES = ['/api', '/socket.io', '/health'] as const;
 
 // Connection-scoped headers describe the browser→Worker hop only. Forwarding
 // them verbatim to nginx is meaningless at best and breaks framing at worst

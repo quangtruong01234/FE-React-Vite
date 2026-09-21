@@ -30,12 +30,45 @@ export const DEMO_GUIDE_URL =
 export const DEMO_DISABLED_LABEL = 'Available when backend is online';
 
 /**
+ * Where the gateway actually serves its liveness check.
+ *
+ * NOT under `/api`. The gateway calls `setGlobalPrefix('api', { exclude: [...] })`
+ * and `health` is on that exclude list, so the route is `GET /health` at the
+ * root. Probing `/api/gateway/health` — which is what this used to do, and what
+ * `.ai/context/backend-api.md` used to document — gets a 404 from a gateway that
+ * is perfectly healthy, which `classifyProbe` then reads as offline: demo mode
+ * switches on during the service window and login (deliberately unmocked) breaks
+ * for real visitors.
+ *
+ * Because the path is outside `/api`, it only reaches the gateway if both proxies
+ * forward it: `PROXY_PREFIXES` in `worker/proxy.ts` + `run_worker_first` in
+ * wrangler.toml for production, and the `server.proxy` map in vite.config.ts for
+ * dev. Drop it from either one and the request falls through to the SPA fallback
+ * instead — see the content-type guard in `classifyProbe`.
+ */
+export const HEALTH_PROBE_PATH = '/health';
+
+/** A probe attempt, reduced to the two fields the verdict depends on. */
+export interface ProbeResult {
+  ok: boolean;
+  contentType: string | null;
+}
+
+/**
  * What a probe attempt means. Any non-2xx is treated the same as a thrown
  * request: a gateway that answers 502 is as unusable as one that never answers,
  * and both should land the visitor in demo mode rather than on a broken page.
+ *
+ * The content-type guard covers the opposite failure, which is the nastier one.
+ * `HEALTH_PROBE_PATH` sits outside `/api`, so a proxy that is missing the entry
+ * hands `/health` to the static assets — and `not_found_handling =
+ * "single-page-application"` answers **200 with index.html**. On `ok` alone that
+ * reads as a live gateway, and a real outage would render as a dead login form
+ * instead of the demo banner. The gateway answers JSON; the SPA fallback cannot.
  */
-export function classifyProbe(response: { ok: boolean } | null): BackendStatus {
-  return response?.ok === true ? 'online' : 'offline';
+export function classifyProbe(response: ProbeResult | null): BackendStatus {
+  if (response?.ok !== true) return 'offline';
+  return response.contentType?.includes('application/json') === true ? 'online' : 'offline';
 }
 
 let current: BackendStatus = 'online';

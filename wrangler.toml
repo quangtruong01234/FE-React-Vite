@@ -38,9 +38,16 @@ binding = "ASSETS"
 # A proxied socket costs one request for the upgrade, not one per frame — see
 # worker/index.ts.
 #
+# /health is the gateway's liveness route, and it is NOT under /api: the gateway
+# excludes it from its global `api` prefix, so it answers at the root. The
+# demo-mode probe calls it on every cold load. Without it here the request is
+# served by the assets instead — and `not_found_handling` below answers 200 with
+# index.html, so a gateway that is down would read as up. One exact path, no
+# wildcard: there is nothing under /health/.
+#
 # Boolean `true` would run the Worker on EVERY request — every page load would
 # then burn invocations from the 100k/day free quota for nothing.
-run_worker_first = ["/api/*", "/socket.io", "/socket.io/*"]
+run_worker_first = ["/api/*", "/socket.io", "/socket.io/*", "/health"]
 
 # React Router owns every path in this app. Without this, a hard refresh on
 # /product/prod_x (or any deep link a user pastes) asks Cloudflare for a file

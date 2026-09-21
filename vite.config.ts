@@ -50,6 +50,15 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
+        // The gateway excludes `health` from its global `api` prefix, so its
+        // liveness route is `/health` at the root. Mirrors `run_worker_first` in
+        // wrangler.toml; without it the demo-mode probe hits vite's SPA fallback,
+        // gets 200 text/html, and never reports a local gateway as down.
+        '/health': {
+          target: apiTarget,
+          changeOrigin: true,
+          secure: false,
+        },
       },
     },
     test: {

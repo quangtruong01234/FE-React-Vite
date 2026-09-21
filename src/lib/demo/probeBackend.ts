@@ -1,12 +1,12 @@
-import { API_BASE } from '@/api/client';
 import {
+  HEALTH_PROBE_PATH,
   HEALTH_PROBE_TIMEOUT_MS,
   classifyProbe,
   type BackendStatus,
 } from './backendStatus';
 
 /**
- * One shot at `GET /gateway/health`, capped at 3s.
+ * One shot at `GET /health`, capped at 3s.
  *
  * Deliberately raw `fetch` rather than `api.misc.health()`: `request()` retries
  * a 503 after a `Retry-After` delay and routes 401s into the login redirect.
@@ -22,12 +22,12 @@ export async function probeBackend(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(`${API_BASE}/gateway/health`, {
+    const res = await fetch(HEALTH_PROBE_PATH, {
       credentials: 'include',
       cache: 'no-store',
       signal: controller.signal,
     });
-    return classifyProbe(res);
+    return classifyProbe({ ok: res.ok, contentType: res.headers.get('content-type') });
   } catch {
     // Abort, DNS failure, connection refused, CORS — all the same verdict.
     return classifyProbe(null);

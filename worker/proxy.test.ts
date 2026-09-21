@@ -25,9 +25,18 @@ describe('isProxiedPath', () => {
     expect(isProxiedPath('/socket.io/')).toBe(true);
   });
 
+  it('matches the gateway liveness route, which is outside /api', () => {
+    // The gateway excludes `health` from its global `api` prefix. Without this
+    // entry the demo-mode probe never leaves the edge: it is served by the
+    // assets, and `not_found_handling = "single-page-application"` answers 200
+    // with index.html, so a gateway that is down reads as up.
+    expect(isProxiedPath('/health')).toBe(true);
+  });
+
   it('does not match app routes that merely start with the same letters', () => {
     expect(isProxiedPath('/apifoo')).toBe(false);
     expect(isProxiedPath('/socket.iofoo')).toBe(false);
+    expect(isProxiedPath('/healthy')).toBe(false);
     expect(isProxiedPath('/')).toBe(false);
     expect(isProxiedPath('/product/prod_x')).toBe(false);
   });
@@ -60,6 +69,10 @@ describe('resolveUpstreamUrl', () => {
     expect(resolveUpstreamUrl(`${WORKER}/api/order/ord_9aB%2Fc`, GATEWAY)).toBe(
       `${GATEWAY}/api/order/ord_9aB%2Fc`,
     );
+  });
+
+  it('sends /health to the gateway root, not under /api', () => {
+    expect(resolveUpstreamUrl(`${WORKER}/health`, GATEWAY)).toBe(`${GATEWAY}/health`);
   });
 
   it('swaps the origin for the socket.io handshake, query intact', () => {

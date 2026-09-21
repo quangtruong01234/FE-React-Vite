@@ -9,7 +9,6 @@ import { chatApi } from './chat';
 import { inventoryApi } from './inventory';
 import { uploadApi } from './upload';
 import { cartApi } from './cart';
-import { miscApi } from './misc';
 import { reviewsApi } from './reviews';
 import { shippingApi } from './shipping';
 
@@ -28,6 +27,9 @@ export const api = {
   inventory: inventoryApi,
   upload: uploadApi,
   cart: cartApi,
-  misc: miscApi,
+  // No `misc.health()`: the gateway's liveness route is `/health`, outside the
+  // `api` prefix that `request()` prepends, so it cannot be expressed here. The
+  // only caller that ever needed it is the demo-mode probe, which uses a raw
+  // fetch on purpose — see src/lib/demo/probeBackend.ts.
   reviews: reviewsApi,
 };

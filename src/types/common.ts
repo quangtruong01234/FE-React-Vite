@@ -29,11 +29,11 @@ export interface ApiError {
 }
 
 // --- Health ---
-
-export interface HealthStatus {
-  status: string;
-  timestamp: string;
-  uptime: number;
-  memory: { used: number; total: number };
-  services: Record<string, string>;
-}
+//
+// `HealthStatus` was removed with `src/api/misc.ts` (HEALTH-PATH-01). It had no
+// caller, and its shape was wrong anyway: it claimed `memory` and `services`,
+// while the gateway actually answers
+// `{ service, status: "ok", uptime, timestamp, dependencies: { … } }` — measured
+// against prod 2026-09-22, see `.ai/context/backend-api.md` §10. The only code
+// that reads the health route is the demo-mode probe, which looks at the status
+// and the content-type and never parses the body.
