@@ -17,6 +17,7 @@ import { PriceText } from '@/components/shared/PriceText';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { Avatar } from '@/components/shared/Avatar';
 import { WishlistButton } from '@/components/shared/WishlistButton';
+import { DemoModeGate } from '@/components/shared/DemoModeGate';
 import { ProductReviews } from './ProductReviews';
 import { sellerName } from './sellerName';
 
@@ -369,13 +370,15 @@ export default function ProductDetail(): ReactElement {
                   Hết hàng
                 </button>
               ) : (
-                <GradientButton
-                  onClick={handleAddToCart}
-                  disabled={addToCart.isPending || !allTiersSelected || (hasVariants && !matchedSku)}
-                  className={cn('flex-1 h-14 text-base', inCart && 'opacity-90')}>
-                  <ShoppingCart size={16} />
-                  {addToCart.isPending ? 'Đang thêm…' : !allTiersSelected ? 'Chọn phân loại' : inCart ? `THÊM VÀO GIỎ (+${quantity})` : 'THÊM VÀO GIỎ HÀNG'}
-                </GradientButton>
+                <DemoModeGate className="flex-1">
+                  <GradientButton
+                    onClick={handleAddToCart}
+                    disabled={addToCart.isPending || !allTiersSelected || (hasVariants && !matchedSku)}
+                    className={cn('flex-1 h-14 text-base', inCart && 'opacity-90')}>
+                    <ShoppingCart size={16} />
+                    {addToCart.isPending ? 'Đang thêm…' : !allTiersSelected ? 'Chọn phân loại' : inCart ? `THÊM VÀO GIỎ (+${quantity})` : 'THÊM VÀO GIỎ HÀNG'}
+                  </GradientButton>
+                </DemoModeGate>
               )}
               <WishlistButton
                 productId={detail.id}

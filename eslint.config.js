@@ -7,8 +7,15 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
   // .wrangler holds the bundle `wrangler dev` hands to workerd — generated code
-  // that fails these rules and is not ours to fix.
-  globalIgnores(['dist', '.wrangler', 'design_handoff_trybuy_ui']),
+  // that fails these rules and is not ours to fix. mockServiceWorker.js is the
+  // same: copied verbatim out of node_modules/msw by `msw init`, carrying its own
+  // eslint-disable header that our config then flags as unused.
+  globalIgnores([
+    'dist',
+    '.wrangler',
+    'design_handoff_trybuy_ui',
+    'public/mockServiceWorker.js',
+  ]),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
