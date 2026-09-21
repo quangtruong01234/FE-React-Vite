@@ -290,8 +290,31 @@ trình bày như kết luận thì người đọc không có cách nào biết 
 Đọc được code repo kia thì đọc trước khi đoán (`api/` là read-only nhưng **không** cấm đọc — xem
 `core.md` §Cross-repo boundary). Không đọc được thì nói là không đọc được.
 
----
+## 17 · Health check của gateway **không** nằm dưới `/api` (HEALTH-PATH-01)
 
+Gateway khai `setGlobalPrefix("api", { exclude: [...] })` và `live` / `ready` / `health` đều nằm
+trong exclude, nên ba route đó trả lời ở **gốc**: `GET /health`, không phải `/api/health` và càng
+không phải `/api/gateway/health`.
+
+Bẫy ở chỗ **gateway khoẻ vẫn trả 404** cho đường sai — và 404 thì trông y hệt "backend chết" với
+bất kỳ probe nào chỉ đọc `response.ok`. Probe demo-mode đã dính đúng cái đó và **lên tới prod**:
+nó gọi `/api/gateway/health`, nhận 404 từ một gateway đang chạy, kết luận offline, bật MSW — và vì
+`POST /user/login` cố ý không mock, khách thật mất luôn đường đăng nhập trong đúng khung giờ phục vụ.
+Đo được lúc 04:34 ICT 22-09 trên prod: `/api/gateway/health` → 404, còn `/api/products/categories`
+→ 200 với dữ liệu thật.
+
+**Và cái bẫy thứ hai, ngược chiều, nằm ngay trong cách sửa hiển nhiên.** Đổi probe sang `/health`
+thôi thì hỏng kiểu khác: `/health` không nằm trong `PROXY_PREFIXES` (`worker/proxy.ts`) nên Worker
+trả nó về static assets, và `not_found_handling = "single-page-application"` đáp **200 kèm
+index.html**. Probe đọc 200 ⇒ "online" **vĩnh viễn**, kể cả khi backend tắt hẳn. Dev cũng vậy: vite
+chỉ proxy `/api`. Đo được: `GET /health` trên prod trước khi sửa → `200 text/html`.
+
+Nên một path ngoài `/api` phải có mặt ở **cả ba** chỗ — `PROXY_PREFIXES`, `run_worker_first`
+(wrangler.toml), `server.proxy` (vite.config.ts) — và probe phải kiểm **content-type**, vì
+"200" một mình không phân biệt được gateway với SPA fallback. `classifyProbe` giờ đòi
+`application/json`.
+
+---
 ## Khi phát hiện bẫy mới
 
 Thêm vào đây **chỉ khi** nó thoả 2 điều kiện ở đầu file. Trạng thái công việc → `snapshot.md`.

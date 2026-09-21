@@ -15,6 +15,62 @@
 
 ## Maintenance
 
+### HEALTH-PATH-01 · probe demo-mode gọi nhầm đường health ⇒ demo mode bật đè lên backend đang sống (2026-09-22)
+
+**Bug đã lên prod trong DEMO-MODE-01 và đo được đang hỏng thật**, không phải suy luận.
+
+`probeBackend` gọi `${API_BASE}/gateway/health` = `/api/gateway/health`. Route đó không tồn tại:
+gateway khai `setGlobalPrefix("api", { exclude: [...] })` với `health` trong exclude
+(`apps/gateway/src/main.ts:100`) và controller là `@Controller()` trần + `@Get("health")`, nên
+đường thật là `GET /health` ở gốc. `classifyProbe` đọc mọi non-2xx thành `offline` ⇒ **404 từ một
+gateway hoàn toàn khoẻ = "backend chết"**.
+
+**Đo trên prod 04:34 ICT 22-09**, trong một browser context sạch (`swCount: 0`, không có MSW xen vào):
+
+| Request | Kết quả |
+|---|---|
+| `/api/gateway/health` | **404**, body đúng format exception filter của gateway (`"Cannot GET /api/gateway/health"`) ⇒ gateway **đang sống** |
+| `/api/products/categories` | **200** + danh mục thật (`id "9"`, "Âm thanh") |
+| `/api/products/brands` | **200** + brand thật |
+| `/api/user/me` | **401** đúng chuẩn |
+| `/health` | **200 `text/html`** — SPA fallback, không phải gateway |
+
+Cùng lúc đó trang prod đang hiển thị banner "backend nghỉ" + catalogue fixture. Tức là khách thật
+thấy hàng giả trong khi backend đang phục vụ, và `POST /user/login` — cố ý không mock — rơi vào
+`offlineFallback` trả **503** ⇒ **không đăng nhập được**.
+
+**Nguồn gốc:** `.ai/context/backend-api.md` §10 ghi endpoint là `GET /api/gateway/health`. Doc sai,
+rồi `src/api/misc.ts` chép theo doc, rồi probe chép theo `misc.ts`. Đã sửa doc.
+
+**Cái bẫy trong cách sửa hiển nhiên — lý do patch này đụng tới Worker.** Đổi probe thành `/health`
+là chưa đủ: `/health` không nằm trong `PROXY_PREFIXES`, nên `resolveUpstreamUrl` trả `null` và
+`worker/index.ts:50` đưa request về `env.ASSETS.fetch`, nơi `not_found_handling =
+`"single-page-application"` đáp **200 index.html**. Probe sẽ báo "online" **vĩnh viễn** — hỏng
+ngược chiều, và tệ hơn, vì lúc đó demo mode không bao giờ bật nữa. Dev y hệt: vite chỉ proxy `/api`.
+
+**Nên patch gồm 3 lớp, và lớp thứ 3 là lớp giữ cho hai lớp kia không âm thầm mục:**
+
+1. **Đường đúng** — `HEALTH_PROBE_PATH = "/health"` trong `backendStatus.ts`, probe dùng hằng đó.
+2. **Hai đầu proxy** — `PROXY_PREFIXES` (`worker/proxy.ts`) + `run_worker_first` (wrangler.toml)
+   + `server.proxy` (vite.config.ts). Path chính xác, không wildcard: không có gì dưới `/health/`.
+3. **Guard content-type** — `classifyProbe` giờ đòi `ok === true` **và** content-type chứa
+   `application/json`. Đây là thứ duy nhất phân biệt được gateway với SPA fallback, và nó biến
+   "ai đó xoá một dòng config" từ *hỏng im lặng* thành *rơi về demo mode* — hướng an toàn.
+
+**Dọn kèm:** xoá `src/api/misc.ts` (+ `misc` khỏi `api/index.ts`). `miscApi.health()` không ai gọi,
+và **không thể** viết đúng qua `request()` vì hàm đó luôn prepend `API_BASE`. Để lại thì đúng bằng
+việc gài sẵn lại cái bug vừa sửa. Chỗ đó thay bằng comment trỏ về `probeBackend.ts`.
+
+**Test:** +2 ca `classifyProbe` (200 `text/html` ⇒ offline; 200 không content-type ⇒ offline),
++2 ca `probeBackend` (probe đúng `/health` chứ không phải `/api/...`; 200 non-JSON ⇒ offline),
++2 ca `worker/proxy.test.ts` (`isProxiedPath("/health")` true, `"/healthy"` false;
+`resolveUpstreamUrl` đẩy `/health` về gốc gateway). Full suite **1182 test / 143 file** xanh,
+build + lint xanh.
+
+Ghi chú "không phải bug BE" đã vào `../../.agent-local/backend-handoff.md`; bẫy vào
+`.ai/context/pitfalls.md` §17.
+
+---
 ### REPO-DOCS-01 · README/AGENTS.md viết lại cho người đọc, + DEMO/METRICS/LICENSE (2026-09-21)
 
 Theo `../../.agent-local/TryBuy-repo-update-prompt.md` — chuẩn hoá 3 repo TryBuy để nhà tuyển dụng

@@ -152,7 +152,7 @@ variables are set and why they are variables rather than secrets: [DEPLOYMENT.md
 
 **Backend service window.** The gateway and its nine services run on EC2 from
 **14:00 to 19:00 ICT (UTC+7)** and are shut down outside it. The storefront is
-static and stays up 24/7, so on startup it probes `GET /gateway/health` with a
+static and stays up 24/7, so on startup it probes `GET /health` with a
 3-second timeout:
 
 - **Reachable** → the app runs normally; nothing is mocked.

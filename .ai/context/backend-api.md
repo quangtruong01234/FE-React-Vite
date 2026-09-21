@@ -23,7 +23,7 @@
 - [7. Notification](#7-notification) — list · mark read
 - [8. Chat (HTTP)](#8-chat-http) — conversations · messages
 - [9. Upload](#9-upload) — Cloudinary signature
-- [10. Misc](#10-misc) — health
+- [10. Misc](#10-misc) — health · live · ready (**không có prefix `api`** — trả lời ở gốc)
 - [WebSocket](#websocket) — Notification WS · Chat WS
 - [Notes for Frontend](#notes-for-frontend)
 
@@ -1200,23 +1200,49 @@ Errors: 401
 
 ## 10. Misc
 
-### GET /api/gateway/health
+### GET /health
 
 Auth: [PUBLIC]
 Description: Health check endpoint (rate limited: 10 req/60s).
 
-Response 200:
+⚠️ **No `/api` prefix.** The gateway calls `setGlobalPrefix('api', { exclude: [...] })`
+and `live` / `ready` / `health` are all on the exclude list, so they answer at the
+root. This entry used to read `GET /api/gateway/health`, which does not exist —
+a healthy gateway 404s it. That is where the demo-mode probe bug came from
+(HEALTH-PATH-01): the probe read the 404 as "backend down" and switched real
+visitors into demo mode during the service window. A path outside `/api` also has
+to be listed in `PROXY_PREFIXES` (`worker/proxy.ts`), `run_worker_first`
+(wrangler.toml) and `server.proxy` (vite.config.ts) or it never reaches the gateway.
+
+Response 200 (`application/json; charset=utf-8`) — **đo trên prod 2026-09-22**, không phải chép từ spec:
 ```json
 {
-  "status": "UP",
-  "timestamp": "2026-06-01T00:00:00.000Z",
-  "uptime": 3600,
-  "memory": { "used": 100, "total": 512 },
-  "services": { "orders": "UP", "inventory": "UP", "user": "UP", "product": "UP" }
+  "service": "gateway",
+  "status": "ok",
+  "uptime": 1170.873,
+  "timestamp": "2026-09-21T21:45:41.600Z",
+  "dependencies": {
+    "database": { "required": false, "status": "not_configured" },
+    "rabbitmq": { "required": false, "status": "ok" },
+    "redis":    { "required": true,  "status": "ok" }
+  }
 }
 ```
 
+Entry này trước đây ghi `{ status: "UP", memory, services: { orders, inventory, … } }` — **sai cả
+shape lẫn giá trị** (`"ok"` chứ không phải `"UP"`; có `dependencies`, không có `memory`/`services`).
+Type `HealthStatus` trong `src/types/common.ts` được viết theo shape sai đó và đã bị xoá cùng
+`src/api/misc.ts`.
+
 Errors: 429 — rate limit exceeded
+
+### GET /live · GET /ready
+
+Auth: [PUBLIC] · cùng cơ chế: **không** có prefix `api`, trả lời ở gốc.
+
+`/live` là bản gọn (`{ service, status, uptime, timestamp }`); `/ready` trả y hệt `/health`, kèm
+`dependencies`. Cả hai đều đo được 200 JSON trên prod 2026-09-22. FE **không** dùng cả hai — probe
+demo-mode chỉ gọi `/health` — ghi ở đây để khỏi ai đi đoán lại.
 
 ---
 
