@@ -15,6 +15,249 @@
 
 ## Maintenance
 
+### REPO-DOCS-01 · README/AGENTS.md viết lại cho người đọc, + DEMO/METRICS/LICENSE (2026-09-21)
+
+Theo `../../.agent-local/TryBuy-repo-update-prompt.md` — chuẩn hoá 3 repo TryBuy để nhà tuyển dụng
+hiểu dự án trong 3 phút và **tin là người thiết kế, không phải AI sinh ra**. Trong 13 mục checklist
+chỉ **7** mục chạm `frontend/`: #1 README, #4 thư mục AI, #5 AGENTS.md, #6 quét secret, #9 demo
+offline (→ `DEMO-MODE-01`), #11 metrics, #12 LICENSE/env/CI badge.
+
+**README.md trước đó vẫn là template của Vite.** Bản mới: sơ đồ Mermaid toàn hệ thống có đánh dấu
+repo này là **một** ô trong đó, bảng layer của chính repo, và 6 "key engineering decisions" mà mỗi
+cái **nói ra phương án đã loại và vì sao** — Worker proxy vì cookie host-only (cross-origin thì REST
+401, còn socket thì connect xong mới bị disconnect namespace, tức là realtime chết trong khi app
+trông vẫn khoẻ), idempotency key là **chữ ký của giỏ** chứ không phải UUID (UUID ngẫu nhiên mỗi lần
+bấm thì chặn được double-click lẫn network replay đều **không**), public ID opaque, TanStack Query
+sở hữu server state, test đi kèm mọi fix, và backend-offline là **trạng thái được thiết kế**.
+
+**AGENTS.md từ 41 dòng routing riêng cho Codex → tài liệu onboarding cho người.** Phần
+máy-đọc-được giữ lại dưới dạng bảng chứ không đẻ ra bộ luật thứ hai. Có thêm mục "vì sao có 4 thư
+mục AI" vì đó là thứ người đọc thắc mắc đầu tiên: `.ai/` là luật, `.claude/`+`.codex/` là adapter
+**buộc phải nằm đúng tên đó** (hai tool tự tìm theo tên), `.agents/` là skill tool-neutral.
+Bản viết đầu **đánh rơi** `.ai/context/codex-safety.md` và trỏ tới `.ai/workflows/`+`.ai/roles/` —
+đã thêm lại; mất routing an toàn của Codex là mất thật, không phải rút gọn.
+
+**`docs/METRICS.md` do `scripts/metrics.sh` sinh, không gõ tay.** LOC đếm từ `git ls-files` nên
+đúng bằng thứ đã commit và **không thể** lạc vào `node_modules`/`dist`; số màn hình đếm từ
+`router.tsx` chứ không từ listing thư mục — page component không có route thì không phải màn hình ai
+tới được. Script tự ghi phần **"Not measured here"**: throughput backend phải đo trên chính máy phục
+vụ traffic (chạy k6 từ laptop qua internet là đo đường truyền, không đo server), số route REST thuộc
+repo BE, còn Playwright cần gateway sống trong khung giờ.
+Số đo tại `a7447a0`: **1176 test / 131 file test**, 34 màn hình, 28 883 LOC app.
+
+**`docs/DEMO.md` đặt ở FE dù checklist #8 giao cho repo BE** — ranh giới cross-repo cấm ghi vào
+`api/`, mà banner offline của FE lại cần link sống tới nó. Đã báo user. Ảnh chụp **dùng lại ảnh thật**
+trong `.agent-local/interview/assets/` (backend chỉ sống 14:00–19:00 nên không chụp mới được), mỗi
+tấm **mở ra nhìn trước khi copy** để chắc không có dữ liệu cá nhân / thanh URL / domain API prod;
+`02-mkt-03-product-detail.png` bị loại vì 357 081 byte, quá hạn 300KB.
+
+**Quét secret (mục #6) — báo, chưa sửa, đúng như prompt yêu cầu:** `.env` không được track và nằm
+trong `.gitignore`, `.env.example` đủ 4 key. Nhưng **`e2e/accounts.ts` đang track credential thật**
+của tài khoản thật trên backend (`Test@1234`, `Shop@1234`). Khác hẳn `Pass@1234` in trong
+README/DEMO.md — mấy cái đó là tài khoản demo **cố ý công khai**. Ba file test còn lại máy quét ra
+(`LoginPage.test.tsx`, `auth.schema.test.ts`, `changePassword.test.ts`) là password giả, không phải
+secret. **Đang chờ user quyết**; hướng đề xuất: đọc từ `process.env` + `.env.e2e` trong `.gitignore`
+(e2e không chạy trong CI nên không gãy gì).
+
+**`msw` cố tình giữ ở `devDependencies` dù user duyệt "thêm msw".** Đã thử chuyển sang
+`dependencies` rồi **revert**: entry trong `package-lock.json` mang `"dev": true`, sửa tay mỗi
+`package.json` là `npm ci` gãy ở **cả** `ci.yml` lẫn `deploy.yml`, mà `npm install` bị chặn trong
+`settings.json`. Không mất gì về chức năng — `deploy.yml` chạy `npm ci` trơn (**không**
+`--omit=dev`) và Vite bundle từ `node_modules` lúc build. Chứng minh trên build thật chứ không suy
+luận: `dist/mockServiceWorker.js` **9 120 byte** có mặt, code msw nằm trong
+`dist/assets/cookieStore-*.js` + `handlers-*.js`, và `/mockServiceWorker.js` **không** khớp
+`run_worker_first = ["/api/*", "/socket.io", "/socket.io/*"]` nên Cloudflare phục vụ nó như static
+asset (không tính phí, không qua Worker).
+
+### DEMO-MODE-01 · MSW phục vụ catalogue read-only khi backend nghỉ (2026-09-21)
+
+Gateway + 9 service chạy EC2 **14:00–19:00 ICT** cho rẻ, storefront thì static, sống 24/7. Vấn đề:
+**mọi** route nằm sau `ProtectedRoute` (kể cả `/`, `marketplace`, `product/:id`) ⇒ ngoài khung giờ,
+khách bị đá về `/login` mà `/login` cũng không trả lời được. Trang đọc thành **hỏng**, không phải
+**theo lịch** — đúng thứ giết ấn tượng của nhà tuyển dụng mở link lúc 9 giờ tối.
+
+`bootstrapBackendStatus()` probe `GET /gateway/health`, timeout 3s, bằng `fetch` **thô** chứ không
+qua `api` client — interceptor 401 của client sẽ redirect ngay giữa một lần kiểm tra liveness.
+Online ⇒ app chạy bình thường, **không mock gì cả**. Offline/chậm ⇒ banner nói rõ lịch + link
+`docs/DEMO.md`, và MSW khởi động với fixture cho feed, marketplace, category, product detail.
+
+**Probe được `await` trước `createRoot`** vì service worker phải đang intercept **trước** request
+đầu tiên. `msw/browser` là **dynamic import** ⇒ chunk 178 kB chỉ tải ở nhánh offline, khách online
+không trả phí cho nó.
+
+**Mock đọc, chặn ghi — và ranh giới nằm ở chỗ khác với prompt viết.** Prompt nói "không mock login
+và checkout"; đọc là cấm **luồng credential** và checkout, không cấm **phiên**. Nên `GET /user/me`
+**có** mock (không có session thì không có route nào hiện ra để mà xem), còn `POST /user/login`
+**không** — không bịa việc đăng nhập thành công. Mọi write trả **503 không kèm `Retry-After`** (không
+hứa thời điểm mình không biết). Role của phiên demo cố ý là `user` trần ⇒ `/sell` và `/admin` vẫn
+đóng. Nút nào cần backend thật thì bọc `DemoModeGate`, disabled + tooltip "Available when backend is
+online". Nguyên tắc: **khách không bao giờ được nhìn thấy một giao dịch đã không xảy ra.**
+
+**Service worker sống lâu hơn lượt truy cập offline** nên nhánh no-op mới là nhánh đáng lo: khi
+`start()` không được gọi, `activeClientIds` của MSW rỗng và **mọi** request đi thẳng qua
+(`public/mockServiceWorker.js:111`). Lượt truy cập online hôm sau không bị worker cũ chặn.
+
+`public/mockServiceWorker.js` phải vào `globalIgnores` của eslint: nó là file `msw init` copy nguyên
+văn từ `node_modules`, mang sẵn header `eslint-disable` mà config mình lại flag là unused. Config có
+câu "mọi warning sống sót qua `npm run lint` đều là thật" ⇒ không được để warning vendor đứng đó.
+
+**Chưa verify runtime trên prod.** Bằng chứng hiện có là build artifact + config, không phải một lần
+mở site đã deploy ngoài khung giờ. Nợ này rẻ: deploy xong mở link lúc >19:00 rồi soi bằng MCP.
+
+### DATEFIELD-01 · lịch riêng thay `<input type="date">`, và bẫy `button:hover` đè border (2026-09-19)
+
+User nhìn 2 picker của EXPORT-CSV-01 và nói: *"thiết kế UI cho lịch, hiện thấy đang xài mặc định
+không đẹp"*. Đúng — lịch đó là **chrome của trình duyệt**: không token `tb-*` nào với tới, mỗi
+browser một kiểu, và (đã trả giá ở EXPORT-CSV-01) **automation không lái được** vì các segment nằm
+trong shadow DOM. Nên đây không chỉ là việc thẩm mỹ: nó gỡ luôn cái bẫy harness của entry trước.
+
+**Lookup order chạy đủ trước khi tạo file:** `ui/` không có calendar, `shared/` không có, và
+`package.json` **không** có `react-day-picker`/`date-fns`/`dayjs` — mà `npm install` bị chặn ⇒
+tự viết, **không thêm dependency nào** (chỉ mượn `lodash/chunk` đã có sẵn).
+
+**Tách toán lịch ra khỏi UI:** `src/lib/date/calendar.ts` thuần, không DOM — `monthGrid()` luôn trả
+**6×7 ô cố định** (popover không nhảy chiều cao giữa các tháng, đo được 350px ở mọi tháng), ô ngoài
+tháng là `null` chứ **không** mượn ngày tháng kế bên (mọi con số trên lưới thuộc đúng tháng ở
+header). Toàn bộ chạy **UTC + chuỗi ISO**: `todayIso` cắt `toISOString()`, `formatIsoDay` cắt chuỗi
+(**không** đi qua `toLocaleDateString` như `lib/format/time.ts` — cái đó lệch ngày theo timezone),
+so sánh biên là so sánh **chuỗi** vì ISO sort đúng theo thứ tự ngày. `monthOfIsoDay('2026-02-31')`
+trả `null` thay vì để `Date.parse` lặng lẽ mở tháng 3.
+
+**Đổi `TextField` trở lại `type?: 'text' | 'password' | 'email'`** — bỏ `min`/`max` đã nới ở
+EXPORT-CSV-01: panel không còn dùng `type="date"` nên đó là API chết trong một component dùng chung.
+Entry EXPORT-CSV-01 nói "không đẻ `DateField`" — quyết định đó **đã bị thay** ở đây.
+
+**Test surface không phải trả giá:** `<button>` là labelable element nên `<label htmlFor>` vẫn đặt
+tên cho nó ⇒ `getByLabelText('Từ ngày')` trong `SellerOrderExportPanel.test.tsx` sống nguyên, chỉ
+đổi cách đọc giá trị (trigger in `dd/mm/yyyy`, helper `pickedDay()` đổi ngược về ISO). Giá trị đã
+chọn treo thêm `aria-describedby` vì label đã chiếm accessible name — không có nó thì screen reader
+chỉ đọc "Từ ngày" mà không đọc ngày.
+
+**Bẫy thật, mất công nhất entry này — `index.css` đè border-color của mọi `<button>` đang hover.**
+Triệu chứng: ở trạng thái lỗi, `export-from` ra `rgb(239, 68, 68)` còn `export-to` ra
+`rgb(245, 158, 11)` **với class string y hệt nhau**. Không phải transition đang chạy (đo lại sau khi
+đã lặng vẫn thế): `export-to` đang `:hover`, và `src/index.css` giữ rule scaffold của Vite
+`button:hover { border-color: #F59E0B }` — specificity **(0,1,1)**, hơn một class đơn
+`.border-accent-red` **(0,1,0)**. Nên viền lỗi đổi về amber **đúng lúc người bán rê chuột vào nó**.
+Build/lint/test jsdom đều xanh vì class vẫn nằm trong DOM, nó chỉ **thua cascade**.
+
+**Đã thử bọc `:where(button:hover)` cho rule global (specificity 0) rồi bỏ:** đo trên `/sell/orders`
+thấy **17/38 button** đang lấy chính rule đó làm hiệu ứng hover duy nhất (9 tab lọc `border-tb-border`
+ở 3 trang, phân trang `border-bdr`) — gỡ là mất affordance hover trên nhiều trang, quá rộng cho một
+task "thiết kế lịch". Sửa tại component: nhánh lỗi/đang-mở **lặp lại chính màu của mình** ở biến thể
+`hover:` (`.hover\:border-accent-red:hover` = (0,2,0) ⇒ thắng). Bẫy được ghi vào
+`.ai/context/pitfalls.md §6b` kèm số đo, vì nó cắn **mọi** border tĩnh trên `<button>`, không riêng
+component này.
+
+**Guard cho bẫy đó phải nằm ở class list, không ở stylesheet:** thử viết test quét `src/index.css`
+và **bỏ** — vitest chạy `css: false` nên `import '../index.css?raw'` trả chuỗi rỗng, còn `node:fs`
+thì gãy `tsc` (TS 6 không còn auto-include `@types/*`; thêm `"types": ["node"]` là mở node globals
+cho toàn bộ code browser — cùng họ với ghi chú của ALIAS-ALPHA-01). Thay bằng assert trên `className`
+trong `DateField.test.tsx`, có comment nói rõ vì sao jsdom không thấy được lỗi này.
+
+**Verify runtime (Chrome DevTools MCP, full stack local `:5173`→`:3000`, `techstore_demo`):** popover
+320×350px, cách trigger 8px, nền `rgb(17,17,19)`, viền `rgb(39,39,42)`, bo 16px, có shadow; ngày đang
+chọn phủ `linear-gradient(135deg, rgb(245,158,11), rgb(239,68,68))` + glow đúng như mọi CTA chính;
+12 ngày trong cửa sổ from→to được tint để hai ô rời nhau đọc thành **một** khoảng; `T2…CN`
+Monday-first; `min`/`max` khoá chéo nên **không** tạo được range đảo chiều (Aug 1–18 xám
+`rgb(82,82,91)`, `cursor: not-allowed`); mỗi lúc chỉ **một** dialog mở; Escape + click ra ngoài đều
+đóng. Chọn 26/06 → `GET …export?from=2026-06-26&to=2026-09-17` → **200**,
+`filename="trybuy-orders-2026-06-26-2026-09-17.csv"`, 8 941 byte. Range 01/04→19/09 (172 ngày) ⇒ nút
+disabled, câu lỗi in đúng 172, **không** request nào bay đi. Sau khi sửa bẫy hover: hover
+`export-to` lúc lỗi ra `rgb(239, 68, 68)`, hover lúc đang mở mà không lỗi ra
+`rgba(245, 158, 11, 0.5)` (đúng 50% amber, không phải amber đặc), tab lọc vẫn giữ hover amber như cũ.
+Console sạch. +34 test / +2 file → **1142 test / 137 file**.
+
+### EXPORT-CSV-01 · nút "Xuất CSV" + 2 date picker trên `/sell/orders`, và `downloadBlob` dùng chung (2026-09-17)
+
+`/sweep` — chọn EXPORT-CSV-01 vì workflow xếp mục **Open** của `frontend-handoff.md` trên mục
+cùng hạng trong snapshot, và đây là entry Open **duy nhất** còn việc FE thật: 5 entry khác đã ghi
+"MOVED TO Done", ENRICH-BATCH-01 tự nói "không phải sửa gì", phần còn lại đã trả lời hoặc no-op.
+`release-gate.md` §Holding **trống** (SEARCH-01 + ROLE-ADMIN-01 đã xuống Released 2026-09-16) nên
+không có gì khoá cây `frontend`.
+
+**BE đã mở `GET /api/order/seller/export?from=&to=[&status=]`** (`JwtAuthGuard`, tự scope theo
+`req.user.id` nên không có param `sellerId`). Nó trả **chính file CSV** — `text/csv; charset=utf-8`,
+UTF-8 BOM + CRLF, 17 cột, **một dòng cho mỗi order ITEM** — chứ không phải envelope `{data}`.
+
+**Quyết định 1 — `fetch` + blob, không `window.location.href`.** Entry BE gợi ý cách href và nó
+tải được thật. Nhưng href **không hiện được pending** và, nặng hơn, **không đọc được body của
+400** — mà 400 chính là nơi BE nói `"Export matches 7421 item rows; the maximum is 5000…"`, tức
+câu duy nhất bảo người bán phải thu hẹp tới đâu. Vì thế:
+
+- `api.orders.exportSellerOrders(params)` — `fetch` + `credentials:'include'`, **bỏ qua
+  `request()`** (đúng tiền lệ `getInvoice`: `request()` sẽ unwrap một envelope `{data}` không tồn
+  tại). Nhánh lỗi **có** trả JSON, nên reject đọc `message` từ body, không lùi về `res.statusText`
+  — mất `message` là mất cả lý do tồn tại của cách này.
+- `useSellerOrderExport` là `useMutation` **dù endpoint là GET**: không có gì để cache, mỗi lần
+  bấm cần pending/error riêng. Cùng lý do và cùng hình dạng với `useOrderInvoice`.
+
+**Quyết định 2 — validate range client-side là *pre-check*, không phải nguồn chân lý.**
+`exportRangeError()` soi lại 4 nhánh 400 mà FE biết trước (thiếu ngày, ngày không parse được, đảo
+chiều, >90 ngày) và **chặn request** — một download thất bại là cách tệ hơn để biết mình chọn sai
+khoảng. Nhưng cap **5 000 dòng** thì chỉ server biết, nên `sellerOrderExportErrorMessage()` in
+**nguyên văn** 400 có `message` (đúng như entry BE dặn), và chỉ dịch sang tiếng Việt cho 400 rỗng
+/ 401 / lỗi khác. `dayTimestamp()` round-trip qua `toIsoDate` để `2026-02-31` bị loại — `Date.parse`
+đọc nó thành 3/3 và sẽ lặng lẽ xuất một khoảng khác với cái đang hiện trên màn hình.
+
+**Quyết định 3 — nới `TextField` chứ không đẻ `DateField`.** Lookup order chạy đủ: `ui/` không có
+date field, `shared/TextField` có sẵn và đã đúng token ⇒ thêm `type?: 'date'` + `min`/`max` (4
+dòng). Hai picker **cross-link** bound (`from.max = to`, `to.min = from`) nên picker native **không
+tạo được** range đảo chiều; `index.css` đã set `color-scheme: dark` toàn cục nên picker native
+không cần class nào thêm. `src/` trước lượt này không có `type="date"` nào — đã grep.
+
+**DRY.** `useOrderInvoice` có đúng 8 dòng anchor dance; sao thêm lần hai là tiền lệ xấu ⇒ tách
+`src/lib/file/download.ts` → `downloadBlob(blob, fileName)`, `useOrderInvoice` chỉ đổi 2 dòng.
+`defaultExportRange()` dùng lại `rangePresetDates` của analytics nên hai màn hình hiểu "30 ngày"
+giống nhau thay vì mỗi nơi tự tính lệch một ngày.
+
+**Panel.** `SellerOrderExportPanel.tsx` đặt trên danh sách ở `/sell/orders`, nhận `status` từ
+**tab đang mở** (`SellerOrdersPage` vốn đã tính `activeStatus`; `FilterOpt.status` đổi từ `string`
+sang `OrderStatus` để type đi thẳng) ⇒ xuất ra khớp với thứ đang nhìn. Dòng hint in
+`ORDER_STATUS_META[status].label` nên người bán thấy phạm vi **trước** khi bấm. Sửa range thì
+`exportCsv.reset()` — lỗi cũ của server (dựa trên range cũ) là lời khuyên đã hết hạn.
+
+**Ba mục "trông như bug mà không phải" của BE: FE không phải làm gì, và đó là kết luận có lý do.**
+FE không render CSV, chỉ **lưu** file ⇒ `shippingFee`/`orderTotal` trống ở mọi dòng trừ dòng đầu
+mỗi đơn và guard Excel `="0912345678"` đi qua nguyên vẹn; không có preview UI nào để "fill down"
+sai. File header-only cho non-seller thì **không tới được** từ UI này vì panel chỉ tồn tại trong
+route seller-gated.
+
+**Verify runtime (Chrome DevTools MCP, full stack local `:5173` → gateway `:3000`,
+`techstore_demo`):**
+
+- Range mặc định `2026-08-19→2026-09-17` → **200**.
+- Mở rộng `2026-06-26→2026-09-17` (84 ngày, có đơn thật) → **200**,
+  `content-disposition: attachment; filename="trybuy-orders-2026-06-26-2026-09-17.csv"` —
+  **khớp từng ký tự** với tên `sellerOrderExportFileName()` tự tính — **8 644 byte**
+  `text/csv; charset=utf-8`.
+- Bật tab "Đã hủy" → `?from=2026-06-26&to=2026-09-17&status=canceled` → **200**. Không tab thì
+  **không có** param `status` (nhờ `toQuery` bỏ `undefined`), chứ không phải `status=`.
+- Cửa sổ 260 ngày ⇒ nút **disabled**, viền picker `rgb(239, 68, 68)`, câu lỗi in đúng **260** ngày,
+  và **không** request nào bay đi.
+- Hộp picker + nút: cả ba cao **44px**, cùng top/bottom, icon lệch **0px**,
+  `documentElement.scrollWidth` không vượt viewport. Console (error+warn, cả preserved) **sạch**.
+
+**Bẫy harness đáng ghi:** `fill` của Chrome DevTools MCP trên `<input type="date">` **không** vào
+được React state — a11y tree phơi ra 3 spinbutton segment, giá trị set xong vẫn là giá trị cũ khi
+React đọc. Lần bấm "Xuất CSV" đầu tiên vì thế gửi **range mặc định** và trông y như panel bỏ qua
+picker. Cách đo đúng: `Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set`
+rồi `dispatchEvent(new Event('input', {bubbles:true}))`. (`take_screenshot` cũng timeout 2 lần trên
+trang này — `Page.captureScreenshot` quá hạn 120s; thay bằng `evaluate_script` đọc
+`getBoundingClientRect` để kiểm alignment, và nó cho số thay vì cho mắt đoán.)
+
+**Test (+25 / +3 file):** `sellerOrderExport.test.ts` (đếm ngày 2 đầu, đảo chiều, đúng mốc 90,
+`2026-02-31`, filename theo quy tắc 10 ký tự, và **400 có message in nguyên văn**),
+`lib/file/download.test.ts` (stub `createObjectURL`/`revokeObjectURL`, spy
+`HTMLAnchorElement.prototype.click`, assert `download` + không để lại `<a>` nào trong document),
+`SellerOrderExportPanel.test.tsx` (query string gửi ra, `status` theo tab, tên file tải về, và —
+quan trọng nhất — range quá cap thì **không có request nào**, chứng minh bằng chính
+`onUnhandledRequest: 'error'` của MSW).
+
+**Cổng:** `npm run build` ✅ · `npm run lint` ✅ 0 problem · `npm run test:run` ✅
+**1108 test / 135 file**. Không mở entry nào ở `backend-handoff.md`: contract khớp đúng như entry
+BE tả, không thiếu field, không sai shape — việc lượt này thuần FE.
+
 ### CONFIRM-PAD-01 + DOC-STALE-0916 · title `ConfirmDialog` chui dưới nút X, và dọn "CHƯA push" đã cũ (2026-09-16)
 
 Hai việc rời nhau, gộp một entry vì cùng sinh ra từ một buổi verify prod bằng Chrome DevTools MCP
