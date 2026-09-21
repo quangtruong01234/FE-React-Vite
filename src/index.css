@@ -104,6 +104,10 @@ button {
   cursor: pointer;
   transition: border-color 0.25s;
 }
+/* Hover affordance for every bordered button in the app (filter tabs,
+   pagination, …). Specificity (0,1,1) beats a lone utility class, so a button
+   that must keep its own border colour under the pointer has to say so with a
+   `hover:border-*` class — see `.ai/context/pitfalls.md`. */
 button:hover {
   border-color: #F59E0B;
 }

@@ -109,6 +109,37 @@ alpha vào giá trị `var()`.
 **Luật:** cần alpha → dùng literal `tb-*` (`tb-amber/50`, `tb-red/10`, `tb-cyan/30`, `tb-green/15`).
 Không cần alpha → giữ alias semantic. Bảng đầy đủ → `../tokens.md`.
 
+## 6b · `button:hover` trong `index.css` đè border-color của mọi `<button>`
+
+**Triệu chứng:** một `<button>` đang ở trạng thái lỗi (`border-accent-red`) **trở lại màu amber
+đúng lúc con trỏ rê vào** — tức là đúng lúc user đang nhìn nó. DevTools cho thấy class
+`border-accent-red` vẫn nằm trong `className`, `el.matches('.border-accent-red')` vẫn `true`,
+nhưng computed `border-color` ra `rgb(245, 158, 11)`. Build, lint, test jsdom đều xanh: không có
+gì sai về class, class chỉ **thua cascade**.
+
+**Nguyên nhân:** `src/index.css` giữ lại rule scaffold của Vite:
+
+```css
+button:hover { border-color: #F59E0B; }
+```
+
+`button:hover` có specificity (0,1,1) — cao hơn một class đơn `.border-accent-red` (0,1,0).
+Còn `hover:border-tb-amber/40` biên dịch thành `.hover\:border-tb-amber\/40:hover` = (0,2,0) nên
+**thắng**. Vậy bẫy chỉ cắn các border-color **tĩnh** trên `<button>`: trạng thái lỗi, trạng thái
+selected, trạng thái đang-mở.
+
+**Luật:** border-color nào phải sống sót dưới con trỏ thì lặp lại chính nó ở biến thể `hover:`:
+
+```tsx
+hasError ? 'border-accent-red hover:border-accent-red' : 'border-bdr hover:border-tb-amber/40'
+```
+
+**Đừng gỡ rule global** (hoặc bọc `:where()` cho nó về specificity 0): đo trên `/sell/orders` có
+**17/38 button** đang dựa vào nó làm hiệu ứng hover duy nhất (tab lọc, phân trang) — gỡ đi là mất
+affordance hover trên nhiều trang. Mẫu đã sửa: `components/shared/DateField.tsx` + test
+`DateField.test.tsx` ("holds its border colour under the pointer in every state") — jsdom không áp
+`index.css` nên chỉ assert được bằng class list.
+
 ## 7 · `renderWithProviders` không dùng được cho `renderHook`
 
 **Triệu chứng:** test hook văng lỗi thiếu provider, rồi bị "sửa" bằng cách bọc thủ công sai cách.
