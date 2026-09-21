@@ -391,6 +391,22 @@ export interface ShippingFeeResponse {
   expectedDeliveryTime: string | null;
 }
 
+// --- Seller CSV export (EXPORT-CSV-01) ---
+
+/**
+ * `GET /api/order/seller/export` — self-scoped to the signed-in seller, so
+ * there is no `sellerId` param. Both dates are required and are calendar days
+ * (`2026-08-01`); the backend snaps `from` to 00:00:00.000 and `to` to
+ * 23:59:59.999, so the range is inclusive on both ends. A window over 90 days
+ * or a result over 5 000 item rows comes back as a 400 whose `message` names
+ * the real number.
+ */
+export interface SellerOrderExportParams {
+  from: string;
+  to: string;
+  status?: OrderStatus;
+}
+
 // --- Analytics (F4) ---
 
 export interface AnalyticsQueryParams {

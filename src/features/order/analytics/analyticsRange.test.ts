@@ -2,8 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { toIsoDate, rangePresetDates } from './analyticsRange';
 
 describe('toIsoDate', () => {
-  it('returns the YYYY-MM-DD UTC slice', () => {
+  it('returns the VN calendar day', () => {
     expect(toIsoDate(new Date('2026-07-09T15:30:00.000Z'))).toBe('2026-07-09');
+  });
+
+  it('has already rolled over before 07:00 VN', () => {
+    // 02:00 VN on 20 Sep — a UTC slice would send the API 2026-09-19 and drop
+    // the morning's orders out of the window.
+    expect(toIsoDate(new Date('2026-09-19T19:00:00.000Z'))).toBe('2026-09-20');
   });
 });
 
@@ -24,5 +30,13 @@ describe('rangePresetDates', () => {
 
   it('a 1-day preset returns today for both bounds', () => {
     expect(rangePresetDates(1, now)).toEqual({ from: '2026-07-09', to: '2026-07-09' });
+  });
+
+  it('counts from the VN day when UTC is still on the previous one', () => {
+    // 02:00 VN on 20 Sep: the 7-day window ends today (20th), not on the 19th.
+    expect(rangePresetDates(7, new Date('2026-09-19T19:00:00.000Z'))).toEqual({
+      from: '2026-09-14',
+      to: '2026-09-20',
+    });
   });
 });

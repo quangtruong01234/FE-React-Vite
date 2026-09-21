@@ -12,6 +12,7 @@ import { getSellerOrderActionState, type SellerActionKind } from './sellerOrderA
 import { sellerOrderActionErrorMessage } from './sellerOrderActionError';
 import { ShippingAddressBlock } from './ShippingAddressBlock';
 import { InvoiceDownloadButton } from './InvoiceDownloadButton';
+import { SellerOrderExportPanel } from './SellerOrderExportPanel';
 import { PAYMENT_LABEL } from './orderConstants';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { IconButton } from '@/components/shared/IconButton';
@@ -28,7 +29,7 @@ type FilterKey = 'all' | OrderStatus;
 interface FilterOpt {
   id: FilterKey;
   label: string;
-  status?: string;
+  status?: OrderStatus;
 }
 
 const FILTER_STATUSES: OrderStatus[] = [
@@ -331,6 +332,9 @@ export default function SellerOrdersPage(): ReactElement {
             );
           })}
         </div>
+
+        {/* CSV export — carries whichever status tab is active */}
+        <SellerOrderExportPanel status={activeStatus} />
 
         {/* Skeleton */}
         {isLoading && (

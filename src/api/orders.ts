@@ -5,6 +5,7 @@ import type {
   OrderStatusCounts,
   SellerOrderDetail,
   SellerOrderListRow,
+  SellerOrderExportParams,
   CreateOrderDto,
   CreateOrderResponse,
   ReturnRequest,
@@ -209,6 +210,31 @@ export const ordersApi = {
         return res.blob();
       },
     ),
+
+  // EXPORT-CSV-01: the seller's own orders as a CSV file (one row per order
+  // ITEM), not a JSON envelope — so it bypasses `request()` exactly like
+  // `getInvoice` does. The error legs DO answer JSON, and a 400 names the real
+  // number of rows / days, so the body is read for `message` instead of falling
+  // back to `res.statusText`; `sellerOrderExportErrorMessage` surfaces it verbatim.
+  exportSellerOrders: async (
+    params: SellerOrderExportParams,
+  ): Promise<Blob> => {
+    const res = await fetch(
+      `${API_BASE}/order/seller/export${toQuery({ ...params })}`,
+      { credentials: "include" },
+    );
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as {
+        message?: string;
+      };
+      throw {
+        statusCode: res.status,
+        status: res.status,
+        message: body.message ?? res.statusText,
+      } as ApiError;
+    }
+    return res.blob();
+  },
 
   getPaymentUrl: (
     id: string,
