@@ -61,7 +61,7 @@ Không đo trên prod được (bản sửa chưa deploy), nên dựng lại đi
 Cloudflare trả khi origin không tới được. Xác nhận demo mode bật thật trước khi tin số liệu:
 `swCount: 1` (`mockServiceWorker.js`), banner lịch chạy hiện, 2 post render.
 
-| Trước | Sau |
+| Trước (prod) | Sau (local) |
 |---|---|
 | 16 × 503 | **0** — 11/11 request `/api/*` đều 200, mỗi cái đúng **1** lần |
 | 2 cảnh báo WebSocket | **0** request websocket |
@@ -70,10 +70,31 @@ Cloudflare trả khi origin không tới được. Xác nhận demo mode bật t
 Right rail ở khung 1440px: "SELLER NỔI BẬT → Demo Store / @demo_store" + "ĐANG HOT" 5 sản phẩm,
 không còn empty state nào.
 
-**Một dòng console còn lại là probe `/health` 522, và không bỏ được.** Probe chạy *trước* khi
-service worker active (`main.tsx` await `bootstrapBackendStatus` rồi mới `createRoot`), nên MSW
-không thể chặn; trình duyệt luôn log resource load hỏng. Trên prod nó hiện dưới dạng
-`net::ERR_ABORTED` do timeout 3s. Đừng ai đi "sửa" nó bằng cách bỏ probe.
+Dòng console còn lại ở bản local là probe `/health` 522. Probe chạy *trước* khi service worker
+active (`main.tsx` await `bootstrapBackendStatus` rồi mới `createRoot`) nên MSW không thể chặn, và
+trình duyệt luôn log resource load hỏng. Đừng ai đi "sửa" nó bằng cách bỏ probe.
+
+#### Verify trên prod — 2026-09-22, EC2 tắt thật
+
+Deploy `50e773b` xanh (CI → Deploy), đo lại trên chính prod trong context sạch, cache-bust
+`/?cb=retry01fix`. Demo mode xác nhận bật: `swCount: 1`, banner lịch chạy, 2 post.
+
+| | Kết quả |
+|---|---|
+| `/api/*` | **11/11 đều 200, mỗi cái đúng 1 lần** — 0 lỗi 503 |
+| websocket | **0 request** |
+| console | **0 error / 0 warning** |
+| right rail (1440px) | "SELLER NỔI BẬT → Demo Store / @demo_store" + "ĐANG HOT" 5 sản phẩm |
+
+**Prod sạch hơn bản local một dòng, và đây là chỗ tôi đã ghi hơi sai ở trên.** Trên prod probe
+`/health` kết thúc bằng `net::ERR_ABORTED` — AbortController 3s bắn trước khi Cloudflare kịp trả
+522 (CF phải chờ origin timeout xong mới dựng trang lỗi) — mà request bị abort thì **không** sinh
+dòng console nào. Con số "522 + 1 dòng console" chỉ đúng với static server local của tôi, nó trả
+522 tức thì. Số liệu prod trước khi sửa cũng nhất quán với điều này: 18 dòng ở đó là 16 × 503 +
+2 websocket, `/health` không góp dòng nào.
+
+Console của nhánh demo trên prod giờ **trống hoàn toàn** (chỉ còn 1 "issue" a11y có sẵn: một form
+field thiếu `id`/`name` — không phải error, không liên quan, chưa sửa).
 
 #### Còn mở — không chặn gì, nhưng đừng coi là đã giải quyết
 

@@ -149,7 +149,7 @@ reload**, `AuthProvider` vẫn báo `currentUser === null` cho tới lần re-re
 
 *(verify từ code thật 2026-08-14; không mục nào chặn runtime — đây là scale-consistency + lint)*
 
-- **DEMO-RETRY-01 — ĐÃ SỬA 2026-09-22, verify trên bản build local; chờ verify lại trên prod.**
+- **DEMO-RETRY-01 — ĐÃ SỬA + ĐÃ LÊN PROD 2026-09-22 (`50e773b`), verify trên chính prod lúc EC2 tắt.**
   Triệu chứng đo trên prod: vào trang khi backend nghỉ thì console có **16 lỗi 503** + **2 cảnh báo
   WebSocket**. Nguyên nhân là **4** read (không phải 5 — `chat/conversations` **không** nằm trong
   số đó, ghi chú cũ sai) rơi vào `offlineFallback` trả 503 rồi bị TanStack Query retry: `notifications`,
@@ -163,10 +163,12 @@ reload**, `AuthProvider` vẫn báo `currentUser === null` cho tới lần re-re
   - **Sửa kèm:** `createRefCountedSocket.acquire()` (`lib/realtime/socket.ts`) no-op khi `isDemoMode()`.
     MSW không chặn được websocket, và socket.io sẽ retry handshake vô hạn — đó là 2 cảnh báo kia.
     Chặn ở lớp chung nên trùm cả socket notification lẫn socket chat presence.
-  - **Đo lại** (build thật, static server giả gateway-đi-vắng, demo mode xác nhận bật bằng SW +
-    banner): **11/11 request `/api/*` đều 200, mỗi cái đúng 1 lần; 0 request websocket.** Console còn
-    đúng **1** dòng — chính probe `/health` 522. Không giấu được: probe chạy *trước* khi SW active,
-    và trình duyệt luôn log resource load hỏng (trên prod nó hiện là `net::ERR_ABORTED` do timeout 3s).
+  - **Đo trên prod, EC2 tắt thật, context sạch + cache-bust** (demo mode xác nhận bật bằng SW +
+    banner + 2 post): **11/11 request `/api/*` đều 200, mỗi cái đúng 1 lần; 0 request websocket;
+    console 0 error / 0 warning.** Right rail 1440px có "Demo Store" + 5 sản phẩm "ĐANG HOT".
+    Probe `/health` kết thúc bằng `net::ERR_ABORTED` (AbortController 3s bắn trước khi CF kịp trả
+    522) và request bị abort **không** sinh dòng console nào — nên prod sạch hơn bản đo local, chỗ
+    đó static server trả 522 tức thì nên còn 1 dòng. Đừng bỏ probe để "sửa" dòng đó.
   - **Còn mở, không chặn:** tại sao mỗi read hỏng lại bắn **4** vòng trong khi `retry: 1` chỉ dự đoán
     2 (mốc 0 / 2053 / 3070 / 5085 ms; thời lượng 48/9/9/9 ms nên **không** phải do response chậm kéo
     dãn backoff). Giả thuyết chưa chứng minh: `<Suspense>` duy nhất nằm **trên** `FeedLayout`
