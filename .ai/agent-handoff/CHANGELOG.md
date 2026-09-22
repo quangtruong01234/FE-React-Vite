@@ -118,6 +118,70 @@ double-mount ở **cả** nhánh online.
 mở connection, vẫn trả release fn để effect cleanup khỏi phải rẽ nhánh). Full suite **1190 xanh**,
 `npm run build` + `npm run lint` sạch.
 
+#### Vòng 2 — bản sửa trên chỉ trùm đúng trang feed (2026-09-23)
+
+**Đính chính thẳng: mục "Verify trên prod" phía trên đúng nhưng hẹp, và tôi đã báo xong khi chưa
+xong.** Cả hai lần đo (`50e773b`, `369dbc6`) chỉ mở `/` và `/marketplace`. "Console trống hoàn
+toàn" là sự thật **của trang feed**, không phải của nhánh demo. Quét lại toàn bộ route mà khách
+demo mở được — vẫn trên prod, EC2 tắt thật — thì **9 route còn bắn 8–12 lỗi 503 mỗi trang**. Nếu
+người tuyển dụng bấm sang `/orders` thay vì đứng ở feed, họ thấy đúng cái console đỏ mà entry này
+tuyên bố đã dọn.
+
+Bài học vận hành, không phải bài học kỹ thuật: **"sửa xong" của một bug console phải đo trên mọi
+route reachable, không phải trên route mà mình tình cờ đang mở.**
+
+Danh sách đo được, mỗi read vẫn nhân **4 vòng** như cũ:
+
+| Route | Read còn rơi xuống 503 |
+|---|---|
+| `/marketplace` | `shipping/provinces`, `products/wishlist` |
+| `/wishlist` | `products/wishlist` |
+| `/orders` | `order/user/:id`, `order/user/:id/status-counts` |
+| `/product/:id` | `products/wishlist`, `products/:id/reviews` |
+| `/post/:id` | `social/posts/:id`, `social/posts/:id/comments` |
+| `/profile/:id` | `social/users/:id/followers`, `user/:id`, `social/posts/user/:id` |
+| `/returns` | `order/return-requests/mine` |
+| `/addresses` | `user/me/addresses` |
+| `/messages` | `chat/conversations` |
+| `/checkout` | `payment/options` |
+| `/cart`, `/notifications` | — (đã sạch từ vòng 1) |
+
+**Sửa — hai lớp, cố ý không chỉ vá tiếp:**
+
+1. **14 handler nữa** trong `lib/demo/handlers.ts` + 4 fixture (`demoPublicUsers`,
+   `demoOrderStatusCounts`, `demoPaymentOptions`) trong `lib/demo/fixtures.ts`. Rỗng là câu trả lời
+   **đúng sự thật** ở gần hết: phiên demo chưa từng ghi gì nên không có wishlist, đơn, yêu cầu trả
+   hàng, địa chỉ hay hội thoại — mỗi trang render empty state thật của nó thay vì error state.
+   `shipping/provinces` rỗng cũng có lý do: fixture không mang địa chỉ seller, dropdown đầy sẽ mời
+   người dùng lọc bằng thứ không đổi được kết quả (`SelectFilter` in "Không tìm thấy").
+   `payment/options` là **read** nên vẫn mock, còn POST tạo đơn phía sau nút thì vẫn 503.
+2. **`retryQuery` trong `lib/query/queryClient.ts`** — lưới đỡ bên dưới. `retry: 1` → một hàm trả
+   `false` khi `isDemoMode()`. Retry trong demo mode không thể đổi được gì: 503 là câu trả lời cuối
+   cùng, retry chỉ nhân đôi dòng đỏ và nhân đôi Worker invocation có tính tiền. Phải là **hàm** chứ
+   không phải `retry: isDemoMode() ? 0 : 1` — module này được evaluate lúc import, *trước* khi
+   `bootstrapBackendStatus()` resolve probe, nên giá trị đọc tại đó luôn là mặc định `online`. Từ
+   giờ một read thêm sau này mà quên mock chỉ tốn 1 attempt/mount thay vì 2.
+
+**MSW match theo thứ tự đăng ký, và `/user/:id` là wildcard duy nhất nuốt được anh em cùng 2
+segment** (`/user/me`, `/user/featured-sellers`, `/user/search`) ⇒ nó nằm cuối, có test ghim.
+
+**Đo lại (build thật + static server trả 522, 11/11 route):** **0 lỗi 503** ở mọi route, mỗi trang
+đúng 1 dòng console (artifact 522 của server local — trên prod là `ERR_ABORTED`, 0 dòng). Nội dung
+render đúng empty state thật: `/orders` "Tất cả (0) … Bạn chưa có đơn hàng nào", `/returns` "Bạn
+chưa có yêu cầu trả hàng nào", `/addresses` "Chưa có địa chỉ nào", `/messages` "Chưa có hội thoại
+nào", `/wishlist` "Chưa có sản phẩm yêu thích", `/profile/:id` "Demo Visitor … 0 người theo dõi …
+Chưa có bài viết nào", `/post/:id` render post + "Chưa có bình luận", `/checkout` "Giỏ hàng trống",
+`/marketplace` 6 sản phẩm + "TỈNH/THÀNH → Không tìm thấy".
+
+**Test:** `lib/demo/handlers.test.ts` (+19: 15 read không còn rơi xuống 503, `/user/:id` không nuốt
+`/user/me` `/user/featured-sellers` `/user/search`, status-counts trả `all: 0`, posts-by-user chỉ
+trả post của đúng author, post/profile lạ vẫn 404), `lib/query/queryClient.test.ts` (mới, 3 case:
+online retry đúng 1 lần, demo mode không retry, đọc status lúc gọi chứ không lúc load module).
+Full suite **1212 xanh (144 file)**, `npm run build` + `npm run lint` sạch.
+
+Câu hỏi "tại sao 4 vòng" ở mục dưới **vẫn mở** — `retryQuery` che triệu chứng trong demo mode chứ
+không trả lời nó.
+
 ---
 
 ### HEALTH-PATH-01 · probe demo-mode gọi nhầm đường health ⇒ demo mode bật đè lên backend đang sống (2026-09-22)

@@ -149,33 +149,44 @@ reload**, `AuthProvider` vẫn báo `currentUser === null` cho tới lần re-re
 
 *(verify từ code thật 2026-08-14; không mục nào chặn runtime — đây là scale-consistency + lint)*
 
-- **DEMO-RETRY-01 — ĐÃ SỬA + ĐÃ LÊN PROD 2026-09-22 (`50e773b`), verify trên chính prod lúc EC2 tắt.**
-  Triệu chứng đo trên prod: vào trang khi backend nghỉ thì console có **16 lỗi 503** + **2 cảnh báo
-  WebSocket**. Nguyên nhân là **4** read (không phải 5 — `chat/conversations` **không** nằm trong
-  số đó, ghi chú cũ sai) rơi vào `offlineFallback` trả 503 rồi bị TanStack Query retry: `notifications`,
-  `notifications/unread-count`, `user/featured-sellers`, `social/users/:id/following`. Cả bốn đều do
-  `NotificationBell` + `RightRail` phát, mà hai thứ này nằm trong layout nên bắn ở **mọi** trang.
-  Hệ quả kép: console đỏ ngay màn đầu của người tuyển dụng, và mỗi lượt khách đốt một nắm invocation
-  Worker — thứ duy nhất trong hệ tính tiền theo request.
-  - **Sửa:** mock cả 4 trong `lib/demo/handlers.ts`. Ba cái trả rỗng-nhưng-hợp-lệ; riêng
-    `featured-sellers` trả `demoFeaturedSellers` (đúng cái store đang author `demoPosts`) vì một panel
-    rỗng trông như hỏng chứ không như "đang yên".
-  - **Sửa kèm:** `createRefCountedSocket.acquire()` (`lib/realtime/socket.ts`) no-op khi `isDemoMode()`.
-    MSW không chặn được websocket, và socket.io sẽ retry handshake vô hạn — đó là 2 cảnh báo kia.
-    Chặn ở lớp chung nên trùm cả socket notification lẫn socket chat presence.
-  - **Đo trên prod, EC2 tắt thật, context sạch + cache-bust** (demo mode xác nhận bật bằng SW +
-    banner + 2 post): **11/11 request `/api/*` đều 200, mỗi cái đúng 1 lần; 0 request websocket;
-    console 0 error / 0 warning.** Right rail 1440px có "Demo Store" + 5 sản phẩm "ĐANG HOT".
-    Probe `/health` kết thúc bằng `net::ERR_ABORTED` (AbortController 3s bắn trước khi CF kịp trả
-    522) và request bị abort **không** sinh dòng console nào — nên prod sạch hơn bản đo local, chỗ
-    đó static server trả 522 tức thì nên còn 1 dòng. Đừng bỏ probe để "sửa" dòng đó.
+- **DEMO-RETRY-01 — vòng 1 đã lên prod (`50e773b`, `369dbc6`); vòng 2 ĐÃ SỬA XONG, CHƯA PUSH.**
+  Console đỏ ở nhánh demo (backend nghỉ) là lỗi sản phẩm — đó là thứ người tuyển dụng nhìn thấy —
+  và mỗi request rơi vào Worker là một invocation có tính tiền, thứ duy nhất trong hệ tính theo
+  request.
+  - **Vòng 1 (đã prod):** 4 read của layout (`notifications`, `notifications/unread-count`,
+    `user/featured-sellers`, `social/users/:id/following` — do `NotificationBell` + `RightRail` phát)
+    rơi xuống `offlineFallback` 503 rồi bị retry ⇒ 16 dòng đỏ; cộng 2 cảnh báo WebSocket vì MSW
+    không chặn được socket.io. Sửa: mock cả 4 trong `lib/demo/handlers.ts`, và
+    `createRefCountedSocket.acquire()` (`lib/realtime/socket.ts`) no-op khi `isDemoMode()`.
+  - **⚠️ Đính chính — "console trống hoàn toàn" của vòng 1 chỉ đúng với trang feed.** Cả hai lần
+    verify chỉ mở `/` và `/marketplace`. Quét lại **toàn bộ** route khách demo mở được (trên prod,
+    EC2 tắt thật) thì còn **9 route bắn 8–12 lỗi 503 mỗi trang**: `/marketplace`, `/wishlist`,
+    `/orders`, `/returns`, `/addresses`, `/messages`, `/checkout`, `/post/:id`, `/profile/:id`
+    (`/cart` + `/notifications` đã sạch). Bài học: bug console phải đo trên **mọi route reachable**,
+    không phải trên route mình tình cờ đang mở.
+  - **Vòng 2 — sửa hai lớp** (chưa push, xem release gate): (a) **14 handler** nữa trong
+    `lib/demo/handlers.ts` + 4 fixture mới (`demoPublicUsers`, `demoOrderStatusCounts`,
+    `demoPaymentOptions`) phủ hết read còn lại — rỗng là câu trả lời đúng sự thật vì phiên demo chưa
+    từng ghi gì, mỗi trang render empty state thật; (b) **`retryQuery` trong `lib/query/queryClient.ts`**
+    (`retry: 1` → hàm trả `false` khi `isDemoMode()`) làm lưới đỡ: read nào quên mock sau này chỉ tốn
+    1 attempt/mount thay vì 2. Phải là **hàm** — module evaluate lúc import, trước khi
+    `bootstrapBackendStatus()` resolve probe, nên giá trị đọc tại đó luôn là `online`.
+  - **Thứ tự handler là một phần của fix:** MSW match theo thứ tự đăng ký và bỏ qua query string ⇒
+    `/user/:id` phải nằm **dưới** `/user/me`, `/user/featured-sellers`, `/user/search` (cùng 2
+    segment). Có test ghim thứ tự này — đừng sắp xếp lại `demoHandlers` cho "gọn".
+  - **Đo lại vòng 2** (build thật + static server trả 522 như Cloudflare, 11/11 route): **0 lỗi 503**
+    ở mọi route, mỗi trang đúng 1 dòng console — và dòng đó là artifact của server local; trên prod
+    probe `/health` kết thúc bằng `net::ERR_ABORTED` (AbortController 3s bắn trước khi CF kịp dựng
+    522) nên **không sinh dòng nào**. Đừng bỏ probe để "sửa" nó. Full suite **1212 xanh (144 file)**,
+    build + lint sạch.
   - **Còn mở, không chặn:** tại sao mỗi read hỏng lại bắn **4** vòng trong khi `retry: 1` chỉ dự đoán
     2 (mốc 0 / 2053 / 3070 / 5085 ms; thời lượng 48/9/9/9 ms nên **không** phải do response chậm kéo
     dãn backoff). Giả thuyết chưa chứng minh: `<Suspense>` duy nhất nằm **trên** `FeedLayout`
     (`router.tsx:48`) trong khi `FeedPage` lazy nằm **trong** nó, nên chunk suspend có thể quật cả
-    layout ra rồi mount lại → 2 mount × 2 attempt. Query *thành công* chỉ bắn 1 lần nên `staleTime`
-    che mất dấu vết ở nhánh online. Giờ nhánh demo không còn read nào hỏng nên câu hỏi này hết ảnh
-    hưởng tới demo, nhưng nếu đúng thì nó vẫn là double-mount thật của layout ở **cả** nhánh online.
+    layout ra rồi mount lại → 2 mount × 2 attempt. Cái bẫy khi đi kiểm chứng: query *thành công* chỉ
+    bắn 1 lần vì `staleTime: 60s`, query *lỗi* refetch ngay khi mount lại — nên "read đã mock chỉ bắn
+    1 lần" **không** đủ để loại trừ double-mount. `retryQuery` che triệu chứng trong demo mode chứ
+    không trả lời câu hỏi; nếu giả thuyết đúng thì layout đang double-mount ở **cả** nhánh online.
 
 - **OVERFETCH-01 (phần FE) — ĐÃ LÊN PROD 2026-08-21, verify bằng MCP.** Audit response GET
   (mục OVERFETCH-01 trong `../.agent-local/backend-handoff.md`) → BE đã cắt 6 field và thêm 3
