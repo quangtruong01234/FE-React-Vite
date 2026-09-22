@@ -70,6 +70,31 @@ build + lint xanh.
 Ghi chú "không phải bug BE" đã vào `../../.agent-local/backend-handoff.md`; bẫy vào
 `.ai/context/pitfalls.md` §17.
 
+**Đã verify trên prod sau deploy `8691a23` (Deploy xanh 10:10:09Z 22-09) — CẢ HAI CHIỀU.** Chiều
+*online* trước giờ chưa ai đo, và chính vì thiếu nó mà bug lọt lên prod lần trước; lần này đo được
+nhờ user bật tay EC2 ngoài khung giờ. Mỗi chiều một browser context riêng, cache-bust `/?cb=…`:
+
+| | **EC2 bật** (chiều online) | **EC2 tắt** (chiều offline) |
+|---|---|---|
+| `/health` qua Worker | **200 `application/json; charset=utf-8`**, body `{service:"gateway",status:"ok",uptime:11399.573,dependencies:{…}}` | **522 `text/html`** (trang origin-unreachable của Cloudflare) |
+| `classifyProbe` | `online` | `offline` — bắt bằng `ok !== true`; guard content-type là lớp lưới thứ hai |
+| MSW | `swCount: 0`, không đăng ký | `swCount: 1`, `mockServiceWorker.js` |
+| Banner lịch phục vụ | **không** hiện | hiện + link demo guide |
+| Catalogue | `/api/products/categories` → 200 dữ liệu thật (`id "9"`, "Âm thanh") | `/api/products/with-inventory/all` → **6** `prod_demo00000000{a1,a2,b1,b2,c1,c2}`, marketplace hiện đúng "6 sản phẩm" + filter category/brand |
+| Đăng nhập `user1` | **được** → redirect `/`, `/api/user/me` → 200 `usr_WchSOuXCJknvKU7O`, feed thật render | `POST /user/login` → **503** `{"message":"Backend is outside its scheduled window (demo mode)."}` — đúng thiết kế, không bao giờ mock |
+| Console | **0 error / 0 warn** | 16× 503 + 2 cảnh báo WebSocket ⇒ xem "retry storm" ở `snapshot.md` |
+
+Hai điểm suýt đọc nhầm thành bug, ghi lại để người sau khỏi đo lại:
+
+- **`DemoModeGate` không set `disabled`** — nút "THÊM VÀO GIỎ HÀNG" đọc ra `disabled === false`.
+  Đúng thiết kế: gate bọc child trong `pointer-events-none` rồi phủ một `<button>` overlay lên trên
+  (lý do nằm trong docblock của chính component). Đo bằng `elementFromPoint` ở tâm nút: phần tử trên
+  cùng là overlay, `aria-label = "Available when backend is online"`, `cursor: not-allowed`, và
+  listener `click` gắn vào nút thật **không** chạy. Gate hoạt động đúng.
+- **`/api/products?page=1&limit=20` trả 503 trong demo mode** — đây là artifact của người đo, không
+  phải lỗi. Handler MSW đăng ký ở `/products/with-inventory/all`; đường `/api/products` không được
+  mock nên rơi vào `offlineFallback` như mọi đường không mock khác.
+
 ---
 ### REPO-DOCS-01 · README/AGENTS.md viết lại cho người đọc, + DEMO/METRICS/LICENSE (2026-09-21)
 
