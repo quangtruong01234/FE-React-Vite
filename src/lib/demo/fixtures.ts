@@ -2,6 +2,7 @@ import type {
   Brand,
   Category,
   CurrentUser,
+  FeaturedSeller,
   PaginatedResponse,
   Post,
   ProductWithInventory,
@@ -36,6 +37,15 @@ export const demoCurrentUser: CurrentUser = {
   isRoleStale: false,
   createdAt: '2026-01-01T00:00:00.000Z',
 };
+
+/**
+ * The right rail's "Seller nổi bật". One entry, and it is the same store that
+ * authors `demoPosts` — inventing extra sellers with no posts and no products
+ * behind them would put names in the UI that lead nowhere.
+ */
+export const demoFeaturedSellers: FeaturedSeller[] = [
+  { id: DEMO_SELLER_ID, username: 'demo_store', name: 'Demo Store', avatar: null },
+];
 
 export const demoCategories: Category[] = [
   { id: 16, name: 'Laptop', isActive: true },

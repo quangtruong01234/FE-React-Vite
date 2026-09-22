@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { setupServer } from 'msw/node';
 import { demoHandlers } from './handlers';
 import { API_BASE } from '@/test/msw/handlers';
-import { demoProducts } from './fixtures';
+import { DEMO_USER_ID, demoFeaturedSellers, demoProducts } from './fixtures';
 
 /**
  * The suite-wide server (`test/setup.ts`) answers with the shared handlers, so
@@ -44,6 +44,40 @@ describe('demo handlers — reads', () => {
     const res = await fetch(`${API_BASE}/products/prod_nope00000000000/with-inventory`);
 
     expect(res.status).toBe(404);
+  });
+});
+
+/**
+ * DEMO-RETRY-01. `NotificationBell` and `RightRail` sit in the layout, so these
+ * fire on every page; anything missing here falls through to `offlineFallback`
+ * and gets retried, which is what put 16 red 503s in the demo console.
+ */
+describe('demo handlers — the signed-in shell', () => {
+  it.each([
+    ['notification list', `${API_BASE}/notifications?page=1&limit=10`],
+    ['unread badge', `${API_BASE}/notifications/unread-count`],
+    ['featured sellers', `${API_BASE}/user/featured-sellers?limit=5`],
+    ['following list', `${API_BASE}/social/users/${DEMO_USER_ID}/following?page=1&limit=20`],
+  ])('answers the %s without falling through to the 503', async (_label, url) => {
+    const res = await fetch(url);
+
+    expect(res.status).toBe(200);
+  });
+
+  it('reports zero unread rather than the notification list', async () => {
+    const res = await fetch(`${API_BASE}/notifications/unread-count`);
+    const body = (await res.json()) as { data: { unreadCount: number } };
+
+    // Pins the match order too: `/notifications` must not swallow this path.
+    expect(body.data.unreadCount).toBe(0);
+  });
+
+  it('fills the right rail, so the panel does not read as broken', async () => {
+    const res = await fetch(`${API_BASE}/user/featured-sellers?limit=5`);
+    const body = (await res.json()) as { data: { id: string }[] };
+
+    expect(body.data).toHaveLength(demoFeaturedSellers.length);
+    expect(body.data.length).toBeGreaterThan(0);
   });
 });
 

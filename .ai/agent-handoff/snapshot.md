@@ -149,16 +149,31 @@ reload**, `AuthProvider` vẫn báo `currentUser === null` cho tới lần re-re
 
 *(verify từ code thật 2026-08-14; không mục nào chặn runtime — đây là scale-consistency + lint)*
 
-- **DEMO-RETRY-01 — retry storm ở chiều offline của demo mode. Đo trên prod 2026-09-22, còn mở.**
-  Vào trang khi backend nghỉ: **16 lỗi 503** + **2 cảnh báo WebSocket** trong console. Nguyên nhân
-  là các read **không** được mock (`notifications`, `notifications/unread-count`,
-  `user/featured-sellers`, `social/users/:id/following`, `chat/conversations`) rơi vào
-  `offlineFallback` trả 503, rồi TanStack Query **retry mỗi cái ~4 lần**. Hệ quả kép: console đỏ
-  ngay ở màn đầu của người đi phỏng vấn/tuyển dụng, và mỗi lượt khách đốt một nắm invocation của
-  Worker — thứ duy nhất trong hệ này tính tiền theo request. Chiều *online* console **sạch hoàn
-  toàn** ⇒ đây là vấn đề riêng của nhánh demo. Hai hướng, chưa chọn: mock nốt 5 read đó bằng fixture
-  rỗng-nhưng-hợp-lệ, hoặc tắt retry khi `isDemoMode()` (503 từ `offlineFallback` cố ý **không** kèm
-  `Retry-After` nên phân biệt được với 503 thật của gateway).
+- **DEMO-RETRY-01 — ĐÃ SỬA 2026-09-22, verify trên bản build local; chờ verify lại trên prod.**
+  Triệu chứng đo trên prod: vào trang khi backend nghỉ thì console có **16 lỗi 503** + **2 cảnh báo
+  WebSocket**. Nguyên nhân là **4** read (không phải 5 — `chat/conversations` **không** nằm trong
+  số đó, ghi chú cũ sai) rơi vào `offlineFallback` trả 503 rồi bị TanStack Query retry: `notifications`,
+  `notifications/unread-count`, `user/featured-sellers`, `social/users/:id/following`. Cả bốn đều do
+  `NotificationBell` + `RightRail` phát, mà hai thứ này nằm trong layout nên bắn ở **mọi** trang.
+  Hệ quả kép: console đỏ ngay màn đầu của người tuyển dụng, và mỗi lượt khách đốt một nắm invocation
+  Worker — thứ duy nhất trong hệ tính tiền theo request.
+  - **Sửa:** mock cả 4 trong `lib/demo/handlers.ts`. Ba cái trả rỗng-nhưng-hợp-lệ; riêng
+    `featured-sellers` trả `demoFeaturedSellers` (đúng cái store đang author `demoPosts`) vì một panel
+    rỗng trông như hỏng chứ không như "đang yên".
+  - **Sửa kèm:** `createRefCountedSocket.acquire()` (`lib/realtime/socket.ts`) no-op khi `isDemoMode()`.
+    MSW không chặn được websocket, và socket.io sẽ retry handshake vô hạn — đó là 2 cảnh báo kia.
+    Chặn ở lớp chung nên trùm cả socket notification lẫn socket chat presence.
+  - **Đo lại** (build thật, static server giả gateway-đi-vắng, demo mode xác nhận bật bằng SW +
+    banner): **11/11 request `/api/*` đều 200, mỗi cái đúng 1 lần; 0 request websocket.** Console còn
+    đúng **1** dòng — chính probe `/health` 522. Không giấu được: probe chạy *trước* khi SW active,
+    và trình duyệt luôn log resource load hỏng (trên prod nó hiện là `net::ERR_ABORTED` do timeout 3s).
+  - **Còn mở, không chặn:** tại sao mỗi read hỏng lại bắn **4** vòng trong khi `retry: 1` chỉ dự đoán
+    2 (mốc 0 / 2053 / 3070 / 5085 ms; thời lượng 48/9/9/9 ms nên **không** phải do response chậm kéo
+    dãn backoff). Giả thuyết chưa chứng minh: `<Suspense>` duy nhất nằm **trên** `FeedLayout`
+    (`router.tsx:48`) trong khi `FeedPage` lazy nằm **trong** nó, nên chunk suspend có thể quật cả
+    layout ra rồi mount lại → 2 mount × 2 attempt. Query *thành công* chỉ bắn 1 lần nên `staleTime`
+    che mất dấu vết ở nhánh online. Giờ nhánh demo không còn read nào hỏng nên câu hỏi này hết ảnh
+    hưởng tới demo, nhưng nếu đúng thì nó vẫn là double-mount thật của layout ở **cả** nhánh online.
 
 - **OVERFETCH-01 (phần FE) — ĐÃ LÊN PROD 2026-08-21, verify bằng MCP.** Audit response GET
   (mục OVERFETCH-01 trong `../.agent-local/backend-handoff.md`) → BE đã cắt 6 field và thêm 3

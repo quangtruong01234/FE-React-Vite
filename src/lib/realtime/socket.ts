@@ -1,4 +1,5 @@
 import { io, type ManagerOptions, type Socket, type SocketOptions } from 'socket.io-client';
+import { isDemoMode } from '@/lib/demo/backendStatus';
 
 /**
  * Shared connection options for every storefront socket.io namespace.
@@ -77,6 +78,14 @@ export function createRefCountedSocket<S extends Socket>(
   return {
     current: () => socket,
     acquire() {
+      // Demo mode: the gateway is away, so the handshake cannot succeed and
+      // socket.io would retry it on a backoff forever, printing a websocket
+      // warning each time (DEMO-RETRY-01). MSW cannot intercept this — it is a
+      // websocket, not `fetch`. Consumers already tolerate a socket that never
+      // arrives: nothing reads `current()`, and the queries behind the bell are
+      // served from the demo handlers.
+      if (isDemoMode()) return () => {};
+
       cancelPendingClose();
       refCount += 1;
       if (!socket) {

@@ -4,6 +4,7 @@ import {
   demoBrands,
   demoCategories,
   demoCurrentUser,
+  demoFeaturedSellers,
   demoPage,
   demoPosts,
   demoProducts,
@@ -70,6 +71,27 @@ export const demoHandlers: RequestHandler[] = [
   // An empty cart renders the real empty state; a mocked non-empty cart would
   // lead straight to a checkout that cannot complete.
   http.get(`${API_BASE}/cart`, () => HttpResponse.json({ data: null })),
+
+  // --- The signed-in shell (DEMO-RETRY-01) ---
+  //
+  // `NotificationBell` and `RightRail` live in the layout, so these four reads
+  // fire on every page. Left unmocked they fell through to `offlineFallback`,
+  // and each failure was then retried by TanStack Query — 16 red 503s in the
+  // console of a page whose whole point is to look finished to a recruiter,
+  // plus a billed Worker invocation apiece. Empty is also the honest answer:
+  // a demo visitor has no notifications and follows nobody.
+  http.get(`${API_BASE}/notifications`, () => HttpResponse.json({ data: demoPage([]) })),
+  http.get(`${API_BASE}/notifications/unread-count`, () =>
+    HttpResponse.json({ data: { unreadCount: 0 } }),
+  ),
+  http.get(`${API_BASE}/social/users/:id/following`, () =>
+    HttpResponse.json({ data: demoPage([]) }),
+  ),
+  // Not empty, unlike the rest of the shell: an empty rail reads as a broken
+  // panel rather than as a quiet one.
+  http.get(`${API_BASE}/user/featured-sellers`, () =>
+    HttpResponse.json({ data: demoFeaturedSellers }),
+  ),
 
   offlineFallback,
 ];

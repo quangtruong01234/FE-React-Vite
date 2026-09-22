@@ -2,6 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Socket } from 'socket.io-client';
 import { createRefCountedSocket, SOCKET_CONNECT_OPTIONS, RELEASE_GRACE_MS } from './socket';
 
+// `isDemoMode` is a plain module-level read, so the only way to flip it per-test
+// is to stand in for the module. Defaults to false: every other test in this
+// file describes the normal, backend-online path.
+const { demoMode } = vi.hoisted(() => ({ demoMode: { value: false } }));
+vi.mock('@/lib/demo/backendStatus', () => ({ isDemoMode: () => demoMode.value }));
+
 interface FakeSocket {
   connected: boolean;
   disconnect: ReturnType<typeof vi.fn>;
@@ -140,5 +146,37 @@ describe('createRefCountedSocket', () => {
     expect(created[0].disconnect).toHaveBeenCalledTimes(1);
     expect(onDestroy).toHaveBeenCalledTimes(1);
     expect(ref.current()).toBeNull();
+  });
+});
+
+describe('createRefCountedSocket — demo mode (DEMO-RETRY-01)', () => {
+  beforeEach(() => {
+    demoMode.value = true;
+  });
+  afterEach(() => {
+    demoMode.value = false;
+  });
+
+  it('opens no connection, because the gateway is away and the handshake would retry forever', () => {
+    const { ref, created, onCreate } = setup();
+
+    ref.acquire();
+
+    expect(created).toHaveLength(0);
+    expect(onCreate).not.toHaveBeenCalled();
+    expect(ref.current()).toBeNull();
+  });
+
+  it('still returns a release fn, so effect cleanups stay unconditional', () => {
+    const { ref, onDestroy } = setup();
+
+    const release = ref.acquire();
+
+    expect(release).toBeTypeOf('function');
+    expect(() => {
+      release();
+      release();
+    }).not.toThrow();
+    expect(onDestroy).not.toHaveBeenCalled();
   });
 });
