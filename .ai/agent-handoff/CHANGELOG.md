@@ -15,6 +15,71 @@
 
 ## Maintenance
 
+### AUDIT-NPM-01 · 46 advisory → vá 5 gói, cố ý bỏ tiptap, và một bug arborist của npm (2026-09-23)
+
+`npm install` báo **46 vulnerabilities (3 low, 32 moderate, 11 high)**. Triage trước khi vá, vì
+"số advisory" và "rủi ro thật của một storefront tĩnh" không phải một thứ.
+
+**Phân loại 46 advisory:** 13 chỉ nằm ở devDependency (không bao giờ vào bundle) ⇒ bỏ qua. 33 cái
+còn lại chỉ quy về **3 gốc**:
+
+| Gốc | Thật sự ảnh hưởng gì |
+|---|---|
+| `react-router` / `react-router-dom` 7.15.1 | **Open redirect — đây là cái duy nhất ship tới người dùng thật.** Vá. |
+| `ws` 8.20.1 (qua `engine.io-client` → `socket.io-client`) | Advisory "high" nhưng **không vào bundle browser**: `engine.io-client` khai `browser` field ánh xạ `websocket.node.js` → `websocket.js`, nên `ws` chỉ chạy ở nhánh Node. Vá vì rẻ, không vì nguy. |
+| `@tiptap/*` 3.26.0 | Chỉ nằm ở **đường soạn thảo** (`RichTextEditor` → `product-form/BasicInfoSection`), tức chỉ role `shop` khi tạo/sửa sản phẩm. Xem mục "cố ý bỏ". |
+
+**Đã vá — đúng 5 gói, chỉ `package-lock.json` đổi** (`package.json` không đụng một ký tự):
+
+```
+engine.io-client  6.6.5  -> 6.6.6
+react-router      7.15.1 -> 7.18.4
+react-router-dom  7.15.1 -> 7.18.4
+socket.io-parser  4.2.6  -> 4.2.7
+ws                8.20.1 -> 8.21.3
+```
+
+46 → **41 advisory**. Gate: `npm run build` ✓ 11.48s · `npm run lint` 0 problem ·
+`npm run test:run` **1212 test / 144 file** xanh.
+
+**Verify runtime với BE tắt thật** (`vite preview` :4321, demo mode bật đúng — `/health` **500**,
+MSW phục vụ 22 request `/api/*` đều **200**, **0 websocket**). React Router nhảy 3 minor nên đo
+điều hướng bằng một marker sống: gắn `window.__rrMarker` rồi đi `/` → `/marketplace` (`<Link>`) →
+`?category=16` (`setSearchParams`) → `/product/prod_demo00000000b1` (`<Link>`) → `history.back()`.
+**Marker sống qua cả 4 chặng** ⇒ điều hướng client-side thật, không reload. `list_console_messages`
+(error + warn, kèm preserved) trả `<no console messages found>`.
+
+**Cố ý KHÔNG vá `@tiptap/*` — và lý do đáng đọc hơn bản thân quyết định.**
+`@tiptap/react@3.31.3` pin peer **đúng version** (`@tiptap/core: 3.31.3`, `@tiptap/pm: 3.31.3`).
+npm 10.9.7 không giải nổi và **crash** giữa chừng: `Cannot read properties of null (reading
+'edgesOut')` — tái hiện được ở `npm audit fix --dry-run`, `npm audit fix`, **và** `npm install`
+sạch. Ba đường vòng đều tệ hơn giữ nguyên:
+- `npm update @tiptap/*` ⇒ chỉ `starter-kit` nhúc nhích, để lại **hai bản `@tiptap/core`** trong
+  cây (3.26.0 hoisted + 3.31.3 nested). ProseMirror so plugin key / schema **bằng identity**, nên
+  đây là trạng thái *hỏng hơn* lúc đầu, mà advisory thì vẫn còn.
+- `overrides` trong `package.json` ⇒ ghim chéo peer của một họ 6 gói, mục rất nhanh ở lần bump sau.
+- `--legacy-peer-deps` ⇒ đúng bằng cái cây lệch vừa thoát ra.
+
+Rủi ro chấp nhận có phạm vi hẹp: advisory tiptap chỉ chạm màn soạn mô tả sản phẩm của seller.
+Vá lại khi npm sửa bug arborist, hoặc khi tiptap nới peer range.
+
+**Sự cố trong lượt này, ghi để lần sau đừng lặp:** sau khi ERESOLVE, đã chạy
+`rm -rf node_modules package-lock.json && npm install` — npm crash tiếp, để lại máy **không có cả
+`node_modules` lẫn lockfile**. Đáng ra phải `npm install --dry-run` trước khi xoá bất cứ thứ gì;
+dấu hiệu đã có sẵn từ lần crash đầu. Phục hồi: `git show HEAD:package-lock.json > package-lock.json`
+rồi `npm ci` (532 gói). **Luật:** `npm ci` là đường về an toàn vì nó cài thẳng từ lockfile, không
+chạy resolver — nhưng nó chỉ tồn tại khi lockfile còn. Đừng bao giờ xoá lockfile trước khi thử khô.
+
+**Phát hiện nặng hơn cả lượt audit — `XSS-DESC-01`, đã ghi vào
+`../../../.agent-local/backend-handoff.md`:** `ProductDetail.tsx:445` render
+`detail.description` bằng `dangerouslySetInnerHTML`, trong khi DTO của BE
+(`create-product.dto.ts`) chỉ `@IsString()`. `dangerouslySetInnerHTML` không chạy `<script>`,
+nhưng **có** chạy handler trên element chèn vào (`img onerror`, `svg onload`,
+`iframe src=javascript:`) — và vì `credentials: 'include'` là mặc định toàn cục của `request()`,
+payload chạy được **với tư cách người đang đăng nhập**, httpOnly cookie không cứu. Đây là stored
+XSS seller → buyer. Đề xuất allow-list nằm trong entry; ràng buộc quan trọng: `img[src]` **phải**
+sống sót vì `collectProductMediaUrls` của UP-03 parse description để dọn ảnh Cloudinary mồ côi.
+
 ### DEMO-RETRY-01 · 16 lỗi 503 + 2 cảnh báo WebSocket trong console của nhánh demo (2026-09-22)
 
 Demo mode là thứ người tuyển dụng nhìn thấy khi EC2 nghỉ, nên console đỏ ở màn đầu là một lỗi

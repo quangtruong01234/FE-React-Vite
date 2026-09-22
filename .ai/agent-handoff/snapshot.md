@@ -1,6 +1,6 @@
 # Snapshot — TryBuy Frontend Current State
 
-> Cập nhật: 2026-09-22 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
+> Cập nhật: 2026-09-23 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
 > Keep this LEAN: chỉ giữ bức tranh sống (overview, việc còn mở/bị chặn, known issues).
 > Việc đã xong nằm ở `CHANGELOG.md` (cùng thư mục, không auto-load) — **đừng chép lại vào đây**.
 > Convention/rule nằm ở `.ai/context/` — cũng không duplicate vào đây.
@@ -15,8 +15,9 @@ kể cả P0-03: nhánh create atomic BE-side từ INV-CONTRACT-01 (prod 2026-08
 Public-ID migration (PUBID-01–07) đã
 xong — storefront id là opaque string end-to-end.
 
-**Gates (chạy lại + verify 2026-09-22):** `npm run build` ✓ · `npm run lint` 0 problem ·
-`npm run test:run` **1182 test / 143 file**, all pass. Không đóng item nào khi 3 lệnh này chưa xanh.
+**Gates (chạy lại + verify 2026-09-23, sau lượt vá npm AUDIT-NPM-01):** `npm run build` ✓ ·
+`npm run lint` 0 problem · `npm run test:run` **1212 test / 144 file**, all pass. Không đóng item
+nào khi 3 lệnh này chưa xanh.
 
 > ⚠️ `npm run build` **mới** thực sự typecheck từ 2026-08-04. Trước đó script chỉ là `vite build`
 > (esbuild vứt type) trong khi doc ghi là có `tsc` → 3 lỗi type nằm im 2 tuần. Chi tiết +
@@ -102,6 +103,26 @@ branch chưa merge, đã verify bằng `git branch --contains` trong `api/`, kh�
   exist"** (đúng cái bẫy đã ghi ở `backend-handoff.md` §DEPLOY-0813) ⇒ **hỏng mọi upload**. Thêm
   param sau khi BE lên prod. Lưu ý: đây vẫn **không phải** security guard — BE đã probe và
   Cloudinary không cho ký tham số size, client bỏ qua vẫn upload được.
+
+- **XSS-DESC-01 — stored XSS seller → buyer qua `description` sản phẩm.** BE inbox `XSS-DESC-01`
+  (2026-09-23). `ProductDetail.tsx:445` render `detail.description` bằng `dangerouslySetInnerHTML`;
+  DTO BE chỉ `@IsString()`, không sanitize. Payload kiểu `<img src=x onerror=…>` chạy **với session
+  của người đang xem** vì `credentials: 'include'` là mặc định toàn cục của `request()`. Sửa đúng
+  nằm ở BE (allow-list lúc ghi — chi tiết trong entry inbox, kèm ràng buộc `img[src]` phải sống sót
+  cho `collectProductMediaUrls` của UP-03). **FE mitigate được** bằng sanitize lúc render, nhưng cần
+  thêm dependency (DOMPurify) ⇒ **chờ user duyệt**, chưa làm.
+
+### Known issue còn mở — advisory `@tiptap/*` cố ý chưa vá (AUDIT-NPM-01, 2026-09-23)
+
+Lượt vá npm 2026-09-23 hạ 46 → **41 advisory**; 41 cái còn lại **không có cái nào ship tới người
+mua**. Phần chưa vá là họ `@tiptap/*` 3.26.0, chỉ nằm trên đường soạn thảo của seller
+(`RichTextEditor` → `product-form/BasicInfoSection`). Chặn không phải do ta: npm 10.9.7 **crash**
+(`Cannot read properties of null (reading 'edgesOut')`) khi giải peer pin exact-version của tiptap,
+tái hiện ở cả `audit fix` lẫn `install` sạch. Ba đường vòng (`npm update` lẻ, `overrides`,
+`--legacy-peer-deps`) đều để lại cây lệch **hỏng hơn** hiện tại — `npm update` từng tạo **hai bản
+`@tiptap/core`** cùng lúc, mà ProseMirror so plugin key bằng identity. Thử lại khi npm sửa arborist
+hoặc tiptap nới peer range. Bối cảnh + bài học "đừng xoá lockfile trước khi `--dry-run`" →
+`CHANGELOG.md` §AUDIT-NPM-01.
 
 ### Known issue còn mở — `useAuthContext().currentUser` stale ngay sau khi đăng nhập trong app
 
