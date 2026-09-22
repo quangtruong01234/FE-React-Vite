@@ -149,7 +149,8 @@ reload**, `AuthProvider` vẫn báo `currentUser === null` cho tới lần re-re
 
 *(verify từ code thật 2026-08-14; không mục nào chặn runtime — đây là scale-consistency + lint)*
 
-- **DEMO-RETRY-01 — vòng 1 đã lên prod (`50e773b`, `369dbc6`); vòng 2 ĐÃ SỬA XONG, CHƯA PUSH.**
+- **DEMO-RETRY-01 — ĐÃ ĐÓNG. Cả 2 vòng đã lên prod (`50e773b`, `369dbc6`, `557d2b8`) và verify
+  bằng MCP trên 10 route với EC2 tắt thật.**
   Console đỏ ở nhánh demo (backend nghỉ) là lỗi sản phẩm — đó là thứ người tuyển dụng nhìn thấy —
   và mỗi request rơi vào Worker là một invocation có tính tiền, thứ duy nhất trong hệ tính theo
   request.
@@ -164,7 +165,7 @@ reload**, `AuthProvider` vẫn báo `currentUser === null` cho tới lần re-re
     `/orders`, `/returns`, `/addresses`, `/messages`, `/checkout`, `/post/:id`, `/profile/:id`
     (`/cart` + `/notifications` đã sạch). Bài học: bug console phải đo trên **mọi route reachable**,
     không phải trên route mình tình cờ đang mở.
-  - **Vòng 2 — sửa hai lớp** (chưa push, xem release gate): (a) **14 handler** nữa trong
+  - **Vòng 2 — sửa hai lớp** (`557d2b8`): (a) **14 handler** nữa trong
     `lib/demo/handlers.ts` + 4 fixture mới (`demoPublicUsers`, `demoOrderStatusCounts`,
     `demoPaymentOptions`) phủ hết read còn lại — rỗng là câu trả lời đúng sự thật vì phiên demo chưa
     từng ghi gì, mỗi trang render empty state thật; (b) **`retryQuery` trong `lib/query/queryClient.ts`**
@@ -179,6 +180,11 @@ reload**, `AuthProvider` vẫn báo `currentUser === null` cho tới lần re-re
     probe `/health` kết thúc bằng `net::ERR_ABORTED` (AbortController 3s bắn trước khi CF kịp dựng
     522) nên **không sinh dòng nào**. Đừng bỏ probe để "sửa" nó. Full suite **1212 xanh (144 file)**,
     build + lint sạch.
+  - **Verify trên prod sau khi push** (CI `35770477621` ✓, Deploy `35770662344` ✓ 40s; EC2 tắt
+    thật; 10 route, mỗi route isolated context + cache-buster vì HTML prod nằm sau edge cache):
+    **10/10 sạch** — mọi `/api/*` trả 200 **bắn đúng 1 lần**, 0 lỗi 503, 0 request websocket,
+    console error+warn trống ở cả 10 trang. Non-200 duy nhất là `GET /health [net::ERR_ABORTED]`
+    (artifact im lặng của probe).
   - **Còn mở, không chặn:** tại sao mỗi read hỏng lại bắn **4** vòng trong khi `retry: 1` chỉ dự đoán
     2 (mốc 0 / 2053 / 3070 / 5085 ms; thời lượng 48/9/9/9 ms nên **không** phải do response chậm kéo
     dãn backoff). Giả thuyết chưa chứng minh: `<Suspense>` duy nhất nằm **trên** `FeedLayout`

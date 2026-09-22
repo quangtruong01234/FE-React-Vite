@@ -179,8 +179,20 @@ trả post của đúng author, post/profile lạ vẫn 404), `lib/query/queryCl
 online retry đúng 1 lần, demo mode không retry, đọc status lúc gọi chứ không lúc load module).
 Full suite **1212 xanh (144 file)**, `npm run build` + `npm run lint` sạch.
 
+**Verify trên prod — lần này đo hết route, không đo mỗi feed.** Push `369dbc6..557d2b8`, CI
+`35770477621` xanh (lint + unit + build), Deploy `35770662344` success 40s. Đo trên
+`fe-react-vite.quangtruong01234.workers.dev` với **EC2 tắt thật**, 10 route, mỗi route một
+isolated context + cache-buster riêng (HTML của prod nằm sau edge cache): `/orders`, `/profile/:id`,
+`/post/:id`, `/checkout`, `/marketplace`, `/messages`, `/addresses`, `/returns`, `/wishlist`,
+`/product/:id`. Kết quả **10/10**: mọi request `/api/*` trả **200, bắn đúng 1 lần**, **0 lỗi 503**,
+**0 request websocket**, và `list_console_messages` (error + warn) trả
+`<no console messages found>` ở **cả 10 trang**. Non-200 duy nhất trên mọi trang là
+`GET /health [net::ERR_ABORTED]` — artifact im lặng của probe, đúng như HEALTH-PATH-01 mô tả.
+Nội dung render là empty state thật (banner demo + "Demo Visitor"), không phải error state.
+
 Câu hỏi "tại sao 4 vòng" ở mục dưới **vẫn mở** — `retryQuery` che triệu chứng trong demo mode chứ
-không trả lời nó.
+không trả lời nó. Lưu ý: số liệu prod ở trên (mỗi read 1 lần) **không** bác bỏ giả thuyết
+double-mount, vì giờ không còn read nào hỏng và query thành công bị `staleTime: 60s` chặn refetch.
 
 ---
 
