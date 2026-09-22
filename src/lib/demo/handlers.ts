@@ -5,9 +5,12 @@ import {
   demoCategories,
   demoCurrentUser,
   demoFeaturedSellers,
+  demoOrderStatusCounts,
   demoPage,
+  demoPaymentOptions,
   demoPosts,
   demoProducts,
+  demoPublicUsers,
 } from './fixtures';
 
 /**
@@ -92,6 +95,68 @@ export const demoHandlers: RequestHandler[] = [
   http.get(`${API_BASE}/user/featured-sellers`, () =>
     HttpResponse.json({ data: demoFeaturedSellers }),
   ),
+
+  // --- The rest of the routes a demo visitor can open (DEMO-RETRY-01) ---
+  //
+  // Same reasoning as the shell block, one level out: the first pass covered
+  // the layout, so `/` went quiet while `/marketplace`, `/wishlist`, `/orders`,
+  // `/returns`, `/addresses`, `/messages`, `/checkout`, `/post/:id` and
+  // `/profile/:id` each still produced 8–12 red 503s. Empty is the honest
+  // answer everywhere here: the demo session has never written anything, so it
+  // owns no wishlist, no orders, no returns, no addresses and no chats, and
+  // each page renders its real empty state instead of an error state.
+  http.get(`${API_BASE}/products/wishlist`, () => HttpResponse.json({ data: demoPage([]) })),
+  http.get(`${API_BASE}/products/:id/reviews`, () => HttpResponse.json({ data: demoPage([]) })),
+  http.get(`${API_BASE}/order/user/:id/status-counts`, () =>
+    HttpResponse.json({ data: demoOrderStatusCounts }),
+  ),
+  http.get(`${API_BASE}/order/user/:id`, () => HttpResponse.json({ data: demoPage([]) })),
+  http.get(`${API_BASE}/order/return-requests/mine`, () =>
+    HttpResponse.json({ data: demoPage([]) }),
+  ),
+  http.get(`${API_BASE}/user/me/addresses`, () => HttpResponse.json({ data: [] })),
+  http.get(`${API_BASE}/chat/conversations`, () => HttpResponse.json({ data: [] })),
+
+  // The marketplace's "Tỉnh/Thành" filter. Empty on purpose: the fixture
+  // catalogue carries no seller addresses, so a populated dropdown would offer
+  // filters that cannot change the result. `SelectFilter` renders "Không tìm
+  // thấy" for an empty list — a real empty state, not a broken panel.
+  http.get(`${API_BASE}/shipping/provinces`, () => HttpResponse.json({ data: [] })),
+
+  http.get(`${API_BASE}/payment/options`, () =>
+    HttpResponse.json({ data: { options: demoPaymentOptions } }),
+  ),
+
+  // Post detail and profile. `/social/posts/user/:id` is four segments and
+  // `/social/posts/:id` three, so they cannot shadow each other — but keeping
+  // the narrower path first documents the intent.
+  http.get(`${API_BASE}/social/posts/user/:id`, ({ params }) =>
+    HttpResponse.json({ data: demoPage(demoPosts.filter((p) => p.userId === params.id)) }),
+  ),
+  http.get(`${API_BASE}/social/posts/:id`, ({ params }) => {
+    const post = demoPosts.find((p) => p.id === params.id);
+    return post
+      ? HttpResponse.json({ data: post })
+      : HttpResponse.json({ message: 'Not found' }, { status: 404 });
+  }),
+  http.get(`${API_BASE}/social/posts/:id/comments`, () =>
+    HttpResponse.json({ data: demoPage([]) }),
+  ),
+  http.get(`${API_BASE}/social/users/:id/followers`, () =>
+    HttpResponse.json({ data: demoPage([]) }),
+  ),
+
+  // `/user/:id` is the one wildcard that can swallow its siblings: `/user/me`,
+  // `/user/featured-sellers` and `/user/search` are all two segments too, so it
+  // must stay below every one of them. `/user/search` gets an empty list rather
+  // than a 404 — the header dropdown is the first thing a visitor pokes at.
+  http.get(`${API_BASE}/user/search`, () => HttpResponse.json({ data: [] })),
+  http.get(`${API_BASE}/user/:id`, ({ params }) => {
+    const user = demoPublicUsers.find((u) => u.id === params.id);
+    return user
+      ? HttpResponse.json({ data: user })
+      : HttpResponse.json({ message: 'Not found' }, { status: 404 });
+  }),
 
   offlineFallback,
 ];

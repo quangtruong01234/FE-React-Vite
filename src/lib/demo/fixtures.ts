@@ -1,11 +1,15 @@
+import pick from 'lodash/pick';
 import type {
   Brand,
   Category,
   CurrentUser,
   FeaturedSeller,
+  OrderStatusCounts,
   PaginatedResponse,
+  PaymentOption,
   Post,
   ProductWithInventory,
+  PublicUser,
 } from '@/types';
 
 /**
@@ -45,6 +49,41 @@ export const demoCurrentUser: CurrentUser = {
  */
 export const demoFeaturedSellers: FeaturedSeller[] = [
   { id: DEMO_SELLER_ID, username: 'demo_store', name: 'Demo Store', avatar: null },
+];
+
+/**
+ * The only two profiles that exist in demo mode: the visitor, and the store
+ * behind `demoPosts` and `demoProducts`. `GET /user/:id` answers from this list
+ * and 404s everything else, the same as the catalog lookup — a profile page for
+ * an id nothing links to would be inventing a person.
+ */
+export const demoPublicUsers: PublicUser[] = [
+  { id: DEMO_SELLER_ID, username: 'demo_store', name: 'Demo Store', avatar: null, isActive: true },
+  pick(demoCurrentUser, ['id', 'username', 'name', 'avatar', 'isActive']),
+];
+
+/** No orders in demo mode, so every filter badge on `/orders` reads zero. */
+export const demoOrderStatusCounts: OrderStatusCounts = {
+  all: 0,
+  pending: 0,
+  confirmed: 0,
+  processing: 0,
+  shipped: 0,
+  delivering: 0,
+  completed: 0,
+  canceled: 0,
+  return_requested: 0,
+  refunded: 0,
+};
+
+/**
+ * The three methods checkout offers. A read, so it is mocked like every other
+ * read — the order POST behind the button still answers 503.
+ */
+export const demoPaymentOptions: PaymentOption[] = [
+  { id: 'cod', name: 'Thanh toán khi nhận hàng', description: 'Trả tiền mặt cho shipper.' },
+  { id: 'vnpay', name: 'VNPay', description: 'Thanh toán qua cổng VNPay.' },
+  { id: 'zalopay', name: 'ZaloPay', description: 'Thanh toán qua ví ZaloPay.' },
 ];
 
 export const demoCategories: Category[] = [
