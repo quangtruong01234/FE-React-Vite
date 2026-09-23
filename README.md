@@ -8,6 +8,7 @@ a seller channel, an admin console, and realtime chat and notifications.
 
 **Live:** https://fe-react-vite.quangtruong01234.workers.dev ·
 **Demo guide:** [docs/DEMO.md](docs/DEMO.md) ·
+**Walkthrough (PDF):** [Google Drive](https://drive.google.com/file/d/1TaHGeHU7duHBxiqa9kyqNflY-bvlb0r_/view?usp=drive_link) ·
 **Metrics:** [docs/METRICS.md](docs/METRICS.md)
 
 **The other two repos:** [BE-Microservice](https://github.com/quangtruong01234/BE-Microservice)

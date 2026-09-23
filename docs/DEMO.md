@@ -9,6 +9,7 @@ payments to **ZaloPay / VNPay / COD**, chat and notifications run over WebSocket
 | **Storefront** | https://fe-react-vite.quangtruong01234.workers.dev |
 | **Shipping console** | https://web-flow-ghn.vercel.app *(separate Next.js app, same backend)* |
 | **Backend schedule** | **14:00 – 19:00 ICT (UTC+7)**, by design — see below |
+| **Walkthrough (PDF)** | [Step-by-step guide on Google Drive](https://drive.google.com/file/d/1TaHGeHU7duHBxiqa9kyqNflY-bvlb0r_/view?usp=drive_link) |
 | **Source** | [storefront](https://github.com/quangtruong01234/FE-React-Vite) · [backend](https://github.com/quangtruong01234/BE-Microservice) · [console](https://github.com/quangtruong01234/web-flow-GHN) |
 
 > **Why the schedule.** This is a real production environment on EC2 — ten Node
@@ -117,6 +118,7 @@ thanh toán nối **ZaloPay / VNPay / COD**, chat và thông báo chạy qua Web
 | **Storefront** | https://fe-react-vite.quangtruong01234.workers.dev |
 | **Console vận chuyển** | https://web-flow-ghn.vercel.app *(app Next.js riêng, chung backend)* |
 | **Khung giờ backend** | **14:00 – 19:00 (giờ Việt Nam)** — cố ý, xem dưới |
+| **Hướng dẫn dùng thử (PDF)** | [Xem trên Google Drive](https://drive.google.com/file/d/1TaHGeHU7duHBxiqa9kyqNflY-bvlb0r_/view?usp=drive_link) |
 
 > **Vì sao có khung giờ.** Đây là môi trường production thật trên EC2 — mười tiến
 > trình Node cùng Redis và RabbitMQ — được hẹn giờ tắt ngoài khung đó để một dự án
