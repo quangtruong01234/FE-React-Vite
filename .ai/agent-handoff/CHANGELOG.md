@@ -15,6 +15,66 @@
 
 ## Maintenance
 
+### THEME-06 · Theme sáng lên production (F13 xong): rà mọi route, sửa tương phản ở tầng token, gỡ 2 cổng dev (2026-09-27)
+
+Class **A**: chỉ FE, không cần BE. Đây là bước 6/6 của F13. Từ commit này người dùng thật thấy
+theme sáng khi OS để sáng hoặc khi tự bật công tắc (ProfileMenu, nút trên `/login`).
+
+**Rà.** Script đo tương phản được inject qua Chrome DevTools MCP. Nó đi từng text node, trộn các
+lớp nền có alpha, tính tỉ lệ WCAG, và bỏ qua chữ trên ảnh/gradient, `aria-hidden` và `disabled`.
+Chạy trên mọi route trong `e2e/routes.ts` với 4 role (public, buyer, shop, admin) ở `tb-theme=light`.
+View quên mật khẩu trong `/login` được bấm vào để đo. Rà ra đúng 2 lớp lỗi, cả hai sửa ở token:
+
+1. **Chữ clip gradient CTA.** Giá `PriceText` và 3 số liệu ở `/login` dùng
+   `bg-tb-gradient-90 bg-clip-text`. Hai đầu `#F59E0B`/`#EF4444` chỉ ~2.1:1 trên nền trắng. Token
+   mới `bg-tb-gradient-text` đọc `--tb-gradient-text`: bằng `-90` ở theme tối, `#964308 → #B91C1C`
+   ở theme sáng. Nền gradient của CTA, avatar ring và logo "Buy" giữ nguyên (thương hiệu; logo được
+   miễn WCAG).
+2. **Chip tint dưới AA.** Pattern `bg-tb-X/NN text-accent-X` làm nền chip đậm lên nên chữ mất
+   tương phản:
+   - amber trên tint /10–/20 chỉ 4.2–4.4 (worst 3.49 trên /20);
+   - green trên /15 là 4.06;
+   - cyan trên /10 là 4.27.
+
+   Accent sáng được làm đậm hơn: amber/primary `#964308` (thay `#B45309`), green `#066A4B`, cyan
+   `#0C6A84`. Worst case sau khi sửa: amber /20 4.54, red /15 4.58, green /15 4.83, cyan /10 4.87.
+   `chartTheme.ts` sửa theo; `chartTheme.test.ts` ghim nó với `index.css`.
+
+**Gỡ cổng.**
+- Bỏ `THEME_SWITCH_ENABLED` (`lib/theme/theme.ts`), prop `isEnabled` của `ThemeProvider` và field
+  `isSwitchEnabled` của context. `ProfileMenu` và `ThemeToggleButton` giờ luôn render.
+- `index.html` bỏ dòng `if ('%DEV%' !== 'true') return;`. Đã kiểm `dist/index.html` không còn `%DEV%`.
+
+**Test.**
+- `themeTokens.test.ts` thêm 2 test:
+  - chữ accent sáng đạt AA trên chính tint của nó (amber /20, red /15, green /15, cyan /10 — tint
+    đậm nhất đang dùng) trên cả 3 nền;
+  - 2 đầu của gradient chữ ở theme sáng đạt AA trên cả 3 nền.
+- Test "prod gate" của `theme.test.ts` đổi thành "script pre-paint không có placeholder Vite
+  `%X%`", để prod chạy đúng code mà test chạy.
+- Bỏ 3 test của trạng thái tắt (`ThemeContext.test`, `ProfileMenu.test`).
+- e2e mới `theme-persist.public.spec.ts`, OS ghim tối:
+  - bật sáng → reload → vẫn sáng, meta `#FAFAFA`; đổi lại tối cũng giữ;
+  - chặn `src/main.*` rồi reload ⇒ vẫn `data-theme="light"`. Điều này chứng minh script pre-paint
+    tự đặt theme, không nháy tối.
+- Đã thêm vào `deep` của `/login`.
+
+**Đo.**
+- build, lint, `check:bundle`: xanh. `test:run`: 160 file / 1343 test.
+- Smoke 4 role + spec mới: **45/45, 0 skip**. Gateway uptime 10839 → 10983, không restart giữa lượt.
+- MCP rà lại `/orders`, `/sell/orders`, `/admin/vouchers` ở theme sáng: 0 lỗi.
+- Trên `vite preview` của prod build, `/login` ở theme sáng: gradient chữ ra đúng
+  `rgb(150,67,8) → rgb(185,28,28)`, Lighthouse Accessibility **100**. LHCI autorun: mọi budget pass.
+- CSS 11.40 kB gzip.
+
+**Bẫy gặp phải.** Dev server Vite đang chạy từ trước **không nạp lại `tailwind.config.js`**: biến CSS
+có, nhưng class mới `bg-tb-gradient-text` không được sinh ⇒ số liệu `/login` tàng hình trên dev
+(chữ trong suốt, nền `none`). `touch` config cũng không ăn. Prod build thì đúng. Thêm token Tailwind
+thì phải restart `npm run dev` trước khi soi bằng MCP.
+
+**Còn lại (tuỳ chọn, THEME-07 trong snapshot):** 5 cặp dưới AA của bảng **tối** có từ trước F13.
+`components/ui/` vẫn ngoài phạm vi.
+
 ### PERF-MON-01-FU · Budget script Lighthouse đo lại theo nhánh demo mà CI thật sự chạy (2026-09-27)
 
 Class **A** (chỉ CI). Lần chạy CI đầu tiên của job `Lighthouse budgets` (`228fbf4`, run

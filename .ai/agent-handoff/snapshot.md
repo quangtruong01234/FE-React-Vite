@@ -54,11 +54,11 @@ mới tới doc.)*
 
 | Ngày | Item |
 |---|---|
+| 2026-09-27 | **THEME-06 · theme sáng lên production** (class **A** — chỉ FE; F13 xong). Rà mọi route trong `e2e/routes.ts` với 4 role ở theme sáng bằng script đo tương phản qua MCP ⇒ 2 lỗi, sửa ở tầng token: (1) giá `PriceText` + số liệu `/login` là chữ clip gradient CTA (~2.1:1 trên trắng) ⇒ token mới `bg-tb-gradient-text` (`--tb-gradient-text`, sáng `#964308→#B91C1C`); (2) chip tint dưới AA ⇒ accent sáng đậm hơn: amber `#964308`, green `#066A4B`, cyan `#0C6A84` (+ `chartTheme.ts`). Gỡ cả 2 cổng (`THEME_SWITCH_ENABLED` + `%DEV%` trong `index.html`, bỏ luôn `isSwitchEnabled`). Test mới: chip trên tint của nó, 2 đầu gradient chữ, script pre-paint không còn placeholder Vite. e2e `theme-persist.public.spec.ts` (bật → reload → giữ; và chặn bundle ⇒ vẫn sáng = không nháy tối). Smoke 4 role 45/45, Lighthouse a11y 100 ở theme sáng. |
 | 2026-09-27 | **AUD-0925-03 · nút "+" số lượng dừng ở 999** (class **A** — chỉ thêm `disabled`). BE nay trả 400 khi một dòng giỏ vượt 999; stepper "+" ở `/cart` và `/checkout` không có trần mà lỗi update lại không hiện ra UI ⇒ bấm ở 999 là một 400 im lặng. `cartQuantity.ts` (`MAX_CART_LINE_QUANTITY`, `canIncreaseCartLine`) khoá nút ở 999. `ProductDetail` không đổi (trần 99 mỗi lượt thêm). +4 test. Smoke `/cart` + `/checkout` ✓, `checkout-resilience` 2/2 ✓. |
 | 2026-09-26 | **EMAIL-REAUTH-01 · đổi email phải nhập mật khẩu hiện tại** (class **C** — push `api` trước; cây FE còn bị RAIL-RANK-01 giữ). `EditProfileModal` hiện `PasswordField` "Mật khẩu hiện tại" chỉ khi email khác email đã lưu (so sánh exact như BE, đổi hoa/thường cũng tính). `profileForm.ts`: `profileFormSchemaFor`, `profileUpdatePayload` (chỉ gửi `currentPassword` khi email đổi — BE cũ 400 key lạ), `profileUpdateError` (401 theo `errorCode` qua helper chung `currentPasswordAuthError`, 429, 400, 409). `api.users.update` bỏ redirect 401 khi có `currentPassword` ⇒ gõ sai mật khẩu không bị đá về `/login`. +17 test. MCP trên stack local: BE thật trả 401, lỗi hiện đúng ô. |
 | 2026-09-26 | **THEME-05 · chart theo theme** (class **A** — chỉ FE; theme tối vẽ y hex cũ, theme sáng chỉ bật ở dev). `chartTheme.ts` giữ **một palette mỗi theme** (`CHART_PALETTES`); data chỉ lưu vai trò màu (`ChartColor`: `'amber'`, `'red'`…), chart tự tra palette qua hook mới `useChartPalette()` và thêm palette vào deps của `useMemo` ⇒ đổi theme là chart vẽ lại, không cần reload. Tooltip thành `chartTooltipStyle(palette)`. Chấm legend dùng class token (`CHART_DOT_CLASS`) ⇒ **bỏ ngoại lệ inline style của `ChartLegend`**. Guard màu hẹp lại từ `lib/chart/**` còn đúng `chartTheme.ts`; test mới đọc `index.css` và đòi mọi hex của 2 palette khớp token của nó. +6 test. CSS +13 B gzip (đo chung với THEME-04-FU). Smoke 43/43. |
 | 2026-09-26 | **THEME-04-FU · nút tim trên ảnh ở theme sáng** (class **A** — chỉ class). Nút tim của `ProductCard`/`WishlistPage` giờ nằm trên chip theo theme `bg-canvas-elevated/90 backdrop-blur-sm border border-bdr` thay vì scrim đen ⇒ màu icon sẵn có (`ink-sec` / `accent-red`) đủ tương phản ở cả 2 theme. Không thêm prop `onImage` như snapshot đề xuất; `WishlistButton` không đổi. Theme tối đổi nhẹ: scrim đen trong → chip xám nổi có viền. +1 test. |
-| 2026-09-26 | **THEME-04 · dọn màu viết thẳng** (class **A** — chỉ class Tailwind; theme tối computed style không đổi, theme sáng chỉ bật ở dev). Chữ trên gradient / accent đặc / ảnh / scrim → `text-ink-on-accent` (kể cả ~15 chỗ `bg-tb-gradient text-ink-pri` từng ra chữ đen ở theme sáng); chữ trên nền → `text-ink-pri`; `bg-black` / `black/N` → `bg-scrim`; thumb `ToggleSwitch` → `bg-ink-on-accent`. `rgba()` viết thẳng ở `/login`, `PasswordField`, `ForgotPasswordForm`, `ProductDetail` → `ring-accent-*/NN`, `bg-canvas-surface/60`. Guard `findHardcodedColors` quét mọi `.ts`/`.tsx` trong `src/` (trừ test, `ui/`, `lib/chart/`, `theme.ts`): `white`/`black` utility, `rgb()`/`hsl()`, hex ⇒ fail kèm `file:dòng`. +3 test. CSS +48 B gzip. Smoke 43/43. |
 
 ## Active Tasks — open / blocked
 
@@ -346,13 +346,13 @@ tới THEME-06, nên người dùng thật không bao giờ thấy chế độ s
 - ✅ THEME-04-FU (nút tim trên ảnh) đã xong 2026-09-26 — xem Recent closes / `CHANGELOG.md`.
 - ✅ THEME-05 (chart theo theme) đã xong 2026-09-26 — xem Recent closes / `CHANGELOG.md`. Chart
   đổi màu ngay khi bật công tắc; `chartTheme.test.ts` ghim 2 palette vào `index.css`.
-- 🟢 **THEME-06 — Rà toàn bộ + phát hành.** Rà giao diện mọi route với 4 role ở 2 theme, bỏ giới
-  hạn dev (**cả hai cổng**: `THEME_SWITCH_ENABLED` trong `lib/theme/theme.ts` và `'%DEV%'` trong
-  script của `index.html`; `theme.test.ts` có test "prod gate" cần đổi theo), e2e: bật công tắc → reload → giữ nguyên theme; cập nhật `tokens.md`/`styling.md` thành hệ
-  2 theme. Cân nhắc luôn: bảng **tối** có 5 cặp chữ/nền dưới AA từ trước (`ink-muted` 2.2–2.6:1 trên
-  cả 3 nền, `accent-violet` 4.0–4.45 trên surface/elevated) — `themeTokens.test.ts` ghim đúng 5
-  cặp đó; sửa cặp nào thì xoá dòng của nó. Chữ trắng trên gradient CTA chỉ 2.15:1 (đầu `#F59E0B`)
-  — quyết định thương hiệu, không assert.
+- ✅ THEME-06 (rà toàn bộ + phát hành) đã xong 2026-09-27 — xem Recent closes / `CHANGELOG.md`.
+  **F13 xong: 2 theme lên production**, cả hai cổng dev đã gỡ. Chữ cam theme sáng giờ là `#964308`
+  (không còn `#B45309`) để qua AA trên chính chip tint của nó.
+- 🔵 **THEME-07 (tuỳ chọn) — 5 cặp dưới AA của bảng tối.** `ink-muted` 2.2–2.6:1 trên cả 3 nền,
+  `accent-violet` 4.0–4.45 trên surface/elevated — có từ trước F13, `themeTokens.test.ts` ghim
+  đúng 5 cặp. Sửa là đổi giao diện tối người dùng đang quen ⇒ cần user quyết. Sửa cặp nào thì xoá
+  dòng của nó khỏi test. Chữ trắng trên gradient CTA (2.15:1) là quyết định thương hiệu, không assert.
 - *Ngoài phạm vi:* `components/ui/` dùng `bg-background`/`text-foreground`/… nhưng config
   không định nghĩa các màu đó ⇒ hiện chúng không ra màu gì. Định nghĩa chúng thì giao diện tối cũng
   đổi theo ⇒ phải có quyết định riêng.

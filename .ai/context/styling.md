@@ -124,11 +124,28 @@ Khung chuẩn của một modal: `<DialogContent className="max-w-sm bg-canvas-s
 Most-used (full list and system guidance in `.ai/tokens.md`):
 
 - Backgrounds: `bg-canvas-base` (page), `bg-canvas-surface` (cards), `bg-canvas-elevated` (inputs)
-- Text: `text-ink-pri` (white), `text-ink-sec`, `text-ink-muted`
+- Text: `text-ink-pri` (white dark / near-black light), `text-ink-sec`, `text-ink-muted`
 - Accent: `text-accent-amber` (brand/prices), `text-accent-red` (danger), `text-accent-green` (success), `text-accent-cyan` (info)
 - Border: `border-bdr`
-- Gradient text: `bg-tb-gradient-90 bg-clip-text text-transparent` (`tb-*` only — no alias for gradients)
+- Gradient text: `bg-tb-gradient-text bg-clip-text text-transparent` (`tb-*` only — no alias for gradients; not `bg-tb-gradient-90`, which is ~2.1:1 on the light canvas)
 - Border-radius: `rounded-tb-*` (`tb-*` only — no alias for radius)
+
+## Two themes (THEME-06)
+
+Production ships dark and light; `data-theme` on `<html>` picks one (saved `tb-theme` → OS
+setting). A token swaps value per theme, a class does not — so the rules above are what make a
+component work in both. When you write or change UI:
+
+- Check it in **light** too: DevTools → `localStorage.setItem('tb-theme', 'light')` + reload,
+  or the switch in ProfileMenu / on `/login`.
+- Status chips stay `bg-<accent>/NN text-accent-<accent>`. The light accents are darkened so each
+  passes AA on its own tint (`themeTokens.test.ts` pins amber /20, red /15, green /15, cyan /10);
+  a heavier tint than those needs the test extended first.
+- Text on the CTA gradient, a solid accent or a photo is `text-ink-on-accent` — white in both
+  themes on purpose (brand); don't "fix" it for light.
+- Charts read `useChartPalette()` (Chart.js can't read CSS variables); `chartTheme.test.ts` keeps
+  its hexes equal to `index.css`.
+- A new colour variable goes in **both** blocks of `index.css`; the guard test fails otherwise.
 
 ## Loading states
 

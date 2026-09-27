@@ -1,15 +1,17 @@
 # Design Tokens — TryBuy
 
-Dark-theme design system; a light palette exists since THEME-02 (`[data-theme="light"]` in
-`src/index.css`). Since THEME-03 `ThemeProvider` sets `data-theme` on `<html>` (saved choice →
-OS `prefers-color-scheme`), but only in **dev** until THEME-06 (roadmap F13) — production stays
-dark. All tokens defined in `tailwind.config.js`.
+Two themes, dark (`:root`) and light (`[data-theme="light"]`), both in `src/index.css`. Since
+THEME-06 (roadmap F13) they ship in **production**: `ThemeProvider` and the pre-paint script in
+`index.html` set `data-theme` on `<html>` (saved choice `tb-theme` → OS `prefers-color-scheme`),
+and users switch from ProfileMenu or the toggle on `/login`. Every class you write renders in
+**both** — check it in light too. All tokens defined in `tailwind.config.js`.
 **Never hardcode hex/rgb values** — if a token doesn't exist, add it to the config first.
 A new **colour** token is two lines: a bare-RGB channel variable in `src/index.css` `:root`
 (`--x: 9 9 11;`) and `channel('--x')` in the config. `src/test/themeTokens.test.ts` fails on
 any other shape (hex, bare `var()`), because a theme could not swap it. **Also add the variable to
 the `[data-theme="light"]` block** — the test fails if a `:root` variable is missing there, and a
-light text colour must reach WCAG AA (4.5:1) on all three canvases. Colour literals belong only
+light text colour must reach WCAG AA (4.5:1) on all three canvases **and** on its own chip tint
+(`bg-tb-amber/20 text-accent-amber` — the test pins the heaviest tint each accent is used on). Colour literals belong only
 in those two blocks; every other rule in `index.css` reads `rgb(var(--x))`.
 
 ---
@@ -44,7 +46,7 @@ spellings take `/NN`; prefer the semantic alias (`text-accent-*`, `bg-accent-gre
 | Category | Tokens |
 |---|---|
 | Border-radius | `rounded-tb-pill/ghost/input/cta/card/sheet` |
-| Gradients | `bg-tb-gradient`, `bg-tb-gradient-90`, `bg-login-left` |
+| Gradients | `bg-tb-gradient`, `bg-tb-gradient-90`, `bg-tb-gradient-text`, `bg-login-left` |
 | Shadows | `shadow-tb-cta`, `shadow-tb-card` |
 | Animation classes | `tb-enter`, `tb-stagger`, `tb-pulse` (keyframe) |
 
@@ -65,7 +67,7 @@ Two alias pairs resolve to identical hex values but carry different intent:
 |---|---|
 | Page / card / input backgrounds | `bg-canvas-base` / `bg-canvas-surface` / `bg-canvas-elevated` |
 | Borders | `border-bdr` |
-| Primary text (white) | `text-ink-pri` |
+| Primary text (white dark / near-black light) | `text-ink-pri` |
 | Secondary / muted text | `text-ink-sec` / `text-ink-muted` |
 | Brand amber, CTAs, prices | `text-accent-amber` / `bg-accent-amber` |
 | Danger / destructive | `text-accent-red` |
@@ -73,6 +75,7 @@ Two alias pairs resolve to identical hex values but carry different intent:
 | Info / cyan highlights | `text-accent-cyan` |
 | Border-radius | `rounded-tb-*` ← `tb-*` only, no alias |
 | Gradient fills | `bg-tb-gradient` / `bg-tb-gradient-90` ← `tb-*` only |
+| Gradient **text** (`bg-clip-text`) | `bg-tb-gradient-text` ← never the CTA gradient |
 | Shadows | `shadow-tb-cta` / `shadow-tb-card` ← `tb-*` only |
 
 ---
@@ -106,12 +109,12 @@ Hex columns below are the **dark-theme** values. The source of truth is the chan
 | `text-ink-pri` | `#FFFFFF` | `#09090B` | **none** — alias only |
 | `text-ink-sec` | `#A1A1AA` | `#52525B` | `text-tb-secondary` |
 | `text-ink-muted` | `#52525B` | `#6B6B73` | `text-tb-muted` |
-| `text-accent-pri` | `#F59E0B` | `#B45309` | `text-tb-amber` (same hex) |
+| `text-accent-pri` | `#F59E0B` | `#964308` | `text-tb-amber` (same hex) |
 | `text-accent-sec` | `#EF4444` | `#B91C1C` | `text-tb-red` (same hex) |
-| `text-accent-amber` | `#F59E0B` | `#B45309` | `text-tb-amber` (same hex) |
+| `text-accent-amber` | `#F59E0B` | `#964308` | `text-tb-amber` (same hex) |
 | `text-accent-red` | `#EF4444` | `#B91C1C` | `text-tb-red` (same hex) |
-| `text-accent-cyan` | `#06b6d4` | `#0E7490` | `text-tb-cyan` |
-| `text-accent-green` | `#10b981` | `#047857` | `text-tb-green` |
+| `text-accent-cyan` | `#06b6d4` | `#0C6A84` | `text-tb-cyan` |
+| `text-accent-green` | `#10b981` | `#066A4B` | `text-tb-green` |
 | `text-accent-violet` | `#8b5cf6` | `#7C3AED` | **none** — alias only (shipped badge) |
 | `text-accent-blue` | `#3b82f6` | `#2563EB` | **none** — alias only (delivering badge) |
 | `text-ink-on-accent` | `#FFFFFF` | `#FFFFFF` | **none** — text on the CTA gradient or a photo; white in every theme |
@@ -136,12 +139,17 @@ Hex columns below are the **dark-theme** values. The source of truth is the chan
 |---|---|
 | `bg-tb-gradient` | `linear-gradient(135deg, #F59E0B, #EF4444)` |
 | `bg-tb-gradient-90` | `linear-gradient(90deg, #F59E0B, #EF4444)` |
+| `bg-tb-gradient-text` | Reads `--tb-gradient-text`: same as `-90` in dark, `#964308 → #B91C1C` in light |
 | `bg-login-left` | Radial amber+red glow for auth page — reads `--tb-login-glow`, softer in light mode |
 
-Usage example (gradient text):
+`bg-tb-gradient` / `-90` are **fills** (CTA, logo, avatar ring) and stay the same in both themes —
+the white text on them is a brand decision. Their ends are ~2.1:1 on white, so text clipped to a
+gradient uses `bg-tb-gradient-text`, whose light stops the guard test holds to AA:
 ```tsx
-<span className="bg-tb-gradient-90 bg-clip-text text-transparent">$99</span>
+<span className="bg-tb-gradient-text bg-clip-text text-transparent">$99</span>
 ```
+Only the header logotype (`TBLogo` "Buy") keeps `bg-tb-gradient-90` as clipped text — a logo is
+exempt from WCAG contrast.
 
 ## Border Radius
 
