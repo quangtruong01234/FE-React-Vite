@@ -67,7 +67,10 @@ function OrderCard({
     detail?.items ?? (Array.isArray(order.items) ? order.items : []);
 
   return (
-    <div className="bg-canvas-surface border border-bdr rounded-xl overflow-hidden">
+    <div
+      data-testid={`seller-order-${order.id}`}
+      className="bg-canvas-surface border border-bdr rounded-xl overflow-hidden"
+    >
       <div className="p-5 grid grid-cols-[72px_1fr_auto_auto] gap-6 items-center">
         {/* Thumbnail */}
         <div className="size-[72px] rounded-xl bg-canvas-elevated flex-none grid place-items-center">
@@ -119,7 +122,7 @@ function OrderCard({
                 'px-4 py-2 rounded-tb-input font-body font-semibold text-sm text-ink-pri transition-colors whitespace-nowrap',
                 actionPending
                   ? 'bg-tb-amber/40 cursor-not-allowed'
-                  : 'bg-tb-gradient hover:opacity-90 cursor-pointer',
+                  : 'bg-tb-gradient text-ink-on-accent hover:opacity-90 cursor-pointer',
               )}
             >
               {actionPending ? 'Đang xử lý…' : action.label}
@@ -324,7 +327,7 @@ export default function SellerOrdersPage(): ReactElement {
                 onClick={() => handleTabChange(opt.id)}
                 className={cn(
                   'flex-none px-[18px] py-2.5 rounded-full text-ink-pri font-body font-semibold text-[13px] cursor-pointer whitespace-nowrap border',
-                  active ? 'bg-tb-gradient border-transparent' : 'bg-tb-elevated border-tb-border',
+                  active ? 'bg-tb-gradient border-transparent text-ink-on-accent' : 'bg-tb-elevated border-tb-border',
                 )}
               >
                 {opt.label}

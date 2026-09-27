@@ -195,7 +195,7 @@ export default function OrderDetailPage(): ReactElement {
                   <span className={cn(
                     'w-9 h-9 rounded-full flex items-center justify-center border-2',
                     done
-                      ? 'bg-tb-gradient border-transparent text-ink-pri'
+                      ? 'bg-tb-gradient border-transparent text-ink-on-accent'
                       : 'bg-canvas-elevated border-bdr text-ink-muted',
                   )}>
                     {done ? <Check size={16} /> : <span className="text-xs font-bold">{i + 1}</span>}

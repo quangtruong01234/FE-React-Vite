@@ -9,7 +9,6 @@ import { DoughnutChart } from '@/components/shared/charts/DoughnutChart';
 import { RankedBarChart } from '@/components/shared/charts/RankedBarChart';
 import { TrendAreaChart, type TrendSeries } from '@/components/shared/charts/TrendAreaChart';
 import { orderStatusSlices, sliceTotal, type ChartSlice } from '@/lib/chart/chartSeries';
-import { CHART_AMBER, CHART_CYAN } from '@/lib/chart/chartTheme';
 import { rangePresetDates } from './analyticsRange';
 import { revenueTrend, topProductSeries } from './analyticsChartData';
 import type { AnalyticsFilters } from './useAnalyticsFilters';
@@ -96,14 +95,14 @@ export function AnalyticsDashboard({
       {
         id: 'revenue',
         label: 'Doanh thu',
-        color: CHART_AMBER,
+        color: 'amber',
         values: trend.revenue,
         formatter: formatPrice,
       },
       {
         id: 'orderCount',
         label: 'Số đơn',
-        color: CHART_CYAN,
+        color: 'cyan',
         values: trend.orderCount,
         fill: false,
         axis: 'right',
@@ -118,8 +117,8 @@ export function AnalyticsDashboard({
   // Names the two lines of the trend chart; the numbers live on its axes, so the
   // legend renders keys only.
   const trendLegend: ChartSlice[] = [
-    { key: 'revenue', label: 'Doanh thu', value: 0, color: CHART_AMBER },
-    { key: 'orders', label: 'Số đơn', value: 0, color: CHART_CYAN },
+    { key: 'revenue', label: 'Doanh thu', value: 0, color: 'amber' },
+    { key: 'orders', label: 'Số đơn', value: 0, color: 'cyan' },
   ];
 
   return (

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { revenueTrend, topProductSeries } from './analyticsChartData';
+import { CHART_CATEGORICAL_PALETTE } from '@/lib/chart/chartTheme';
 import type { RevenuePoint, TopProductStat } from '@/types';
 
 function product(partial: Partial<TopProductStat>): TopProductStat {
@@ -48,7 +49,7 @@ describe('topProductSeries', () => {
       product({ productId: 'prod_b', quantitySold: 1 }),
     ]);
     for (const slice of slices) {
-      expect(slice.color).toMatch(/^#[0-9A-F]{6}$/i);
+      expect(CHART_CATEGORICAL_PALETTE).toContain(slice.color);
     }
   });
 

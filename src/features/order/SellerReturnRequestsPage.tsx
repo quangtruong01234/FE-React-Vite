@@ -209,7 +209,7 @@ export default function SellerReturnRequestsPage(): ReactElement {
               onClick={() => handleTabChange(opt.id)}
               className={cn(
                 'flex-none px-[18px] py-2.5 rounded-full text-ink-pri font-body font-semibold text-[13px] cursor-pointer whitespace-nowrap border',
-                active ? 'bg-tb-gradient border-transparent' : 'bg-tb-elevated border-tb-border',
+                active ? 'bg-tb-gradient border-transparent text-ink-on-accent' : 'bg-tb-elevated border-tb-border',
               )}
             >
               {opt.label}
