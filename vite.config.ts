@@ -65,7 +65,9 @@ export default defineConfig(({ mode }) => {
       globals: true,
       environment: 'jsdom',
       setupFiles: './src/test/setup.ts',
-      css: false,
+      // No stylesheet processing in tests, except `?raw` reads: `css: false` would hand
+      // `index.css?raw` back as "" and blind the theme-token guard (src/test/themeTokens).
+      css: { include: [/\.css\?raw$/] },
       // e2e/ holds Playwright specs (own runner) — keep them out of vitest.
       exclude: [...configDefaults.exclude, 'e2e/**'],
     },

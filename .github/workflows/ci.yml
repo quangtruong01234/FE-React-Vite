@@ -58,3 +58,52 @@ jobs:
         # a PR from a fork must never see them. The fallbacks in
         # src/api/client.ts keep this build valid.
         run: npm run build
+
+      - name: Bundle budgets
+        # gzip ceiling per emitted chunk + a total (scripts/check-bundle.mjs).
+        # Lighthouse only sees the /login entry chunk; this is what catches a
+        # heavy import landing in a route-lazy chunk.
+        run: npm run check:bundle
+
+  lighthouse:
+    name: Lighthouse budgets
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Lighthouse CI
+        # Budgets live in lighthouserc.json: perf score, LCP (median of 3 runs)
+        # and transfer size per resource type, each ~12–15% above the baseline
+        # recorded when the job was added. It audits `vite preview` /login with
+        # no gateway behind it — the /health proxy fails fast, the app drops into
+        # demo mode, and that path is deterministic enough to compare run to run.
+        # `npx` rather than a devDependency: nothing else needs @lhci/cli, and
+        # the minor range is pinned so a Lighthouse bump cannot move the scores
+        # under us unannounced. ubuntu-latest ships Google Chrome.
+        # deploy.yml waits on the whole "CI" workflow, so a blown budget blocks the
+        # release too — raise the number in lighthouserc.json deliberately, in
+        # the same PR that justifies it, rather than muting the job.
+        run: npx -y @lhci/cli@0.15.x autorun
+
+      - name: Upload Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: .lighthouseci/
+          retention-days: 14

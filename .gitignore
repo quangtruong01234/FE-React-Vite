@@ -19,6 +19,8 @@ design_handoff_trybuy_ui
 /blob-report/
 /playwright/.cache/
 e2e/.auth/
+# Admin credentials for the `admin` project (template: e2e/.env.example).
+e2e/.env.local
 
 # Design screenshots dropped into public/ — ignore the images, NOT the folder.
 # A bare `public` entry excludes the directory itself, and git cannot re-include
@@ -38,3 +40,6 @@ login.json
 # root instead of discarding the output. Anchored to `/` so it only covers that
 # one spot (`nul` is a reserved name on Windows; nothing legitimate can be there).
 /nul
+
+# Lighthouse CI run output (`npx @lhci/cli autorun`, see lighthouserc.json).
+/.lighthouseci
