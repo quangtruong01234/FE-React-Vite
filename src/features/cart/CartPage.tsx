@@ -7,6 +7,7 @@ import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { formatPrice, buildVariantLabel, cn } from '@/lib/format/utils';
 import { toApiError } from '@/lib/http/apiError';
+import { productCoverImage } from '@/lib/domain/productImage';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { ApiErrorState } from '@/components/shared/ApiErrorState';
 import { IconButton } from '@/components/shared/IconButton';
@@ -15,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { ProductWithInventory } from '@/types';
 import { effectiveUnitPrice } from './shippingFee';
 import { cartLineName } from './checkoutItems';
+import { canIncreaseCartLine } from './cartQuantity';
 import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
 
 export default function CartPage(): ReactElement {
@@ -193,7 +195,7 @@ export default function CartPage(): ReactElement {
               {items.map(item => {
                 const product = productMap.get(item.productId);
                 const name = cartLineName(product, productsFailed);
-                const imageUrl = product?.imageUrls?.[0] ?? product?.imageUrl ?? '';
+                const imageUrl = productCoverImage(product) ?? '';
                 const variantLabel = buildVariantLabel(item.skuTierIdx, product?.variations);
                 const price = getEffectivePrice(item);
                 const checked = selectedIds.has(item.id);
@@ -257,7 +259,7 @@ export default function CartPage(): ReactElement {
                           {item.quantity}
                         </span>
                         <IconButton
-                          disabled={isMutating}
+                          disabled={isMutating || !canIncreaseCartLine(item.quantity)}
                           onClick={() => updateItem.mutate({ itemId: item.id, quantity: item.quantity + 1 })}
                           aria-label="Tăng số lượng"
                           className="size-7 rounded-md border border-bdr bg-canvas-elevated text-ink-pri transition-colors enabled:cursor-pointer enabled:hover:border-accent-amber disabled:opacity-40 disabled:cursor-not-allowed"

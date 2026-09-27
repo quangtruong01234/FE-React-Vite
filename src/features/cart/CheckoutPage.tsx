@@ -26,6 +26,7 @@ import { effectiveUnitPrice, buildShippingFeeItems } from "./shippingFee";
 import { isGhnAddressRefusal, shippingFeeFailure } from "./shippingFeeError";
 import { checkoutSubmitErrorMessage } from "./checkoutSubmitError";
 import { buildOrderItems, findStockShortages } from "./checkoutItems";
+import { canIncreaseCartLine } from "./cartQuantity";
 import {
   normalizeVoucherCode,
   distinctSellerCount,
@@ -39,6 +40,7 @@ import {
   voucherSuggestionDiscount,
 } from "./voucherSuggestions";
 import { resolvePaymentUrl, redirectToPaymentGateway, paymentUrlErrorMessage } from "@/lib/domain/paymentUrl";
+import { productCoverImage } from "@/lib/domain/productImage";
 import { api } from "@/api";
 import {
   useCart,
@@ -576,7 +578,7 @@ export default function CheckoutPage(): ReactElement {
               ) : items.map((item) => {
                 const product = productMap.get(item.productId);
                 const name = product?.name ?? (productsLoading ? "" : "Sản phẩm không còn tồn tại");
-                const imageUrl = product?.imageUrls?.[0] ?? product?.imageUrl ?? "";
+                const imageUrl = productCoverImage(product) ?? "";
                 const variantLabel = buildVariantLabel(item.skuTierIdx, product?.variations);
                 return (
                 <div
@@ -634,7 +636,7 @@ export default function CheckoutPage(): ReactElement {
                       </span>
                       <button
                         type="button"
-                        disabled={isMutating}
+                        disabled={isMutating || !canIncreaseCartLine(item.quantity)}
                         onClick={() =>
                           updateItem.mutate({
                             itemId: item.id,

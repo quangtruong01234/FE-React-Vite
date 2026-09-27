@@ -71,3 +71,24 @@ describe('CartPage load failure', () => {
     expect(screen.queryByText('Giỏ hàng trống')).not.toBeInTheDocument();
   });
 });
+
+describe('CartPage quantity cap (AUD-0925-03)', () => {
+  it('disables "+" on a line already at the 999-unit backend cap', async () => {
+    server.use(
+      http.get(`${API_BASE}/cart`, () =>
+        HttpResponse.json({
+          data: {
+            ...cart,
+            items: [{ ...cart.items[0], quantity: 999 }, cart.items[1]],
+          },
+        }),
+      ),
+    );
+    renderWithProviders(<CartPage />);
+    await screen.findByRole('button', { name: /ĐẶT HÀNG \(2\)/ });
+
+    const [capped, belowCap] = screen.getAllByRole('button', { name: 'Tăng số lượng' });
+    expect(capped).toBeDisabled();
+    expect(belowCap).toBeEnabled();
+  });
+});
