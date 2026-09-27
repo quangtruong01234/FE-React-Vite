@@ -1,9 +1,32 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices, type Project } from '@playwright/test';
+
+// Admin credentials live outside the tracked tree (see e2e/.env.example). Real
+// env vars win; the file is optional, so a missing one is not an error.
+try {
+  process.loadEnvFile('e2e/.env.local');
+} catch {
+  // no local env file — the admin project is simply left out below
+}
+const hasAdmin = Boolean(process.env.E2E_ADMIN_USERNAME && process.env.E2E_ADMIN_PASSWORD);
+
+const adminProjects: Project[] = hasAdmin
+  ? [
+      {
+        name: 'admin',
+        testMatch: /.*\.admin\.spec\.ts/,
+        dependencies: ['setup'],
+        use: { ...devices['Desktop Chrome'], storageState: 'e2e/.auth/admin.json' },
+      },
+    ]
+  : [];
 
 /**
  * Playwright E2E config for TryBuy frontend.
  *
- * Scenarios map 1:1 to `.ai/agent-handoff/e2e-payment-audit-2026-06-26.md`.
+ * Two layers: `smoke.<role>.spec.ts` opens every route in e2e/routes.ts; the
+ * other specs cover deep flows (payment audit 2026-06-26, auth session swap).
+ * Projects: setup → buyer / shop / admin (admin only when E2E_ADMIN_* is set,
+ * see e2e/.env.example) + public (signed out).
  * Prereqs to RUN:
  *   1. Vite dev server reachable at http://localhost:5173 (auto-started below).
  *   2. Backend reachable at http://localhost:3000 (Vite proxies /api → :3000).
@@ -42,6 +65,13 @@ export default defineConfig({
       testMatch: /.*\.shop\.spec\.ts/,
       dependencies: ['setup'],
       use: { ...devices['Desktop Chrome'], storageState: 'e2e/.auth/shop.json' },
+    },
+    ...adminProjects,
+    // Signed-out checks (login page, auth gate). No storageState, no setup.
+    {
+      name: 'public',
+      testMatch: /.*\.public\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
     },
   ],
 

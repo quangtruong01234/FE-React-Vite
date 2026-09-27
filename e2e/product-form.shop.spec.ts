@@ -9,14 +9,19 @@ test.describe('Product create form', () => {
     await page.goto('/sell');
 
     const skuInput = page.getByPlaceholder('VD: IPHONE14PM-256-BLK');
-    test.skip(!(await skuInput.isVisible().catch(() => false)), 'SKU field not on /sell (multi-variation mode?)');
+    // Wait for it: `/sell` is lazy, and a non-waiting `isVisible()` read here
+    // used to return false mid-load and skip the test on every run.
+    await expect(skuInput).toBeVisible();
     await expect(skuInput).toHaveValue('');
+    // The code is derived from the name — with no name the button is a no-op
+    // by design (`generateSku` in BasicInfoSection.tsx), not the UI-3 bug.
+    await page.getByPlaceholder('VD: iPhone 14 Pro Max 256GB').fill('E2E Auto Sku 128GB');
 
     await page.getByRole('button', { name: 'Tự động tạo SKU' }).click();
 
     // Bug UI-3: the first click is a no-op; a code only appears on the second.
     // Correct: one click generates a non-empty SKU.
-    await expect(skuInput).not.toHaveValue('', { timeout: 3_000 });
+    await expect(skuInput).toHaveValue(/^E2E_AUTO_SKU_12_\d{4}$/, { timeout: 3_000 });
   });
 
   // BE-4: single-SKU `POST /api/products` returns 502 while the identical multi-SKU

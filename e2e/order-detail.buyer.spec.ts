@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ACCOUNTS } from './accounts';
-import { findOrder } from './orderApi';
+import { findOrder } from './api';
 
 // Covers audit items: BE-2 (cancel 503), FE-1 (silent cancel failure), UI-1 (raw
 // pipe-delimited shipping address). Order *reads* work even while the write-path
@@ -8,7 +7,7 @@ import { findOrder } from './orderApi';
 
 test.describe('Order detail — cancel & address rendering', () => {
   test('UI-1: shipping address is parsed, not raw pipe-delimited', async ({ page, request }) => {
-    const order = await findOrder(request, ACCOUNTS.buyer.userId, () => true);
+    const order = await findOrder(request, () => true);
     test.skip(!order, 'No orders for buyer to inspect');
 
     await page.goto(`/order/${order!.id}`);
@@ -23,7 +22,7 @@ test.describe('Order detail — cancel & address rendering', () => {
   });
 
   test('BE-2 + FE-1: cancelling a pending order gives visible feedback', async ({ page, request }) => {
-    const pending = await findOrder(request, ACCOUNTS.buyer.userId, (o) => o.status === 'pending');
+    const pending = await findOrder(request, (o) => o.status === 'pending');
     test.skip(!pending, 'No pending order available to cancel');
 
     await page.goto(`/order/${pending!.id}`);

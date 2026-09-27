@@ -18,10 +18,13 @@ async function failBatchEnrichment(page: import('@playwright/test').Page): Promi
   });
 }
 
+// Waits for the cart to settle on either the checkout CTA or the empty state.
+// A non-waiting read (`isVisible()`, `textContent()`) taken while the lazy
+// page still shows skeletons answered "empty" and skipped the test vacuously.
 async function cartHasItems(page: import('@playwright/test').Page): Promise<boolean> {
-  const badge = page.getByRole('link', { name: /Giỏ hàng/ }).locator('span').first();
-  const txt = (await badge.textContent().catch(() => '')) ?? '';
-  return /\d/.test(txt) && txt.trim() !== '0';
+  const placeOrder = page.getByRole('button', { name: /ĐẶT HÀNG/ });
+  await expect(placeOrder.or(page.getByText('Giỏ hàng trống'))).toBeVisible();
+  return placeOrder.isVisible();
 }
 
 test.describe('Cart / checkout resilience to enrichment failure', () => {
@@ -42,7 +45,7 @@ test.describe('Cart / checkout resilience to enrichment failure', () => {
 
     await failBatchEnrichment(page);
     const placeOrder = page.getByRole('button', { name: /ĐẶT HÀNG/ });
-    test.skip(!(await placeOrder.isVisible().catch(() => false)), 'Place-order CTA unavailable');
+    await expect(placeOrder).toBeEnabled();
     await placeOrder.click();
 
     await expect(page).toHaveURL(/\/checkout/);

@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ACCOUNTS } from './accounts';
-import { findOrder } from './orderApi';
+import { findOrder } from './api';
 
 // Covers FE-2: re-paying a pending online order via "Thanh toán ngay" must land
 // on the live gateway QR/checkout — NOT the VNPay "Giao dịch đã quá thời gian chờ
@@ -13,7 +12,6 @@ test.describe('Re-pay pending order → gateway', () => {
   test('FE-2: "Thanh toán ngay" reaches gateway, not the expired page', async ({ page, request }) => {
     const order = await findOrder(
       request,
-      ACCOUNTS.buyer.userId,
       (o) => o.status === 'pending' && (o.paymentMethod === 'vnpay' || o.paymentMethod === 'zalopay'),
     );
     test.skip(!order, 'No pending online-payment order to retry');
