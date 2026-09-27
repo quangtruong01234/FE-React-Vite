@@ -92,7 +92,7 @@ import { Controller } from 'react-hook-form';
 
 - **Server state** → TanStack Query (products, orders, user data)
 - **UI state** → `useState` / `useReducer` (modal open, form input, selected tab)
-- **Global client state** → React Context only when truly cross-cutting. `AuthContext` is currently the **only** one — cart is server state (`hooks/data/useCart.ts` + `hooks/query/cartCache.ts`), not a context.
+- **Global client state** → React Context only when truly cross-cutting. Today there are two: `AuthContext` and `ThemeContext` (light/dark, F13) — cart is server state (`hooks/data/useCart.ts` + `hooks/query/cartCache.ts`), not a context.
 - Never use TanStack Query for pure UI state
 **Zustand — chưa install. Chỉ thêm khi có đúng 1 trong các trigger sau:**
 

@@ -15,6 +15,1092 @@
 
 ## Maintenance
 
+### AUD-0925-03 · Nút "+" số lượng dừng ở 999 (2026-09-27)
+
+Class **A** (chỉ thêm điều kiện `disabled`; BE cũ không có trần thì FE vẫn đúng, chỉ không cho
+vượt 999). Theo `../../.agent-local/frontend-handoff.md` §Done → AUD-0925-03: BE giờ trả **400**
+khi một dòng giỏ vượt 999 đơn vị.
+
+**Vì sao.** Stepper "+" ở `/cart` và `/checkout` không có trần, và `useUpdateCartItem` không hiện
+lỗi nào ra UI ⇒ ở 999 bấm "+" là gửi một request chắc chắn 400 rồi im lặng không có gì xảy ra.
+Chặn ở nút thay vì hiện toast lỗi: request không bao giờ đi.
+
+**Thay đổi.**
+- `src/features/cart/cartQuantity.ts` (mới): `MAX_CART_LINE_QUANTITY = 999` (mirror
+  `libs/constant/cart.constant.ts` của BE) + `canIncreaseCartLine(quantity)`.
+- `CartPage.tsx` và `CheckoutPage.tsx`: nút "+" `disabled` khi `!canIncreaseCartLine(item.quantity)`,
+  dùng lại style disabled sẵn có.
+- **Không đổi:** `ProductDetail` (`maxQty = min(available, 99)`) — ca "dòng đã 950 + thêm 99" vượt
+  tổng 999 vẫn ra 400 và optimistic update rollback im lặng như mọi lỗi add khác. Hiếm, không nằm
+  trong diff tối thiểu.
+
+**Test.** `cartQuantity.test.ts` (3) + `CartPage.test.tsx` "disables + at 999" (1). Gates: build ✓ ·
+`check:bundle` ✓ (tổng 655 594 / 750 000) · lint 0 · `test:run` **1343 / 160 file** xanh.
+
+**Runtime (7a, stack local).** `/cart` smoke ✓ · `/checkout` smoke ✓ · `checkout-resilience`
+deep 2/2 ✓. Không đo được `uptime` gateway (curl bị chặn quyền) — cả lượt đều pass nên restart
+giữa chừng không che lỗi nào. 7b MCP: không áp dụng (không đổi layout). `/cart` vẫn `deep: []`
+(E2E-DEBT); ca 999 không đáng deep spec vì cần seed dòng giỏ 999 đơn vị.
+
+**Mẹo đo:** trên Git Bash, `npx playwright test -g "/cart"` ra *No tests found* vì MSYS đổi
+`/cart` thành đường dẫn Windows — thêm `MSYS_NO_PATHCONV=1`.
+
+### EMAIL-REAUTH-01 · Đổi email phải nhập mật khẩu hiện tại (2026-09-26)
+
+Class **C**, theo contract `PATCH /api/user/:id` mới của BE (`../../.agent-local/frontend-handoff.md`
+§Done → EMAIL-REAUTH-01). Thứ tự push: **`api` trước, `frontend` ngay sau**. BE mới với FE cũ ⇒ đổi
+email ra 400. FE mới với BE cũ ⇒ BE từ chối key `currentPassword` (`forbidNonWhitelisted`). Đổi
+tên/avatar thì vẫn chạy ở cả hai chiều.
+
+**Vì sao.** Mã reset mật khẩu gửi tới `users.email`. Vì vậy ai cướp được session có thể đổi email
+rồi lấy luôn mật khẩu qua forgot-password. BE giờ bắt nhập mật khẩu hiện tại khi email khác email
+đã lưu.
+
+**Thay đổi.**
+- `src/features/user/profileForm.ts`:
+  - `isEmailChanged(stored, typed)` so sánh exact-string, giống BE, nên đổi mỗi hoa/thường cũng
+    tính. Trim hay lowercase ở FE sẽ giấu ô mật khẩu trong khi server vẫn đòi, và lượt lưu ra 400.
+  - `profileFormSchemaFor(storedEmail)`: email đổi mà thiếu mật khẩu (kể cả chuỗi rỗng) ⇒ lỗi ở
+    `currentPassword`.
+  - `profileUpdatePayload(data, storedEmail)` chỉ gắn `currentPassword` khi email đổi. Modal gửi lại
+    email cũ ở mọi lượt lưu, nên lưu tên/avatar không bao giờ mang mật khẩu theo.
+  - `profileUpdateError`:
+    - 401 → `currentPasswordAuthError` (helper mới, tách từ `changePassword.ts`, dùng chung với
+      form đổi mật khẩu). `INVALID_CURRENT_PASSWORD` ⇒ ô mật khẩu, `UNAUTHENTICATED` ⇒ root "phiên
+      hết hạn".
+    - 429 ⇒ root. Route giới hạn 10 lượt / 60s mỗi user.
+    - 400 có nhắc tới `currentPassword` ⇒ ô mật khẩu. Đây là lưới dự phòng, vì schema chặn trước.
+    - Còn lại ⇒ mapping 409 email trùng như cũ.
+- `src/api/users.ts`: `update` bật `skipUnauthorizedRedirect` khi có `currentPassword`. Không có dòng
+  này thì gõ sai mật khẩu ⇒ 401 ⇒ bị đá về `/login` và mất form, trong khi cookie vẫn sống.
+  Lưu hồ sơ bình thường vẫn redirect như cũ.
+- `src/features/user/EditProfileModal.tsx`:
+  - `PasswordField` "Mật khẩu hiện tại" chỉ hiện khi email đã đổi. Dùng `useWatch`, không dùng
+    `watch()`, vì lint `react-hooks/incompatible-library`.
+  - Mật khẩu đã gõ bị xoá khi đóng modal và khi lưu thành công.
+- `src/types/user.ts`: `UpdateUserDto.currentPassword?`.
+
+**Test (+17):**
+- `profileForm.test.ts`: `isEmailChanged`, schema, payload, error mapper (401 × 2, 400, 429, 409,
+  network).
+- `api/index.test.ts`: update có `currentPassword` bị 401 ⇒ không redirect; update không có nó ⇒
+  vẫn redirect.
+
+**Gates:** build ✓ · check:bundle ✓ (655,436 / 750,000) · lint 0 problem · **1339 test / 159 file** ✓.
+
+**7a:** Playwright `/profile/:id` buyer smoke ✓ (4/4 kể cả setup). Route vẫn `deep: []`, deep spec
+còn nợ (đã ghi vào E2E-DEBT trong snapshot).
+
+**7b (Chrome DevTools MCP, stack local, `chgpw_test`):**
+- Email chưa đổi ⇒ không có ô mật khẩu.
+- Gõ email mới ⇒ ô hiện ra. Submit trống ⇒ "Nhập mật khẩu hiện tại để đổi email", không gửi request.
+- Mật khẩu sai ⇒ `PATCH /api/user/usr_wfE9oVTgqJuBBCqu` **401**, ô báo "Mật khẩu hiện tại không
+  đúng.", vẫn ở `/profile`. Layout thẳng hàng.
+- Hủy ⇒ mở lại thì ô mật khẩu trống.
+- **Không đổi email thật** của account nào. Happy path với BE thật chưa chạy, chỉ có unit test.
+
+**Ghi nhận, không sửa:** tên/email đã sửa vẫn còn sau khi bấm Hủy. Modal vẫn mounted và
+`handleClose` chưa bao giờ reset hai field đó, nên chuyện này có từ trước. Vì vậy mở lại sau một lần
+đổi email bị bỏ dở thì ô mật khẩu vẫn hiện. Hành vi nhất quán, nằm ngoài phạm vi.
+
+### THEME-05 · Chart theo theme (F13): một palette mỗi theme, chart vẽ lại khi bật công tắc (2026-09-26)
+
+Class **A**: chỉ FE. Đây là bước 5/6 của F13. Ở **theme tối** chart vẽ đúng các hex cũ (đo bằng
+MCP, xem 7b). Theme sáng vẫn chỉ bật ở dev, nên người dùng thật không thấy khác biệt nào.
+
+**Vấn đề.** Chart.js vẽ lên `<canvas>`, nên màu phải là chuỗi literal; class Tailwind và biến CSS
+không với tới. `chartTheme.ts` chỉ có một bộ hex (của theme tối), nên ở theme sáng tooltip, gridline
+và viền doughnut vẫn là xám đậm trên nền trắng, còn series vẫn là `#F59E0B` (~2.1:1 trên trắng).
+
+**Thay đổi.**
+- `src/lib/chart/chartTheme.ts`:
+  - `ChartColor` = `'amber' | 'red' | 'green' | 'cyan' | 'violet' | 'blue' | 'muted'`. Data code chỉ
+    lưu vai trò màu, không bao giờ lưu hex.
+  - `CHART_PALETTES: Record<Theme, ChartPalette>`: mỗi theme có `surface` (`canvas-elevated`), `grid`
+    (`bdr`), `inkPri`, `inkSec` và `series` cho 7 vai trò. Mọi hex là bản sao của một biến trong
+    `index.css`.
+  - `CHART_DOT_CLASS`: cùng 7 vai trò dưới dạng class token (`bg-accent-amber`, …, `bg-ink-muted`),
+    cho chấm legend.
+  - `ORDER_STATUS_CHART_COLOR`, `CHART_CATEGORICAL_PALETTE`, `categoricalColor()` giờ trả `ChartColor`.
+    Bỏ các hằng `CHART_AMBER`/`CHART_SURFACE`/….
+- Hook mới `components/shared/charts/useChartPalette.ts`: đọc `ThemeContext` và trả
+  `CHART_PALETTES[theme]`. Object đó là một trong hai hằng, nên chỉ đổi identity khi đổi theme.
+  Hook không gọi `useTheme()` vì hàm đó throw khi không có provider (test trang render chart không có
+  provider); thiếu provider thì palette là tối.
+- `DoughnutChart`, `RankedBarChart`, `TrendAreaChart`: tra màu qua `palette.series[color]`,
+  `palette.surface`/`grid`/`inkSec`, và thêm `palette` vào deps của cả hai `useMemo` (`data`,
+  `options`). **Bật công tắc là chart vẽ lại ngay, không cần reload.**
+- `chartOptions.ts`: hằng `CHART_TOOLTIP_STYLE` thành hàm `chartTooltipStyle(palette)`.
+- `chartSetup.ts`: `ChartJS.defaults.color` lấy `CHART_PALETTES.dark.inkSec`; mọi chart tự đặt màu
+  từ palette nên default này chỉ là lưới an toàn.
+- `ChartLegend`: bỏ `style={{ '--dot': … }}` + `bg-[var(--dot)]`, chấm giờ là
+  `className={cn(…, CHART_DOT_CLASS[slice.color])}`. Token tự đổi theo theme nên legend không cần
+  palette. **Ngoại lệ inline style của `ChartLegend` trong allow-list của `/check-tailwind` bị gỡ.**
+- Các nơi gọi đổi hex sang vai trò: `AdminPage` (`'amber'`), `AnalyticsDashboard` (`'amber'`,
+  `'cyan'`), `ShopPage` (`'amber'`, `'red'`, `'muted'`), `stockChartData.ts`.
+
+**Test (+6, +1 file).**
+- `chartTheme.test.ts`, describe mới "CHART_PALETTES mirror src/index.css":
+  - đọc `index.css?raw` + `tailwind.config.js`, đổi kênh RGB của biến sau mỗi token ra hex;
+  - `it.each(['dark','light'])`: `surface`/`grid`/`inkPri`/`inkSec` phải khớp
+    `canvas-elevated`/`bdr`/`ink-pri`/`ink-sec`, và mỗi `series[vai trò]` phải khớp đúng token trong
+    `CHART_DOT_CLASS` (nếu lệch thì legend và cung tròn khác màu);
+  - palette sáng phải khác palette tối;
+  - test `ORDER_STATUS_CHART_COLOR`: mọi trạng thái resolve được ở cả 2 palette.
+  - **Thử đột biến:** đổi amber sáng thành `#B45308` thì test fail. Đã gỡ lại.
+- `useChartPalette.test.tsx` (mới, 3 test): palette theo theme và giữ identity khi rerender cùng
+  theme; không có provider thì ra palette tối; chấm của `<ChartLegend>` có class
+  `bg-accent-amber`/`bg-ink-muted` và không có `style`.
+- `themeTokens.test.ts`: guard `findHardcodedColors` giờ chỉ trừ `lib/chart/chartTheme.ts` thay vì
+  cả `lib/chart/**`. Sửa luôn comment ghi nhầm "Recharts".
+- `analyticsChartData.test.ts`, `stockChartData.test.ts`: assert vai trò thay vì hex.
+
+**Gates** (chạy một lần cho cả THEME-04-FU và THEME-05).
+- `npm run build` ✓ · `npm run lint` 0 problem.
+- `npm run test:run`: **1322 test / 159 file**, all pass (1315 + 1 FU + 6).
+- `npm run check:bundle` ✓: CSS **11,338 → 11,351 B gzip (+13 B)**, gồm class chip của THEME-04-FU và
+  `bg-accent-*` của chấm legend. Tổng 655,058 → 655,267 / 750,000. Chunk `DoughnutChart` 179.13 kB
+  (63.10 kB gzip).
+
+**7a · E2E** trên dev server **mới khởi động** ở `:5178` (5173–5177 là của user; config Playwright
+tạm đã xoá sau khi chạy).
+- Smoke 4 role **43/43 pass, 0 skip**, cộng deep `auth-session-swap.buyer.spec.ts` (`/marketplace`,
+  cho THEME-04-FU) pass. Các route chart khác đều `deep: []`.
+- Uptime gateway 6683.3 → 6836.7 s, tức BE không restart giữa chừng.
+
+**7b · MCP** (`:5178`, page isolated; đọc `Chart.getChart(canvas)` qua module `chart.js` của Vite).
+- **Theme tối, `/admin`:** line `#F59E0B`, vòng điểm `#1C1C1E`, tooltip nền `#1C1C1E` / tiêu đề
+  `#FFFFFF`, grid `#27272A`, tick `#A1A1AA`; doughnut `#EF4444`/`#10B981`, viền `#1C1C1E`; chấm legend
+  `rgb(239,68,68)`/`rgb(16,185,129)`. **Y hệt trước.**
+- **Bật công tắc trong `ProfileMenu`, không reload:** line `#B45309`, vòng điểm và tooltip
+  `#F4F4F5`, tiêu đề `#09090B`, grid/viền tooltip `#E4E4E7`, tick `#52525B`; doughnut
+  `#B91C1C`/`#047857`; chấm `rgb(185,28,28)`/`rgb(4,120,87)`.
+- **Theme sáng, các route khác:** `/admin/analytics` có 2 series `#B45309` + `#0E7490`, doughnut, bar
+  `#B45309`, 4 chấm legend khớp canvas. `/shop` (doughnut tồn kho `#047857`), `/shop/analytics`
+  (`#B91C1C`), `/orders` (`#7C3AED`).
+- **Theme tối, `/shop/analytics`:** `#EF4444`, viền và tooltip `#1C1C1E`.
+- Không phải lỗi: grid trục y của `RankedBarChart` vẫn là default Chart.js `rgba(0,0,0,0.1)`, nhưng
+  trục đó `display: false` nên không vẽ; grid thật (trục x) là `palette.grid`.
+
+**7c · Perf.** Không thêm state hay effect. `useChartPalette` là một `useContext`, và palette chỉ đổi
+identity khi đổi theme, nên memo của chart không tính lại thêm lần nào. CSS +13 B gzip (chung).
+
+**Doc đã cập nhật.**
+- `.ai/workflows/check-tailwind.md`: gỡ dòng `ChartLegend` `--dot` khỏi allow-list inline style;
+  đoạn "Sanctioned exception" của `chartTheme.ts` giờ mô tả palette theo theme, `useChartPalette()`,
+  `CHART_DOT_CLASS` và test ghim.
+- `.ai/context/styling.md`: guard trừ `lib/chart/chartTheme.ts` (không còn cả `lib/chart/`); ví dụ
+  inline style đổi "chart colors" thành "chart height".
+- `.ai/tokens.md` "Inline `style={{}}` — when allowed": màu chart không còn là lý do dùng inline style.
+- `snapshot.md`: THEME-05 được gỡ khỏi F13.
+
+Không có gap nào phía BE, nên không cần entry trong `backend-handoff.md`.
+
+### THEME-04-FU · Nút tim trên ảnh đọc được ở theme sáng: chip theo theme thay cho scrim đen (2026-09-26)
+
+Class **A**: chỉ FE, chỉ đổi class ở 2 chỗ gọi. Việc này được tìm ra ở 7b của THEME-04.
+
+**Vấn đề.** Nút tim ở `ProductCard` và `WishlistPage` nằm trên scrim ảnh `bg-scrim/50`, còn icon là
+`text-ink-sec` (chưa thích) / `text-accent-red` (đã thích). Ở theme sáng hai màu đó ra
+`rgb(82,82,91)` / `rgb(185,28,28)`, nằm trên nền tối trong suốt, nên tương phản thấp.
+
+**Thay đổi.** Snapshot đề xuất thêm prop (`onImage`) để `WishlistButton` chọn cặp màu khác. Tôi làm
+cách khác, gọn hơn: **đổi nền chứ không đổi icon.** Nút giờ nằm trên chip theo theme:
+`bg-canvas-elevated/90 backdrop-blur-sm border border-bdr hover:bg-canvas-elevated`. Chip là nền
+canvas, nên màu icon sẵn có đọc được ở cả 2 theme, giống hệt nút tim trên nền thường ở
+`ProductDetail`. `WishlistButton` không đổi, không thêm prop, và twMerge không đè màu đỏ của trạng
+thái đã thích.
+- `ProductCard.tsx`: `size-8 … z-10`.
+- `WishlistPage.tsx`: `size-9`.
+- **Theme tối có đổi nhẹ:** từ scrim đen trong suốt sang chip xám nổi (`rgba(28,28,30,.9)`) có viền
+  `rgb(39,39,42)`.
+
+**Test (+1).** `ProductCard.test.tsx`: "puts the wishlist heart on a theme-aware chip, not the scrim
+(THEME-04-FU)". Test này đòi nút có `bg-canvas-elevated/90` + `border-bdr` và không còn `bg-scrim`.
+
+**Gates.** Chạy chung với THEME-05 (xem entry trên): 1322 test / 159 file, CSS +13 B gzip tính chung.
+
+**7a · E2E.** Chạy chung với THEME-05: smoke buyer thuộc 43/43, cộng deep
+`auth-session-swap.buyer.spec.ts` cho `/marketplace` pass.
+
+**7b · MCP** (`:5178`, `/marketplace`, tài khoản shop, page isolated).
+- **Theme tối:** chip `rgba(28,28,30,.9)`, viền `rgb(39,39,42)`, `backdrop-filter: blur(4px)`, icon
+  `rgb(161,161,170)`, hộp 32×32, icon lệch tâm 0/0. Nút đọc rõ trên cả ảnh nền trắng (bàn phím) lẫn
+  ảnh sáng (bầu trời).
+- **Theme sáng:** chip `rgba(244,244,245,.9)`, viền `rgb(228,228,231)`, icon `rgb(82,82,91)`, đọc rõ
+  trên cả ảnh tối.
+- `/wishlist`: tài khoản kiểm tra không có mục yêu thích nào, và tôi không ghi thêm dữ liệu chỉ để
+  xem. Chỗ này dùng đúng chuỗi class đó (`size-9`), nhưng **chưa kiểm tra bằng mắt**.
+
+**7c · Perf.** Chỉ đổi class. CSS tính chung với THEME-05.
+
+**Doc.** `snapshot.md`: THEME-04-FU được gỡ khỏi F13. Không có gap nào phía BE.
+
+### THEME-04 · Dọn màu viết thẳng (F13): chữ trên gradient/ảnh là `ink-on-accent`, overlay là `scrim`, guard quét `src/` (2026-09-26)
+
+Class **A**: chỉ FE, chỉ đổi class Tailwind. Đây là bước 4/6 của F13. Ở **theme tối** mọi màu vẫn y
+như cũ (đo computed style bằng MCP, xem 7b). Theme sáng vẫn chỉ bật ở dev, nên người dùng thật không
+thấy khác biệt nào.
+
+**Thay đổi.** Chọn token theo thứ màu đó nằm **trên**:
+- Chữ/icon trên `bg-tb-gradient`, accent đặc (`bg-accent-red`), ảnh hoặc scrim → `text-ink-on-accent`
+  (trắng ở cả 2 theme):
+  - `text-white` ở `Header`, `LeftRail`, `GradientButton`, `LiveBadge` (cả chấm `bg-white`), badge đỏ
+    của `PendingBrands`/`PendingCategories`/`ReportedPosts`, `ProductRiskPage`, `VoucherConsole`,
+    `PostCard` (6 chữ + 6 `bg-white/NN`), `ChatThread`, `ProductCard`, `BasicInfoSection`,
+    `CreatePostModal`.
+  - **Bug thật ở theme sáng:** khoảng 15 chỗ `bg-tb-gradient text-ink-pri` (`NotificationBell`,
+    `DateField`, `Pagination`, `MessagesPage`, `NotificationsPage`, `MarketplacePage` ×3, `ShopPage`,
+    `PostDetailPage`, `EditProfileModal`, `ProfilePage`, `OrderDetailPage`, tab của
+    `OrderHistoryPage`/`SellerOrdersPage`/`SellerReturnRequestsPage`, nút hành động của
+    `SellerOrdersPage`). `ink-pri` sang theme sáng là gần đen, nên các chỗ này ra **chữ đen trên
+    gradient cam**. Ở theme tối `ink-pri` và `ink-on-accent` cùng là trắng, nên trước giờ không ai thấy.
+  - Thumb của `ToggleSwitch` → `bg-ink-on-accent` (ở theme sáng từng là thumb đen).
+- Chữ trên nền canvas → `text-ink-pri`: `ApiErrorState`, `ErrorBoundary`, `PaymentResultPage` ×4,
+  `ProductDetail`, `Avatar`, `PasswordField`, `ForgotPasswordForm`, `LoginPage` ×8.
+- `bg-black` / `bg-black/NN` (letterbox + lightbox `PostCard`, scrim ảnh `ProductCard`/`WishlistPage`,
+  nút xoá ảnh `BasicInfoSection`/`CreatePostModal`, overlay `ChatDialog`) → `bg-scrim/NN`.
+- `rgba()` viết thẳng:
+  - Focus glow của `PasswordField`, `ForgotPasswordForm`, `LoginPage` ×2:
+    `focus:border-[rgba(245,158,11,0.5)] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)]` →
+    `focus:border-accent-amber/50 focus:ring-4 focus:ring-accent-amber/10`. Biến thể lỗi →
+    `border-tb-red focus:border-tb-red focus:ring-accent-red/10` (`cn()` = twMerge nên ring đỏ đè ring cam).
+  - Stat card `/login` `bg-[rgba(17,17,19,0.6)]` → `bg-canvas-surface/60`. Spinner nút submit →
+    `border-ink-on-accent/40 border-t-ink-on-accent`.
+  - Thumbnail đang chọn ở `ProductDetail` → `border-tb-amber/60 ring-[3px] ring-accent-amber/15`.
+- **Không đổi:** `CreateProductPage` dùng `text-canvas-base` trên gradient. Đó là token chứ không
+  phải màu viết thẳng, tối không đổi, và sang theme sáng thì ra trắng.
+
+**Test (+3).** `src/test/themeTokens.ts` thêm `findHardcodedColors(source)`. Hàm này bỏ qua comment
+(nhưng không bỏ `https://` trong chuỗi) và trả về `dòng: match` cho:
+- utility `white`/`black` với mọi variant và opacity (`hover:bg-black/60`, `border-t-white`);
+- `rgb()`/`rgba()`/`hsl()` có số (không bắt `rgb(var(--x) / …)`);
+- hex 3/4/6/8 ký tự (không bắt `&#123;` hay `#section`).
+
+`themeTokens.test.ts`:
+- 2 test cho chính hàm (bắt đúng / bỏ qua đúng).
+- 1 test quét `src/**/*.{ts,tsx}` bằng `import.meta.glob` `?raw`. Trừ test, `src/test/`,
+  `components/ui/` (bị khoá ghi; overlay `bg-black/80` đọc được ở cả 2 theme), `lib/chart/` (Chart.js
+  cần màu literal — THEME-05) và `lib/theme/theme.ts` (`meta theme-color` cần hex).
+- Test quét phải thấy hơn 300 file, và `hits` phải rỗng.
+- **Thử đột biến:** cài `text-white` vào `ApiErrorState` và `#123456` vào `lib/demo/fixtures.ts` thì
+  cả hai fail kèm `file:dòng`. Đã gỡ lại.
+
+**Gates.**
+- `npm run build` ✓ · `npm run lint` 0 problem.
+- `npm run test:run`: **1315 test / 158 file**, all pass (1312 + 3).
+- `npm run check:bundle` ✓: CSS **11,290 → 11,338 B gzip (+48 B)**, vì các class `ring-*`/`scrim` mới.
+  Tổng 655,058 / 750,000.
+
+**7a · E2E.** Class đổi trên gần như mọi route, nên chạy smoke 4 role cộng **toàn bộ 8 file deep** trên
+dev server **mới khởi động** ở `:5177`. Config Playwright tạm đã xoá sau khi chạy.
+- Smoke **43/43 pass, 0 skip**.
+- Deep: **17 pass, 2 skip**. Cả 2 skip do guard dữ liệu của spec (thiếu dữ liệu phù hợp trên stack
+  local), không do THEME-04. Không chạy lại vì các spec này ghi dữ liệu vào BE.
+- Uptime gateway 5208.7 → 5338.5 → 5411.9 s, tức BE không restart giữa chừng.
+
+**7b · MCP** (`:5177`, page isolated).
+- **Theme tối, không đổi so với trước:**
+  - `/login`: h1/h2/input trắng. Stat card `rgba(17,17,19,.6)`.
+  - Focus ô của form đăng ký: viền `rgba(245,158,11,.5)` + ring 4px `rgba(245,158,11,.1)`. Biến thể lỗi:
+    viền đỏ + ring `rgba(239,68,68,.1)`.
+  - `/marketplace`: chữ trên gradient trắng, scrim `rgba(0,0,0,.5)`, trang active của phân trang trắng.
+  - `/product/:id`: h1 trắng. Thumbnail viền `rgba(245,158,11,.6)` + ring 3px `rgba(245,158,11,.15)`.
+- **Theme sáng:**
+  - `/login`: h1/h2 `rgb(9,9,11)`, stat card `rgba(255,255,255,.6)`, chữ nút submit trắng trên
+    gradient, ring lỗi `rgba(185,28,28,.1)`.
+  - `/marketplace`: mọi chữ trên gradient đều trắng. Không còn phần tử nào khớp
+    `.bg-tb-gradient.text-ink-pri`.
+  - `ToggleSwitch` trong `ProfileMenu`: thumb trắng trên track `rgb(180,83,9)`.
+  - `/product/:id`: h1 và breadcrumb `rgb(9,9,11)`. Thumbnail viền `rgba(180,83,9,.6)` + ring
+    `rgba(180,83,9,.15)`. Screenshot khớp.
+- **Tìm thêm, ngoài phạm vi (đã thành THEME-04-FU trong snapshot):** `WishlistButton` trên scrim ảnh
+  (`ProductCard`, `WishlistPage`) dùng `text-ink-sec` / `text-accent-red`. Ở theme sáng nó ra
+  `rgb(82,82,91)` / `rgb(185,28,28)` trên `rgba(24,24,27,.5)`, tương phản thấp. Không vá được bằng
+  `className` (twMerge sẽ đè luôn màu đỏ của trạng thái đã thích), nên cần thêm prop.
+
+**7c · Perf.** Chỉ đổi tên class, không thêm render hay state. CSS +48 B gzip.
+
+**Doc đã cập nhật.**
+- `.ai/tokens.md`: `ink-pri` giờ đổi theo theme, `ink-on-accent` dùng khi nào, `scrim` cho overlay,
+  và guard test.
+- `.ai/context/styling.md` "Known violations": bảng "màu nằm trên gì → token nào", kèm guard
+  `findHardcodedColors`.
+- `.ai/workflows/check-tailwind.md` Check 5: `white`/`black` đã có test chặn, nên check không quét lại.
+- `snapshot.md`: THEME-04 được gỡ khỏi F13. Thêm THEME-04-FU. Gỡ các ghi chú "phạm vi THEME-04" ở
+  THEME-02/03.
+
+Không có gap nào phía BE, nên không cần entry trong `backend-handoff.md`.
+
+### THEME-03 · Cơ chế + công tắc sáng/tối (F13): `ThemeProvider`, script chặn nháy màu, công tắc ở `ProfileMenu` và `/login` (2026-09-26)
+
+Class **A**: chỉ FE, và **chỉ bật ở dev**. Đây là bước 3/6 của F13. Build prod ra đúng như trước:
+không `data-theme`, không công tắc, `meta theme-color` tối. Người dùng thật không thấy khác biệt
+nào cho tới THEME-06.
+
+**Thay đổi.**
+- `src/lib/theme/theme.ts` (mới), toàn hàm thuần hoặc nhận storage/window/document làm tham số:
+  - `resolveTheme(saved, prefersLight)`: lựa chọn đã lưu thắng, không có thì theo OS.
+  - `parseTheme` chỉ nhận `'light'`/`'dark'`, giá trị rác trong storage coi như chưa lưu.
+  - `readSavedTheme`/`writeSavedTheme` (key `tb-theme`) bọc try/catch. Storage bị chặn (private
+    mode, iframe sandbox) thì rơi về OS, không crash.
+  - `prefersLightScheme` chịu được môi trường không có `matchMedia` (jsdom).
+  - `applyTheme` đặt `<html data-theme>` và `content` của `meta theme-color`.
+  - `THEME_COLOR` (`#09090B` / `#FAFAFA`), `THEME_SWITCH_ENABLED = import.meta.env.DEV`.
+- Context theo đúng khuôn của `AuthContext` (tách file cho Fast Refresh):
+  `themeContextValue.ts`, `ThemeContext.tsx` (`ThemeProvider`), `useTheme.ts` (throw khi ở ngoài
+  provider).
+  - OS được theo dõi bằng `useSyncExternalStore` + listener `change` của `matchMedia`, nên đổi
+    theme hệ điều hành thì web đổi theo ngay, miễn là user chưa tự chọn.
+  - `useLayoutEffect` áp theme trước khi vẽ. Khi tắt (`isEnabled=false`): luôn `'dark'` và
+    không đụng vào `<html>`.
+- `App.tsx`: `ThemeProvider` bọc ngoài `AuthProvider`.
+- `index.html`: thêm `<meta name="theme-color" content="#09090B" />` và một script inline chạy
+  **trước** module script, đặt `data-theme` theo cùng luật với `resolveTheme`. Nhờ vậy không có
+  khung hình tối nào loé lên trước khi React mount. Script bị chặn bằng `'%DEV%' !== 'true'`: Vite
+  thay `%DEV%` bằng `true`/`false` lúc build, và `dist/index.html` ra `'false'`.
+- Công tắc:
+  - `ProfileMenu`: dòng "Giao diện sáng" với `ToggleSwitch` (sm), nằm trên "Đăng xuất".
+  - `/login` không có `ProfileMenu`, nên có `features/auth/ThemeToggleButton.tsx`: `IconButton`
+    tròn 36×36 góc trên phải. Icon là theme **sẽ chuyển sang** (Sun / Moon), aria-label
+    "Chuyển sang giao diện sáng/tối".
+  - Cả hai trả về `null` khi `isSwitchEnabled` là false.
+
+**Test (+27, 3 file mới).**
+- `theme.test.ts`:
+  - `resolveTheme`, `parseTheme`, storage đọc/ghi, storage throw hoặc null, `matchMedia` vắng
+    mặt, `applyTheme` trên document riêng.
+  - `THEME_COLOR` phải trùng `--bg-base` của `:root` và của khối sáng trong `index.css`.
+  - **Script trong `index.html` được lấy ra và chạy thật** với 6 tổ hợp (đã lưu null/light/dark ×
+    OS sáng/tối), kết quả phải trùng `resolveTheme`. Có thêm ca storage throw, và ca "prod gate"
+    (`%DEV%` = `false`) thì không đặt gì. Hai bản của cùng một luật không thể lệch nhau âm thầm.
+- `ThemeContext.test.tsx`: theo OS (kể cả đổi trực tiếp), đã lưu thắng OS, bấm công tắc thì lưu
+  và giữ qua lần đổi OS, tắt thì tối và `<html>` không bị đụng, throw ngoài provider. Thêm
+  `ThemeToggleButton`: đúng nhãn, lật theme, không render khi tắt.
+- `ProfileMenu.test.tsx` (mới): bật công tắc thì `aria-checked`, `data-theme` và storage đổi;
+  khi tắt thì không có công tắc.
+- `LoginPage.test.tsx` bọc thêm `ThemeProvider`.
+
+**Gates.**
+- `npm run build` ✓ · `npm run lint` 0 problem.
+- `npm run test:run`: **1312 test / 158 file**, all pass (1285 + 27).
+- `npm run check:bundle` ✓: CSS **11,271 → 11,290 B gzip (+19 B)**. Tổng 655,025 / 750,000.
+
+**7a · E2E.** Provider bọc toàn app nên chạy smoke 4 role trên dev server **mới khởi động** ở
+`:5176` (`:5175` đang bị chiếm). Config Playwright tạm đã xoá sau khi chạy.
+- **43/43 pass, 0 fail, 0 skip**. Deep của `/login` (`auth.setup.ts`) chạy như bước setup.
+- Uptime gateway 504.7 s trước khi chạy và 659.7 s sau khi chạy, tức BE không restart giữa chừng.
+- Playwright mặc định giả lập `prefers-color-scheme: light`, nên trên dev các spec giờ chạy ở theme
+  sáng. Smoke vẫn xanh.
+
+**7b · MCP** (`:5176`, page isolated, giả lập OS tối).
+- `/login`, chưa lưu gì: `data-theme="dark"` **đã có trước khi module script chạy** (đo bằng
+  initScript bắt `readystatechange` ở `interactive`). Bấm nút thì sáng, lưu `light`, meta
+  `#FAFAFA`. Reload khi OS vẫn tối: trước React đã là `light`, nền `rgb(250,250,250)`. Lựa chọn
+  đã lưu thắng OS và không nháy màu.
+- Giả lập OS sáng: tự sáng, meta `#FAFAFA`. Nút 36×36, icon lệch tâm [0,0].
+- `ProfileMenu` (shop `test1`): dòng công tắc 226×36, switch 36×20, căn giữa dọc (lệch 0). Bấm thì
+  `aria-checked="true"`, `data-theme="light"`, lưu `light`, meta `#FAFAFA`, nền dropdown
+  `rgb(255,255,255)`.
+- Còn lại ở theme sáng: heading trắng của `/login`, panel trái tối và thumb tối của `ToggleSwitch`.
+  **Đúng phạm vi THEME-04** (màu viết thẳng), không phải lỗi cơ chế.
+- Hai artifact của công cụ, không phải bug:
+  - Dev server `:5173` của user chạy từ trước THEME-01 nên vẫn giữ `tailwind.config.js` cũ
+    (pitfalls §18). Ở đó `.bg-canvas-surface` ra `var(--bg-surface)` không hợp lệ, nên dropdown
+    trong suốt. Restart dev server là hết.
+  - Trên page MCP cũ, `click` không phát event nào (`element.click()` qua `evaluate_script` thì
+    chạy). Mở page isolated mới là hết.
+
+**7c · Perf.** CSS +19 B. `ThemeProvider` chỉ render lại khi theme đổi, value được `useMemo`,
+`setTheme`/`toggleTheme` ổn định.
+
+**Doc đã cập nhật.**
+- `.ai/context/structure.md`: `lib/theme/`, `ThemeContext`, `ThemeToggleButton`. Bỏ câu "the
+  ONLY context in the app".
+- `.ai/context/conventions.md`: giờ có hai context.
+- `.ai/tokens.md`: ai đặt `data-theme`, và việc nó chỉ bật ở dev.
+- `snapshot.md`: THEME-03 được gỡ khỏi F13. THEME-06 ghi rõ phải bỏ **cả hai** cổng dev.
+
+Không có gap nào phía BE, nên không cần entry trong `backend-handoff.md`.
+
+### THEME-02 · Bảng màu sáng (F13): khối `[data-theme="light"]`, rule global và shadow đọc biến (2026-09-25)
+
+Class **A**: chỉ đổi `src/index.css`, `tailwind.config.js` và test, không đổi component nào. Đây là
+bước 2/6 của F13. Khối sáng đã có nhưng **chưa có gì bật nó** (công tắc là THEME-03), nên người
+dùng không thấy khác biệt nào.
+
+**Thay đổi.**
+- `src/index.css`, khối `[data-theme="light"]` mới:
+  - Mọi biến của `:root` đều có giá trị sáng, kèm `color-scheme: light`.
+  - Nền: base `#FAFAFA`, surface `#FFFFFF`, elevated `#F4F4F5`. Viền `#E4E4E7`.
+  - Chữ: `#09090B` / `#52525B` / `#6B6B73`.
+  - Accent: amber `#B45309` (quyết định F13), red `#B91C1C`, cyan `#0E7490`, green `#047857`,
+    violet `#7C3AED`, blue `#2563EB`.
+  - `shadow-tb-card` thành bóng xám nhẹ. `shadow-tb-cta` và gradient CTA giữ nguyên.
+  - Glow của `login-left` nhạt hơn (0.14 / 0.10).
+- Rule global giờ đọc biến thay vì viết hex:
+  - `:root` `color`/`background-color`.
+  - `a`, `a:hover`, `button`, `button:hover`.
+  - Chữ và viền của `.ProseMirror` và `.prose-tb`.
+- Token mới:
+  - `ink-on-accent` (`--text-on-accent`): trắng ở **cả hai** theme, dùng cho chữ trên gradient hoặc
+    trên ảnh. THEME-04 sẽ chuyển `text-white` sang token này.
+  - `scrim` (`--scrim`): lớp phủ của modal và drawer.
+- `tailwind.config.js`: `boxShadow.tb-*` và `backgroundImage.login-left` thành
+  `var(--tb-shadow-*)` / `var(--tb-login-glow)`.
+- Xoá 17 biến `--tb-*` hex chết trong `:root` (`--tb-bg`, `--tb-fg*`, `--tb-grad*`, `--tb-ring-amber`,
+  …). Đã grep: không còn chỗ nào trong `src/` dùng chúng, config cũng không. `--tb-online*` được
+  giữ lại vì `OnlinePill.tsx` còn dùng.
+
+**Guard trong `themeTokens.test.ts` (10 → 18 test).**
+- `findThemeBlockMismatches`: khối sáng phải có đủ mọi biến của `:root`, cùng dạng (kênh RGB hay
+  không). Thiếu một biến thì theme sáng âm thầm lấy giá trị tối.
+- `findColorLiteralsOutside`: không có hex hoặc `rgb(a)(` viết thẳng ở ngoài `:root` và khối sáng.
+  Đây là thứ đã giữ rule `a`/`button`/`.ProseMirror` tối dù đổi theme.
+- `contrastRatio` (WCAG 2.x):
+  - Ở theme sáng, 11 màu chữ × 3 nền đều ≥ 4.5:1. Cặp sát ngưỡng nhất là amber trên elevated,
+    4.57.
+  - Ở theme tối, **ghim đúng 5 cặp đã dưới AA từ trước**: `ink-muted` 2.20–2.57 trên cả 3 nền,
+    violet 4.45 / 4.02 trên surface / elevated. Danh sách không được dài thêm; sửa cặp nào thì xoá
+    dòng của nó.
+- Chữ trắng trên gradient chỉ đạt 2.15:1 ở đầu `#F59E0B`. Đây là quyết định thương hiệu nên không
+  assert; test chỉ ghim `--text-on-accent` = trắng ở cả hai theme.
+- Mutation: xoá một biến sáng, trả một hex vào rule `a`, hoặc làm blue nhạt đi. Mỗi lần đều đỏ đúng
+  test.
+
+**Gates.**
+- `npm run build` ✓ · `npm run lint` 0 problem.
+- `npm run test:run`: **1285 test / 155 file**, all pass (1277 + 8).
+- `npm run check:bundle` ✓: CSS **11,179 → 11,271 B gzip (+92 B**, budget 13,000). JS không đổi.
+  Tổng 654,275 / 750,000.
+
+**7a · E2E.** Config đổi toàn cục nên chạy smoke 4 role trên dev server **mới khởi động** ở `:5175`
+(pitfalls §18). Config Playwright tạm đã xoá sau khi chạy.
+- **43/43 pass, 0 fail, 0 skip**.
+- Uptime gateway 4253.0 s trước khi chạy và 4394.2 s sau khi chạy, tức BE không restart giữa chừng.
+
+**7b · MCP** (`:5175`, bật tay `data-theme="light"` trên `<html>`).
+- Theme tối giữ đúng giá trị cũ trên `/login`: `html` color `rgb(255,255,255)`, bg `rgb(9,9,11)`,
+  `color-scheme: dark`, glow 0.18 / 0.14. Trên `/marketplace` (shop `test1`), computed
+  `shadow-tb-cta` ra cùng một giá trị ở hai theme, và `shadow-tb-card` (popover `ProfileMenu`) ở
+  theme tối trùng literal cũ.
+- Theme sáng:
+  - `/marketplace` + `ProfileMenu`: nền, card, viền, chữ, giá amber đậm, sidebar và popover đều
+    sạch.
+  - `/login` còn heading `text-white` ("Chào mừng trở lại", "Săn deal LIVE", chữ "Try" của logo) và
+    stat card `rgba()` gần như không đọc được. **Đúng phạm vi THEME-04** (màu viết thẳng trong
+    `LoginPage`), không phải lỗi bảng màu.
+
+**7c · Perf.** Chỉ số bundle ở trên. Thay đổi không đụng JS hay render path.
+
+**Doc đã cập nhật.**
+- `.ai/tokens.md`: cột hex sáng, `ink-on-accent`/`scrim`, shadow/`login-left` đọc biến, và cách
+  thêm token màu mới (phải thêm cả vào khối sáng).
+- `snapshot.md`: THEME-02 được gỡ khỏi F13. THEME-06 có thêm ghi chú về 5 cặp tương phản của theme
+  tối.
+
+Không có gap nào phía BE, nên không cần entry trong `backend-handoff.md`.
+
+### THEME-01 · Nền móng token cho công tắc sáng/tối (F13): mọi màu đi qua biến kênh RGB (2026-09-25)
+
+Class **A**: chỉ đổi `tailwind.config.js`, `src/index.css`, `vite.config.ts` và test, không đổi
+component nào. Đây là bước 1/6 của F13; theme sáng chưa tồn tại, giao diện tối được giữ nguyên.
+
+**Thay đổi.**
+- `tailwind.config.js`: `const channel = (name) => \`rgb(var(${name}) / <alpha-value>)\``. Mọi màu
+  trong `canvas`/`ink`/`accent` (gồm violet, blue)/`bdr` và mọi `tb-*` đều viết `channel('--…')`.
+  Mỗi `tb-*` dùng **chung biến** với alias cùng màu, nên đổi theme chỉ cần đổi một chỗ. Gradient,
+  shadow, radius và font giữ nguyên.
+- `src/index.css`: các biến màu trong `:root` giờ là kênh RGB trần (`--bg-base: 9 9 11; /* #09090B */`).
+  THEME-02 sẽ xử lý các phần còn lại: `color-scheme: dark`, các biến `--tb-*` hex mở rộng,
+  `--muted`, và rule global `a`/`button`/`.ProseMirror`/`.prose-tb` viết hex.
+- Hệ quả: `/NN` chạy trên **mọi** token màu. Lỗi gốc ở pitfalls §6 (alias `var()` trần + `/NN` ⇒
+  Tailwind bỏ cả class; ALIAS-ALPHA-01 phải dọn tay 265 chỗ) được gỡ tận gốc. Không revert 265
+  chỗ `tb-*` đó, cả hai cách viết đều đúng.
+
+**Guard: `aliasAlpha` được thay bằng `themeTokens`.**
+- `src/test/aliasAlpha.{ts,test.ts}` bị xoá (7 test). Nó quét `src/` tìm `/NN` trên alias, nhưng
+  giờ không còn gì để quét.
+- `src/test/themeTokens.{ts,test.ts}` mới có 10 test:
+  - Đọc config thật qua `import.meta.glob` và `index.css?raw`.
+  - Đòi mọi token màu có dạng `rgb(var(--x) / <alpha-value>)`.
+  - Đòi `--x` có trong `:root` và là 3 kênh 0–255.
+  - Ghim 10 cặp `tb-*`/alias cùng một giá trị.
+- Đã thử mutation: đổi một token về hex, hoặc một biến về hex, thì test đỏ đúng dòng.
+- `parseCustomProperties(css, selector)` nhận selector bất kỳ. THEME-02 dùng nó để đòi mọi biến
+  trong `:root` cũng có mặt trong khối `[data-theme="light"]`.
+- `vite.config.ts`: `test.css: false` được đổi thành `css: { include: [/\.css\?raw$/] }`. Lý do:
+  với `css: false`, Vitest trả `""` cho **mọi** id CSS, kể cả `?raw`, nên guard sẽ đọc một file
+  rỗng và pass mù. Đã đọc `CSSEnablerPlugin` của Vitest 4.1.9 để xác nhận. Các file `.css` khác vẫn
+  không được xử lý trong test.
+
+**Bằng chứng giao diện tối không đổi.**
+- So computed style (màu chữ/nền/viền/shadow/outline…) của mọi element trên **27 route** × 4 role
+  (public/buyer/shop/admin), giữa build trước và sau: **2748 key được so, 1 key đổi, 0 key chỉ có ở
+  một bên.**
+- Key duy nhất đổi là dòng thông báo **chưa đọc** trên `/notifications` (`NotificationsPage.tsx:150`;
+  `NotificationBell.tsx:86` cùng class). Nền của nó đổi từ `rgb(28, 28, 30)` sang
+  `rgba(245, 158, 11, 0.04)`.
+- Nguyên nhân: `bg-accent-amber/[0.04]` là class chết từ lúc được viết (`74e2322` và `12c73bc`), vì
+  alias `var()` trần làm Tailwind bỏ nó. Giờ nó lên đúng tint amber 4% như ý định ban đầu. Đây là
+  sửa lỗi, không phải regression.
+
+**Pitfall mới, §18: dev server đang chạy không nạp lại `tailwind.config.js`.**
+- Triệu chứng: sau khi sửa config, `:5173` (server đã chạy từ trước) cho **1113 element mất màu**.
+  Đó là số liệu sai, không phải lỗi của thay đổi.
+- Nguyên nhân (đã đo):
+  - `setupTrackingContext.js` của Tailwind 3.4 xoá `require.cache[file]` rồi `require()` lại config.
+  - Trên Node ≥ 22.12 (máy này: 22.22.2), `require()` một file ESM (`"type": "module"`) đi qua
+    loader ESM. Module nằm trong cache mà `require.cache` không xoá được, nên config cũ sống tới
+    khi tắt server.
+- Thí nghiệm:
+  - Một server mới khởi động thì nhận config mới.
+  - Với `NODE_OPTIONS=--no-experimental-require-module`, Tailwind rơi về jiti và nạp lại đúng.
+- Quy tắc: sửa config thì phải restart dev server, kể cả trước khi chạy e2e, vì `webServer` của
+  Playwright dùng lại server đang chạy.
+- Chưa làm fix vĩnh viễn, ví dụ đổi config sang `.cjs` hoặc gắn cờ vào script `dev`. Nếu làm thì
+  cần một quyết định riêng.
+
+**Gates.**
+- `npm run build` ✓ · `npm run lint` 0 problem.
+- `npm run test:run`: **1277 test / 155 file**, all pass (1274 − 7 + 10).
+- `npm run check:bundle` ✓: CSS **11,068 → 11,179 B gzip (+111 B**, budget 13,000). JS không đổi.
+  Tổng 654,086 / 750,000.
+
+**7a · E2E.** Config đổi toàn cục nên chạy smoke của cả 4 role, trên một dev server **mới khởi
+động** ở `:5175`. `:5173` của user vẫn giữ config cũ, xem §18. Config Playwright tạm trỏ sang
+`:5175` và đã xoá sau khi chạy.
+- **43/43 pass, 0 fail, 0 skip**: setup 3, public 3, buyer 19, shop 9, admin 9.
+- Uptime của gateway là 1323.75 s trước khi chạy và 1529.07 s sau khi chạy, tức BE không restart
+  giữa chừng.
+- Không có deep spec nào gắn riêng cho thay đổi này. Không có route mới, không còn route nợ.
+
+**7b · MCP.** Không chạy riêng. Phép so computed style ở trên đã đọc runtime thật trên cả 27 route,
+chặt hơn một lượt nhìn screenshot.
+
+**7c · Perf.** Chỉ có số bundle ở trên. Thay đổi không đụng JS hay render path nên LCP/CLS không đo.
+
+**Doc đã cập nhật.**
+- `.ai/tokens.md`: `/NN` chạy trên mọi token, cách thêm token màu mới, và cột hex là giá trị của
+  theme tối.
+- `.ai/context/pitfalls.md`: §6 được viết lại, §18 là mục mới.
+- `.ai/context/styling.md`: ghi chú nút `tone="danger"`.
+- `.ai/workflows/check-tailwind.md`: Check 8 được cho nghỉ. Guard giờ là test config, không quét
+  `src/` nữa.
+- `snapshot.md`: THEME-01 được gỡ khỏi F13, THEME-02 có thêm ghi chú.
+
+Không có gap nào phía BE, nên không cần entry trong `backend-handoff.md`.
+
+### E2E-DEBT · Deep spec cho `/sell/vouchers`: tạo, sửa, tắt, bật lại mã của shop (2026-09-25)
+
+Class **A**. Chỉ thêm spec và helper e2e, không đụng `src/`.
+
+**Lý do chọn `/sell/vouchers` thay vì `/sell/returns`.** `/sell/returns` đứng đầu danh sách rủi ro
+nhưng cần một đơn `delivered` kèm yêu cầu trả hàng đang chờ, và dữ liệu local không có cả hai.
+`/sell/vouchers` tự đủ: shop tự tạo mã rồi tự tắt.
+
+**Spec `e2e/seller-vouchers.shop.spec.ts`**, 2 test:
+1. **Vòng đời đầy đủ.** Mỗi bước đều đối chiếu qua API (`/order/vouchers/mine`), không chỉ nhìn
+   UI.
+   - Tạo mã phần trăm, nhập chữ thường thì nhận lại chữ hoa.
+   - `sellerId` của mã chính là `me`: quyền sở hữu lấy từ cookie, không nằm trong payload.
+   - Sửa: `code` là readonly; mô tả và `usageLimit` được lưu.
+   - Tắt mã qua `ConfirmDialog`, không phải native dialog ⇒ "Đã tắt".
+   - Bật lại (VOUCHER-EDIT-01) ⇒ "Đang chạy".
+2. **VOUCHER-GUARD-01.** Tạo mã giảm tiền cố định mà không nhập đơn tối thiểu thì form báo lỗi và
+   **không có request POST nào** gửi lên BE.
+
+**Dữ liệu mỗi lần chạy.** Để lại 1 mã `E2E-…` đã tắt trên `techstore_demo`. `afterEach` luôn tắt
+mã qua API, nên một lần chạy hỏng cũng không để mã test sống trong gợi ý checkout của buyer thật.
+Đã verify sau khi chạy: `E2E-MUH1U6VF | isActive false`.
+
+`e2e/api.ts` thêm `findSellerVoucher` và `deactivateSellerVoucher`. `routes.ts`: `/sell/vouchers`
+có `deep: ['seller-vouchers.shop.spec.ts']`. `e2e/README.md` có thêm dòng cho spec mới.
+
+**Runtime 7a.** Gateway restart **trước** lượt này: uptime 153s → 185s, ổn định trong lúc chạy.
+- Smoke `/sell/vouchers` ✓.
+- Deep: 2/2 ✓, 0 skip.
+- Không đổi markup nên 7b không áp dụng.
+
+**Gates.** build ✓ · check:bundle ✓ (654,063 / 750,000) · lint 0 · test:run 1274 / 155 file ✓.
+
+E2E-DEBT: **22/30**. Mẹo cho lần sau: trên Git Bash, `-g "/sell/…"` bị MSYS đổi thành đường dẫn
+Windows, nên chỉ match được `/sell`. Hãy bỏ dấu `/` đầu, ví dụ `-g "sell/vouchers renders"`.
+
+### E2E-DEBT · Hai deep spec từng tự skip giờ chạy thật: `/sell` UI-3 và `/checkout` FE-3 (2026-09-25)
+
+Class **A**. Chỉ sửa spec e2e, không đụng `src/`.
+
+**Lỗi.** Cả hai spec chặn đầu bằng `test.skip(!(await x.isVisible().catch(() => false)))`.
+`isVisible()` **không chờ**: gọi lúc trang lazy còn skeleton thì trả `false`, và test tự skip dù
+trang không hề hỏng. Vì vậy deep spec của `/sell` rỗng về thực chất: BE-4 là `fixme`, UI-3 lần nào
+cũng skip.
+
+**Sửa.**
+- `product-form.shop.spec.ts`: thay guard bằng `await expect(skuInput).toBeVisible()`. Chạy thật
+  lần đầu thì UI-3 **đỏ**, nhưng lỗi nằm ở spec, không phải sản phẩm. `generateSku` sinh mã từ tên
+  sản phẩm và cố ý không làm gì khi tên rỗng (`BasicInfoSection.tsx:203`), trong khi spec không
+  điền tên. Spec nay điền tên rồi ghim đúng mã sinh ra: `^E2E_AUTO_SKU_12_\d{4}# CHANGELOG — TryBuy Frontend
+
+> Historical record of completed FE work. **NOT auto-loaded** by any agent entry point.
+> Read on demand only when you need the history/rationale of a past change.
+> Current state (readiness, open/blocked tasks, known issues) lives in `snapshot.md`.
+> Newest first. Việc trước **2026-07-10** đã dời sang `CHANGELOG.archive.md` (cùng thư mục).
+
+> ✅ **RELEASED 2026-09-16 — dòng này đè lên mọi chữ "chưa push" / "HOLD class C" trong các entry
+> từ `CHART-SWAP-01` (2026-09-14) tới `ALIAS-ALPHA-01` (2026-09-16).** Cả cây đã lên `origin/main`
+> của `frontend` (**`2c65b1d`**, đo bằng `git ls-remote`) và phía `api` đã lên prod (**`87fc2f8`,
+> 14:39Z**) sau khi DEPLOY-PG-01 được khôi phục bằng run `35109797956`; SEARCH-01 và
+> `PATCH /user/:id/role` đều probe được trên chính prod. Những câu "chưa push" bên dưới là **ảnh
+> chụp lúc viết entry**, giữ nguyên văn để không sửa lại lịch sử — đừng đọc chúng như trạng thái
+> hiện tại. Trạng thái hiện tại nằm ở `../../.agent-local/release-gate.md`.
+
+. Assertion cũ
+  chỉ là "khác rỗng".
+- `checkout-resilience.buyer.spec.ts`: `cartHasItems` đọc `textContent()` của badge, cũng không
+  chờ. Nay nó chờ trang giỏ ổn định ở một trong hai trạng thái: nút `ĐẶT HÀNG` hoặc
+  "Giỏ hàng trống". Guard CTA của FE-3 đổi thành `await expect(placeOrder).toBeEnabled()`.
+- Grep `isVisible().catch|textContent().catch` trong `e2e/`: không còn chỗ nào. Các `test.skip`
+  còn lại đều dựa trên dữ liệu lấy qua API (có await), đó là skip hợp lệ.
+
+**Runtime 7a** (BE local, gateway sống):
+- `/sell`: `product-form` UI-3 ✓. BE-4 vẫn `fixme` (cần write-path single-SKU).
+- `/checkout` + `/cart`: `checkout-resilience` FE-3 ✓, FE-4 ✓, 0 skip.
+- Không đổi markup nên 7b không áp dụng.
+
+**Gates.** lint 0. `src/` không đổi nên build / test:run giữ nguyên số của mục trên (chạy lại ở
+cuối lượt sweep).
+
+### VOUCHER-CANCEL-01 · Huỷ đơn thì refetch danh sách voucher ở checkout (2026-09-25)
+
+Class **A**. Chỉ đổi cách invalidate cache, không đổi request hay giao diện.
+
+**Lỗ hổng.** Từ 2026-08-26, BE trả lại lượt dùng voucher khi đơn bị huỷ. Handoff dặn FE: *đừng
+cache danh sách voucher qua một lần huỷ*. `useCancelOrder` chỉ invalidate `orders.detail(id)` +
+`orders.byUser(me)`. Query `availableVouchers(basketSignature)` ở `CheckoutPage` có
+`staleTime: 60s`. Kịch bản lỗi: buyer thấy mã `perUserLimit: 1` bị xám "đã dùng" ở checkout, sang
+`/order/:id` huỷ đơn đã dùng mã, rồi quay lại checkout với cùng giỏ trong vòng 60s. Lúc đó cache
+vẫn báo mã không dùng được, dù BE đã trả lượt.
+
+**Sửa.**
+- `queryKeys.orders.availableVouchersAll` = `["orders","vouchers","available"]`, là prefix của mọi
+  key theo giỏ.
+- `invalidateOrderViews` có thêm cờ `vouchers`.
+- `useCancelOrder` bật cờ này. Chỉ có một đường huỷ phía buyer (grep `api.orders.cancel`), nên
+  không còn chỗ nào khác phải sửa.
+- Prefix **không** trùng với `sellerVouchers` (`["orders","vouchers","mine"]`) hay
+  `adminVouchers`. Đã có test ghim điều này.
+
+**Test.** `orderInvalidation.test.ts` +2 test: cờ `vouchers` invalidate đúng prefix, và prefix phủ
+key theo giỏ nhưng không phủ hai voucher console.
+
+**Gates.** build ✓ · check:bundle ✓ · lint 0 · test:run **1274 / 155 file** ✓.
+
+**Runtime 7a** (BE local, gateway uptime tăng liên tục nên kết quả được tính):
+- Smoke buyer `/order/:id` + `/checkout`: 2/2 pass.
+- Deep `/order/:id` + `/checkout`: **4 pass · 2 skip · 0 fail**.
+  - `order-detail` BE-2 + FE-1 (huỷ đơn pending thật) pass. Đây là test chạy qua `useCancelOrder`.
+  - `payment-retry` skip vì dữ liệu local không có đơn online nào đang pending.
+  - `checkout-resilience` FE-3 skip vì guard `isVisible()` không chờ. Lỗi này thuộc spec, đã sửa
+    ở mục kế tiếp.
+- 7b không áp dụng (không đổi markup).
+- Chưa quan sát trực tiếp lượt refetch sau huỷ qua điều hướng SPA. Việc này cần điều hướng
+  client-side giữa `/checkout` → `/order/:id` → `/checkout` trong 60s. Unit test chứng minh đúng
+  key, deep spec chứng minh luồng huỷ vẫn chạy.
+
+**Handoff.** `frontend-handoff.md` §Open đã rỗng. Đã chuyển 7 entry xuống §Done, mỗi entry kèm một
+dòng ghi FE đã kiểm gì:
+- VOUCHER-CANCEL-01: vừa sửa ở trên.
+- Sáu entry đã xong phía FE từ trước, chỉ chưa được chuyển (grep lại code 2026-09-25):
+  - ENRICH-BATCH-01: `sellerName.ts` đọc `user.name`, không có fallback.
+  - SHAPE-01: `ServerCart.id` nullable, fan-out đã bỏ.
+  - VOUCHER-NULL-01: `diffMinOrderAmount` gửi `0`.
+  - F3, REPORT-TOTAL-01, OVERFETCH-01.
+
+### LOCAL-INV-01 · Inventory local treo: BE đã sửa, FE kiểm chứng lại smoke (2026-09-25)
+
+Không đổi code FE, class **A**.
+
+**Triệu chứng.** Smoke `/shop` đỏ, smoke `/product/:id` bị skip. Theo đo đạc, inventory service
+(TCP 3002) vẫn nhận kết nối nhưng không trả lời. Gateway chờ `TCP_TIMEOUT_MS.READ` 5s rồi trả
+500/408 `Timeout has occurred`. FE đã ghi vào `backend-handoff.md`.
+
+**Nguyên nhân (theo BE).** Cloudflare WARP trên máy dev làm TLS handshake tới Aiven Postgres bị
+treo. Pool `pg` giữ slot mãi vì không có `connectionTimeoutMillis`, nên 5/5 slot kẹt.
+- BE đã thêm `connectionTimeoutMillis` + keep-alive ở `libs/database`.
+- Sau fix, service tự hồi mà không cần restart.
+- Nhưng khi WARP còn bật và mạng đang nghẽn, smoke vẫn có thể đỏ tạm thời.
+
+**FE kiểm chứng.**
+- Inventory 3002 trả lời trong ~200ms, `with-inventory/all` ra 200.
+- Smoke `/shop` và `/product/:id` pass. Toàn bộ smoke 4 role: **43/43 pass, 0 skip**.
+- Đây là lần đầu `/product/:id` chạy thật kể từ F8 và XSS-DESC-01; trước đó nó luôn bị skip.
+
+Đã sửa lại câu "inventory (3002) không chạy" trong các entry XSS-DESC-01, F8, E2E-DEBT bên dưới
+và trong snapshot.
+
+### E2E-DEBT · Deep spec cho `/sell/orders`: seller duyệt đơn và giao cho GHN (2026-09-25)
+
+Trả một route của E2E-DEBT theo `/e2e fill`, chọn route rủi ro cao nhất còn nợ: chuyển trạng thái
+đơn phía seller. E2E-DEBT giảm từ 24/30 xuống **23/30**.
+
+- **`e2e/seller-orders.shop.spec.ts`**, 2 test, đi thật state machine trong `sellerOrderActions.ts`:
+  1. Lấy đơn pending đầu tiên seller xử lý được (COD, hoặc online đã trả; đơn online chưa trả bị
+     chặn theo ORD-GUARD-01), rồi bấm "Xác nhận đơn". Spec chờ card rời tab "Chờ xác nhận" và
+     không có banner lỗi, API phải báo `confirmed`, và card phải hiện lại ở tab "Đã xác nhận" kèm
+     nút "Sẵn sàng giao".
+  2. Lấy một đơn confirmed rồi bấm "Sẵn sàng giao". Theo hợp đồng trong
+     `sellerOrderActionError.ts`, có hai kết quả đúng: đơn rời tab và API báo `processing`, hoặc
+     banner `#id · …` hiện ra và API vẫn báo `confirmed`. Spec poll tới khi một trong hai xảy ra
+     rồi đối chiếu status tương ứng, nên một lần hỏng im lặng sẽ làm test đỏ.
+  - Mỗi test có `test.skip` guard khi hết dữ liệu phù hợp.
+- **`e2e/api.ts`:**
+  - `listSellerOrders(status)` đọc cùng page/limit với trang (10), nên đơn được chọn chắc chắn nằm
+    ở trang 1 của tab.
+  - `sellerOrderStatus(id)` đọc `GET /order/seller/:id`.
+- **`SellerOrdersPage.tsx`:** thêm `data-testid="seller-order-<id>"` lên card đơn. Đây là cách sửa
+  selector được `e2e.md` cho phép, thay cho một chuỗi CSS dễ gãy. Không đổi giao diện hay hành vi,
+  nên không chạy MCP (7b); card đã render thật trong chính spec.
+- Đã ghi vào `routes.ts` (`deep` của `/sell/orders`) và bảng spec của `e2e/README.md`.
+- **Chạy trên BE local** (uptime health 1008 s trước, 1105 s sau, không restart giữa chừng):
+  - Spec pass 2/2 qua ba lần chạy (1 lần riêng, 2 lần cả project `shop`). Cả ba lần đi **nhánh thành công**: GHN local tạo vận đơn, đơn
+    lên `processing`.
+  - Ba đơn pending của `techstore_demo` đã bị tiêu, đầu tiên là `ord_516a9da0816611f1`. Còn 17
+    pending, mỗi lần chạy tiêu thêm 1.
+  - Nhánh banner lỗi chưa được chạy trên dữ liệu thật; nó đã có unit test trong
+    `sellerOrderActionError.test.ts`.
+- **Project `shop`:**
+  - 13 pass, gồm smoke `/sell/orders` và 2 test mới.
+  - 2 skip: `product-form.shop.spec.ts`, lỗ hổng sẵn có, xem E2E-DEBT trong snapshot.
+  - 1 fail: smoke `/shop`, do môi trường. Inventory service local (TCP 3002) treo do WARP làm nghẽn handshake Postgres — đã fix phía BE (LOCAL-INV-01), nên
+    `/inventory/low-stock` và `/products/shop/stats` trả 502, còn `with-inventory/all` trả 500.
+    Cùng nguyên nhân với lần skip `/product/:id` ở XSS-DESC-01 và F8; không liên quan thay đổi.
+- **Class A.** Không có backend gap.
+- **Gates:** build ✓, check:bundle ✓, lint 0, test **1272 test / 155 file**. Spec e2e nằm ngoài
+  tsconfig, nên đã được typecheck bằng chính lần chạy Playwright.
+
+### F8 · Khung người bán trên `/product/:id` bấm được: link profile + nút "Theo dõi" (2026-09-25)
+
+Mục roadmap F8 (`/sweep propose`, bản chất là bug). Nút "Theo dõi" trên seller card không có
+`onClick`, nên mọi khách xem sản phẩm đều thấy một nút chết. Tên và avatar người bán cũng không dẫn
+tới shop.
+
+- **Link:** tên + avatar giờ là `<Link>` tới `/profile/:userId` (trang có tab "Sản phẩm"), với
+  subtitle "Xem shop". Khi người bán đã bị xoá (`user == null`, ENRICH-FAIL-01), card vẫn là `<div>`
+  với subtitle "Người bán", vì link sẽ dẫn tới một profile 404.
+- **Nút "Theo dõi":** `features/product/SellerFollowButton.tsx` dùng lại `useIsFollowing` /
+  `useFollowUser` / `useUnfollowUser` từ `features/social/useFollow.ts`, không viết hook mới.
+  - Hai nhãn "Theo dõi" / "Đang theo dõi", kèm `aria-pressed`. Nút bị disable khi đang tải danh sách
+    following hoặc khi mutation đang chạy.
+  - Khách chưa đăng nhập vẫn thấy nút, bấm thì sang `/login`, giống nút "Chat" bên cạnh.
+  - Nút ẩn khi seller đã bị xoá hoặc khi viewer xem sản phẩm của chính mình.
+- **Logic thuần** nằm trong `features/product/sellerCard.ts` (`sellerProfilePath`,
+  `sellerFollowState`). Class của nút Chat và nút Theo dõi dùng chung hằng `SELLER_ACTION_CLS`.
+- **Test, +10:** `sellerCard.test.ts` có 7 test cho path và state. `SellerFollowButton.test.tsx` có 3
+  test (MSW): bấm follow gửi POST, đang follow thì bấm gửi DELETE, chưa đăng nhập thì sang `/login`.
+- **MCP** (buyer `canceltest…`, seller `techstore_demo`):
+  - Link trỏ `/profile/usr_60ccbe6081c411f1`, avatar thật. Nút cao 34px, bằng nút Chat.
+  - Follow gửi `POST …/follow` trả 201, refetch `following`, nhãn thành "Đang theo dõi". Unfollow
+    trả nhãn về "Theo dõi", tài khoản về trạng thái ban đầu.
+  - Bấm link mở đúng profile "techstore_demo". 0 lỗi/cảnh báo console.
+  - Ghi chú a11y nhỏ, chưa sửa: accessible name của link lặp tên seller (alt avatar + tên).
+- **Demo mode:** POST follow rơi vào 503 `offlineFallback` như thiết kế, nên không có gì xảy ra. Hành
+  vi này giống PostCard/ProfilePage.
+- **Class A** thuần FE. Không có backend gap.
+- **Gates:** build ✓, check:bundle ✓, lint 0, test **1272 test / 155 file**.
+- **E2E:**
+  - Smoke `/profile/:id` pass.
+  - Smoke `/product/:id` **skip**, cùng nguyên nhân môi trường như XSS-DESC-01: inventory service
+    local (TCP 3002) treo do WARP làm nghẽn handshake Postgres — đã fix phía BE (LOCAL-INV-01), nên `GET /products/with-inventory/all` trả 500 và resolver
+    `product` ra null. Route này chưa có deep spec.
+
+### XSS-DESC-01 · Verify FE sau khi BE lọc `description` sản phẩm lúc ghi (2026-09-25)
+
+BE (`api`, entry `XSS-DESC-01` trong `frontend-handoff.md`) nay đưa `description` qua
+`sanitizeRichTextHtml` lúc ghi, với allow-list tag `p br strong b em i u s h1–h6 ul ol li blockquote
+code pre hr a img`, cùng các attr `a[href|target]` (luôn gắn `rel="noopener noreferrer nofollow"`),
+`img[src|alt|title|width|height]`, `ol[start]` và `code[class=language-*]`. Việc còn lại của FE là
+chứng minh editor không sinh ra thứ gì nằm ngoài allow-list đó. Nếu có, BE sẽ âm thầm xoá lúc lưu,
+còn seller không biết vì sao định dạng biến mất.
+
+- **Refactor:** danh sách extension tiptap chuyển từ `RichTextEditor.tsx` sang
+  `components/shared/richTextExtensions.ts`, kèm `RICH_TEXT_MAX_CHARS`. Editor và test giờ dựng
+  đúng cùng một schema. Hành vi không đổi.
+- **Test `richTextExtensions.test.ts`, +2:**
+  - Dựng headless `Editor` với nội dung phủ mọi node/mark: h1–h6, 5 mark, hard break, link, 2 loại
+    list (có `start`), blockquote, code block có ngôn ngữ, hr và ảnh Cloudinary. Parse `getHTML()`
+    rồi khẳng định mọi tag và attr đều nằm trong bản sao allow-list BE.
+  - Pin schema ở 12 node và 6 mark. Thêm một extension như TextAlign (sinh `style=`) sẽ làm test
+    đỏ trước, nên phải nới allow-list BE trước khi thêm.
+- **Probe BE local** (`test1`, tạo rồi xoá sản phẩm `isActive:false`):
+  - Mọi thứ editor sinh ra được lưu nguyên văn. Riêng link bị đổi thứ tự attr và được thêm `rel`.
+  - `<img src=x onerror>`, `<script>`, `onclick`/`style`/`class` trên `<p>`, `href="javascript:"`,
+    iframe và svg đều bị lọc. Payload toàn mã độc thành `""`.
+  - `div`/`span` mất tag nhưng giữ chữ. Đây là thiết kế: editor không sinh ra hai tag này.
+  - `img[src]` của Cloudinary sống sót, nên `collectProductMediaUrls` (UP-03) không bị ảnh hưởng.
+  - Không có backend gap.
+- **DOMPurify không cần nữa.** Sanitize lúc render chỉ còn là defence-in-depth, không phải lỗ hổng
+  đang mở. Theo BE, dữ liệu cũ đã được quét: DEV 22/22 sạch, prod 20/20 sản phẩm active sạch.
+  Sản phẩm inactive trên prod chưa quét được, và một dòng cũ chỉ được lọc ở lần sửa kế tiếp. Đó là
+  lý do defence-in-depth vẫn đáng làm khi user duyệt dependency.
+- **Class A** cho FE. Bản BE là class B (phía `api` chưa push); FE không phụ thuộc vào nó.
+- **Gates:** build ✓, check:bundle ✓, lint 0, test **1262 test / 153 file**.
+- **E2E:**
+  - Smoke `/sell` và `/sell/:id` pass.
+  - Smoke `/product/:id` bị **skip**: inventory service local (TCP 3002) treo do WARP làm nghẽn handshake Postgres — đã fix phía BE (LOCAL-INV-01), nên
+    `GET /products/with-inventory/all` trả 500 và resolver `product` ra null. Lỗi này thuộc môi
+    trường, không liên quan thay đổi.
+  - Deep `product-form.shop.spec.ts` có 2 test đều skip: BE-4 là `fixme`, còn UI-3 tự skip vì
+    `isVisible()` không chờ trang lazy render. Đây là lỗ hổng sẵn có của spec, xem mục E2E-DEBT
+    trong snapshot.
+
+### UPLOAD-SIZE-01 · Gửi `?bytes=` khi xin chữ ký upload — nửa còn lại (2026-09-25)
+
+Nửa đầu (đọc `maxBytes`/`maxVideoBytes` từ response chữ ký) đã xong 2026-08-15; nửa này bị hoãn vì
+khi đó BE `5ceb46c` chưa lên prod và một BE cũ trả 400 "property bytes should not exist" ⇒ hỏng mọi
+upload. `5ceb46c` nay là ancestor của các sha BE đang deploy ⇒ gửi được. Class **B** (param optional).
+
+- `api.upload.getSignature(folder, bytes?)` — `toQuery` bỏ `undefined`.
+- `lib/http/uploadValidation.ts`: `signatureBytesParam(size)` (bỏ param khi file rỗng — BE đòi
+  `bytes ≥ 1`) và `serverOversizeMessage(error, kind)` — map 400 `"… over the <max> byte limit …"`
+  (`UPLOAD_MESSAGE.FILE_TOO_LARGE`) về đúng câu của guard local (`Ảnh vượt quá 10MB`), lỗi khác
+  trả `null` để caller ném nguyên.
+- `lib/http/cloudinary.ts`: 4 hàm upload gom qua `requestSignature(folder, file, kind)`.
+- Vẫn **không** phải security guard: Cloudinary không ký tham số size, client bỏ qua vẫn upload được.
+  Guard local vẫn chạy trước — 400 của BE chỉ tới được người dùng khi BE hạ trần dưới hằng số local.
+- Test: +4 ở `uploadValidation.test.ts`, `cloudinary.test.ts` mới (5, MSW) — gửi `bytes`+`folder`,
+  map 400 cho ảnh và video, lỗi khác đi nguyên, file rỗng không gửi `bytes`. Gate: 1260 test / 152 file.
+- Runtime local (MCP, gateway local): `getSignature('trybuy/products', 2048)` ⇒ chữ ký kèm
+  `maxBytes 10485760`; raw `bytes=11534336` ⇒ 400 với message BE; file 11 MB bị guard chặn, không có
+  request Cloudinary; PNG 70 byte upload thật + `deleteMedia` ⇒ `deleted`.
+- e2e: lượt đầu smoke + deep 28 pass / 3 skip (skip có sẵn). Rerun `/marketplace` (buyer) và `/shop`
+  (shop) đỏ: `500 GET /api/products/with-inventory/all` — probe thẳng gateway: anonymous 200, có
+  đăng nhập ⇒ `500 "Timeout has occurred"` (RPC timeout NestJS). `api/` đang có WIP chưa commit ở
+  `apps/product/…`, gateway product; thay đổi upload không chạm đường đọc sản phẩm ⇒ môi trường BE
+  local, không phải regression FE. Chạy lại sau khi BE local ổn: 2 smoke này **pass** (5/5 kể cả setup).
+
+### EXPORT-TZ-01 · Verify phía FE — không cần sửa gì (2026-09-25)
+
+BE (2026-09-20, đã push 2026-09-21) đưa `orderDate`/`paidAt` của CSV và mọi khung `?from=&to=` về
+giờ VN, đổi header thành `orderDate (GMT+7)` / `paidAt (GMT+7)`. Handoff hỏi FE 2 việc:
+
+- **Parse header theo tên?** Không. `exportSellerOrders` trả `res.blob()` thẳng cho người dùng tải;
+  không test/mock nào giữ chuỗi header cũ.
+- **Mitigation `+7h`?** Không có trong `src/`. `lib/date/vnDay.ts` giữ nguyên (BE xác nhận đúng).
+- **Probe local (`test1`):** export 200 `text/csv` với header mới; `ord_vzLm2EGPSgHHCpNE`
+  `createdAt 15:51:22Z` ⇒ cell `2026-09-08 22:51:22`, analytics bucket `2026-09-08` khớp.
+  Gateway local chạy trên máy UTC+7 nên chỉ header phân biệt được code mới; ma trận múi giờ nằm ở
+  suite BE. Smoke shop `/shop/analytics` xanh. Handoff entry chuyển sang §Done.
+
+### IMG-FIELD-01 · Ảnh sản phẩm đọc từ `imageUrls`, không từ field ảo `imageUrl` (2026-09-25)
+
+Class **A**: thuần FE, không đổi contract. User báo bằng screenshot: rail "Đang hot" chỉ hiện icon
+placeholder ở cả 5 hàng.
+
+- **Nguyên nhân (probe runtime local):** product entity của BE chỉ có `imageUrls: string[] | null`,
+  `GET /products/trending` và list đều không gửi `imageUrl`. `Product.imageUrl?` trong
+  `types/product.ts` là field BE chưa bao giờ gửi, nên `RightRail`, `ShopPage`, `ProductChip`,
+  `ProductPicker` luôn nhận `undefined`. Bug có từ trước RAIL-RANK-01.
+- **Sửa:** `src/lib/domain/productImage.ts` → `productCoverImage(product)`: entry non-blank đầu
+  tiên của `imageUrls`, hoặc `null`. Thay ở mọi thumbnail sản phẩm: `RightRail`, `ShopPage`,
+  `ProductChip`, `ProductPicker` (×2), `ProductRiskPage`, `CartPage`, `CheckoutPage`,
+  `ProductCard`, `WishlistPage`, `searchSuggestions` (bỏ `productImage()` local — logic từng lặp ở
+  đây và `ProductCard`). `ProductDetail` / `CreateProductPage` chỉ bỏ nhánh fallback chết.
+- **Chặn tái phát:** xoá `imageUrl` khỏi `Product` (và khỏi `ProductLike` của search) — đọc lại
+  field đó giờ là lỗi `tsc`. `ProductSku.imageUrl` và `DuplicateCheckResult.match.imageUrl` là
+  field thật của type khác, giữ nguyên.
+- **Test:** `productImage.test.ts` +5 (entry đầu, bỏ entry trống, null/[]/{}, product vắng, shape
+  trending thật). Fixture search đổi sang `imageUrls`. 1251 test xanh; build, `check:bundle`, lint
+  xanh.
+- **Runtime:** Playwright smoke buyer/shop/admin + deep `auth-session-swap`, `checkout-resilience`,
+  `product-form`: 42 pass, 3 skip (FE-3 không có CTA đặt hàng, UI-3 không có ô SKU, BE-4 `fixme` —
+  điều kiện có sẵn, không phải "pass"). Gateway uptime 108 → 273s, không restart giữa chừng. MCP
+  (`test1`): rail "Đang hot" 5/5 `<img>` load (picsum + Cloudinary), chip sản phẩm trong bài viết
+  hiện ảnh 56px, bảng `/shop` có thumbnail tròn ở mọi hàng.
+
+### PERF-BUDGET-01 · Trần gzip cho từng chunk trong CI + đo perf trong `/sweep` (2026-09-25)
+
+Class **A**: chỉ script, CI và doc, không chạm `src/`, không thêm dep. Lighthouse (PERF-MON-01)
+chỉ nhìn chunk entry của `/login`. Một import nặng rơi vào chunk lazy của route (chart, editor,
+schema) sẽ lọt qua mà không ai thấy. Bước này chặn đúng chỗ đó.
+
+- **`scripts/check-bundle.mjs`** + `npm run check:bundle`:
+  - Đọc `dist/index.html` để biết chunk entry, gzip từng file trong `dist/assets` (zlib mặc định
+    của Node), rồi so với trần.
+  - Budget có tên theo Rollup chunk name (bỏ hash).
+  - Exit 1 khi vượt. Một chunk mới vượt trần mặc định sẽ in gợi ý "split it, or add it to
+    BUDGETS.named".
+  - `scripts/check-bundle.test.ts` có **8 test** (`// @vitest-environment node`, như
+    `worker/proxy.test.ts`).
+- **CI:** bước "Bundle budgets" chạy sau Build trong job `frontend`. Deploy chờ cả workflow
+  "CI", nên vượt trần là **chặn deploy**.
+- **Số đo 2026-09-25 (gzip B / trần, dư ~12–15%):**
+  - entry `index` js: 157 725 / 180 000 (raw 495.7 kB, +4.4% so với 08-04)
+  - `CreateProductPage`: 148 485 / 170 000
+  - `cookieStore`: 63 486 / 72 000. Đây là **MSW, chỉ tải ở demo mode**, không phải code của app.
+  - `DoughnutChart`: 62 889 / 72 000
+  - `schemas`: 28 021 / 32 000
+  - Các chunk khác ≤ 24 273, trần mặc định 30 000.
+  - CSS entry: 11 051 / 13 000.
+  - Tổng 98 file: 653 351 / 750 000.
+- ⚠️ Con số gzip của Vite khác của zlib mặc định. Chỉ so `check:bundle` với chính nó.
+- **Doc:**
+  - `sweep.md`: fix-mode bước 3 đo **before** cho item perf, bước 6 thêm `check:bundle` vào
+    gate, bước 7c đo **after** cùng phương pháp. Không có before thì ghi "not measured".
+  - `sweep.md`: audit so số với snapshot §Perf. 🟡 khi một chunk tăng > 10% hoặc cách trần < 5%,
+    sau đó ghi đè §Perf kèm ngày.
+  - `check-perf.md` + `performance.md`: đo LCP chỉ trên production build (`preview :4173`),
+    không bao giờ trên dev server.
+- Gate: build ✓ · check:bundle ✓ (653 351 / 750 000) · lint 0 problem · test:run **1246 test / 150 file** pass.
+
+### E2E-COVER-01 · Route smoke cho toàn web + project admin + `/e2e coverage|fill` (2026-09-25)
+
+Trước đó e2e chỉ chạm thật ~4/30 route. Giờ có hai lớp:
+
+- **Smoke:** `e2e/routes.ts` (manifest 30 route → role + fixture `:id` + `deep` specs) và
+  `e2e/smoke.ts` (runner) sinh `smoke.{buyer,shop,admin,public}.spec.ts`. Mỗi route fail khi có
+  `pageerror`/`console.error`, `/api` 5xx (401/403 khi đã đăng nhập), ApiErrorState, hoặc bị redirect
+  khỏi path. Thêm gate âm (buyer→`/shop|/sell|/admin`, shop→`/admin`, admin→`/sell` đều về `/`;
+  signed-out → `/login`) và 1 đối chứng dương (path lạ phải hiện 404 — chứng minh selector lỗi còn
+  khớp). `src/router.test.ts` giữ manifest = router trong `test:run`.
+- **Admin project:** credential **không** nằm trong `accounts.ts` (file tracked) mà qua
+  `E2E_ADMIN_USERNAME/PASSWORD` (env hoặc `e2e/.env.local`, gitignored; mẫu `e2e/.env.example`).
+  Thiếu ⇒ project `admin` bị bỏ, setup skip. Project `public` chạy không session.
+- **`e2e/orderApi.ts` → `e2e/api.ts`:** helper cũ gọi `/order/user/17` (id số đã chết) và
+  `Number()` id ⇒ UI-1/BE-2/FE-2 **skip im lặng** vì "No orders". Giờ resolve `me` qua `/user/me`
+  và giữ public id nguyên chuỗi; UI-1 và BE-2+FE-1 đã chạy thật và pass.
+- Docs: `/e2e coverage`, `/e2e fill [n]`, "sau khi sửa route ⇒ chạy lại spec của route" (`core.md`);
+  bỏ câu "don't grow it into a general UI suite".
+- **`/sweep` gắn e2e** (`.ai/workflows/sweep.md`): step 3 tra route bị chạm trong `routes.ts`
+  (ghi vào marker `⏳`); step 5 bắt buộc có deep spec khi item đổi **flow**, còn logic/styling thì
+  unit test + smoke là đủ; step 7 tách **7a Playwright** (smoke + deep của route, kèm check
+  uptime) và **7b MCP**, MCP chỉ còn nhìn layout, không đi lại flow. Spec đỏ trên route bị chạm
+  khi gateway ổn định ⇒ không được đóng item. `/sweep audit` **chỉ chạy smoke**
+  (`npx playwright test e2e/smoke`, toàn GET). Deep spec ghi data thật nên không chạy trong audit.
+  Audit cũng làm mới
+  **một** mục `E2E-DEBT` 🟢 gộp (24/30 route còn nợ, đã seed vào snapshot). Mục này chỉ được
+  chọn khi hết 🔴/🟡. Design decision #1 ("self-test là MCP") được sửa có chủ đích theo lựa chọn
+  của user.
+
+**Kết quả (backend local ổn định):** 48 smoke/gate + 6 deep pass; skip: FE-3 (không có CTA đặt
+hàng), FE-2 (không có đơn online pending), UI-3 (form multi-variation), BE-4 (fixme). **Bẫy đo:**
+lượt chạy trùng lúc agent `api/` đang sửa gateway ⇒ watch-mode restart ⇒ loạt 502 `/cart`,
+`/notifications` và văng `/login` trông như 12 route hỏng. Check `uptime` ở `/health` trước và sau
+run; uptime < thời gian run ⇒ lượt đó không tính.
+
+### PERF-MON-01 · Lighthouse CI với budget trong GitHub Actions (2026-09-24)
+
+User chọn phương án (2) trong 3 lựa chọn đã ghi ở snapshot. Job mới `lighthouse` trong `ci.yml`,
+chạy **song song** với `frontend`: `npm ci` → `npm run build` → `npx -y @lhci/cli@0.15.x autorun`
+→ upload `.lighthouseci/` làm artifact (`if: always()`, giữ 14 ngày). Config ở `lighthouserc.json`
+(gốc repo): `vite preview --port 4173 --strictPort`, audit `/login`, **3 lượt**, lấy median.
+
+**Không thêm dependency:** `@lhci/cli` qua `npx`, khoá minor `0.15.x` để một bản Lighthouse mới
+không tự dịch điểm. `upload.target` là `filesystem`, **không** phải `temporary-public-storage`:
+bản kia đẩy report lên server công khai của Google.
+
+**Tại sao `/login` không cần backend:** `vite preview` kế thừa `server.proxy`. Không có gateway thì
+proxy `/health` lỗi ngay, không chờ timeout 3s của probe ⇒ app vào demo mode một cách tất định.
+Baseline vì thế so được giữa các lượt.
+
+**Baseline đo local (Lighthouse mobile mặc định, simulated throttling), 3 lượt gần như trùng nhau:**
+Perf 0.85–0.86 · LCP 3.42–3.44s (phần tử LCP là heading `<h2>`, không phải ảnh) · FCP ~3.0s ·
+TBT 0–18ms · transfer: script 195 841 B, CSS 12 749 B, tổng 334 638 B, 18 request.
+
+**Budget (~12–15% trên baseline):** perf ≥ 0.8 · LCP ≤ 4000ms (median) · script ≤ 220 000 B ·
+CSS ≤ 16 000 B · tổng ≤ 380 000 B. Ngưỡng LCP 3500ms viết ban đầu chỉ dư ~2%, sẽ đỏ oan, nên đã bỏ.
+
+**Đã chứng minh assert có răng:** chạy `lhci assert` trên đúng kết quả đó bằng config tạm
+(LCP ≤ 3000, script ≤ 150 000) ⇒ **exit 1**, báo từng metric vượt kèm số đo; config thật ⇒ pass.
+`ci.yml` parse được bằng `js-yaml`. **Chưa chạy trên GitHub runner.** Lượt push đầu tiên sẽ là
+lượt đo thật đầu tiên trên CI. Nếu CPU runner làm LCP lệch baseline, chỉnh số trong
+`lighthouserc.json` có chủ đích, đừng tắt job.
+
+⚠️ `deploy.yml` chờ **cả** workflow "CI" (`workflow_run` + `conclusion == 'success'`) ⇒ vượt budget
+cũng chặn deploy. Đó là chủ đích, và đã ghi trong comment của job.
+
+`.lighthouseci/` được thêm vào `.gitignore`.
+
+### PERF-LCP-01 · Marketplace: prefetch list sản phẩm từ route loader, bẻ waterfall (2026-09-24)
+
+**Vấn đề (snapshot 🟡, đo 2026-07-02: LCP 1.44s, trong đó load delay 1.38s).** Ảnh LCP nằm cuối
+một chuỗi **nối tiếp**: `/user/me` (ProtectedRoute chặn render con) → chunk `MarketplacePage` →
+`GET /products/with-inventory/all` → ảnh. Attribute ảnh đã đóng từ 2026-08-05. Phần còn lại là
+rút ngắn chuỗi này.
+
+**Sửa:** `marketplaceLoader` (route loader của `marketplace` trong `router.tsx`) gọi
+`queryClient.prefetchQuery(productListQuery(params))` ngay khi route match, rồi **trả `null` ngay**
+(fire-and-forget, không chặn navigation). Page đọc lại qua `useProducts` với **cùng key**
+(`staleTime` 60s ⇒ không có request thứ hai).
+- Để key hai phía không lệch, `sortToParams` + page size 12 chuyển từ `MarketplacePage` vào
+  `marketplaceUrl.ts` thành `marketplaceProductParams(filters)`.
+- `useProducts.ts` export `productListQuery(params)`.
+
+**Bẫy: loader chạy trước bootstrap.** `createBrowserRouter` chạy lúc import `router.tsx`, tức
+**trước** `bootstrapBackendStatus()` trong `main.tsx`. Ở demo mode, prefetch sẽ bắn vào gateway
+chết trước khi MSW kịp chặn. Vì vậy `bootstrap.ts` thêm `whenBackendBootstrapped()` và loader chờ
+nó. `markBootstrapped()` cố ý **không** đặt trong `finally`: nếu probe throw thì prefetch không bao
+giờ chạy, và page tự fetch khi mount như trước.
+
+**Verify runtime (Playwright, dev server + full stack local, session buyer, 2 lượt):**
+
+| Thời điểm | Sự kiện |
+|---|---|
+| 395–493ms | Request list **bay đi** |
+| 420–525ms | `/user/me` (bắt đầu **sau** request list) |
+| 691–792ms | Chunk page bắt đầu tải |
+
+- Trước đây request list chỉ bắt đầu sau khi chunk tải xong.
+- **Đúng 1 request list** mỗi lượt ⇒ page nhặt lại kết quả prefetch.
+- Không có warning HydrateFallback.
+- LCP trên dev server lúc này bị chi phối bởi thời gian local backend trả list (2.8–5.7s), nên con
+  số LCP của lượt này không so được với số 2026-07-02 (prod build). Cái đo được là **thứ tự**
+  request.
+- Một 404 trong console là ảnh seed Cloudinary bị thiếu (`trybuy/products/23_own.jpg`), không liên
+  quan đến thay đổi này.
+
+**Test:** +3 `marketplaceUrl.test.ts` (`marketplaceProductParams`) · +3 `marketplaceLoader.test.ts`
+(trả `null` ngay; chờ bootstrap; key trùng với key của page) · +1 `bootstrap.test.ts`.
+Gates: build ✓ · lint 0 · **1225 test / 147 file** xanh.
+
+### AUTH-STALE-01 · `useAuthContext().currentUser` stale sau login/logout trong app (2026-09-24)
+
+**Bug (known issue từ SEARCH-01-FE, 2026-09-15):** `useAuth.loginSuccess` gọi `queryClient.clear()`
+rồi `setQueryData(auth.me)`. `clear()` gỡ entry `auth.me` **không notify observer**; `setQueryData`
+dựng một Query **mới** mà observer của `useAuth` chưa gắn vào. `AuthProvider` nằm **trên**
+`RouterProvider` (`App.tsx`) nên navigation sau login không re-render nó ⇒ context báo
+`currentUser === null` tới lần reload, trong khi `ProtectedRoute`/`useRole` (mount observer mới) thấy
+user. 9 consumer đọc context (`FeedPage`, `PostCard`, `ProductDetail`, `ProductReviews`,
+`PostDetailPage`, `ProfilePage`, `ShopPage`, `OrderHistoryPage`, `CreateProductPage`) chết âm thầm.
+
+**Nhánh logout nặng hơn, chưa từng được ghi:** `logout` cũng `clear()` ⇒ context **giữ user cũ**
+sau khi đăng xuất, và vì observer vẫn treo trên entry đã chết nên lần login kế tiếp (dù đã sửa login)
+cũng không tới được nó ⇒ logout `user1` → login `shop1` trong cùng tab thì context vẫn là `user1`.
+Vì thế sửa cả hai chiều, không chỉ login.
+
+**Sửa:** `src/lib/auth/sessionCache.ts` `replaceSessionCache(queryClient, user | null)` — xoá mọi
+query **trừ** `auth.me` (so `queryHash` với `hashKey(auth.me)`), clear mutation cache (giữ đúng
+phạm vi của `clear()`), rồi `setQueryData(auth.me, user)` lên **chính entry cũ** ⇒ observer được
+notify tại chỗ. Logout ghi `null` (ProtectedRoute đọc `!me` ⇒ về `/login`, không tốn thêm request
+`/user/me`). Handler cross-tab giữ `resetQueries()` như cũ.
+
+**Bẫy khi viết test:** notify của TanStack đi qua `notifyManager` (batch sang tick sau) ⇒ assert
+`result.current` **đồng bộ** ngay sau `act()` vẫn thấy `null` **kể cả với code đã sửa** — phải
+`waitFor`. Đã chứng minh red/green: 2 test hook mới fail trên `HEAD` cũ, pass với bản sửa.
+
+**Test:** +4 `sessionCache.test.ts` (observer gắn trước khi swap nhận user mới / nhận `null`, query
+khác bị xoá, mutation bị xoá) · +2 `useAuth.test.tsx` (login không cần rerender; logout → login
+người khác không bao giờ hiện user cũ). Gates: build ✓ · lint 0 · **1218 test / 145 file** xanh.
+
+**Runtime verify — xong cùng ngày, bằng Playwright** (`chrome-devtools` MCP connect timeout cả hai
+lần thử). Spec mới `e2e/auth-session-swap.buyer.spec.ts`, full stack local, **một tab, không
+reload**: login buyer qua form → "Trang cá nhân" phải có "Sửa hồ sơ" (ProfilePage đọc context) →
+đăng xuất → login shop → "Sửa hồ sơ" trên profile **shop** → `pushState` về profile buyer: nút
+follower hiện và **không** có "Sửa hồ sơ". **Xanh với bản sửa, đỏ với code cũ** (fail ở bước đầu
+tiên — "Sửa hồ sơ" không có sau login, đúng triệu chứng). Hai bẫy khi viết: (a) nút "Theo dõi" không
+dùng làm tín hiệu được — shop **đã** follow buyer nên nó đọc "Đang theo dõi"; (b) một lần "đỏ" đầu
+tiên là **429 rate limit login** (10/60s), không phải bug — phải chờ hết cửa sổ rồi mới chạy lại.
+
 ### AUDIT-NPM-01 · 46 advisory → vá 5 gói, cố ý bỏ tiptap, và một bug arborist của npm (2026-09-23)
 
 `npm install` báo **46 vulnerabilities (3 low, 32 moderate, 11 high)**. Triage trước khi vá, vì
@@ -4058,6 +5144,46 @@ Runtime-verified with Chrome DevTools on an isolated mocked success response: su
 computed background `rgba(16, 185, 129, 0.15)`, icon 44×44 / `rgb(16, 185, 129)`, no overflow.
 
 ## Feature integration
+
+### RAIL-RANK-01 — right rail ranked by real units sold (2026-09-25, /sweep) — DONE + runtime-verified, class C HOLD
+
+Integrated the BE→FE handoff RAIL-RANK-01: "Seller nổi bật" and "Đang hot" now rank by units
+actually sold instead of by columns nobody writes.
+
+- **Finding.** "Đang hot" called `GET /products/with-inventory/all?sortBy=viewCount&limit=5`.
+  Nothing ever writes `viewCount` (or `likesCount`), so every product tied at 0 and the panel
+  showed an arbitrary five. The BE added `GET /products/trending?limit=1..20` and `soldCount`
+  on `/user/featured-sellers`.
+- **Fix.**
+  - `types/product.ts`: new `TrendingProduct = ProductWithInventory & { soldCount }`.
+  - `types/user.ts`: `FeaturedSeller.soldCount`.
+  - `api.products.getTrending(limit = 5)` reads a **bare array**, not `PaginatedResponse`. It can
+    be shorter than `limit` or `[]`, and backfill rows carry `soldCount: 0`.
+  - `queryKeys.products.trending(limit)`.
+  - `RightRail` uses the new query. The seller `BadgeCheck` tick and a muted "Đã bán N" line
+    (vi-VN grouping) render only when `soldCount > 0`. The helper `components/layout/railRank.ts`
+    keeps that rule out of JSX.
+  - Demo mode: `demoTrendingProducts` fixture (ranked, 2 backfill rows) plus an MSW handler for
+    `/products/trending`, and `demoFeaturedSellers` gains `soldCount`. Without them the demo rail
+    would fall through to the 503 `offlineFallback`.
+- **Tests (+10).**
+  - `railRank.test.ts` (5).
+  - `products.test.ts` `getTrending` (2): default limit, no `sortBy`, bare array, custom limit.
+  - `handlers.test.ts` (3): trending in the shell reads, a bare array ranked by `soldCount` DESC,
+    and every id exists in `demoProducts`.
+  - `users.test.ts` fixture updated.
+  - Totals: build and lint green, `test:run` 149 files / 1238 tests green.
+- **Runtime (full stack local, buyer).**
+  - `featured-sellers` returned 200: `test1` (soldCount 1, tick, "@test1 · Đã bán 1") before
+    `techstore_demo` (0, no tick). Exactly one `BadgeCheck` in the rail.
+  - `trending` returned a 200 bare array of 5: `JBL Flip 6` with "Đã bán 1" first, then 4 backfill
+    rows showing price only.
+  - Playwright smoke public + buyer 25/25. The `/` route has `deep: []`.
+- **Release.** Class **C** on the FE side: `/products/trending` is not on prod (`api` `origin/main`
+  = `b14b33d`, the BE change is uncommitted). Held in `release-gate.md` §Holding; push `api` first.
+  No backend gap: the contract matched the handoff exactly.
+- **Noticed, out of scope.** The demo handler for `POST /products/with-inventory/multiple` reads
+  `body.ids`, but `api.products` sends `productIds`.
 
 ### sku-optional — base-product SKU is now optional on the create form (2026-07-22, /sweep) — DONE + runtime-verified
 

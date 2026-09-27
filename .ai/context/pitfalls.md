@@ -98,16 +98,22 @@ route chắc chắn sống (`/orders`) thay vì ship một URL sẽ 400.
 **Luật 3 — drift kiểu này phải verify bằng request thật, đừng đọc code FE rồi suy ra.** Chỉ đọc
 FE thì chẩn đoán ra ngược chiều. Một lần `GET` id thật + đối chứng id public là đủ kết luận.
 
-## 6 · Opacity modifier no-op trên alias `var()`-based
+## 6 · Màu khai báo không có `<alpha-value>` → `/NN` giết cả class (đã gỡ gốc ở THEME-01)
 
 **Triệu chứng:** `accent-amber/50` không ra alpha; ring rơi về màu mặc định (xanh) mà không ai
-báo lỗi. Class hợp lệ, Tailwind sinh CSS, chỉ là alpha không áp được.
+báo lỗi. Build, lint, test đều xanh — class chỉ đơn giản **không có khai báo nào** trong CSS.
 
-**Nguyên nhân:** alias semantic (`accent-*`) trỏ tới CSS variable; modifier `/NN` không chèn được
-alpha vào giá trị `var()`.
+**Nguyên nhân:** Tailwind v3 chèn alpha qua placeholder `<alpha-value>`. Màu khai báo là
+`var(--x)` trần (không placeholder) mà gặp `/NN` thì Tailwind bỏ **luôn cả class**. Trước
+THEME-01 mọi alias `canvas-*`/`ink-*`/`accent-*`/`bdr` đều như vậy (ALIAS-ALPHA-01 dọn 265 chỗ).
 
-**Luật:** cần alpha → dùng literal `tb-*` (`tb-amber/50`, `tb-red/10`, `tb-cyan/30`, `tb-green/15`).
-Không cần alpha → giữ alias semantic. Bảng đầy đủ → `../tokens.md`.
+**Đã gỡ gốc 2026-09-25 (THEME-01):** mọi token màu giờ là `rgb(var(--x) / <alpha-value>)` trên
+biến kênh RGB trần (`--bg-base: 9 9 11`), nên `/NN` chạy trên **mọi** alias lẫn `tb-*`.
+
+**Luật:** token màu mới = biến kênh trong `src/index.css` `:root` + `channel('--x')` trong
+`tailwind.config.js`. Đừng khai `var(--x)` trần hay hex — `src/test/themeTokens.test.ts` sẽ đỏ.
+Đọc một biến màu ngoài Tailwind thì bọc `rgb(var(--x))`; `var(--x)` trần giờ là `9 9 11`, không
+phải màu. Bảng đầy đủ → `../tokens.md`.
 
 ## 6b · `button:hover` trong `index.css` đè border-color của mọi `<button>`
 
@@ -313,6 +319,26 @@ Nên một path ngoài `/api` phải có mặt ở **cả ba** chỗ — `PROXY_
 (wrangler.toml), `server.proxy` (vite.config.ts) — và probe phải kiểm **content-type**, vì
 "200" một mình không phân biệt được gateway với SPA fallback. `classifyProbe` giờ đòi
 `application/json`.
+
+## 18 · Dev server đang chạy **không** nạp lại `tailwind.config.js` (Node ≥ 22.12)
+
+**Triệu chứng:** sửa `tailwind.config.js` xong, dev server vẫn phát CSS theo config **cũ** —
+`touch` file, reload trang, chờ HMR đều vô ích. Nếu cùng lúc sửa `index.css` (cái này thì HMR
+nhận) thì hai nửa lệch nhau: THEME-01 đổi biến sang kênh RGB, server còn giữ alias `var()` cũ
+⇒ đo được **1113 phần tử** mất màu trên `:5173`, trong khi `npm run build` hoàn toàn đúng.
+
+**Nguyên nhân (đã đo, 2026-09-25):** Tailwind 3.4 thấy mtime đổi thì `delete require.cache[file]`
+rồi `require(path)` lại (`tailwindcss/lib/lib/setupTrackingContext.js`, `load-config.js`). Repo là
+`"type": "module"` nên config là ESM; từ Node 22.12 `require()` một file ESM **thành công** và module
+nằm trong cache của ESM loader — `require.cache` không chạm tới được ⇒ trả lại config cũ mãi mãi.
+Thí nghiệm trên server riêng: đổi `tb-pill` 6px→7px, Node mặc định vẫn phát `6px`; cùng server
+chạy `NODE_OPTIONS=--no-experimental-require-module` (ép về nhánh jiti) thì phát `7px` ngay.
+Server chưa từng biên dịch CSS trước lúc sửa thì đọc config mới — nên hai server song song có
+thể cho hai kết quả khác nhau.
+
+**Luật:** sửa `tailwind.config.js` ⇒ **restart dev server** trước khi nhìn/đo bất cứ gì (kể cả
+e2e, vì `webServer` của Playwright reuse server đang chạy). Nghi ngờ thì so CSS server phát
+(`GET /src/index.css`) với `dist/assets/*.css` sau `npm run build`.
 
 ---
 ## Khi phát hiện bẫy mới

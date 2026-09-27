@@ -57,7 +57,6 @@ Current sanctioned usages — do NOT flag these, and do NOT "fix" them into arbi
 | `features/order/OrderDetailPage.tsx` | `width: ${progressPct}%` | order progress bar |
 | `features/social/CreatePostModal.tsx` | `width: ${upload.percent}%` | upload progress bar |
 | `components/shared/charts/ChartFrame.tsx` | `--h` + `[height:var(--h)]` | chart plot height — Chart.js sizes from its parent, a bare canvas collapses to 0px |
-| `components/shared/charts/ChartLegend.tsx` | `--dot` + `bg-[var(--dot)]` | data-driven legend swatch color |
 
 New dynamic values should use the CSS-custom-property form
 (`style={{ '--p': \`${n}%\` } as CSSProperties}` + `className="[width:var(--p)]"`), not raw
@@ -90,9 +89,12 @@ Scope: src/**/*.tsx
 
 **Sanctioned exception — `src/lib/chart/chartTheme.ts`.** Chart.js paints to `<canvas>`, which
 Tailwind cannot reach, so every chart color must be a literal string passed to the library. That
-one file is the *only* place in `src/` allowed to hold chart hex; charts import from it and never
-inline a hex of their own. It is a `.ts` file, so the scope above already skips it — do not widen
-the scope to "fix" it.
+one file is the *only* place in `src/` allowed to hold chart hex: one palette per theme
+(`CHART_PALETTES`), each entry a copy of a token in `index.css`, and `chartTheme.test.ts` fails
+when a copy drifts from its token. Data code names a colour by role (`ChartColor`); charts resolve
+it through `useChartPalette()` and never inline a hex. The legend dot is a DOM element, so it uses
+the token class (`CHART_DOT_CLASS`) — no inline style. It is a `.ts` file, so the scope above
+already skips it — do not widen the scope to "fix" it.
 
 Known replacements (preferred alias listed first; see `.ai/tokens.md` "Which System to Use"):
 | Hex | Preferred token | `tb-*` alternative |
@@ -118,7 +120,10 @@ Pattern: \b(text|bg|border|ring|divide|placeholder|caret|fill|stroke|shadow)-(sl
 Scope: src/**/*.tsx
 ```
 
-Fix: map to the closest token from `.ai/tokens.md` (semantic alias preferred; `tb-*` for non-color tokens). Note: `accent-cyan` and `accent-green` are the correct tokens for cyan and green — these are NOT violations when written as `text-accent-cyan` / `text-accent-green`.
+Fix: map to the closest token from `.ai/tokens.md` (semantic alias preferred; `tb-*` for non-color tokens).
+`white` / `black` are palette colours too (`text-white`, `bg-black/60`) and a theme cannot swap them;
+`npm run test:run` already fails on them (`findHardcodedColors`, THEME-04), so this check does not
+repeat that scan — see `.ai/context/styling.md` "Known violations" for which token replaces them. Note: `accent-cyan` and `accent-green` are the correct tokens for cyan and green — these are NOT violations when written as `text-accent-cyan` / `text-accent-green`.
 
 ### Check 6 — arbitrary spacing/sizing values
 
@@ -145,24 +150,11 @@ Scope: src/**/*.tsx
 
 Severity: 🟡 yellow — heuristic, KHÔNG phải mọi case đều sai (vd badge/pill cố ý dài). grep không biết element có vuông lúc render hay không → phải verify visual bằng `/verify-ui` hoặc screenshot qua Chrome DevTools MCP trước khi sửa.
 
-### Check 8 — opacity modifier trên alias `var()` (class **chết**, không sinh CSS)
+### Check 8 — ~~opacity modifier trên alias `var()`~~ (đã gỡ gốc — không quét nữa)
 
-`canvas-*`, `ink-*`, `bdr`, và `accent-{pri,sec,cyan,green,red,amber}` đều map sang `var(--…)` trong `tailwind.config.js`. Tailwind v3 cần `<alpha-value>` để chèn alpha, nên gặp `/NN` trên các alias đó nó **bỏ luôn cả class** — không phải "sai màu" mà là **không có khai báo nào** trong CSS build ra.
+Trước 2026-09-25 các alias `canvas-*`/`ink-*`/`bdr`/`accent-*` là `var(--…)` trần, nên `/NN` trên chúng làm Tailwind bỏ **cả class** (ALIAS-ALPHA-01 dọn 265 chỗ). THEME-01 đổi mọi token màu sang `rgb(var(--x) / <alpha-value>)` trên biến kênh RGB — `border-accent-amber/50` giờ sinh CSS bình thường (đã đo trên `dist/assets/*.css`: `.bg-accent-amber\/\[0\.04\]{background-color:rgb(var(--accent-amber) / .04)}`). Không còn gì để quét trong `src/`.
 
-**Đã đo (2026-09-16, `dist/assets/*.css` sau `npm run build`):** `accent-amber\/50` → **0** hit, `accent-amber\/10` → **0** hit; còn `accent-violet\/20` (hex literal `#8b5cf6`) → 1 hit, `tb-red\/10` → 3 hit, `accent-amber{` (không có modifier) → 4 hit. Tức alias vẫn chạy bình thường **khi không có** modifier.
-
-```
-Pattern: \b(bg|border|text|ring|divide|from|via|to|outline|placeholder|shadow|fill|stroke)-(canvas-(base|surface|elevated)|ink-(pri|sec|muted)|bdr|accent-(pri|sec|cyan|green|red|amber))/[0-9]+
-Scope: src/**/*.tsx, src/**/*.ts
-```
-
-Fix: đổi sang token hex-literal cùng màu — `tb-amber` (#F59E0B = `accent-amber`/`accent-pri`), `tb-red` (#EF4444 = `accent-red`/`accent-sec`), `tb-green` (#10B981 = `accent-green`), `tb-cyan` (#06B6D4 = `accent-cyan`), `tb-base`/`tb-surface`/`tb-elevated`/`tb-border`/`tb-muted`/`tb-secondary` cho nhóm canvas/ink/bdr. Giữ nguyên alias ở phần **không** có modifier (`text-accent-amber`), chỉ đổi đúng chỗ có `/NN`.
-
-`accent-violet` + `accent-blue` là hex literal ⇒ **không** phải violation. `ink-pri` (#FFFFFF) **không có** token `tb-*` nào — bản vá là `white/NN`.
-
-**Check này đã được tự động hoá (ALIAS-ALPHA-01, 2026-09-16):** `src/test/aliasAlpha.test.ts` quét cả `src/` mỗi lần `npm run test:run`, và `src/test/aliasAlpha.ts` giữ regex + bảng map dùng chung. Chạy tay ở đây chỉ để giải thích/định vị; muốn biết `src/` có sạch không thì chạy test, đừng grep lại.
-
-Severity: 🔴 red — nhìn code tưởng có nền/viền mờ, render ra **không có gì**. Cách tự kiểm chứng rẻ nhất: `npm run build` rồi `grep -o -F 'accent-amber\/50' dist/assets/*.css` — 0 hit là chết.
+Rủi ro chuyển chỗ: nó chỉ quay lại nếu ai đó khai token màu **không** có `<alpha-value>` trong `tailwind.config.js`. Việc đó do `src/test/themeTokens.test.ts` chặn mỗi lần `npm run test:run` — đừng dựng lại regex quét `src/`.
 
 ---
 
@@ -176,7 +168,6 @@ Severity: 🔴 red — nhìn code tưởng có nền/viền mờ, render ra **kh
 [🔴 VIOLATION] src/features/order/OrderHistoryPage.tsx:24 — raw palette text-gray-500 (use text-ink-muted)
 [🟡 WARN]      src/features/product/ProductDetail.tsx:88 — arbitrary value w-[437px]
 [🟡 WARN]      src/features/user/FollowListModal.tsx:31 — rounded-full + w-/h- (use size-* grid place-items-center)
-[🔴 VIOLATION] src/features/shop/ShopPage.tsx:182 — hover:border-accent-amber/50 on a var() alias → no CSS emitted (use tb-amber/50)
 ```
 
 If clean:
@@ -195,9 +186,8 @@ If clean:
   🔴 .css imports      : c
   🔴 Hardcoded hex     : d
   🔴 Raw palette       : e
-  🔴 Dead /NN on alias : h
   🟡 Arbitrary values  : f
   🟡 Circular non-size : g
-  Total violations     : a+b+c+d+e+f+g+h
+  Total violations     : a+b+c+d+e+f+g
 ────────────────────────────────────────────────
 ```

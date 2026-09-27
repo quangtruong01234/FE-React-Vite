@@ -103,8 +103,8 @@ If clean:
 ## What this CANNOT catch — MEASURE these, don't guess
 
 - **Unnecessary re-renders** → React DevTools Profiler (record an interaction, look for components rendering with unchanged props).
-- **Bundle size / what's heavy** → `npm run build`, then a bundle visualizer (e.g. rollup-plugin-visualizer / `npx vite-bundle-visualizer`). NOTE: needs a dev dep — ASK before installing (core.md: no new deps without asking).
-- **LCP / CLS / INP runtime metrics** → Lighthouse (Chrome DevTools) or `npx lighthouse <url>`.
+- **Bundle size** → `npm run build && npm run check:bundle`: gzip size of every emitted chunk against its ceiling in `scripts/check-bundle.mjs` (CI runs it too). **What's inside** a heavy chunk → `npx -y vite-bundle-visualizer -t list -o <out>.yml` (runs via npx, no dev dep).
+- **LCP / CLS / INP runtime metrics** → on a **production build**, never the Vite dev server (unbundled — its numbers mean nothing). `/login`: `npm run build && npx -y @lhci/cli@0.15.x autorun` (same budgets as CI). Signed-in routes: `npm run build && npm run preview`, then a Chrome DevTools MCP performance trace on `:4173`.
 - **O(n²) that only bites at scale** → reason about real data size; grep can't see runtime n.
 
 > Do NOT recommend useMemo/useCallback/React.memo from this scan alone. Recommend them only after a Profiler trace shows a real re-render cost. Otherwise you violate the "don't optimize speculatively" rule in `.ai/context/performance.md`.

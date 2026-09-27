@@ -24,6 +24,7 @@ frontend/
     │   ├── query/              # queryClient.ts, orderInvalidation.ts
     │   ├── realtime/           # socket.ts (SOCKET_CONNECT_OPTIONS), chatSound.ts
     │   ├── auth/               # authChannel.ts, roleAccess.ts
+    │   ├── theme/              # theme.ts (resolveTheme, storage, applyTheme — mirrors the index.html script)
     │   ├── domain/             # orderStatus.ts, paymentUrl.ts, sku.ts, sharePost.ts, likedPosts.ts
     │   └── http/               # cloudinary.ts, fetchBatchTolerant.ts, signedUploadFields.ts,
     │                           # uploadValidation.ts, uploadChunkPlan.ts, uploadSequential.ts,
@@ -46,7 +47,8 @@ frontend/
     │   ├── data/               # useCart.ts, useProductReviews.ts, useProductsByIds.ts, useWishlist.ts
     │   └── ui/                 # useDebouncedValue.ts, useFilterParam.ts, usePageParam.ts, useResetOnChange.ts
     ├── context/
-    │   └── AuthContext.tsx     # AuthProvider + useAuthContext() — the ONLY context in the app
+    │   ├── AuthContext.tsx     # AuthProvider (+ authContextValue.ts, useAuthContext.ts)
+    │   └── ThemeContext.tsx    # ThemeProvider (+ themeContextValue.ts, useTheme.ts) — light/dark (F13)
     ├── components/
     │   ├── ui/                 # shadcn/ui (DO NOT EDIT — write-blocked; install only via `npx shadcn add`)
     │   ├── layout/             # AppShell, Header, LeftRail, RightRail, MobileNav,
@@ -64,7 +66,8 @@ frontend/
     │   ├── admin/              # AdminPage, AdminAnalyticsPage, Pending{Brands,Categories}Page,
     │   │                       # ReportedPostsPage, ProductRiskPage, postModeration, productRisk,
     │   │                       # AdminVouchersPage (thin — binds features/voucher/)
-    │   ├── auth/               # LoginPage, ForgotPasswordForm, PasswordField, auth.schema, useLogin
+    │   ├── auth/               # LoginPage, ForgotPasswordForm, PasswordField, auth.schema, useLogin,
+    │   │                       # ThemeToggleButton (sun/moon switch on /login)
     │   ├── cart/               # CartPage, CheckoutPage + checkout/voucher/shippingFee helpers
     │   ├── chat/               # ChatDialog, ChatThread, MessagesPage, useChat, chatPresenceSocket, chat*.ts
     │   ├── notifications/      # NotificationsPage, notificationSocket, notificationCache, notificationDisplay
@@ -90,7 +93,7 @@ frontend/
 - New hook for a feature → same feature folder, co-located
 - New shared/reusable component → `components/shared/`
 - New cross-cutting hook (used by 2+ features) → `hooks/<layer>/` (`query`/`auth`/`data`/`ui`)
-- New cross-cutting util → `lib/<layer>/` (`format`/`query`/`realtime`/`auth`/`domain`/`http`)
+- New cross-cutting util → `lib/<layer>/` (`format`/`query`/`realtime`/`auth`/`domain`/`http`/`theme`)
 - New type → `types/<domain>.ts` (re-export via `types/index.ts` barrel)
 - New API call → `api/<domain>.ts` (+ query key in `hooks/query/queryKeys.ts`)
 

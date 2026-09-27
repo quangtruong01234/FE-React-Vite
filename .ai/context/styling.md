@@ -116,8 +116,8 @@ không có pending/error state, và bị automation (MCP / Playwright) tự đ�
 
 Khung chuẩn của một modal: `<DialogContent className="max-w-sm bg-canvas-surface border-bdr text-ink-pri">`
 · title `font-display text-ink-pri` · description `text-ink-sec` · CTA là `<GradientButton>`
-(hoặc nút `bg-tb-red/15 border-tb-red/40 text-accent-red` cho `tone="danger"` — `tb-*`, **không**
-phải `accent-*`, vì alias `var()` làm Tailwind bỏ luôn class có `/NN`).
+(hoặc nút `bg-tb-red/15 border-tb-red/40 text-accent-red` cho `tone="danger"`; từ THEME-01 viết
+`accent-red/15` cũng đúng — `/NN` chạy trên mọi token màu).
 
 ## Token quick-reference
 
@@ -148,9 +148,20 @@ Available: `button`, `badge`, `card`, `dialog`, `input`, `label`, `select`, `sep
 
 ## Known violations — do not repeat
 
-`src/` currently has **zero** hardcoded hex (`[#...]`) — keep it that way.
+`src/` currently has **zero** hardcoded colours — no hex, no `rgb()`/`rgba()`/`hsl()`, no
+`text-white`/`bg-black`/`white/N`/`black/N` — and a test keeps it that way:
+`findHardcodedColors` in `src/test/themeTokens.test.ts` scans every `.ts`/`.tsx` (except tests,
+`components/ui/`, `lib/chart/chartTheme.ts` and `lib/theme/theme.ts`) and fails with `file:line`. Pick the
+replacement by what the colour sits on:
+
+| Sits on | Use |
+|---|---|
+| `bg-tb-gradient`, a solid accent, a photo, a scrim | `text-ink-on-accent` (white in both themes) |
+| the canvas (`canvas-*`) | `text-ink-pri` / `ink-sec` / `ink-muted` |
+| — overlay or letterbox behind media | `bg-scrim/NN` |
+| — focus glow that used `shadow-[…rgba(…)]` | `focus:ring-4 focus:ring-accent-amber/10` |
 
 The only sanctioned `style={{}}` usages are dynamic values that cannot be expressed as a
-static utility class (`Avatar.tsx` sizing, progress-bar widths, chart colors). See
+static utility class (`Avatar.tsx` sizing, progress-bar widths, chart height). See
 `.ai/workflows/check-tailwind.md` Check 1 for the exact allow-list and the preferred
 CSS-custom-property form.

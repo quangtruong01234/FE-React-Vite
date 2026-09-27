@@ -1,6 +1,6 @@
 # Snapshot — TryBuy Frontend Current State
 
-> Cập nhật: 2026-09-23 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
+> Cập nhật: 2026-09-27 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
 > Keep this LEAN: chỉ giữ bức tranh sống (overview, việc còn mở/bị chặn, known issues).
 > Việc đã xong nằm ở `CHANGELOG.md` (cùng thư mục, không auto-load) — **đừng chép lại vào đây**.
 > Convention/rule nằm ở `.ai/context/` — cũng không duplicate vào đây.
@@ -15,9 +15,10 @@ kể cả P0-03: nhánh create atomic BE-side từ INV-CONTRACT-01 (prod 2026-08
 Public-ID migration (PUBID-01–07) đã
 xong — storefront id là opaque string end-to-end.
 
-**Gates (chạy lại + verify 2026-09-23, sau lượt vá npm AUDIT-NPM-01):** `npm run build` ✓ ·
-`npm run lint` 0 problem · `npm run test:run` **1212 test / 144 file**, all pass. Không đóng item
-nào khi 3 lệnh này chưa xanh.
+**Gates (chạy lại 2026-09-27, sau AUD-0925-03):** `npm run build` ✓ · `npm run check:bundle` ✓ ·
+`npm run lint` 0 problem · `npm run test:run` **1343 test / 160 file**, all pass. Không đóng item
+nào khi 4 lệnh này chưa xanh. E2E smoke (không thuộc gate) **43/43 pass, 0 skip** trên stack local
+sau THEME-05 (2026-09-26), chạy trên dev server **mới khởi động** (pitfalls §18).
 
 > ⚠️ `npm run build` **mới** thực sự typecheck từ 2026-08-04. Trước đó script chỉ là `vite build`
 > (esbuild vứt type) trong khi doc ghi là có `tsc` → 3 lỗi type nằm im 2 tuần. Chi tiết +
@@ -53,12 +54,11 @@ mới tới doc.)*
 
 | Ngày | Item |
 |---|---|
-| 2026-09-22 | **HEALTH-PATH-01 · probe demo-mode gọi nhầm đường health ⇒ demo mode đè lên backend đang sống** (class **A** thuần FE, nhưng có chạm config Worker + vite proxy). **Đây là bug của DEMO-MODE-01, đã lên prod, và đo được là đang hỏng thật** lúc 04:34 ICT 22-09 trong một browser context sạch (`swCount: 0`, không có MSW xen vào): `/api/gateway/health` → **404** với body đúng format exception filter của gateway, trong khi `/api/products/categories` → **200 kèm dữ liệu thật** (`id "9"`, "Âm thanh") ⇒ gateway **đang sống**, chỉ là route đó **không tồn tại**. Gateway khai `setGlobalPrefix("api", { exclude: [...] })` với `health` nằm trong exclude ⇒ đường thật là `GET /health` ở **gốc**. `classifyProbe` đọc mọi non-2xx thành `offline` ⇒ **404 từ một gateway khoẻ = "backend chết"** ⇒ MSW bật ngay giữa khung giờ phục vụ, mà `POST /user/login` cố ý **không** mock nên rơi vào `offlineFallback` trả **503** ⇒ **khách thật không đăng nhập được**, còn catalogue hiển thị là hàng fixture. **Nguồn gốc là doc:** `.ai/context/backend-api.md` §10 ghi nhầm endpoint là `/api/gateway/health`, `src/api/misc.ts` chép theo doc, probe chép theo `misc.ts` — đã sửa cả ba. **Cách sửa hiển nhiên hỏng ngược chiều:** `/health` không nằm trong `PROXY_PREFIXES` ⇒ `resolveUpstreamUrl` trả `null` ⇒ `worker/index.ts:50` đưa request về `env.ASSETS.fetch`, nơi `not_found_handling = "single-page-application"` đáp **200 index.html** ⇒ probe báo "online" **vĩnh viễn**, kể cả khi backend tắt hẳn (đo được: `/health` → `200 text/html`); vite dev cũng chỉ proxy `/api`. **Nên patch 3 lớp:** hằng `HEALTH_PROBE_PATH` · **ba** đầu proxy (`PROXY_PREFIXES` + `run_worker_first` + `server.proxy`) · **guard content-type** trong `classifyProbe` (đòi `application/json`). Lớp 3 là thứ duy nhất phân biệt được gateway với SPA fallback, và nó biến "ai đó xoá nhầm một dòng config" từ *hỏng im lặng* thành *rơi về demo mode* — hướng an toàn. **Dọn kèm:** xoá `src/api/misc.ts` + `misc` khỏi `api/index.ts` — không ai gọi, và **không thể** viết đúng qua `request()` vì hàm đó luôn prepend `API_BASE`; để lại thì đúng bằng gài sẵn lại cái bug vừa sửa. +6 test (2 `classifyProbe`, 2 `probeBackend`, 2 `worker/proxy.test.ts`). **Đã verify trên prod sau deploy `8691a23` (xanh 10:10:09Z), CẢ HAI CHIỀU, mỗi chiều một browser context riêng — chiều *online* là thứ trước nay chưa ai đo và chính là lỗ hổng đã cho bug lọt:** EC2 **bật** ⇒ `/health` **200 `application/json`** (`status:"ok"`, có `dependencies`), `swCount: 0`, không banner, catalogue thật (`id "9"`), **đăng nhập `user1` được** (`/user/me` → 200 `usr_WchSOuXCJknvKU7O`, feed thật), console **0 error/0 warn**; EC2 **tắt** ⇒ `/health` **522 `text/html`** (trang origin-unreachable của Cloudflare — bắt bằng `ok !== true`, guard content-type là lưới thứ hai), `swCount: 1`, banner + **6** `prod_demo…`, marketplace "6 sản phẩm" + filter, `POST /user/login` → **503** đúng thiết kế. Bảng đo đầy đủ + hai thứ suýt đọc nhầm thành bug (`DemoModeGate` cố ý **không** dùng `disabled` mà phủ overlay; `/api/products` 503 là artifact của người đo vì handler nằm ở `/products/with-inventory/all`) → `CHANGELOG.md`. |
-| 2026-09-21 | **REPO-DOCS-01 · README/AGENTS.md viết lại cho người đọc, + DEMO/METRICS/LICENSE** (class **A** — tài liệu + 1 dòng eslint ignore, không chạm business logic). Theo `../../.agent-local/TryBuy-repo-update-prompt.md`; trong 13 mục checklist chỉ **7** chạm `frontend/`. README trước đó vẫn là **template Vite**; bản mới có sơ đồ Mermaid toàn hệ thống (đánh dấu repo này là **một** ô), bảng layer, và 6 quyết định kỹ thuật mà mỗi cái **nói ra phương án đã loại**. AGENTS.md từ 41 dòng routing Codex → tài liệu onboarding cho người; bản viết đầu **đánh rơi** `codex-safety.md` + `.ai/workflows/`/`.ai/roles/`, đã thêm lại. `docs/METRICS.md` **do `scripts/metrics.sh` sinh**, LOC từ `git ls-files` (không lạc vào `node_modules`), màn hình đếm từ `router.tsx` (page không route ≠ màn hình); script tự ghi phần **không đo ở đây** (throughput BE phải đo trên máy phục vụ traffic, không phải laptop đo đường truyền). `docs/DEMO.md` đặt ở FE **dù checklist #8 giao cho repo BE** — cross-repo cấm ghi vào `api/`, mà banner offline cần link sống; đã báo user. Ảnh **dùng lại ảnh thật** trong `.agent-local/interview/assets/` (BE chỉ sống 14:00–19:00), mỗi tấm mở ra nhìn trước khi copy; loại `02-mkt-03-product-detail.png` vì 357 081 byte > 300KB. **Quét secret (#6) — báo, chưa sửa theo đúng prompt:** `.env` không track + có trong `.gitignore`, `.env.example` đủ 4 key, **nhưng `e2e/accounts.ts` đang track credential thật** (khác `Pass@1234` in trong README/DEMO — mấy cái đó cố ý công khai); **đang chờ user quyết**. **`msw` cố tình giữ ở `devDependencies`** dù user duyệt thêm msw: chuyển sang `dependencies` làm lệch `package-lock.json` (`"dev": true`) ⇒ gãy `npm ci` ở cả `ci.yml` lẫn `deploy.yml`, mà `npm install` bị chặn — và không mất gì vì `deploy.yml` chạy `npm ci` trơn (**không** `--omit=dev`) còn Vite bundle từ `node_modules` lúc build. |
-| 2026-09-21 | **DEMO-MODE-01 · MSW phục vụ catalogue read-only khi backend nghỉ** (class **A** thuần FE). BE chạy EC2 **14:00–19:00 ICT** còn storefront static sống 24/7, mà **mọi** route nằm sau `ProtectedRoute` ⇒ ngoài khung giờ khách bị đá về `/login` mà `/login` cũng chết — trang đọc thành **hỏng** chứ không phải **theo lịch**. `bootstrapBackendStatus()` probe `GET /gateway/health` timeout 3s bằng `fetch` **thô** (qua `api` client thì interceptor 401 redirect ngay giữa một lần kiểm tra liveness); online ⇒ **không mock gì**, offline ⇒ banner + MSW với fixture. **Probe `await` trước `createRoot`** vì SW phải intercept trước request đầu tiên; `msw/browser` là **dynamic import** nên chunk 178 kB chỉ tải ở nhánh offline. **Ranh giới mock lệch với chữ của prompt, có chủ ý:** prompt nói "không mock login và checkout" — đọc là cấm **luồng credential**, không cấm **phiên** ⇒ `GET /user/me` **có** mock (không session thì không route nào hiện ra), `POST /user/login` **không**; mọi write trả **503 không kèm `Retry-After`**; role demo cố ý là `user` trần nên `/sell`+`/admin` vẫn đóng; nút cần BE thật bọc `DemoModeGate`. **Nhánh no-op mới là nhánh đáng lo:** SW sống lâu hơn lượt offline, nhưng `start()` không gọi ⇒ `activeClientIds` rỗng ⇒ mọi request đi thẳng qua (`public/mockServiceWorker.js:111`), lượt online hôm sau không bị worker cũ chặn. `public/mockServiceWorker.js` vào `globalIgnores` (file `msw init` copy nguyên văn, mang sẵn header `eslint-disable` bị config flag là unused). ~~**Chưa verify runtime trên prod**~~ — **đã verify 2026-09-22, cả hai chiều** (chi tiết ở dòng `HEALTH-PATH-01` bên trên và `CHANGELOG.md`). Lưu ý: bản DEMO-MODE-01 lên prod ban đầu **hỏng thật** vì probe gọi sai đường; nó chỉ chạy đúng từ `e1413da` trở đi. |
-| 2026-09-19 | **DATEFIELD-01 · lịch riêng (`components/shared/DateField.tsx` + `lib/date/calendar.ts`) thay `<input type="date">` trên `/sell/orders`** (class **A** thuần FE). User: *"thiết kế UI cho lịch, hiện thấy đang xài mặc định không đẹp"*. Lịch native là chrome của browser — không token `tb-*` nào với tới, mỗi browser một kiểu, và **automation không lái được** (segment trong shadow DOM, chính là bẫy harness của EXPORT-CSV-01) ⇒ đổi sang picker tự viết, mọi control là `<button>` thường. **Không thêm dependency** (`ui/` + `shared/` không có calendar, repo không có `react-day-picker`/`date-fns`/`dayjs`, `npm install` bị chặn) — chỉ mượn `lodash/chunk`. Toán lịch tách ra file thuần: lưới **6×7 cố định** (popover đo được 350px ở mọi tháng), ô ngoài tháng là `null` nên **không** có ngày của tháng kế bên; toàn bộ chạy **UTC + so sánh chuỗi ISO**, `formatIsoDay` cắt chuỗi thay vì `toLocaleDateString` (cái đó lệch ngày theo timezone), `monthOfIsoDay('2026-02-31')` → `null` thay vì để `Date.parse` mở nhầm tháng 3. **`TextField` được trả lại `type?: 'text' \| 'password' \| 'email'`** — `min`/`max` nới ở EXPORT-CSV-01 nay là API chết; câu "không đẻ `DateField`" của entry đó **đã bị thay**. `<button>` là labelable nên `getByLabelText` trong test panel sống nguyên. **Bẫy đào được (→ `pitfalls.md §6b`):** `index.css` giữ rule scaffold `button:hover { border-color: #F59E0B }` — **(0,1,1) > class đơn (0,1,0)** nên **mọi** border tĩnh trên `<button>` bị đổi sang amber lúc hover; viền lỗi `border-accent-red` thôi đỏ **đúng lúc user rê chuột vào**, mà build/lint/test jsdom đều xanh vì class vẫn nằm trong DOM, chỉ thua cascade. **Đã thử bọc `:where()` cho rule global rồi bỏ** — đo thấy **17/38 button** trên trang (9 tab lọc, phân trang) đang lấy chính nó làm hover duy nhất ⇒ sửa tại component bằng cách lặp màu ở biến thể `hover:`. Guard nằm ở class list chứ không quét CSS được: vitest `css: false` ⇒ `?raw` trả rỗng, `node:fs` gãy `tsc` (TS 6 bỏ auto-include `@types/*`). **Verify runtime (MCP, local full stack, `techstore_demo`):** ngày chọn phủ `linear-gradient(135deg, rgb(245,158,11), rgb(239,68,68))` + glow, 12 ngày trong khoảng được tint, `T2…CN` Monday-first, `min`/`max` khoá chéo nên không tạo được range đảo chiều, Escape/click-ngoài đều đóng; chọn 26/06 → export **200**, `filename="trybuy-orders-2026-06-26-2026-09-17.csv"` 8 941 byte; 172 ngày ⇒ nút disabled + không request nào bay đi; sau khi vá hover: lỗi giữ `rgb(239,68,68)`, đang-mở giữ `rgba(245,158,11,0.5)`, tab lọc vẫn hover amber như cũ; console sạch. +34 test / +2 file → **1142 test / 137 file**. |
-| 2026-09-17 | **EXPORT-CSV-01 · nút "Xuất CSV" + 2 date picker trên `/sell/orders`, và `downloadBlob` dùng chung** (class **B** thuần FE — endpoint BE đã lên prod từ `87fc2f8`, old FE vẫn đúng vì chỉ là thêm route mới ⇒ **không mở hold**). BE mở `GET /api/order/seller/export?from=&to=[&status=]`, trả **chính file CSV** (`text/csv`, BOM + CRLF, 17 cột, **một dòng cho mỗi order ITEM**) chứ không phải envelope `{data}`. **Chọn `fetch` + blob thay vì `window.location.href` như entry BE gợi ý** — href tải được thật, nhưng nó không hiện được pending và, nặng hơn, **không đọc được body của 400**; mà 400 chính là nơi BE nói "Export matches 7421 item rows; the maximum is 5000" ⇒ mất luôn câu duy nhất bảo người bán phải thu hẹp bao nhiêu. Vì thế `api.orders.exportSellerOrders` **bỏ qua `request()`** (đúng tiền lệ `getInvoice`) nhưng ở nhánh lỗi thì `await res.json()` để lấy `message`, không lùi về `res.statusText`. **Validate range phía client là *pre-check*, không phải nguồn chân lý:** `exportRangeError()` soi lại đúng 3 nhánh 400 mà FE biết trước (thiếu ngày, ngày không parse được, đảo chiều, >90 ngày) và **chặn request**, còn cap 5 000 dòng thì chỉ server biết nên message server luôn thắng — `sellerOrderExportErrorMessage()` in **nguyên văn** 400 có message, và chỉ dịch sang tiếng Việt khi 400 rỗng / 401 / lỗi khác. `dayTimestamp()` round-trip qua `toIsoDate` để `2026-02-31` bị loại thay vì bị `Date.parse` lặng lẽ đọc thành 3/3. **Lookup order chạy đủ trước khi tạo file:** `ui/` không có date field, `shared/TextField` có sẵn ⇒ nới `type?: 'date'` + `min`/`max` (4 dòng) chứ không đẻ `DateField`; hai picker **cross-link** bound (`from.max = to`, `to.min = from`) nên picker native không tạo được range đảo chiều. **DRY–Logic:** `useOrderInvoice` đã có đúng 8 dòng anchor dance ⇒ tách `src/lib/file/download.ts` `downloadBlob()`, `useOrderInvoice` chỉ còn 2 dòng thay đổi; `defaultExportRange()` dùng lại `rangePresetDates` của analytics nên hai màn hình hiểu "30 ngày" giống nhau. Panel truyền **tab trạng thái đang mở** làm `status` — xuất ra khớp với thứ đang nhìn; `ORDER_STATUS_META[status].label` in vào dòng hint nên người bán thấy phạm vi trước khi bấm. Ba mục "trông như bug mà không phải" của BE **không cần FE làm gì**: FE không render CSV, chỉ lưu file ⇒ `shippingFee`/`orderTotal` trống ở dòng 2+ và guard Excel `="…"` đi qua nguyên vẹn; còn file header-only cho non-seller thì không tới được từ UI này (panel chỉ tồn tại trong route seller-gated). **Verify runtime (Chrome DevTools MCP, full stack local `:5173`→`:3000`, `techstore_demo`):** range mặc định `2026-08-19→2026-09-17` → 200; mở rộng `2026-06-26→2026-09-17` → 200 với `content-disposition: attachment; filename="trybuy-orders-2026-06-26-2026-09-17.csv"` — **khớp từng ký tự** với tên FE tự tính — 8 644 byte `text/csv; charset=utf-8`; bật tab "Đã hủy" → `?from=2026-06-26&to=2026-09-17&status=canceled` → 200 (param `status` chỉ xuất hiện khi có tab, nhờ `toQuery` bỏ `undefined`). Cửa sổ 260 ngày ⇒ nút disabled, viền picker `rgb(239, 68, 68)`, câu lỗi in đúng số ngày thật, và **không** có request nào bay đi. Hộp picker + nút đều cao 44px cùng top/bottom, icon lệch 0px, không overflow ngang; console sạch. **Bẫy harness:** `fill` của MCP trên `<input type="date">` **không** vào được React state (segment spinbutton), phải set qua native value setter rồi dispatch `input` — lần đầu bấm Xuất CSV nó vẫn gửi range cũ và trông như bug của panel. +25 test / +3 file → **1108 test / 135 file**. |
-| 2026-09-16 | **CONFIRM-PAD-01 + DOC-STALE-0916 · title `ConfirmDialog` chui dưới nút X, và dọn "CHƯA push" đã cũ** (class **A** thuần FE). Bắt được trên prod bằng Chrome DevTools MCP ở luồng admin đổi vai trò: title dài wrap xuống rồi chạy dưới chữ X. **Đo ra số chứ không cảm tính:** `DialogContent` `p-6` (24px) + nút đóng neo `right-4 top-4` với icon 16px ⇒ mép trái X cách mép phải 32px, khung title dừng ở 24px ⇒ **chồng 8px**; title ngắn thì không lộ nên lỗi sống qua cả 8 consumer. Vá bằng `pr-6` trên `DialogTitle` **ở phía consumer** — `src/components/ui/` write-blocked, và title là prop do caller truyền nên primitive không tự chừa góc được; có comment ghi lại phép đo tại chỗ. Test pin `keeps the title clear of the close button` dựng đúng title đã thấy trên prod. Phần doc: 8 dòng "CHƯA push"/"HOLD class C" đã sai từ lúc `2c65b1d` + `api` `87fc2f8` lên sóng — **chính mấy dòng đó làm tôi loại nhầm 3 tính năng khỏi tài liệu dùng thử chiều nay**, nên sửa hàng ở đây, thêm banner ✅ RELEASED đầu `CHANGELOG.md` (giữ nguyên văn các câu cũ — chúng là ảnh chụp lúc viết), và trim bảng này về 5 hàng như convention. +1 test → **1083 test / 132 file**. |
+| 2026-09-27 | **AUD-0925-03 · nút "+" số lượng dừng ở 999** (class **A** — chỉ thêm `disabled`). BE nay trả 400 khi một dòng giỏ vượt 999; stepper "+" ở `/cart` và `/checkout` không có trần mà lỗi update lại không hiện ra UI ⇒ bấm ở 999 là một 400 im lặng. `cartQuantity.ts` (`MAX_CART_LINE_QUANTITY`, `canIncreaseCartLine`) khoá nút ở 999. `ProductDetail` không đổi (trần 99 mỗi lượt thêm). +4 test. Smoke `/cart` + `/checkout` ✓, `checkout-resilience` 2/2 ✓. |
+| 2026-09-26 | **EMAIL-REAUTH-01 · đổi email phải nhập mật khẩu hiện tại** (class **C** — push `api` trước; cây FE còn bị RAIL-RANK-01 giữ). `EditProfileModal` hiện `PasswordField` "Mật khẩu hiện tại" chỉ khi email khác email đã lưu (so sánh exact như BE, đổi hoa/thường cũng tính). `profileForm.ts`: `profileFormSchemaFor`, `profileUpdatePayload` (chỉ gửi `currentPassword` khi email đổi — BE cũ 400 key lạ), `profileUpdateError` (401 theo `errorCode` qua helper chung `currentPasswordAuthError`, 429, 400, 409). `api.users.update` bỏ redirect 401 khi có `currentPassword` ⇒ gõ sai mật khẩu không bị đá về `/login`. +17 test. MCP trên stack local: BE thật trả 401, lỗi hiện đúng ô. |
+| 2026-09-26 | **THEME-05 · chart theo theme** (class **A** — chỉ FE; theme tối vẽ y hex cũ, theme sáng chỉ bật ở dev). `chartTheme.ts` giữ **một palette mỗi theme** (`CHART_PALETTES`); data chỉ lưu vai trò màu (`ChartColor`: `'amber'`, `'red'`…), chart tự tra palette qua hook mới `useChartPalette()` và thêm palette vào deps của `useMemo` ⇒ đổi theme là chart vẽ lại, không cần reload. Tooltip thành `chartTooltipStyle(palette)`. Chấm legend dùng class token (`CHART_DOT_CLASS`) ⇒ **bỏ ngoại lệ inline style của `ChartLegend`**. Guard màu hẹp lại từ `lib/chart/**` còn đúng `chartTheme.ts`; test mới đọc `index.css` và đòi mọi hex của 2 palette khớp token của nó. +6 test. CSS +13 B gzip (đo chung với THEME-04-FU). Smoke 43/43. |
+| 2026-09-26 | **THEME-04-FU · nút tim trên ảnh ở theme sáng** (class **A** — chỉ class). Nút tim của `ProductCard`/`WishlistPage` giờ nằm trên chip theo theme `bg-canvas-elevated/90 backdrop-blur-sm border border-bdr` thay vì scrim đen ⇒ màu icon sẵn có (`ink-sec` / `accent-red`) đủ tương phản ở cả 2 theme. Không thêm prop `onImage` như snapshot đề xuất; `WishlistButton` không đổi. Theme tối đổi nhẹ: scrim đen trong → chip xám nổi có viền. +1 test. |
+| 2026-09-26 | **THEME-04 · dọn màu viết thẳng** (class **A** — chỉ class Tailwind; theme tối computed style không đổi, theme sáng chỉ bật ở dev). Chữ trên gradient / accent đặc / ảnh / scrim → `text-ink-on-accent` (kể cả ~15 chỗ `bg-tb-gradient text-ink-pri` từng ra chữ đen ở theme sáng); chữ trên nền → `text-ink-pri`; `bg-black` / `black/N` → `bg-scrim`; thumb `ToggleSwitch` → `bg-ink-on-accent`. `rgba()` viết thẳng ở `/login`, `PasswordField`, `ForgotPasswordForm`, `ProductDetail` → `ring-accent-*/NN`, `bg-canvas-surface/60`. Guard `findHardcodedColors` quét mọi `.ts`/`.tsx` trong `src/` (trừ test, `ui/`, `lib/chart/`, `theme.ts`): `white`/`black` utility, `rgb()`/`hsl()`, hex ⇒ fail kèm `file:dòng`. +3 test. CSS +48 B gzip. Smoke 43/43. |
 
 ## Active Tasks — open / blocked
 
@@ -96,21 +96,6 @@ branch chưa merge, đã verify bằng `git branch --contains` trong `api/`, kh�
   nợ đúng một việc rẻ: khi prod sống lại, `admin1` mở `/admin/reports` curl 3 tab xem
   `total`/`totalPages` đã khớp `data.length` chưa. Hành vi "report sống lâu hơn post" nằm ở
   `.ai/context/domain.md` §8.
-- **UPLOAD-SIZE-01 — nửa còn lại (`?bytes=`) chờ BE push.** FE đã đọc `maxBytes`/`maxVideoBytes`
-  từ response chữ ký (fallback về hằng số cũ khi field vắng ⇒ chạy đúng với **cả** BE cũ lẫn mới).
-  Chưa gửi query param `?bytes=file.size` vì `5ceb46c` cũng chỉ nằm trên branch
-  `fix/upload-size-01-server-cap`: BE hiện tại nhiều khả năng trả **400 "property bytes should not
-  exist"** (đúng cái bẫy đã ghi ở `backend-handoff.md` §DEPLOY-0813) ⇒ **hỏng mọi upload**. Thêm
-  param sau khi BE lên prod. Lưu ý: đây vẫn **không phải** security guard — BE đã probe và
-  Cloudinary không cho ký tham số size, client bỏ qua vẫn upload được.
-
-- **XSS-DESC-01 — stored XSS seller → buyer qua `description` sản phẩm.** BE inbox `XSS-DESC-01`
-  (2026-09-23). `ProductDetail.tsx:445` render `detail.description` bằng `dangerouslySetInnerHTML`;
-  DTO BE chỉ `@IsString()`, không sanitize. Payload kiểu `<img src=x onerror=…>` chạy **với session
-  của người đang xem** vì `credentials: 'include'` là mặc định toàn cục của `request()`. Sửa đúng
-  nằm ở BE (allow-list lúc ghi — chi tiết trong entry inbox, kèm ràng buộc `img[src]` phải sống sót
-  cho `collectProductMediaUrls` của UP-03). **FE mitigate được** bằng sanitize lúc render, nhưng cần
-  thêm dependency (DOMPurify) ⇒ **chờ user duyệt**, chưa làm.
 
 ### Known issue còn mở — advisory `@tiptap/*` cố ý chưa vá (AUDIT-NPM-01, 2026-09-23)
 
@@ -123,25 +108,6 @@ tái hiện ở cả `audit fix` lẫn `install` sạch. Ba đường vòng (`np
 `@tiptap/core`** cùng lúc, mà ProseMirror so plugin key bằng identity. Thử lại khi npm sửa arborist
 hoặc tiptap nới peer range. Bối cảnh + bài học "đừng xoá lockfile trước khi `--dry-run`" →
 `CHANGELOG.md` §AUDIT-NPM-01.
-
-### Known issue còn mở — `useAuthContext().currentUser` stale ngay sau khi đăng nhập trong app
-
-**Chưa sửa. Ảnh hưởng mọi nơi đọc `currentUser` từ context.** `useAuth.loginSuccess`
-(`src/hooks/auth/useAuth.ts`) gọi `queryClient.clear()` rồi mới `setQueryData(queryKeys.auth.me)`.
-TanStack v5: `clear()` **xoá cache entry mà không notify observer đang sống** (chính file đó đã ghi
-nhận điều này — handler cross-tab cố ý dùng `resetQueries()` vì lý do đó), và `setQueryData` sau
-`clear()` dựng một Query **mới** mà observer cũ chưa gắn vào. Hệ quả: sau khi đăng nhập **không
-reload**, `AuthProvider` vẫn báo `currentUser === null` cho tới lần re-render kế tiếp, trong khi
-`useRole()` / `ProtectedRoute` (mount observer mới trên chính query `auth.me`) đã thấy user ⇒ app
-**trông** như đã đăng nhập, chỉ những chỗ gate bằng context là chết âm thầm.
-
-- **Đã trả giá một lần:** SEARCH-01-FE (2026-09-15) — nhóm Seller không bao giờ hiện sau khi đăng
-  nhập trong app. Repro được 100%, reload là hết ⇒ rất dễ kết luận nhầm là bug BE hoặc bug cache.
-- **Cách né đang dùng:** gate bằng **query** `auth.me` (`useRole()`), không bằng context. Đây cũng
-  là thứ `ProtectedRoute` làm sẵn từ trước — coi như convention.
-- **Fix gốc chưa làm:** đổi `clear()` → `resetQueries()` (hoặc `removeQueries` có scope) trong
-  `loginSuccess`. Blast radius rộng — chạm mọi query sau login — nên cần một lượt riêng có verify
-  runtime, đừng nhét kèm feature.
 
 ### Guard cố ý giữ — đừng "dọn" khi refactor
 
@@ -169,6 +135,18 @@ reload**, `AuthProvider` vẫn báo `currentUser === null` cho tới lần re-re
 ### Còn lại phía FE
 
 *(verify từ code thật 2026-08-14; không mục nào chặn runtime — đây là scale-consistency + lint)*
+
+- 🟢 **E2E-DEBT — 22/30 route mới có smoke, chưa có deep spec** (đo từ `e2e/routes.ts`
+  2026-09-25; có deep: `/login`, `/marketplace`, `/checkout`, `/order/:id`, `/payment-result`,
+  `/sell`, `/sell/orders`, `/sell/vouchers`). Smoke mở được cả 30 route; thứ còn thiếu là spec đi hết một flow thật.
+  Top 3 theo rủi ro (tiền + chuyển trạng thái): **`/sell/returns`** (duyệt trả hàng–hoàn tiền;
+  cần seed một đơn `delivered` kèm yêu cầu trả hàng đang chờ, local hiện không có), **`/cart`**, **`/orders`**.
+  Sau đó `/returns`, rồi admin
+  moderation, cuối cùng các trang chỉ đọc. `/profile/:id` nay có một flow đáng deep spec
+  (EMAIL-REAUTH-01: đổi email → ô mật khẩu hiện ra → sai mật khẩu báo lỗi đúng ô, không về
+  `/login`). Nên dùng một account throwaway, **đừng** đổi email của account seed.
+  Cách làm: `/e2e fill [n]` (`.ai/workflows/e2e.md`); `/sweep` chỉ chọn mục này khi không còn
+  🔴/🟡. Mỗi route xong → bỏ khỏi danh sách và cập nhật số đếm; `/sweep audit` làm tươi lại con số.
 
 - **DEMO-RETRY-01 — ĐÃ ĐÓNG. Cả 2 vòng đã lên prod (`50e773b`, `369dbc6`, `557d2b8`) và verify
   bằng MCP trên 10 route với EC2 tắt thật.**
@@ -293,11 +271,10 @@ reload**, `AuthProvider` vẫn báo `currentUser === null` cho tới lần re-re
 - **AN-01(c): ĐÃ ĐÓNG (2026-09-14).** Lúc đổi recharts → Chart.js đã extract luôn
   `src/lib/chart/chartTheme.ts`; giờ có 4 chart surface nên điều kiện "thêm chart thứ 2" thỏa.
   `AnalyticsDashboard` không còn literal nào.
-- **`/NN` trên alias `var()`: ĐÃ ĐÓNG (ALIAS-ALPHA-01, 2026-09-16)** — 265 site / 56 file swap sang
-  token hex literal, `src/` còn **0**. Giờ có test chặn tái phát (`src/test/aliasAlpha.test.ts` quét
-  cả `src/` qua `import.meta.glob`), nên đừng chỉ dựa vào Check 8 thủ công nữa. Nhắc lại phần dễ
-  quên: `accent-violet`/`accent-blue` là **hex literal** ⇒ `/NN` chạy bình thường, **không** phải
-  violation; và `ink-pri` (#FFFFFF) không có token `tb-*` nào nên bản vá là `white/NN`.
+- **`/NN` trên alias: gỡ gốc ở THEME-01 (2026-09-25)** — mọi token màu giờ là
+  `rgb(var(--x) / <alpha-value>)` nên `/NN` chạy trên **mọi** alias; `aliasAlpha` test đã xoá, thay
+  bằng `src/test/themeTokens.test.ts` (kiểm shape token trong config, không quét `src/`). 265 chỗ mà
+  ALIAS-ALPHA-01 đã đổi sang `tb-*` vẫn đúng — **đừng** đổi ngược, churn không lợi gì.
 - **`loginSchema` (`features/auth/auth.schema.ts:3`) là code chết (phát hiện 2026-09-15).** Grep ra
   **0** call site — `LoginPage` validate nhánh đăng nhập bằng tay, chỉ `registerSchema` đi qua
   `zodResolver`. Để nguyên trong lượt NAME-TRIM-01 vì xoá không thuộc diff tối thiểu của item đó, và
@@ -316,42 +293,140 @@ reload**, `AuthProvider` vẫn báo `currentUser === null` cho tới lần re-re
   name của cả 17 đến từ `aria-label` và đã đúng. Bảng phân trang nên `id` phải sinh động theo hàng —
   thêm vào chỉ để tắt cảnh báo là đổi code lấy số 0.
 
+## Feature Roadmap
+
+*(`/sweep propose` 2026-09-25, rà luồng chính trước rồi mới tới luồng phụ. **F9–F12: đề xuất, user
+chưa chọn.** F13 (theme): user đã chọn, đang làm. F1–F7 đã có chủ ở CHANGELOG/handoff ⇒ đánh số tiếp từ F8. Rewards/điểm
+thưởng **user đã loại** — service `rewards` của BE có ghi điểm nhưng không có route gateway, đừng đề
+xuất lại.)*
+
+**Luồng chính** (sản phẩm → giỏ → checkout → đơn):
+
+- 🟡 **F9 — "Mua ngay" trên trang sản phẩm.** Hiện chỉ có "Thêm vào giỏ". Làm: add to cart rồi
+  `navigate('/checkout', { state: { selectedIds: [cartItemId] } })` — `CheckoutPage.tsx:73` đã đọc
+  sẵn `selectedIds`, không phải sửa checkout. **Cần xác nhận trước:** `POST /cart` có trả id dòng giỏ
+  không; nếu không thì refetch giỏ và match `productId` + `skuId`. Route `/product/:id`, `/checkout`.
+  BE: không. Công S–M. Test: helper tìm dòng giỏ + deep spec `buy-now.buyer.spec.ts` (trả luôn nợ
+  deep của `/product/:id` trong E2E-DEBT).
+- 🟢 **F10 — "Mua lại" cho đơn `completed` / `canceled`.** `OrderItem` có `productId` + `skuId` ⇒
+  thêm lại từng món vào giỏ; món `productId: null` hoặc hết hàng thì bỏ qua và báo theo dòng; xong
+  chuyển `/cart` với các món đó được chọn sẵn. Route `/order/:id` (có thể thêm `/orders`). BE: không.
+  Công M. Test: helper thuần `reorderItems.ts` + deep spec.
+- 🟢 **F11 — "Sản phẩm khác của shop" dưới trang chi tiết.** `useProducts({ userId: detail.userId,
+  limit: 6, isActive: true })`, bỏ sản phẩm đang xem, dùng lại `ProductCard`; chỉ fetch khi cuộn tới
+  để không đè lên LCP. Route `/product/:id`. BE: không. Công S. Test: helper loại sản phẩm hiện tại +
+  smoke.
+
+**Luồng phụ:**
+
+- 🟢 **F12 — Dòng thời gian giao hàng cho người mua trên `/order/:id`.** Hiện buyer chỉ thấy trạng
+  thái hiện tại + ngày giao dự kiến; `Order` chỉ có `createdAt`/`paidAt`, không có lịch sử chuyển
+  trạng thái. Lịch sử GHN có ở `GET /order/admin/ghn/orders/:id/history` nhưng **chỉ admin**. **BE:
+  có** — cần endpoint buyer-scoped (vd. `GET /order/:id/history`: status transition + sự kiện GHN) ⇒
+  mở entry trong `../.agent-local/backend-handoff.md` khi user chọn. Công M–L. Test: helper dựng
+  timeline + mở rộng `order-detail.buyer.spec.ts`.
+- *Suýt vào danh sách:* ảnh bằng chứng khi yêu cầu trả hàng — `CreateReturnRequestDto` chỉ có
+  `reason` ⇒ cần BE thêm field ảnh; hạ tầng upload phía FE đã có.
+
+**F13 — Công tắc sáng / tối cho toàn web** *(user chọn 2026-09-25, làm tuần tự THEME-01 → 06, mỗi
+bước một `/sweep`)*. BE: không. Mọi bước class A (chỉ FE). Quyết định đã chốt:
+(1) **mặc định theo `prefers-color-scheme`** của hệ điều hành, công tắc của user ghi đè và nhớ
+trên máy; (2) chế độ sáng dùng **cam đậm `#B45309`** cho chữ và viền (vì `#F59E0B` trên nền trắng chỉ
+~2.1:1), còn nền gradient CTA giữ nguyên. Công tắc **chỉ hiện ở dev** (`import.meta.env.DEV`) cho
+tới THEME-06, nên người dùng thật không bao giờ thấy chế độ sáng làm dở.
+
+- ✅ THEME-01 (nền móng token) đã xong 2026-09-25 — xem Recent closes / `CHANGELOG.md`.
+- ✅ THEME-02 (bảng màu sáng) đã xong 2026-09-25 — xem Recent closes / `CHANGELOG.md`. Khối
+  `[data-theme="light"]` nay được THEME-03 bật (chỉ ở dev).
+- ✅ THEME-03 (cơ chế + công tắc) đã xong 2026-09-26 — xem Recent closes / `CHANGELOG.md`. Ở dev,
+  Playwright và Chrome DevTools MCP giả lập `prefers-color-scheme` (Playwright mặc định **light**)
+  nên e2e trên dev giờ render theme sáng.
+- ✅ THEME-04 (dọn màu viết thẳng) đã xong 2026-09-26 — xem Recent closes / `CHANGELOG.md`.
+  `src/` không còn `text-white`/`bg-black`/`rgba()`/hex; `themeTokens.test.ts` chặn chúng quay lại.
+- ✅ THEME-04-FU (nút tim trên ảnh) đã xong 2026-09-26 — xem Recent closes / `CHANGELOG.md`.
+- ✅ THEME-05 (chart theo theme) đã xong 2026-09-26 — xem Recent closes / `CHANGELOG.md`. Chart
+  đổi màu ngay khi bật công tắc; `chartTheme.test.ts` ghim 2 palette vào `index.css`.
+- 🟢 **THEME-06 — Rà toàn bộ + phát hành.** Rà giao diện mọi route với 4 role ở 2 theme, bỏ giới
+  hạn dev (**cả hai cổng**: `THEME_SWITCH_ENABLED` trong `lib/theme/theme.ts` và `'%DEV%'` trong
+  script của `index.html`; `theme.test.ts` có test "prod gate" cần đổi theo), e2e: bật công tắc → reload → giữ nguyên theme; cập nhật `tokens.md`/`styling.md` thành hệ
+  2 theme. Cân nhắc luôn: bảng **tối** có 5 cặp chữ/nền dưới AA từ trước (`ink-muted` 2.2–2.6:1 trên
+  cả 3 nền, `accent-violet` 4.0–4.45 trên surface/elevated) — `themeTokens.test.ts` ghim đúng 5
+  cặp đó; sửa cặp nào thì xoá dòng của nó. Chữ trắng trên gradient CTA chỉ 2.15:1 (đầu `#F59E0B`)
+  — quyết định thương hiệu, không assert.
+- *Ngoài phạm vi:* `components/ui/` dùng `bg-background`/`text-foreground`/… nhưng config
+  không định nghĩa các màu đó ⇒ hiện chúng không ra màu gì. Định nghĩa chúng thì giao diện tối cũng
+  đổi theo ⇒ phải có quyết định riêng.
+
 ## Perf — đo thật, phần còn mở
 
-Lighthouse/LCP: số đo **2026-07-02** (prod build qua `vite preview`, headless, simulated
-throttling) — chưa đo lại. Bundle: số đo **2026-08-04** (`npm run build`). Re-run:
+Lighthouse `/login`: số đo **2026-09-24** (prod build qua `vite preview`, LHCI mobile mặc định,
+simulated throttling, median 3 lượt). Từ ngày này **CI tự đo mỗi push/PR** (job `lighthouse`,
+budget ở `lighthouserc.json`); report nằm trong artifact `lighthouse-reports` của run. Bundle: số
+đo **2026-09-25** (`npm run check:bundle`, cũng chạy trong CI — PERF-BUDGET-01). Re-run tay:
 
 ```bash
-npx -y vite-bundle-visualizer -t list -o <out>.yml
-npm run build && npx vite preview --port 4173
-npx -y lighthouse http://localhost:4173/login --only-categories=performance \
-  --output=json --output-path=<out>.json --chrome-flags="--headless=new"
+npm run build && npm run check:bundle                # gzip từng chunk vs trần trong scripts/check-bundle.mjs
+npx -y vite-bundle-visualizer -t list -o <out>.yml   # chunk nặng chứa gì
+npm run build && npx -y @lhci/cli@0.15.x autorun     # tự bật vite preview :4173, report → .lighthouseci/
 ```
 
-- **Lighthouse `/login`:** Perf **78** · FCP 3.7s · LCP 4.2s · TBT 0ms · **CLS 0** · SI 3.7s.
-- **Bundle (chunk phát ra, 2026-08-04):** `index` 475,0 kB / gzip 149,1 kB (react-dom +
-  react-router + tailwind-merge — bình thường với stack này) · `CreateProductPage` 457,3 kB /
-  gzip 142,9 kB (TipTap + ProseMirror) — đã route-lazy; muốn giảm nữa thì dynamic-import riêng
-  phần editor · **`DoughnutChart` 178,5 kB / gzip 62,9 kB** (Chart.js, chunk chứa toàn bộ chart —
-  đo lại 2026-09-14; trước khi đổi recharts là 402,1 kB / gzip 116,0 kB trong chunk
-  `useAnalyticsFilters`) — route-lazy, chấp nhận · `schemas` 93,0 kB / gzip 27,9 kB
-  (react-hook-form + zod). ⚠️ Con số "245 kB" cho `schemas` ở bản snapshot cũ là **module size
-  từ bundle-visualizer**, không phải chunk phát ra — hai metric khác nhau, đừng so trực tiếp.
-  Nhận định cũ "trang login kéo cả chunk, 87% unused → tách schema per-form" chưa đo lại.
-- **🟡 Marketplace LCP 1.44s, trong đó load delay 1.38s** (đo 2026-07-02) — waterfall SPA (boot
-  JS → `GET /products/with-inventory/all` → render → mới request ảnh). Ảnh LCP hồi đó fail cả 3
-  check LCPDiscovery. **Hai trong ba đã đóng (verify code 2026-08-05):** `fetchPriority` giờ có ở
-  8 chỗ (`ProductCard.tsx:40`, `ProductDetail.tsx:191`, `PostCard.tsx:188/204/234`,
-  `PostDetailPage.tsx:170/180`, `WishlistPage.tsx:29`) và chỉ còn 3 `loading="lazy"` **đều là
-  ảnh non-LCP** (`RightRail.tsx:111`, `ProductDetail.tsx:215`, `PostCard.tsx:215`). Check thứ ba
-  — ảnh không discoverable từ HTML — vẫn đúng và là bản chất SPA. **Chưa đo lại LCP sau thay
-  đổi này.** Win thật còn lại là rút ngắn waterfall, không phải attribute ảnh.
+- **Lighthouse `/login` (2026-09-24):** Perf **0.85–0.86** · FCP ~3.0s · LCP ~3.43s (phần tử
+  LCP là heading `<h2>`) · TBT 0–18ms · transfer script 196 kB / CSS 12,7 kB / tổng 335 kB.
+  Trước đó (2026-07-02): Perf 78 · FCP 3.7s · LCP 4.2s · CLS 0.
+- **Bundle (chunk phát ra, 2026-09-25, raw / gzip theo `check:bundle` / trần):**
+  - `index` (entry) 495,7 kB / 157 725 B / 180 000. Gồm react-dom + react-router + tailwind-merge,
+    bình thường với stack này. Raw 475,0 kB hôm 2026-08-04, tức +4,4%.
+  - `CreateProductPage` 470,7 kB / 148 485 / 170 000. TipTap + ProseMirror, đã route-lazy. Muốn
+    giảm nữa thì dynamic-import riêng phần editor.
+  - `cookieStore` 177,8 kB / 63 486 / 72 000. **Đây là MSW** — Rollup đặt tên chunk theo một
+    module bên trong nó. Chỉ tải ở demo mode.
+  - `DoughnutChart` 178,5 kB / 62 889 / 72 000. Chart.js, route-lazy, chấp nhận. Trước khi đổi
+    recharts là 402,1 kB trong chunk `useAnalyticsFilters`.
+  - `schemas` 93,5 kB / 28 021 / 32 000. react-hook-form + zod.
+  - Mọi chunk khác ≤ 24 273 B (trần mặc định 30 000). CSS entry 11 051 / 13 000. Tổng 98 file
+    653 351 / 750 000.
+
+  ⚠️ gzip ở đây là zlib mức mặc định của Node, **không** trùng số gzip Vite in ra (số 2026-08-04
+  cũ là của Vite). Chỉ so gzip với gzip do `check:bundle` đo. Còn "245 kB" cho `schemas` ở bản
+  cũ hơn là module size từ bundle-visualizer, lại là một metric khác nữa. Nhận định cũ "trang
+  login kéo cả chunk, 87% unused → tách schema per-form" chưa đo lại.
+- **Marketplace LCP** — số cũ 1.44s (load delay 1.38s, đo 2026-07-02). Hai việc đã xong:
+  - Attribute ảnh (`fetchPriority`, bỏ `loading="lazy"` ở ảnh LCP) đóng 2026-08-05.
+  - Waterfall `/user/me` → chunk → list đóng 2026-09-24 (PERF-LCP-01): route loader prefetch list,
+    nên request list đi cùng `/user/me`.
+
+  **Chưa đo lại LCP trên prod build**, vì LHCI chỉ audit `/login`: `/marketplace` cần session +
+  data. Ảnh vẫn không discoverable từ HTML, đó là bản chất SPA.
 - Feed `/`: LCP 718ms (714ms là render delay = JS boot của SPA) · CLS 0 — OK.
 - Forced reflow ~31ms trong `index` chunk (minified, chưa attribute được về source — cần trace
   có sourcemap nếu muốn đào).
+- **Đo liên tục:** Lighthouse CI chạy trên mỗi PR/push (PERF-MON-01, 2026-09-24). Từ PERF-BUDGET-01
+  (2026-09-25) còn thêm bước `check:bundle` trong job `frontend`. Vượt budget ở bất kỳ bên nào thì
+  CI đỏ **và deploy bị chặn**. Muốn nới budget: sửa số trong `lighthouserc.json` hoặc
+  `scripts/check-bundle.mjs`, trong cùng PR có lý do. Vẫn **chưa có RUM** (Web Vitals từ người dùng thật). Nếu cần sau này có hai hướng:
+  - Cloudflare Web Analytics: 1 beacon, không thêm dep.
+  - `web-vitals` gửi về endpoint BE: cần dep + endpoint mới.
+
+  Cả hai phải hỏi user trước.
+- 🟢 **PERF-E2E-01 — Playwright perf spec cho route đăng nhập (hoãn có chủ đích, 2026-09-25).**
+  Hiện không có gì tự đo LCP/CLS của `/marketplace`, `/checkout`, `/order/:id`, `/sell`. LHCI chỉ
+  audit `/login` ở demo mode, `check:bundle` chỉ đo kích thước. Tạm thời dùng trace MCP ở bước 7c
+  của `/sweep`, nhưng cách đó chạy tay và không có pass/fail.
+  - Phạm vi:
+    - project `perf` trong `playwright.config.ts` chạy `npm run build && npm run preview` trên
+      `:4173` (webServer hiện là `npm run dev` `:5173`, số đo ở đó vô nghĩa);
+    - kiểm tra preview có proxy `/api` tới gateway không;
+    - `e2e/perf.buyer.spec.ts` đo LCP/CLS/long task qua `PerformanceObserver`, median 3 lượt,
+      ngưỡng rộng;
+    - `npm run test:perf`, rồi cho 7c dùng spec này thay trace MCP.
+  - Giới hạn: cần BE thật ⇒ không vào CI (giống e2e), số local dao động ⇒ chỉ bắt được regression
+    lớn.
+  - **Làm khi có item perf thật trên một route đăng nhập**, để spec có ngay before/after. Làm bây giờ
+    chỉ là dựng khung.
 
 > Ngoài tầm static scan (phải ĐO, không đoán): re-render thật → React DevTools Profiler; bundle
-> size → visualizer; LCP/CLS/INP → Lighthouse. `/check-perf` chỉ bắt được mức grep.
+> size → `check:bundle` (bên trong chunk → visualizer); LCP/CLS/INP → Lighthouse, hoặc trace MCP
+> trên `npm run preview`, **không** dùng dev server. `/check-perf` chỉ bắt được mức grep.
 
 ## Runtime verification còn nợ
 
@@ -423,7 +498,7 @@ Cần full-stack live (FE↔BE) và/hoặc 2 tài khoản; không repro được
 
 ## Pitfall đã trả giá
 
-Đã chuyển sang `.ai/context/pitfalls.md` (16 mục, on-demand) — pitfall là kiến thức vĩnh viễn,
+Đã chuyển sang `.ai/context/pitfalls.md` (18 mục, on-demand) — pitfall là kiến thức vĩnh viễn,
 không thuộc live-picture. Đọc file đó khi debug thứ "trông đúng mà không chạy".
 
 ## Definition of production-ready

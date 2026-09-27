@@ -1,7 +1,16 @@
 # Design Tokens — TryBuy
 
-Dark-theme design system. All tokens defined in `tailwind.config.js`.
+Dark-theme design system; a light palette exists since THEME-02 (`[data-theme="light"]` in
+`src/index.css`). Since THEME-03 `ThemeProvider` sets `data-theme` on `<html>` (saved choice →
+OS `prefers-color-scheme`), but only in **dev** until THEME-06 (roadmap F13) — production stays
+dark. All tokens defined in `tailwind.config.js`.
 **Never hardcode hex/rgb values** — if a token doesn't exist, add it to the config first.
+A new **colour** token is two lines: a bare-RGB channel variable in `src/index.css` `:root`
+(`--x: 9 9 11;`) and `channel('--x')` in the config. `src/test/themeTokens.test.ts` fails on
+any other shape (hex, bare `var()`), because a theme could not swap it. **Also add the variable to
+the `[data-theme="light"]` block** — the test fails if a `:root` variable is missing there, and a
+light text colour must reach WCAG AA (4.5:1) on all three canvases. Colour literals belong only
+in those two blocks; every other rule in `index.css` reads `rgb(var(--x))`.
 
 ---
 
@@ -13,19 +22,20 @@ The project has **two complementary token layers**. They are not interchangeable
 
 `canvas-*` / `ink-*` / `accent-*` / `bdr` resolve through CSS variables and are the **preferred** choice for color in new code. They are more descriptive and future-proof for theming.
 
-> ⚠️ **Opacity modifiers do NOT work on var()-based aliases.** `canvas-*`, `ink-*`,
-> `accent-pri/sec/cyan/green/red/amber`, and `bdr` are plain `var()` strings without
-> `<alpha-value>`, so `border-accent-amber/50` silently generates nothing (rings fall
-> back to Tailwind's default blue). When you need `/50` or `/[0.08]`, use the
-> literal-hex token instead: `tb-amber/50`, `tb-red/10`, `tb-cyan/30`, or
-> `accent-violet`/`accent-blue` (those two are literal hex). Verified live 2026-07-11.
+> ✅ **Opacity modifiers work on every colour token** (since THEME-01, 2026-09-25). Each alias
+> and each `tb-*` colour is `rgb(var(--x) / <alpha-value>)` over a channel variable, so
+> `border-accent-amber/50`, `bg-canvas-surface/95` and `bg-tb-amber/[0.08]` all compile.
+> Before THEME-01 the aliases were bare `var()` and `/NN` dropped the **whole class** — code
+> from that era spells opacity with `tb-*`; that is not a violation and needs no rewrite.
 
-`text-ink-pri` (`#FFFFFF`) exists **only** as a semantic alias — it is the only
-correct token for white/primary text; `text-white` should not be used.
+`text-ink-pri` exists **only** as a semantic alias — it is the primary text colour (white in dark,
+near-black in light). `text-white`, `bg-black`, `white/N`, `black/N`, `rgb()`/`rgba()` and hex are
+banned in `src/`: a theme cannot reach them, and `src/test/themeTokens.test.ts` fails on each one
+with `file:line` (THEME-04).
 
-Amber, red, green, and cyan each have a literal `tb-*` token (`tb-amber`, `tb-red`,
-`tb-green`, `tb-cyan`) for opacity modifiers such as `bg-tb-green/15` or `tb-cyan/30`;
-prefer the semantic alias (`text-accent-*`) when opacity is not needed.
+Amber, red, green, and cyan each also have a `tb-*` name (`tb-amber`, `tb-red`, `tb-green`,
+`tb-cyan`). It reads the **same variable** as the alias (the guard test pins each pair), so both
+spellings take `/NN`; prefer the semantic alias (`text-accent-*`, `bg-accent-green/15`) in new code.
 
 ### `tb-*` tokens — required for non-color tokens
 
@@ -59,8 +69,8 @@ Two alias pairs resolve to identical hex values but carry different intent:
 | Secondary / muted text | `text-ink-sec` / `text-ink-muted` |
 | Brand amber, CTAs, prices | `text-accent-amber` / `bg-accent-amber` |
 | Danger / destructive | `text-accent-red` |
-| Success, free shipping | `text-accent-green`; use `tb-green` when an opacity modifier is needed |
-| Info / cyan highlights | `text-accent-cyan`; use `tb-cyan` when an opacity modifier is needed |
+| Success, free shipping | `text-accent-green` |
+| Info / cyan highlights | `text-accent-cyan` |
 | Border-radius | `rounded-tb-*` ← `tb-*` only, no alias |
 | Gradient fills | `bg-tb-gradient` / `bg-tb-gradient-90` ← `tb-*` only |
 | Shadows | `shadow-tb-cta` / `shadow-tb-card` ← `tb-*` only |
@@ -68,6 +78,9 @@ Two alias pairs resolve to identical hex values but carry different intent:
 ---
 
 ## Color Tokens — `tb-*`
+
+Hex columns below are the **dark-theme** values. The source of truth is the channel variable in
+`src/index.css` (`--bg-base: 9 9 11; /* #09090B */`); a theme redefines the variable, not the class.
 
 | Token | Hex | Use for |
 |---|---|---|
@@ -78,29 +91,36 @@ Two alias pairs resolve to identical hex values but carry different intent:
 | `text-tb-muted` | `#52525B` | Placeholder, disabled text |
 | `text-tb-secondary` | `#A1A1AA` | Secondary text |
 | `text-tb-amber` | `#F59E0B` | Accent amber |
-| `text-tb-green` | `#10B981` | Success green when opacity modifiers are needed |
+| `text-tb-green` | `#10B981` | Success green |
 | `text-tb-red` | `#EF4444` | Danger / accent red |
-| `text-tb-cyan` | `#06B6D4` | Info / cyan when opacity modifiers are needed |
+| `text-tb-cyan` | `#06B6D4` | Info / cyan |
 
 ## CSS-Variable Semantic Aliases
 
-| Token | Hex | `tb-*` equivalent |
-|---|---|---|
-| `bg-canvas-base` | `#09090B` | `bg-tb-base` |
-| `bg-canvas-surface` | `#111113` | `bg-tb-surface` |
-| `bg-canvas-elevated` | `#1C1C1E` | `bg-tb-elevated` |
-| `border-bdr` | `#27272A` | `border-tb-border` |
-| `text-ink-pri` | `#FFFFFF` | **none** — alias only |
-| `text-ink-sec` | `#A1A1AA` | `text-tb-secondary` |
-| `text-ink-muted` | `#52525B` | `text-tb-muted` |
-| `text-accent-pri` | `#F59E0B` | `text-tb-amber` (same hex) |
-| `text-accent-sec` | `#EF4444` | `text-tb-red` (same hex) |
-| `text-accent-amber` | `#F59E0B` | `text-tb-amber` (same hex) |
-| `text-accent-red` | `#EF4444` | `text-tb-red` (same hex) |
-| `text-accent-cyan` | `#06b6d4` | `text-tb-cyan` |
-| `text-accent-green` | `#10b981` | `text-tb-green` |
-| `text-accent-violet` | `#8b5cf6` | **none** — alias only (shipped badge) |
-| `text-accent-blue` | `#3b82f6` | **none** — alias only (delivering badge) |
+| Token | Hex (dark) | Hex (light) | `tb-*` equivalent |
+|---|---|---|---|
+| `bg-canvas-base` | `#09090B` | `#FAFAFA` | `bg-tb-base` |
+| `bg-canvas-surface` | `#111113` | `#FFFFFF` | `bg-tb-surface` |
+| `bg-canvas-elevated` | `#1C1C1E` | `#F4F4F5` | `bg-tb-elevated` |
+| `border-bdr` | `#27272A` | `#E4E4E7` | `border-tb-border` |
+| `text-ink-pri` | `#FFFFFF` | `#09090B` | **none** — alias only |
+| `text-ink-sec` | `#A1A1AA` | `#52525B` | `text-tb-secondary` |
+| `text-ink-muted` | `#52525B` | `#6B6B73` | `text-tb-muted` |
+| `text-accent-pri` | `#F59E0B` | `#B45309` | `text-tb-amber` (same hex) |
+| `text-accent-sec` | `#EF4444` | `#B91C1C` | `text-tb-red` (same hex) |
+| `text-accent-amber` | `#F59E0B` | `#B45309` | `text-tb-amber` (same hex) |
+| `text-accent-red` | `#EF4444` | `#B91C1C` | `text-tb-red` (same hex) |
+| `text-accent-cyan` | `#06b6d4` | `#0E7490` | `text-tb-cyan` |
+| `text-accent-green` | `#10b981` | `#047857` | `text-tb-green` |
+| `text-accent-violet` | `#8b5cf6` | `#7C3AED` | **none** — alias only (shipped badge) |
+| `text-accent-blue` | `#3b82f6` | `#2563EB` | **none** — alias only (delivering badge) |
+| `text-ink-on-accent` | `#FFFFFF` | `#FFFFFF` | **none** — text on the CTA gradient or a photo; white in every theme |
+| `bg-scrim` | `#000000` | `#18181B` | **none** — modal/drawer overlay; set opacity per use (`bg-scrim/60`) |
+
+> `ink-pri` flips to near-black in light mode. Text sitting on `bg-tb-gradient`, a solid accent
+> (`bg-accent-red`), an image or a scrim must use `text-ink-on-accent`, not `ink-pri` or
+> `text-white`. Overlays and letterboxes behind media are `bg-scrim/NN`, not `bg-black/NN`.
+> Since THEME-04, `src/` has none of the old spellings left.
 
 ### Badge pattern — `accent-*` tokens
 
@@ -116,7 +136,7 @@ Two alias pairs resolve to identical hex values but carry different intent:
 |---|---|
 | `bg-tb-gradient` | `linear-gradient(135deg, #F59E0B, #EF4444)` |
 | `bg-tb-gradient-90` | `linear-gradient(90deg, #F59E0B, #EF4444)` |
-| `bg-login-left` | Radial amber+red glow for auth page |
+| `bg-login-left` | Radial amber+red glow for auth page — reads `--tb-login-glow`, softer in light mode |
 
 Usage example (gradient text):
 ```tsx
@@ -148,8 +168,10 @@ Usage example (gradient text):
 
 | Token | Use for |
 |---|---|
-| `shadow-tb-cta` | Amber glow on primary CTAs |
-| `shadow-tb-card` | Card elevation in dark mode |
+| `shadow-tb-cta` | Amber glow on primary CTAs — same in both themes |
+| `shadow-tb-card` | Card / popover elevation — `--tb-shadow-card`, a soft grey shadow in light mode |
+
+Both read a CSS variable (`var(--tb-shadow-*)`), so a theme swaps them without touching a class.
 
 ## Hex → Token Mapping (for `/check-tailwind`)
 
@@ -195,8 +217,9 @@ map it through the table above.
 
 ## Inline `style={{}}` — when allowed
 
-Only for a value that genuinely cannot be a static utility class (runtime-computed size,
-percentage, or chart color). Preferred form is a CSS custom property + an arbitrary-value
+Only for a value that genuinely cannot be a static utility class (runtime-computed size or
+percentage). A chart colour is not one: canvas colours come from `useChartPalette()`, and a legend
+dot uses the token class from `CHART_DOT_CLASS`. Preferred form is a CSS custom property + an arbitrary-value
 class, e.g. `style={{ '--p': \`${percent}%\` } as CSSProperties}` + `className="[width:var(--p)]"`.
 Everything else is a violation flagged by `/check-tailwind` — see that workflow's Check 1 for
 the current allow-list.

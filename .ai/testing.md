@@ -154,9 +154,17 @@ under test cannot exist in a single mounted tree:
 | Behaviour depends on **real cookies / session** across reloads | Auth logic reachable via `renderWithProviders` |
 | Regression on a bug that only reproduced **in the browser** (real redirect, real storage) | Render output, conditional UI, form validation |
 
-The suite's purpose is narrow: it encodes the payment/order audit checklist in
-`agent-handoff/e2e-payment-audit-2026-06-26.md`. **Don't grow it into a general UI suite** — every
-spec added there costs a live backend and a human-run browser install.
+The suite has two layers (procedure in `.ai/workflows/e2e.md`):
+
+- **Smoke — the whole site.** `e2e/routes.ts` lists every router path with the role that opens it;
+  `smoke.<role>.spec.ts` opens each and fails on an uncaught error, `console.error`, an `/api` 5xx
+  (or 401/403 when signed in), an ApiErrorState, or a redirect off the path. `src/router.test.ts`
+  keeps the manifest equal to the router inside `test:run`, so a new route cannot land unsmoked.
+- **Deep — one flow per spec.** The payment/order audit specs and anything `/e2e fill` adds. A
+  route with no deep spec is recorded as owed in its manifest row (`deep: []`), not ignored.
+
+The table above still decides where *logic* is tested: a render branch or a response shape goes to
+Vitest + MSW even when a deep e2e spec also walks through that page.
 
 ### Running it
 
@@ -180,10 +188,14 @@ So: **`npm run test:e2e` is not part of the gate.** The gate stays `build` + `li
 
 ### Auth / seeding
 
-- The `setup` project logs in through the real `/login` UI as **buyer** + **shop** and caches
-  cookies to `e2e/.auth/*.json` (gitignored). Specs never log in themselves.
-- Projects are role-scoped by filename: `*.buyer.spec.ts` → buyer state, `*.shop.spec.ts` → shop
-  state. **A new spec must carry one of those two infixes** or it inherits no session.
+- The `setup` project logs in through the real `/login` UI as **buyer**, **shop** and **admin** and
+  caches cookies to `e2e/.auth/*.json` (gitignored). Specs never log in themselves.
+- Projects are role-scoped by filename: `*.buyer.spec.ts`, `*.shop.spec.ts`, `*.admin.spec.ts`
+  get that role's state; `*.public.spec.ts` runs signed out. **A new spec must carry one of these
+  infixes** or no project picks it up.
+- Admin credentials are **not** in the tracked `e2e/accounts.ts`: set `E2E_ADMIN_USERNAME` /
+  `E2E_ADMIN_PASSWORD` in the environment or in `e2e/.env.local` (gitignored; template
+  `e2e/.env.example`). Unset ⇒ the `admin` project is left out and its setup step skips.
 - Credentials live in `e2e/accounts.ts` — a deliberate in-repo mirror of
   `../.agent-local/test-accounts.md`, so the suite stays self-contained. Keep them in sync by hand;
   don't import across the repo boundary.

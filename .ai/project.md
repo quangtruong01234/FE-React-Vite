@@ -61,7 +61,7 @@ Read `.ai/context/core.md` before repository work.
 | `/sweep`            | Weekly backlog sweep — fix top item(s) from snapshot + handoff inbox (`/sweep`, `/sweep 3`), audit-only (`/sweep audit`), or propose features (`/sweep propose`) |
 | `/verify-ui`        | Verify UI render via Chrome DevTools MCP (alignment/layout, report-only) |
 | `/sync-context`     | Scan `.ai/` for doc↔code drift — dead paths/symbols, stale route table, script claims (report-only) |
-| `/e2e`              | Run or write a Playwright spec (needs live backend + user-installed browser) |
+| `/e2e`              | Run or write a Playwright spec; `/e2e coverage` route table, `/e2e fill [n]` pay coverage debt (needs live backend + user-installed browser) |
 
 ## Agents
 

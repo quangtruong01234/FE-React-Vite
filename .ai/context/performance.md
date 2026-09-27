@@ -39,6 +39,7 @@
   const OrderHistoryPage = lazy(() => import('./features/order/OrderHistoryPage'));
 ```
 - Heavy, rarely-used UI (modals, charts, editors) → dynamic `import()` on demand, not at module top.
+- Every emitted chunk has a gzip ceiling (`scripts/check-bundle.mjs`, run by CI after the build). A new chunk over the default ceiling fails CI on purpose: split it, or give it a named budget in the same PR, with the reason.
 - Import lodash per-method to keep tree-shaking: `import debounce from 'lodash/debounce'` — ❌ never `import _ from 'lodash'`.
 - Don't pull a big dependency for something small/native; new deps need approval anyway.
 
