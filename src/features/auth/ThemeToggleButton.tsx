@@ -5,11 +5,10 @@ import { useTheme } from '@/context/useTheme';
 
 /**
  * The signed-out theme switch (THEME-03) — `/login` has no ProfileMenu. The icon shows the
- * theme a click switches *to*. Renders nothing while the switch is dev-only.
+ * theme a click switches *to*.
  */
-export function ThemeToggleButton(): ReactElement | null {
-  const { theme, toggleTheme, isSwitchEnabled } = useTheme();
-  if (!isSwitchEnabled) return null;
+export function ThemeToggleButton(): ReactElement {
+  const { theme, toggleTheme } = useTheme();
 
   const toLight = theme === 'dark';
   return (

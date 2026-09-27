@@ -19,7 +19,7 @@ export function ProfileMenu(): ReactElement {
   // Central logout (useAuth) clears the cache and broadcasts to other tabs —
   // don't replace with a local mutation, or other tabs keep the dead session.
   const { logout } = useAuthContext();
-  const { theme, setTheme, isSwitchEnabled } = useTheme();
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     function handleClick(e: MouseEvent): void {
@@ -77,18 +77,16 @@ export function ProfileMenu(): ReactElement {
           )}
 
           <div className="h-px bg-bdr my-1.5" />
-          {isSwitchEnabled && (
-            <div className="flex items-center gap-3 px-3 py-2 text-sm text-ink-pri">
-              <Sun size={15} className="shrink-0 text-ink-sec" />
-              <span className="flex-1">Giao diện sáng</span>
-              <ToggleSwitch
-                size="sm"
-                label="Giao diện sáng"
-                checked={theme === 'light'}
-                onChange={(on) => setTheme(on ? 'light' : 'dark')}
-              />
-            </div>
-          )}
+          <div className="flex items-center gap-3 px-3 py-2 text-sm text-ink-pri">
+            <Sun size={15} className="shrink-0 text-ink-sec" />
+            <span className="flex-1">Giao diện sáng</span>
+            <ToggleSwitch
+              size="sm"
+              label="Giao diện sáng"
+              checked={theme === 'light'}
+              onChange={(on) => setTheme(on ? 'light' : 'dark')}
+            />
+          </div>
           <button
             onClick={() => logout({ onSuccess: () => void navigate('/login') })}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-tb-input bg-transparent border-0 cursor-pointer hover:bg-canvas-elevated transition-colors text-left text-sm text-ink-sec"

@@ -8,7 +8,7 @@ import { ChartLegend } from './ChartLegend';
 import { useChartPalette } from './useChartPalette';
 
 function themeValue(theme: Theme): ThemeContextValue {
-  return { theme, setTheme: () => undefined, toggleTheme: () => undefined, isSwitchEnabled: true };
+  return { theme, setTheme: () => undefined, toggleTheme: () => undefined };
 }
 
 describe('useChartPalette (THEME-05)', () => {

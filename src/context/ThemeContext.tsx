@@ -14,7 +14,6 @@ import {
   prefersLightScheme,
   readSavedTheme,
   resolveTheme,
-  THEME_SWITCH_ENABLED,
   writeSavedTheme,
   type Theme,
 } from '@/lib/theme/theme';
@@ -29,25 +28,15 @@ function subscribeToScheme(onChange: () => void): () => void {
 
 const readPrefersLight = (): boolean => prefersLightScheme();
 
-interface ThemeProviderProps {
-  children: ReactNode;
-  /** Tests only — defaults to the dev-only gate. */
-  isEnabled?: boolean;
-}
-
-export function ThemeProvider({
-  children,
-  isEnabled = THEME_SWITCH_ENABLED,
-}: ThemeProviderProps): ReactElement {
+export function ThemeProvider({ children }: { children: ReactNode }): ReactElement {
   const [saved, setSaved] = useState<Theme | null>(() => readSavedTheme());
   const prefersLight = useSyncExternalStore(subscribeToScheme, readPrefersLight, () => false);
-  const theme: Theme = isEnabled ? resolveTheme(saved, prefersLight) : 'dark';
+  const theme: Theme = resolveTheme(saved, prefersLight);
 
   // index.html already set the first paint; this keeps <html> in step afterwards.
-  // Disabled, it touches nothing — :root is the dark theme.
   useLayoutEffect(() => {
-    if (isEnabled) applyTheme(theme);
-  }, [isEnabled, theme]);
+    applyTheme(theme);
+  }, [theme]);
 
   const setTheme = useCallback((next: Theme) => {
     setSaved(next);
@@ -59,9 +48,8 @@ export function ThemeProvider({
       theme,
       setTheme,
       toggleTheme: () => setTheme(theme === 'light' ? 'dark' : 'light'),
-      isSwitchEnabled: isEnabled,
     }),
-    [theme, setTheme, isEnabled],
+    [theme, setTheme],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

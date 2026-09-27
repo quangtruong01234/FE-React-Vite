@@ -26,9 +26,7 @@ function stubOsScheme(light: boolean): { setLight: (next: boolean) => void } {
   };
 }
 
-const enabled = ({ children }: { children: ReactNode }) => (
-  <ThemeProvider isEnabled>{children}</ThemeProvider>
-);
+const wrapper = ({ children }: { children: ReactNode }) => <ThemeProvider>{children}</ThemeProvider>;
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -39,7 +37,7 @@ afterEach(() => {
 describe('ThemeProvider', () => {
   it('follows the OS setting while nothing is saved, including a live change', () => {
     const os = stubOsScheme(true);
-    const { result } = renderHook(() => useTheme(), { wrapper: enabled });
+    const { result } = renderHook(() => useTheme(), { wrapper });
     expect(result.current.theme).toBe('light');
     expect(document.documentElement.dataset.theme).toBe('light');
 
@@ -51,13 +49,13 @@ describe('ThemeProvider', () => {
   it('lets the saved choice win over the OS setting', () => {
     localStorage.setItem(THEME_STORAGE_KEY, 'dark');
     stubOsScheme(true);
-    const { result } = renderHook(() => useTheme(), { wrapper: enabled });
+    const { result } = renderHook(() => useTheme(), { wrapper });
     expect(result.current.theme).toBe('dark');
   });
 
   it('saves a switch, which then outlives an OS change', () => {
     const os = stubOsScheme(false);
-    const { result } = renderHook(() => useTheme(), { wrapper: enabled });
+    const { result } = renderHook(() => useTheme(), { wrapper });
 
     act(() => result.current.setTheme('light'));
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('light');
@@ -65,16 +63,6 @@ describe('ThemeProvider', () => {
 
     act(() => os.setLight(false));
     expect(result.current.theme).toBe('light');
-  });
-
-  it('stays dark and leaves <html> alone when the switch is disabled (production)', () => {
-    localStorage.setItem(THEME_STORAGE_KEY, 'light');
-    stubOsScheme(true);
-    const { result } = renderHook(() => useTheme(), {
-      wrapper: ({ children }) => <ThemeProvider isEnabled={false}>{children}</ThemeProvider>,
-    });
-    expect(result.current).toMatchObject({ theme: 'dark', isSwitchEnabled: false });
-    expect(document.documentElement.dataset.theme).toBeUndefined();
   });
 
   it('throws when useTheme is used outside the provider', () => {
@@ -86,7 +74,7 @@ describe('ThemeProvider', () => {
 describe('ThemeToggleButton', () => {
   it('names the theme it switches to, and flips it on click', async () => {
     const user = userEvent.setup();
-    render(<ThemeToggleButton />, { wrapper: enabled });
+    render(<ThemeToggleButton />, { wrapper });
 
     await user.click(screen.getByRole('button', { name: 'Chuyển sang giao diện sáng' }));
     expect(document.documentElement.dataset.theme).toBe('light');
@@ -94,14 +82,5 @@ describe('ThemeToggleButton', () => {
 
     await user.click(screen.getByRole('button', { name: 'Chuyển sang giao diện tối' }));
     expect(document.documentElement.dataset.theme).toBe('dark');
-  });
-
-  it('renders nothing while the switch is disabled', () => {
-    const { container } = render(
-      <ThemeProvider isEnabled={false}>
-        <ThemeToggleButton />
-      </ThemeProvider>,
-    );
-    expect(container).toBeEmptyDOMElement();
   });
 });

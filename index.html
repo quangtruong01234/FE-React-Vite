@@ -7,11 +7,9 @@
     <meta name="theme-color" content="#09090B" />
     <title>TryBuy</title>
     <!-- THEME-03: set the theme before first paint, or a light-mode visitor sees a dark flash.
-         Same rule as resolveTheme() in src/lib/theme/theme.ts (theme.test.ts runs both).
-         Vite writes true/false into the gate; THEME-06 removes it with THEME_SWITCH_ENABLED. -->
+         Same rule as resolveTheme() in src/lib/theme/theme.ts (theme.test.ts runs both). -->
     <script>
       (function () {
-        if ('%DEV%' !== 'true') return;
         var saved = null;
         try {
           saved = localStorage.getItem('tb-theme');

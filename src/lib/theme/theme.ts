@@ -9,12 +9,6 @@
 
 export type Theme = 'light' | 'dark';
 
-/**
- * Off in production until THEME-06 finishes the light theme, so real users never see it
- * half done. `index.html` carries the same gate (`'%DEV%'`) — THEME-06 lifts both.
- */
-export const THEME_SWITCH_ENABLED: boolean = import.meta.env.DEV;
-
 export const THEME_STORAGE_KEY = 'tb-theme';
 export const LIGHT_SCHEME_QUERY = '(prefers-color-scheme: light)';
 

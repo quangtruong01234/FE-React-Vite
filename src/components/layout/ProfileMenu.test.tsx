@@ -15,10 +15,10 @@ vi.mock('@/hooks/auth/useRole', () => ({
 }));
 vi.mock('@/context/useAuthContext', () => ({ useAuthContext: () => ({ logout: vi.fn() }) }));
 
-function renderMenu(isEnabled: boolean) {
+function renderMenu() {
   return render(
     <MemoryRouter>
-      <ThemeProvider isEnabled={isEnabled}>
+      <ThemeProvider>
         <ProfileMenu />
       </ThemeProvider>
     </MemoryRouter>,
@@ -33,7 +33,7 @@ afterEach(() => {
 describe('ProfileMenu theme switch', () => {
   it('switches to the light theme and remembers it', async () => {
     const user = userEvent.setup();
-    renderMenu(true);
+    renderMenu();
     await user.click(screen.getByRole('button', { name: 'Menu tài khoản' }));
 
     const toggle = screen.getByRole('switch', { name: 'Giao diện sáng' });
@@ -43,14 +43,5 @@ describe('ProfileMenu theme switch', () => {
     expect(toggle).toHaveAttribute('aria-checked', 'true');
     expect(document.documentElement.dataset.theme).toBe('light');
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('light');
-  });
-
-  it('has no switch while it is dev-only and this is production', async () => {
-    const user = userEvent.setup();
-    renderMenu(false);
-    await user.click(screen.getByRole('button', { name: 'Menu tài khoản' }));
-
-    expect(screen.getByRole('button', { name: /Đăng xuất/ })).toBeInTheDocument();
-    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
   });
 });

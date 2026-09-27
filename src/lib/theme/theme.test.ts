@@ -133,15 +133,12 @@ describe('the pre-paint script in index.html', () => {
     expect(html).toContain(`<meta name="theme-color" content="${THEME_COLOR.dark}" />`);
   });
 
-  // What Vite writes into '%DEV%' in each mode.
   function runInline(
-    isDev: boolean,
     storage: FakeStorage,
     prefersLight: boolean,
   ): { theme: string | undefined; color: string | null } {
     const doc = blankDocument();
-    const code = (inline ?? '').replace("'%DEV%'", `'${String(isDev)}'`);
-    new Function('localStorage', 'window', 'document', code)(storage, mediaWindow(prefersLight), doc);
+    new Function('localStorage', 'window', 'document', inline ?? '')(storage, mediaWindow(prefersLight), doc);
     return {
       theme: doc.documentElement.dataset.theme,
       color: doc.querySelector('meta[name="theme-color"]')?.getAttribute('content') ?? null,
@@ -154,17 +151,18 @@ describe('the pre-paint script in index.html', () => {
       it(`agrees with resolveTheme — saved ${String(choice)}, OS ${prefersLight ? 'light' : 'dark'}`, () => {
         const storage = memoryStorage(choice ? { [THEME_STORAGE_KEY]: choice } : {});
         const expected = resolveTheme(choice, prefersLight);
-        expect(runInline(true, storage, prefersLight)).toEqual({ theme: expected, color: THEME_COLOR[expected] });
+        expect(runInline(storage, prefersLight)).toEqual({ theme: expected, color: THEME_COLOR[expected] });
       });
     }
   }
 
   it('falls back to the OS setting when storage throws', () => {
-    expect(runInline(true, throwingStorage, true)).toEqual({ theme: 'light', color: THEME_COLOR.light });
+    expect(runInline(throwingStorage, true)).toEqual({ theme: 'light', color: THEME_COLOR.light });
   });
 
-  it('does nothing in a production build (the DEV gate, lifted in THEME-06)', () => {
-    const storage = memoryStorage({ [THEME_STORAGE_KEY]: 'light' });
-    expect(runInline(false, storage, true)).toEqual({ theme: undefined, color: THEME_COLOR.dark });
+  // THEME-06 lifted the dev-only gate: a build-time placeholder (`%DEV%`, `%MODE%`) here
+  // would make production run different code from what these tests execute.
+  it('runs the same in every build — no Vite env placeholder', () => {
+    expect(inline).not.toMatch(/%[A-Z_]+%/);
   });
 });
