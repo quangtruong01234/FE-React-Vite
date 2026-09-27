@@ -5,6 +5,7 @@ import { Star } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
 import { formatPrice } from '@/lib/format/utils';
 import { cldImage } from '@/lib/http/cloudinaryUrl';
+import { productCoverImage } from '@/lib/domain/productImage';
 import { WishlistButton } from '@/components/shared/WishlistButton';
 import type { ProductWithInventory } from '@/types';
 
@@ -21,7 +22,7 @@ interface ProductCardProps {
 export default function ProductCard({ product, priority = false }: ProductCardProps): ReactElement {
   const stock = product.inventory?.availableStock ?? 0;
   const outOfStock = stock === 0;
-  const coverImage = product.imageUrl ?? product.imageUrls?.[0] ?? '';
+  const coverImage = productCoverImage(product) ?? '';
 
   return (
     <div className={cn(
@@ -46,12 +47,12 @@ export default function ProductCard({ product, priority = false }: ProductCardPr
         )}
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5">
           {product.isFeatured && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 bg-tb-gradient text-ink-pri font-display font-black text-[10px] tracking-wider uppercase rounded-tb-pill">
+            <span className="inline-flex items-center gap-1 px-2 py-1 bg-tb-gradient text-ink-on-accent font-display font-black text-[10px] tracking-wider uppercase rounded-tb-pill">
               🔥 Hot
             </span>
           )}
           {product.condition !== 'new' && (
-            <span className="inline-flex px-2 py-1 bg-black/70 text-ink-pri text-[10px] font-semibold rounded-tb-pill backdrop-blur-sm uppercase">
+            <span className="inline-flex px-2 py-1 bg-scrim/70 text-ink-on-accent text-[10px] font-semibold rounded-tb-pill backdrop-blur-sm uppercase">
               {product.condition === 'used' ? 'Đã dùng' : 'Refurb'}
             </span>
           )}
@@ -62,8 +63,8 @@ export default function ProductCard({ product, priority = false }: ProductCardPr
           )}
         </div>
         {outOfStock && (
-          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-            <span className="font-display font-black uppercase text-ink-pri text-sm tracking-wide border border-white/40 rounded-tb-ghost px-3 py-1.5">
+          <div className="absolute inset-0 bg-scrim/60 flex items-center justify-center">
+            <span className="font-display font-black uppercase text-ink-on-accent text-sm tracking-wide border border-ink-on-accent/40 rounded-tb-ghost px-3 py-1.5">
               Hết hàng
             </span>
           </div>
@@ -71,7 +72,7 @@ export default function ProductCard({ product, priority = false }: ProductCardPr
         <WishlistButton
           productId={product.id}
           iconSize={16}
-          className="absolute top-2.5 right-2.5 size-8 rounded-full bg-black/50 backdrop-blur-sm hover:bg-black/60 z-10"
+          className="absolute top-2.5 right-2.5 size-8 rounded-full bg-canvas-elevated/90 backdrop-blur-sm border border-bdr hover:bg-canvas-elevated z-10"
         />
       </Link>
 

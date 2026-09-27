@@ -142,11 +142,7 @@ export default function CreateProductPage(): ReactElement {
 
   const initialImages = useMemo<ImageItem[] | undefined>(() => {
     if (!isEditMode || !existingProduct) return undefined;
-    const urls = existingProduct.imageUrls?.length
-      ? existingProduct.imageUrls
-      : existingProduct.imageUrl
-        ? [existingProduct.imageUrl]
-        : [];
+    const urls = existingProduct.imageUrls ?? [];
     // publicId === '' marks these as already-persisted (never Cloudinary-deleted).
     return urls.map(url => ({ url, publicId: '' }));
   }, [isEditMode, existingProduct]);

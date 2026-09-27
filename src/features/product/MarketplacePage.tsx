@@ -11,8 +11,9 @@ import { useDebouncedValue } from '@/hooks/ui/useDebouncedValue';
 import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
 import { Pagination } from '@/components/shared/Pagination';
 import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
-import { buildProductParams, DEFAULT_MAX_PRICE } from './productParams';
+import { DEFAULT_MAX_PRICE } from './productParams';
 import {
+  marketplaceProductParams,
   parseMarketplaceFilters,
   serializeMarketplaceFilters,
   settledFilterPatch,
@@ -21,7 +22,6 @@ import {
 } from './marketplaceUrl';
 import ProductCard from './ProductCard';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { ProductParams } from '@/types';
 
 const SORT_OPTS: { id: SortKey; label: string }[] = [
   { id: 'newest', label: 'Mới nhất' },
@@ -29,17 +29,6 @@ const SORT_OPTS: { id: SortKey; label: string }[] = [
   { id: 'price_desc', label: 'Giá ↓' },
   { id: 'popular', label: 'Phổ biến' },
 ];
-
-function sortToParams(sort: SortKey): Pick<ProductParams, 'sortBy' | 'sortOrder'> {
-  switch (sort) {
-    case 'price_asc': return { sortBy: 'price', sortOrder: 'ASC' };
-    case 'price_desc': return { sortBy: 'price', sortOrder: 'DESC' };
-    case 'popular': return { sortBy: 'viewCount', sortOrder: 'DESC' };
-    case 'newest':
-    default:
-      return { sortBy: 'createdAt', sortOrder: 'DESC' };
-  }
-}
 
 function CardSkeleton(): ReactElement {
   return (
@@ -86,7 +75,7 @@ function SelectFilter({ label, items, selected, onChange }: SelectFilterProps): 
         <span className="text-xs font-body font-semibold text-ink-sec uppercase tracking-wide">
           {label}
           {selected.length > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center size-4 rounded-full bg-tb-gradient text-ink-pri text-[9px] font-black">
+            <span className="ml-1.5 inline-flex items-center justify-center size-4 rounded-full bg-tb-gradient text-ink-on-accent text-[9px] font-black">
               {selected.length}
             </span>
           )}
@@ -207,19 +196,7 @@ export default function MarketplacePage(): ReactElement {
   ]);
 
   const { categoryIds, brandIds, provinceIds, sort, page } = filters;
-  const sortParams = sortToParams(sort);
-  const params: ProductParams = buildProductParams({
-    page,
-    limit: 12,
-    sortBy: sortParams.sortBy ?? 'createdAt',
-    sortOrder: sortParams.sortOrder ?? 'DESC',
-    search: filters.search,
-    categoryIds,
-    brandIds,
-    provinceIds,
-    minPrice: filters.minPrice,
-    maxPrice: filters.maxPrice,
-  });
+  const params = marketplaceProductParams(filters);
 
   const { data, isLoading, isFetching, error } = useProducts(params);
   const products = data?.data ?? [];
@@ -304,7 +281,7 @@ export default function MarketplacePage(): ReactElement {
                 className={cn(
                   'px-3.5 py-1.5 rounded-full text-xs font-body font-semibold border cursor-pointer transition-colors',
                   sort === opt.id
-                    ? 'bg-tb-gradient border-transparent text-ink-pri'
+                    ? 'bg-tb-gradient border-transparent text-ink-on-accent'
                     : 'bg-canvas-elevated border-bdr text-ink-sec hover:border-ink-muted',
                 )}
               >
@@ -338,7 +315,7 @@ export default function MarketplacePage(): ReactElement {
                   <SlidersHorizontal size={15} className="text-accent-amber shrink-0" />
                   Bộ lọc
                   {hasActiveFilters && (
-                    <span className="size-4 rounded-full bg-tb-gradient text-ink-pri text-[9px] font-black grid place-items-center">
+                    <span className="size-4 rounded-full bg-tb-gradient text-ink-on-accent text-[9px] font-black grid place-items-center">
                       {categoryIds.length + brandIds.length + provinceIds.length + (minPrice > 0 || maxPrice < DEFAULT_MAX_PRICE ? 1 : 0) + (search ? 1 : 0)}
                     </span>
                   )}

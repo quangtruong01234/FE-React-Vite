@@ -243,9 +243,9 @@ export function BasicInfoSection({
                 <IconButton
                   onClick={() => onRemoveImage(i)}
                   aria-label={`Xóa ảnh ${i + 1}`}
-                  className="absolute top-1 right-1 size-5 rounded-full bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute top-1 right-1 size-5 rounded-full bg-scrim/60 opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  <X size={10} className="shrink-0 text-ink-pri" />
+                  <X size={10} className="shrink-0 text-ink-on-accent" />
                 </IconButton>
               </div>
             ))}

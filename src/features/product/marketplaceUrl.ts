@@ -1,5 +1,6 @@
 import { parsePageParam } from '@/hooks/ui/usePageParam';
-import { DEFAULT_MAX_PRICE } from './productParams';
+import type { ProductParams } from '@/types';
+import { buildProductParams, DEFAULT_MAX_PRICE } from './productParams';
 
 export type SortKey = 'newest' | 'price_asc' | 'price_desc' | 'popular';
 
@@ -63,6 +64,40 @@ export function parseMarketplaceFilters(sp: URLSearchParams): MarketplaceFilters
     sort: SORT_KEYS.includes(rawSort as SortKey) ? (rawSort as SortKey) : MARKETPLACE_DEFAULTS.sort,
     page: parsePageParam(sp.get('page')),
   };
+}
+
+export const MARKETPLACE_PAGE_SIZE = 12;
+
+function sortToParams(sort: SortKey): Pick<ProductParams, 'sortBy' | 'sortOrder'> {
+  switch (sort) {
+    case 'price_asc': return { sortBy: 'price', sortOrder: 'ASC' };
+    case 'price_desc': return { sortBy: 'price', sortOrder: 'DESC' };
+    case 'popular': return { sortBy: 'viewCount', sortOrder: 'DESC' };
+    case 'newest':
+    default:
+      return { sortBy: 'createdAt', sortOrder: 'DESC' };
+  }
+}
+
+/**
+ * The product-list request for a set of filters. Shared by `MarketplacePage`
+ * and the route's prefetch (`marketplaceLoader`) — they must build the exact
+ * same params, or the prefetch warms a cache key the page never reads.
+ */
+export function marketplaceProductParams(filters: MarketplaceFilters): ProductParams {
+  const { sortBy, sortOrder } = sortToParams(filters.sort);
+  return buildProductParams({
+    page: filters.page,
+    limit: MARKETPLACE_PAGE_SIZE,
+    sortBy: sortBy ?? 'createdAt',
+    sortOrder: sortOrder ?? 'DESC',
+    search: filters.search,
+    categoryIds: filters.categoryIds,
+    brandIds: filters.brandIds,
+    provinceIds: filters.provinceIds,
+    minPrice: filters.minPrice,
+    maxPrice: filters.maxPrice,
+  });
 }
 
 /**

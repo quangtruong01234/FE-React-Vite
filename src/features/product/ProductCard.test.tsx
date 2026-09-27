@@ -37,6 +37,16 @@ describe('<ProductCard>', () => {
     expect(screen.queryByRole('button', { name: /thêm vào giỏ/i })).not.toBeInTheDocument();
   });
 
+  it('puts the wishlist heart on a theme-aware chip, not the scrim (THEME-04-FU)', () => {
+    // The heart is `ink-sec` / `accent-red`, which turn dark in the light theme. On the scrim
+    // (dark in both themes) that was dark-on-dark; on a canvas chip it is the AA pair that
+    // themeTokens.test.ts checks for every text colour on `canvas-elevated`.
+    renderWithProviders(<ProductCard product={makeProduct()} />);
+    const heart = screen.getByRole('button', { name: 'Thêm vào yêu thích' });
+    expect(heart).toHaveClass('bg-canvas-elevated/90', 'border-bdr');
+    expect(heart.className).not.toMatch(/\bbg-scrim/);
+  });
+
   it('shows the seller province when present', () => {
     renderWithProviders(
       <ProductCard product={makeProduct({ sellerProvince: { id: 201, name: 'Hà Nội' } })} />,

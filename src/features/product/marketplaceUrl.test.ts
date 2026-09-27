@@ -4,6 +4,9 @@ import {
   serializeMarketplaceFilters,
   settledFilterPatch,
   MARKETPLACE_DEFAULTS,
+  MARKETPLACE_PAGE_SIZE,
+  marketplaceProductParams,
+  type SortKey,
 } from './marketplaceUrl';
 import { DEFAULT_MAX_PRICE } from './productParams';
 
@@ -126,6 +129,43 @@ describe('settledFilterPatch', () => {
     expect(settledFilterPatch(live, debounced, base)).toEqual({
       minPrice: 100_000,
       maxPrice: 5_000_000,
+    });
+  });
+});
+
+describe('marketplaceProductParams', () => {
+  it('asks for the newest 12 on a clean URL, with no filter keys', () => {
+    expect(marketplaceProductParams(MARKETPLACE_DEFAULTS)).toEqual({
+      page: 1,
+      limit: MARKETPLACE_PAGE_SIZE,
+      sortBy: 'createdAt',
+      sortOrder: 'DESC',
+    });
+  });
+
+  it('maps every sort key onto the backend column + direction', () => {
+    const sortOf = (sort: SortKey): unknown => {
+      const { sortBy, sortOrder } = marketplaceProductParams({ ...MARKETPLACE_DEFAULTS, sort });
+      return [sortBy, sortOrder];
+    };
+    expect(sortOf('newest')).toEqual(['createdAt', 'DESC']);
+    expect(sortOf('price_asc')).toEqual(['price', 'ASC']);
+    expect(sortOf('price_desc')).toEqual(['price', 'DESC']);
+    expect(sortOf('popular')).toEqual(['viewCount', 'DESC']);
+  });
+
+  it('carries the URL filters through, so a prefetch and the page share one cache key', () => {
+    const filters = parseMarketplaceFilters(sp('search=ao&category=3&brand=4,5&province=1&minPrice=100&sort=price_asc&page=2'));
+    expect(marketplaceProductParams(filters)).toEqual({
+      page: 2,
+      limit: MARKETPLACE_PAGE_SIZE,
+      sortBy: 'price',
+      sortOrder: 'ASC',
+      search: 'ao',
+      categoryIds: [3],
+      brandIds: [4, 5],
+      provinceIds: [1],
+      minPrice: 100,
     });
   });
 });

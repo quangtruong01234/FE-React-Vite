@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Truck, Shield, RotateCcw, ShoppingCart, ChevronRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
@@ -20,12 +20,18 @@ import { WishlistButton } from '@/components/shared/WishlistButton';
 import { DemoModeGate } from '@/components/shared/DemoModeGate';
 import { ProductReviews } from './ProductReviews';
 import { sellerName } from './sellerName';
+import { sellerProfilePath } from './sellerCard';
+import { SellerFollowButton } from './SellerFollowButton';
 
 const trustItems = [
   { Icon: Truck,     label: 'Giao 24h',          sub: 'Toàn quốc'  },
   { Icon: Shield,    label: 'Bảo hành 12 tháng', sub: 'Chính hãng' },
   { Icon: RotateCcw, label: 'Đổi trả 7 ngày',    sub: 'Miễn phí'   },
 ];
+
+const SELLER_IDENTITY_CLS = 'flex flex-1 min-w-0 items-center gap-3.5';
+const SELLER_ACTION_CLS =
+  'bg-canvas-elevated border border-bdr rounded-tb-input px-3 py-2 font-body font-semibold text-xs text-tb-secondary cursor-pointer hover:border-accent-amber hover:text-ink-pri transition-colors whitespace-nowrap';
 
 export default function ProductDetail(): ReactElement {
   const { id } = useParams<{ id: string }>();
@@ -118,11 +124,8 @@ export default function ProductDetail(): ReactElement {
   const maxQty = available != null ? Math.min(available, 99) : 99;
   const inCart     = cart?.items.find(i => i.productId === detail.id);
   const sellerLabel = sellerName(detail);
-  const gallery: string[] = (detail.imageUrls?.length ?? 0) > 0
-    ? (detail.imageUrls as string[])
-    : detail.imageUrl
-      ? [detail.imageUrl]
-      : [];
+  const sellerPath = sellerProfilePath(detail);
+  const gallery: string[] = detail.imageUrls ?? [];
 
   const isOwner = !!currentUser && detail.userId === currentUser.id;
   const effectivePrice = (hasVariants && matchedSku) ? Number(matchedSku.price) : Number(detail.price);
@@ -166,7 +169,7 @@ export default function ProductDetail(): ReactElement {
         <div className="flex items-center gap-2 py-5 font-body text-xs text-tb-muted">
           <button
             onClick={() => navigate('/')}
-            className="text-tb-secondary hover:text-white transition-colors bg-transparent border-0 cursor-pointer p-0">
+            className="text-tb-secondary hover:text-ink-pri transition-colors bg-transparent border-0 cursor-pointer p-0">
             Khám phá
           </button>
           <ChevronRight size={12} />
@@ -176,7 +179,7 @@ export default function ProductDetail(): ReactElement {
               <ChevronRight size={12} />
             </>
           )}
-          <span className="text-white truncate max-w-[320px]">{detail.name}</span>
+          <span className="text-ink-pri truncate max-w-[320px]">{detail.name}</span>
         </div>
 
         {/* Two-column grid */}
@@ -210,7 +213,7 @@ export default function ProductDetail(): ReactElement {
                     className={cn(
                       'w-[84px] h-[84px] rounded-xl bg-canvas-elevated border flex-none overflow-hidden cursor-pointer transition-all',
                       activeImg === i
-                        ? 'border-tb-amber/60 shadow-[0_0_0_3px_rgba(245,158,11,0.15)]'
+                        ? 'border-tb-amber/60 ring-[3px] ring-accent-amber/15'
                         : 'border-tb-border',
                     )}
                   >
@@ -232,7 +235,7 @@ export default function ProductDetail(): ReactElement {
             </div>
 
             {/* Title */}
-            <h1 className="m-0 font-display font-black text-[40px] tracking-[-0.02em] leading-[1.1] text-white">
+            <h1 className="m-0 font-display font-black text-[40px] tracking-[-0.02em] leading-[1.1] text-ink-pri">
               {detail.name}
             </h1>
 
@@ -322,7 +325,7 @@ export default function ProductDetail(): ReactElement {
             {/* Qty row */}
             {available !== 0 && (
               <div className="flex items-center justify-between py-4 border-y border-bdr">
-                <span className="font-body font-semibold text-sm text-white">Số lượng</span>
+                <span className="font-body font-semibold text-sm text-ink-pri">Số lượng</span>
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
@@ -395,16 +398,28 @@ export default function ProductDetail(): ReactElement {
             {!isOwner && (
               <>
                 <div className="flex items-center gap-3.5 p-[18px] bg-canvas-surface border border-bdr rounded-2xl">
-                  <Avatar alt={sellerLabel} size={48} />
-                  <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                    <span className="font-body font-semibold text-sm text-white truncate">{sellerLabel}</span>
-                    <span className="font-body text-xs text-tb-muted">Người bán</span>
-                  </div>
-                  <button
-                    type="button"
-                    className="bg-canvas-elevated border border-bdr rounded-tb-input px-3 py-2 font-body font-semibold text-xs text-tb-secondary cursor-pointer hover:border-accent-amber hover:text-white transition-colors whitespace-nowrap">
-                    Theo dõi
-                  </button>
+                  {sellerPath ? (
+                    <Link to={sellerPath} className={cn(SELLER_IDENTITY_CLS, 'group')}>
+                      <Avatar src={detail.user?.avatar} alt={sellerLabel} size={48} />
+                      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                        <span className="font-body font-semibold text-sm text-ink-pri truncate group-hover:text-accent-amber transition-colors">{sellerLabel}</span>
+                        <span className="font-body text-xs text-tb-muted">Xem shop</span>
+                      </div>
+                    </Link>
+                  ) : (
+                    <div className={SELLER_IDENTITY_CLS}>
+                      <Avatar alt={sellerLabel} size={48} />
+                      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                        <span className="font-body font-semibold text-sm text-ink-pri truncate">{sellerLabel}</span>
+                        <span className="font-body text-xs text-tb-muted">Người bán</span>
+                      </div>
+                    </div>
+                  )}
+                  <SellerFollowButton
+                    sellerId={detail.userId}
+                    sellerExists={sellerPath !== null}
+                    className={SELLER_ACTION_CLS}
+                  />
                   <button
                     type="button"
                     onClick={() =>
@@ -412,7 +427,7 @@ export default function ProductDetail(): ReactElement {
                         ? navigate('/messages', { state: { otherUserId: detail.userId } })
                         : navigate('/login')
                     }
-                    className="bg-canvas-elevated border border-bdr rounded-tb-input px-3 py-2 font-body font-semibold text-xs text-tb-secondary cursor-pointer hover:border-accent-amber hover:text-white transition-colors whitespace-nowrap">
+                    className={SELLER_ACTION_CLS}>
                     Chat
                   </button>
                 </div>
@@ -424,7 +439,7 @@ export default function ProductDetail(): ReactElement {
                         <Icon size={18} />
                       </span>
                       <div className="flex flex-col">
-                        <span className="font-body font-semibold text-[13px] text-white leading-tight">{label}</span>
+                        <span className="font-body font-semibold text-[13px] text-ink-pri leading-tight">{label}</span>
                         <span className="font-body text-[11px] text-tb-muted">{sub}</span>
                       </div>
                     </div>
@@ -438,7 +453,7 @@ export default function ProductDetail(): ReactElement {
         {/* Description section */}
         {detail.description?.trim() && (
           <section className="mt-12 pt-8 border-t border-bdr">
-            <h2 className="font-display font-black text-2xl tracking-[-0.01em] text-white m-0 mb-[18px]">
+            <h2 className="font-display font-black text-2xl tracking-[-0.01em] text-ink-pri m-0 mb-[18px]">
               Mô tả sản phẩm
             </h2>
             <div
