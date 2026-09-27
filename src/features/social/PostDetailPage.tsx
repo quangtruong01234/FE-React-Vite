@@ -190,7 +190,7 @@ export default function PostDetailPage(): ReactElement {
         <div className="flex items-center justify-between px-4 pt-3 pb-2 text-xs text-ink-sec">
           <span className="flex items-center gap-1.5">
             <span className="size-4 rounded-full bg-tb-gradient grid place-items-center">
-              <Heart size={9} className="text-ink-pri shrink-0" />
+              <Heart size={9} className="text-ink-on-accent shrink-0" />
             </span>
             {displayLikeCount.toLocaleString('vi-VN')}
           </span>
@@ -267,7 +267,7 @@ export default function PostDetailPage(): ReactElement {
           <button
             type="submit"
             disabled={isSubmitting || createComment.isPending}
-            className="p-2.5 rounded-full bg-tb-gradient text-ink-pri flex items-center justify-center cursor-pointer border-0 disabled:opacity-40 disabled:cursor-not-allowed overflow-visible"
+            className="p-2.5 rounded-full bg-tb-gradient text-ink-on-accent flex items-center justify-center cursor-pointer border-0 disabled:opacity-40 disabled:cursor-not-allowed overflow-visible"
           >
             <Send size={16} />
           </button>

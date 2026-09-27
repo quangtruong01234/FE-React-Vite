@@ -4,6 +4,7 @@ import { IconButton } from '@/components/shared/IconButton';
 import { ProductThumb } from '@/components/shared/ProductThumb';
 import { PriceText } from '@/components/shared/PriceText';
 import { useDebouncedValue } from '@/hooks/ui/useDebouncedValue';
+import { productCoverImage } from '@/lib/domain/productImage';
 import { useProducts } from '../product/useProducts';
 import type { ProductWithInventory } from '@/types';
 
@@ -33,7 +34,7 @@ export function ProductPicker({ value, onChange }: ProductPickerProps) {
   if (value) {
     return (
       <div className="flex items-center gap-3 p-2.5 bg-canvas-elevated border border-bdr rounded-tb-cta">
-        <ProductThumb src={value.imageUrl} alt={value.name} className="w-11 h-11 rounded-lg" />
+        <ProductThumb src={productCoverImage(value)} alt={value.name} className="w-11 h-11 rounded-lg" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 text-[10px] font-display font-bold uppercase tracking-wider text-accent-amber">
             <Tag size={11} className="shrink-0" /> Sản phẩm gắn kèm
@@ -109,7 +110,7 @@ export function ProductPicker({ value, onChange }: ProductPickerProps) {
               onClick={() => select(product)}
               className="flex items-center gap-3 p-1.5 rounded-tb-input bg-transparent border-0 cursor-pointer hover:bg-canvas-surface transition-colors text-left"
             >
-              <ProductThumb src={product.imageUrl} alt={product.name} className="w-9 h-9 rounded-lg" />
+              <ProductThumb src={productCoverImage(product)} alt={product.name} className="w-9 h-9 rounded-lg" />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-ink-pri truncate">{product.name}</p>
                 <PriceText price={product.price} size="sm" />

@@ -140,7 +140,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
               'flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors cursor-pointer disabled:opacity-50',
               isFollowing
                 ? 'bg-canvas-elevated border-bdr text-ink-sec hover:border-tb-red/50 hover:text-accent-red'
-                : 'bg-tb-gradient border-transparent text-white hover:opacity-90',
+                : 'bg-tb-gradient border-transparent text-ink-on-accent hover:opacity-90',
             )}
           >
             {isFollowing ? (
@@ -183,7 +183,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
             // so the button itself has to name the action — otherwise a screen
             // reader announces a bare "button" on every image in the feed.
             aria-label="Xem ảnh bài viết"
-            className="w-full bg-black flex items-center justify-center aspect-[4/3] max-h-[520px] overflow-hidden border-0 p-0 cursor-pointer"
+            className="w-full bg-scrim flex items-center justify-center aspect-[4/3] max-h-[520px] overflow-hidden border-0 p-0 cursor-pointer"
           >
             {/* Fixed aspect reserves the slot before the image loads → no feed CLS. */}
             <PostImage
@@ -201,7 +201,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
               onClick={(e) => openLightbox(e, 0)}
               onMouseEnter={() => warmLightbox(0)}
               aria-label={`Xem ảnh 1/${images.length}`}
-              className="bg-black row-span-2 overflow-hidden border-0 p-0 cursor-pointer"
+              className="bg-scrim row-span-2 overflow-hidden border-0 p-0 cursor-pointer"
             >
               <PostImage
                 src={images[0]}
@@ -218,7 +218,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
                 onClick={(e) => openLightbox(e, i + 1)}
                 onMouseEnter={() => warmLightbox(i + 1)}
                 aria-label={`Xem ảnh ${i + 2}/${images.length}`}
-                className="bg-black aspect-square overflow-hidden border-0 p-0 cursor-pointer"
+                className="bg-scrim aspect-square overflow-hidden border-0 p-0 cursor-pointer"
               >
                 <PostImage src={url} width={600} className="w-full h-full object-cover" loading="lazy" />
               </button>
@@ -233,7 +233,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
                 onClick={(e) => openLightbox(e, i)}
                 onMouseEnter={() => warmLightbox(i)}
                 aria-label={`Xem ảnh ${i + 1}/${images.length}`}
-                className="bg-black aspect-square overflow-hidden border-0 p-0 cursor-pointer"
+                className="bg-scrim aspect-square overflow-hidden border-0 p-0 cursor-pointer"
               >
                 <PostImage
                   src={url}
@@ -251,13 +251,13 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
       {/* Lightbox */}
       {lightboxIndex !== null && createPortal(
         <div
-          className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center"
+          className="fixed inset-0 z-[200] bg-scrim/90 flex items-center justify-center"
           onClick={closeLightbox}
         >
           {/* Close */}
           <ModalCloseButton
             onClick={closeLightbox}
-            className="absolute top-4 right-4 size-9 bg-white/10 hover:bg-white/25 text-white z-10"
+            className="absolute top-4 right-4 size-9 bg-ink-on-accent/10 hover:bg-ink-on-accent/25 text-ink-on-accent z-10"
           />
 
           {/* Prev */}
@@ -265,7 +265,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
             <IconButton
               onClick={goPrev}
               aria-label="Ảnh trước"
-              className="absolute left-4 size-10 rounded-full bg-white/10 hover:bg-white/25 text-white border-0 cursor-pointer transition-colors z-10"
+              className="absolute left-4 size-10 rounded-full bg-ink-on-accent/10 hover:bg-ink-on-accent/25 text-ink-on-accent border-0 cursor-pointer transition-colors z-10"
             >
               <ChevronLeft size={22} className="shrink-0" />
             </IconButton>
@@ -284,7 +284,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
             <IconButton
               onClick={goNext}
               aria-label="Ảnh sau"
-              className="absolute right-4 size-10 rounded-full bg-white/10 hover:bg-white/25 text-white border-0 cursor-pointer transition-colors z-10"
+              className="absolute right-4 size-10 rounded-full bg-ink-on-accent/10 hover:bg-ink-on-accent/25 text-ink-on-accent border-0 cursor-pointer transition-colors z-10"
             >
               <ChevronRight size={22} className="shrink-0" />
             </IconButton>
@@ -292,7 +292,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
 
           {/* Counter */}
           {images.length > 1 && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-sm font-body">
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-ink-on-accent/70 text-sm font-body">
               {lightboxIndex + 1} / {images.length}
             </div>
           )}
@@ -304,7 +304,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
       <div className="flex items-center justify-between px-5 pt-3 pb-2 text-[13px] text-ink-sec">
         <span className="flex items-center gap-1.5">
           <span className="size-5 rounded-full bg-tb-gradient grid place-items-center">
-            <Heart size={11} className="shrink-0 text-white" />
+            <Heart size={11} className="shrink-0 text-ink-on-accent" />
           </span>
           {post.likeCount.toLocaleString('vi-VN')}
         </span>

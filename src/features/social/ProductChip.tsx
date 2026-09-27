@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { ProductThumb } from '@/components/shared/ProductThumb';
 import { PriceText } from '@/components/shared/PriceText';
+import { productCoverImage } from '@/lib/domain/productImage';
 import { useAddToCart } from '@/hooks/data/useCart';
 import type { ProductWithInventory } from '@/types';
 
@@ -20,7 +21,7 @@ export default function ProductChip({ product }: ProductChipProps) {
   return (
     <div className="flex items-center gap-3 p-2.5 bg-canvas-elevated border border-bdr rounded-tb-cta">
       <ProductThumb
-        src={product.imageUrl}
+        src={productCoverImage(product)}
         alt={product.name}
         className="w-14 h-14 rounded-lg"
       />
