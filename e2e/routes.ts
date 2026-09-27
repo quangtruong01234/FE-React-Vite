@@ -21,7 +21,7 @@ export interface RouteEntry {
 }
 
 export const ROUTES: RouteEntry[] = [
-  { pattern: '/login', roles: ['public'], deep: ['auth.setup.ts'] },
+  { pattern: '/login', roles: ['public'], deep: ['auth.setup.ts', 'theme-persist.public.spec.ts'] },
   { pattern: '/', roles: ['buyer', 'shop', 'admin'], deep: [] },
   { pattern: '/messages', roles: ['buyer'], deep: [] },
 

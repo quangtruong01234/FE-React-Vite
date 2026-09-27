@@ -50,6 +50,7 @@ npx playwright test --project=shop -g "/sell/orders "   # one route's smoke
 | `payment-retry.buyer.spec.ts` | FE-2 (expired gateway) | ⚠️ needs a *fresh* pending online order |
 | `seller-orders.shop.spec.ts` | seller state machine: pending → confirmed → processing (GHN hand-off, or its error banner) | ✅ live write-path — spends 1 pending order of the shop per run; skips when none is left |
 | `seller-vouchers.shop.spec.ts` | seller voucher console: create → edit → deactivate → reactivate (API-checked), VOUCHER-GUARD-01 fixed-without-minimum refused client-side | ✅ live write-path — leaves 1 deactivated `E2E-…` code per run (afterEach always switches it off) |
+| `theme-persist.public.spec.ts` | THEME-06: saved theme survives a reload and beats the OS setting; pre-paint script sets it with the app bundle blocked (no dark flash) | ✅ signed out, client-side only (writes `localStorage` only) |
 | `auth-session-swap.buyer.spec.ts` | AUTH-STALE-01 (context stale after login / logout → login) | ✅ starts signed out, logs in twice via the form — spends 2 of the 10 logins/60s rate limit |
 
 Specs assert the **correct** behavior, so the open bugs are expected to fail
