@@ -7,6 +7,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useLogin } from './useLogin';
 import { registerSchema, type RegisterFormData } from './auth.schema';
 import { ForgotPasswordForm } from './ForgotPasswordForm';
+import { ThemeToggleButton } from './ThemeToggleButton';
 import { PasswordField } from '@/components/shared/PasswordField';
 import { api } from '@/api';
 import { useAuthContext } from '@/context/useAuthContext';
@@ -20,7 +21,7 @@ const ghostBtn =
   'inline-flex items-center justify-center gap-1.5 ' +
   'py-3 px-4 bg-tb-elevated border border-tb-border rounded-tb-input ' +
   'text-tb-secondary font-body font-semibold text-sm cursor-pointer ' +
-  'hover:text-white hover:border-tb-muted ' +
+  'hover:text-ink-pri hover:border-tb-muted ' +
   'transition-[color,border-color] duration-[120ms]';
 
 // ─── Naked link-style button (overrides global button CSS in index.css) ───────
@@ -39,7 +40,7 @@ interface RegisterFormProps {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 function TBLogo(): ReactElement {
   return (
-    <span className="font-display font-black text-[32px] tracking-[-0.025em] leading-none text-white">
+    <span className="font-display font-black text-[32px] tracking-[-0.025em] leading-none text-ink-pri">
       Try
       <span className="bg-tb-gradient-90 bg-clip-text text-transparent">Buy</span>
     </span>
@@ -48,7 +49,7 @@ function TBLogo(): ReactElement {
 
 function Spinner(): ReactElement {
   return (
-    <span className="w-5 h-5 rounded-full border-2 border-white/40 border-t-white animate-spin inline-block" />
+    <span className="w-5 h-5 rounded-full border-2 border-ink-on-accent/40 border-t-ink-on-accent animate-spin inline-block" />
   );
 }
 
@@ -64,7 +65,7 @@ function LeftPanel(): ReactElement {
       <TBLogo />
 
       <div className="flex flex-col gap-[22px] max-w-[480px]">
-        <h1 className="m-0 font-display font-black text-[64px] tracking-[-0.02em] text-white leading-none">
+        <h1 className="m-0 font-display font-black text-[64px] tracking-[-0.02em] text-ink-pri leading-none">
           Săn deal LIVE<br />mỗi giây.
         </h1>
 
@@ -77,7 +78,7 @@ function LeftPanel(): ReactElement {
           {statTiles.map((s) => (
             <div
               key={s.v}
-              className="py-4 px-[18px] bg-[rgba(17,17,19,0.6)] border border-tb-border rounded-tb-cta backdrop-blur-[8px]"
+              className="py-4 px-[18px] bg-canvas-surface/60 border border-tb-border rounded-tb-cta backdrop-blur-[8px]"
             >
               <div className="font-display font-black text-[26px] tracking-[-0.01em] bg-tb-gradient-90 bg-clip-text text-transparent">
                 {s.k}
@@ -136,7 +137,7 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
     <div className="px-6 py-12 md:px-[64px] md:py-[60px] flex flex-col justify-center items-stretch">
       <div className="max-w-[420px] w-full mx-auto flex flex-col gap-[22px]">
         <div>
-          <h2 className="m-0 font-display font-black text-[36px] tracking-[-0.02em] text-white">
+          <h2 className="m-0 font-display font-black text-[36px] tracking-[-0.02em] text-ink-pri">
             Tạo tài khoản
           </h2>
           <p className="mt-1.5 mb-0 font-body text-[14px] text-tb-secondary">
@@ -161,9 +162,9 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
                 placeholder="Nhập tên đăng nhập"
                 autoFocus
                 className={cn(
-                  'h-11 bg-tb-elevated border rounded-tb-input px-3.5 text-white font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
-                  'focus:border-[rgba(245,158,11,0.5)] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)]',
-                  errors.username ? 'border-tb-red focus:border-tb-red focus:shadow-[0_0_0_4px_rgba(239,68,68,0.10)]' : 'border-tb-border',
+                  'h-11 bg-tb-elevated border rounded-tb-input px-3.5 text-ink-pri font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
+                  'focus:border-accent-amber/50 focus:ring-4 focus:ring-accent-amber/10',
+                  errors.username ? 'border-tb-red focus:border-tb-red focus:ring-accent-red/10' : 'border-tb-border',
                 )}
                 {...register('username')}
               />
@@ -179,9 +180,9 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
                 type="email"
                 placeholder="Nhập địa chỉ email"
                 className={cn(
-                  'h-11 bg-tb-elevated border rounded-tb-input px-3.5 text-white font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
-                  'focus:border-[rgba(245,158,11,0.5)] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)]',
-                  errors.email ? 'border-tb-red focus:border-tb-red focus:shadow-[0_0_0_4px_rgba(239,68,68,0.10)]' : 'border-tb-border',
+                  'h-11 bg-tb-elevated border rounded-tb-input px-3.5 text-ink-pri font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
+                  'focus:border-accent-amber/50 focus:ring-4 focus:ring-accent-amber/10',
+                  errors.email ? 'border-tb-red focus:border-tb-red focus:ring-accent-red/10' : 'border-tb-border',
                 )}
                 {...register('email')}
               />
@@ -245,7 +246,8 @@ export default function LoginPage(): ReactElement {
     useLogin(handleAuthSuccess);
 
   return (
-    <main className="tb-enter min-h-screen grid grid-cols-1 md:grid-cols-[1.1fr_1fr]">
+    <main className="tb-enter relative min-h-screen grid grid-cols-1 md:grid-cols-[1.1fr_1fr]">
+      <ThemeToggleButton />
       <LeftPanel />
 
       {view === 'register' ? (
@@ -256,7 +258,7 @@ export default function LoginPage(): ReactElement {
         <section className="px-6 py-12 md:px-[64px] md:py-[60px] flex flex-col justify-center items-stretch">
           <div className="max-w-[420px] w-full mx-auto flex flex-col gap-[22px]">
             <div>
-              <h2 className="m-0 font-display font-black text-[36px] tracking-[-0.02em] text-white">
+              <h2 className="m-0 font-display font-black text-[36px] tracking-[-0.02em] text-ink-pri">
                 Chào mừng trở lại
               </h2>
               <p className="mt-1.5 mb-0 font-body text-[14px] text-tb-secondary">
@@ -303,7 +305,7 @@ export default function LoginPage(): ReactElement {
                         type="button"
                         onClick={togglePassword}
                         aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                        className="bg-transparent !border-none p-1 flex items-center cursor-pointer text-tb-secondary hover:text-white transition-colors"
+                        className="bg-transparent !border-none p-1 flex items-center cursor-pointer text-tb-secondary hover:text-ink-pri transition-colors"
                       >
                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>

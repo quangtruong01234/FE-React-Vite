@@ -3,6 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { AuthProvider } from '@/context/AuthContext';
+import { ThemeProvider } from '@/context/ThemeContext';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { server } from '@/test/msw/server';
 import { API_BASE } from '@/test/msw/handlers';
@@ -17,9 +18,11 @@ const meUnauthenticated = () =>
 
 function renderLogin() {
   return renderWithProviders(
-    <AuthProvider>
-      <LoginPage />
-    </AuthProvider>,
+    <ThemeProvider>
+      <AuthProvider>
+        <LoginPage />
+      </AuthProvider>
+    </ThemeProvider>,
     { route: '/login' },
   );
 }

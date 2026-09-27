@@ -26,9 +26,9 @@ interface ForgotPasswordFormProps {
 
 const fieldInput = (hasError: boolean): string =>
   cn(
-    'h-11 bg-tb-elevated border rounded-tb-input px-3.5 text-white font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
-    'focus:border-[rgba(245,158,11,0.5)] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)]',
-    hasError ? 'border-tb-red focus:border-tb-red focus:shadow-[0_0_0_4px_rgba(239,68,68,0.10)]' : 'border-tb-border',
+    'h-11 bg-tb-elevated border rounded-tb-input px-3.5 text-ink-pri font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
+    'focus:border-accent-amber/50 focus:ring-4 focus:ring-accent-amber/10',
+    hasError ? 'border-tb-red focus:border-tb-red focus:ring-accent-red/10' : 'border-tb-border',
   );
 
 const linkBtn =
@@ -115,7 +115,7 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
     <div className="px-6 py-12 md:px-[64px] md:py-[60px] flex flex-col justify-center items-stretch">
       <div className="max-w-[420px] w-full mx-auto flex flex-col gap-[22px]">
         <div>
-          <h2 className="m-0 font-display font-black text-[36px] tracking-[-0.02em] text-white">
+          <h2 className="m-0 font-display font-black text-[36px] tracking-[-0.02em] text-ink-pri">
             Quên mật khẩu
           </h2>
           <p className="mt-1.5 mb-0 font-body text-[14px] text-tb-secondary">
