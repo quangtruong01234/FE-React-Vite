@@ -222,7 +222,7 @@ export default function ProfilePage(): ReactElement {
             className={cn(
               'px-4 py-2 rounded-full font-body font-semibold text-[13px] border cursor-pointer transition-colors',
               tab === key
-                ? 'bg-tb-gradient text-ink-pri border-transparent'
+                ? 'bg-tb-gradient text-ink-on-accent border-transparent'
                 : 'bg-canvas-elevated border-bdr text-ink-sec hover:border-tb-amber/50',
             )}
           >

@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactElement } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { Camera, Loader2 } from 'lucide-react';
@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { Avatar } from '@/components/shared/Avatar';
+import { PasswordField } from '@/components/shared/PasswordField';
 import { queryClient } from '@/lib/query/queryClient';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { api } from '@/api';
@@ -19,9 +20,14 @@ import { uploadAvatar, deleteMedia } from '@/lib/http/cloudinary';
 import { validateUploadFile, MAX_IMAGE_BYTES } from '@/lib/http/uploadValidation';
 import { cn } from '@/lib/format/utils';
 import { nonBlank, userDisplayName } from '@/lib/format/user';
-import { credentialConflictError } from '@/lib/domain/credentialConflict';
 import { replacePendingAvatar, discardedAvatarOrphan, type PendingAvatar } from './avatarUpload';
-import { profileFormSchema, type ProfileFormData } from './profileForm';
+import {
+  isEmailChanged,
+  profileFormSchemaFor,
+  profileUpdateError,
+  profileUpdatePayload,
+  type ProfileFormData,
+} from './profileForm';
 import { ChangePasswordForm } from './ChangePasswordForm';
 import type { User } from '@/types';
 
@@ -42,8 +48,16 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('profile');
 
-  const { register, handleSubmit, setValue, setError, formState: { errors, isSubmitting } } = useForm<ProfileFormData>({
-    resolver: zodResolver(profileFormSchema),
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    setError,
+    resetField,
+    control,
+    formState: { errors, isSubmitting },
+  } = useForm<ProfileFormData>({
+    resolver: zodResolver(profileFormSchemaFor(user.email)),
     values: {
       // Deliberately NOT `userDisplayName()`: its 'Người dùng' fallback would be
       // prefilled into an editable field and saved as a literal name on submit.
@@ -54,11 +68,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
   });
 
   const updateUser = useMutation({
-    mutationFn: (data: ProfileFormData) => api.users.update(user.id, {
-      name: data.name,
-      email: data.email,
-      avatar: data.avatar,
-    }),
+    mutationFn: (data: ProfileFormData) => api.users.update(user.id, profileUpdatePayload(data, user.email)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(user.id) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
@@ -66,9 +76,15 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
       // WITHOUT deleting it, then close without the cancel-cleanup.
       setPendingAvatar(null);
       setUploadError(null);
+      resetField('currentPassword');
       onClose();
     },
   });
+
+  // EMAIL-REAUTH-01: the password field appears only while the email differs
+  // from the stored one — a name/avatar save never asks for it. `useWatch`, not
+  // `watch()`, for the React Compiler (same as `VoucherConsole`).
+  const emailChanged = isEmailChanged(user.email, useWatch({ control, name: 'email' }));
 
   function handleClose(): void {
     // Cancel/close: delete the freshly-uploaded avatar that was never saved.
@@ -76,6 +92,8 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
     if (orphan) void deleteMedia(orphan);
     setPendingAvatar(null);
     setUploadError(null);
+    // The typed password must not outlive the dialog.
+    resetField('currentPassword');
     setTab('profile');
     onClose();
   }
@@ -111,10 +129,10 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
     try {
       await updateUser.mutateAsync(data);
     } catch (err: unknown) {
-      // An email already registered to someone else is a 409 (backend
-      // 2026-08-06) — show it on the email input, not as a generic failure.
-      const { field, message } = credentialConflictError(err, 'Cập nhật thất bại');
-      setError(field === 'email' ? 'email' : 'root', { message });
+      // 409 email taken → email input; 401 wrong password → password input
+      // (the session is still alive); see `profileUpdateError`.
+      const { field, message } = profileUpdateError(err);
+      setError(field, { message });
     }
   }
 
@@ -172,7 +190,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
                 type="button"
                 disabled={uploading}
                 onClick={() => fileInputRef.current?.click()}
-                className="absolute bottom-0 right-0 p-2 rounded-full bg-tb-gradient text-ink-pri border-2 border-canvas-surface flex items-center justify-center cursor-pointer disabled:opacity-40 overflow-visible"
+                className="absolute bottom-0 right-0 p-2 rounded-full bg-tb-gradient text-ink-on-accent border-2 border-canvas-surface flex items-center justify-center cursor-pointer disabled:opacity-40 overflow-visible"
               >
                 {uploading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
               </button>
@@ -221,6 +239,17 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
             />
             {errors.email && <p className="text-xs text-accent-red">{errors.email.message}</p>}
           </div>
+
+          {emailChanged && (
+            <PasswordField
+              id="profile-current-password"
+              label="Mật khẩu hiện tại"
+              placeholder="Nhập mật khẩu để xác nhận đổi email"
+              autoComplete="current-password"
+              error={errors.currentPassword?.message}
+              inputProps={register('currentPassword')}
+            />
+          )}
 
           {/* Server error that belongs to no single field */}
           {errors.root && <p className="text-sm text-accent-red">{errors.root.message}</p>}

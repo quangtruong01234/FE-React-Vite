@@ -79,6 +79,22 @@ export interface ChangePasswordError {
 }
 
 /**
+ * The 401/403 branch of any request that carries `currentPassword` — change
+ * password, and an email change on `PATCH /user/:id` (EMAIL-REAUTH-01), which
+ * answers with the same `INVALID_CURRENT_PASSWORD` code. `null` when the
+ * response is not an auth failure, so the caller maps it its own way.
+ */
+export function currentPasswordAuthError(
+  error: unknown,
+): { field: 'currentPassword' | 'root'; message: string } | null {
+  if (!isAuthFailure(error)) return null;
+  if (errorCodeOf(error) === UNAUTHENTICATED) {
+    return { field: 'root', message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.' };
+  }
+  return { field: 'currentPassword', message: 'Mật khẩu hiện tại không đúng.' };
+}
+
+/**
  * Maps a failed change-password response to the field that should show it.
  *
  * The 401 branch reads `errorCode` (CHG-PW-02) rather than `message`, because
@@ -91,12 +107,8 @@ export interface ChangePasswordError {
  */
 export function changePasswordError(error: unknown): ChangePasswordError {
   const status = statusOf(error);
-  if (isAuthFailure(error)) {
-    if (errorCodeOf(error) === UNAUTHENTICATED) {
-      return { field: 'root', message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.' };
-    }
-    return { field: 'currentPassword', message: 'Mật khẩu hiện tại không đúng.' };
-  }
+  const authError = currentPasswordAuthError(error);
+  if (authError) return authError;
   if (status === 429) {
     return { field: 'root', message: 'Bạn thao tác quá nhanh. Vui lòng thử lại sau ít phút.' };
   }
