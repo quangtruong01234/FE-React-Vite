@@ -262,7 +262,7 @@ function VoucherForm({
                 className={cn(
                   'flex-1 h-10 rounded-tb-input border font-body font-semibold text-[13px] transition-colors enabled:cursor-pointer disabled:cursor-not-allowed',
                   discountType === type
-                    ? 'bg-tb-gradient border-transparent text-white'
+                    ? 'bg-tb-gradient border-transparent text-ink-on-accent'
                     : 'bg-canvas-elevated border-bdr text-ink-sec enabled:hover:text-ink-pri',
                   isEdit && discountType !== type && 'opacity-40',
                 )}

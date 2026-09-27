@@ -15,7 +15,6 @@ import { ChartLegend } from '@/components/shared/charts/ChartLegend';
 import { DoughnutChart } from '@/components/shared/charts/DoughnutChart';
 import { TrendAreaChart, type TrendSeries } from '@/components/shared/charts/TrendAreaChart';
 import { orderStatusSlices, sliceTotal } from '@/lib/chart/chartSeries';
-import { CHART_AMBER } from '@/lib/chart/chartTheme';
 import { revenueTrend } from '@/features/order/analytics/analyticsChartData';
 import { SelectField } from '@/components/shared/SelectField';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
@@ -103,7 +102,7 @@ export default function AdminPage(): ReactElement {
       {
         id: 'revenue',
         label: 'Doanh thu',
-        color: CHART_AMBER,
+        color: 'amber',
         values: trend.revenue,
         formatter: formatPrice,
       },

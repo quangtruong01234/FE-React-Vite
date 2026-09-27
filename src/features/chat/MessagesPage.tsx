@@ -168,7 +168,7 @@ export default function MessagesPage(): ReactElement {
                       {preview}
                     </span>
                     {hasUnread && (
-                      <span className="min-w-[18px] h-[18px] px-1 bg-tb-gradient text-ink-pri font-body font-bold text-[10px] rounded-full grid place-items-center leading-none flex-none">
+                      <span className="min-w-[18px] h-[18px] px-1 bg-tb-gradient text-ink-on-accent font-body font-bold text-[10px] rounded-full grid place-items-center leading-none flex-none">
                         {c.unreadCount > 99 ? '99+' : c.unreadCount}
                       </span>
                     )}

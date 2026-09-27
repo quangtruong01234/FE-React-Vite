@@ -205,12 +205,12 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
                 <div className={cn(
                   'px-3.5 py-2 text-sm leading-relaxed break-words rounded-2xl',
                   isMe
-                    ? 'bg-tb-gradient text-ink-pri rounded-br-md'
+                    ? 'bg-tb-gradient text-ink-on-accent rounded-br-md'
                     : 'bg-canvas-elevated border border-bdr text-ink-pri rounded-bl-md',
                   m.status === 'error' && 'opacity-60',
                 )}>
                   {m.content}
-                  <div className={cn('text-[10px] mt-0.5', isMe ? 'text-white/70' : 'text-ink-muted')}>
+                  <div className={cn('text-[10px] mt-0.5', isMe ? 'text-ink-on-accent/70' : 'text-ink-muted')}>
                     {formatMessageTime(m.createdAt)}
                   </div>
                 </div>
@@ -253,7 +253,7 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
         <button
           onClick={handleSend}
           disabled={!text.trim()}
-          className="rounded-full bg-tb-gradient text-ink-pri flex items-center justify-center cursor-pointer border-0 disabled:opacity-40 disabled:cursor-not-allowed flex-none"
+          className="rounded-full bg-tb-gradient text-ink-on-accent flex items-center justify-center cursor-pointer border-0 disabled:opacity-40 disabled:cursor-not-allowed flex-none"
         >
           <Send size={18} strokeWidth={2.5} className="shrink-0" />
         </button>

@@ -173,7 +173,7 @@ function ReportedPostCard({
               type="button"
               disabled={busy}
               onClick={() => onAction(post.id, 'delete')}
-              className="px-3 py-1.5 rounded-tb-input bg-accent-red text-white text-xs font-body font-semibold hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
+              className="px-3 py-1.5 rounded-tb-input bg-accent-red text-ink-on-accent text-xs font-body font-semibold hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
             >
               {pendingAction === 'delete' ? 'Đang xoá...' : 'Xác nhận xoá'}
             </button>
@@ -280,7 +280,7 @@ export default function ReportedPostsPage(): ReactElement {
               className={cn(
                 'flex-none px-4 py-2 rounded-full font-body font-semibold text-[13px] cursor-pointer whitespace-nowrap border transition-colors',
                 active
-                  ? 'bg-tb-gradient border-transparent text-white'
+                  ? 'bg-tb-gradient border-transparent text-ink-on-accent'
                   : 'bg-canvas-elevated border-bdr text-ink-sec hover:text-ink-pri',
               )}
             >

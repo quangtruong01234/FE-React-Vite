@@ -8,13 +8,14 @@ import { Pagination } from '@/components/shared/Pagination';
 import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatPrice } from '@/lib/format/utils';
+import { productCoverImage } from '@/lib/domain/productImage';
 import { cldImage } from '@/lib/http/cloudinaryUrl';
 import type { WishlistItem } from '@/types';
 
 const PAGE_SIZE = 12;
 
 function WishlistCard({ item, priority = false }: { item: WishlistItem; priority?: boolean }): ReactElement {
-  const cover = item.imageUrl ?? item.imageUrls?.[0] ?? '';
+  const cover = productCoverImage(item) ?? '';
   return (
     <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden flex flex-col transition-all duration-300 hover:-translate-y-1 hover:border-tb-amber/30 hover:shadow-tb-card">
       <Link to={`/product/${item.id}`} className="relative block">
@@ -41,7 +42,7 @@ function WishlistCard({ item, priority = false }: { item: WishlistItem; priority
         <WishlistButton
           productId={item.id}
           iconSize={18}
-          className="absolute top-2.5 right-2.5 size-9 rounded-full bg-black/50 backdrop-blur-sm hover:bg-black/60"
+          className="absolute top-2.5 right-2.5 size-9 rounded-full bg-canvas-elevated/90 backdrop-blur-sm border border-bdr hover:bg-canvas-elevated"
         />
       </Link>
 

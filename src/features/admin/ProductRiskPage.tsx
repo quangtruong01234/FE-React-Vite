@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { RefreshCw, ShieldCheck, ExternalLink, Flag, ListPlus, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
 import { formatPrice } from '@/lib/format/utils';
+import { productCoverImage } from '@/lib/domain/productImage';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { ProductThumb } from '@/components/shared/ProductThumb';
@@ -58,7 +59,7 @@ function RiskProductCard({
   const statusMeta = riskStatusMeta(product.riskScoringStatus);
   const retryDetail = riskRetryDetail(product);
   const canGiveFeedback = hasDuplicateImageFlag(riskFlags);
-  const image = product.imageUrls?.[0] ?? product.imageUrl;
+  const image = productCoverImage(product);
 
   return (
     <div className="bg-canvas-surface border border-bdr rounded-tb-card p-5">
@@ -304,7 +305,7 @@ export default function ProductRiskPage(): ReactElement {
               className={cn(
                 'flex-none px-4 py-2 rounded-full font-body font-semibold text-[13px] cursor-pointer whitespace-nowrap border transition-colors',
                 active
-                  ? 'bg-tb-gradient border-transparent text-white'
+                  ? 'bg-tb-gradient border-transparent text-ink-on-accent'
                   : 'bg-canvas-elevated border-bdr text-ink-sec hover:text-ink-pri',
               )}
             >

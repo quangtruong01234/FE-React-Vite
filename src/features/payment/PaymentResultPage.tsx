@@ -73,7 +73,7 @@ export default function PaymentResultPage(): ReactElement {
             <CreditCard size={28} className="text-accent-amber" />
           </div>
           <div>
-            <h2 className="font-display font-black text-2xl text-white m-0 mb-1">
+            <h2 className="font-display font-black text-2xl text-ink-pri m-0 mb-1">
               Đang xác nhận thanh toán…
             </h2>
             <p className="text-sm text-ink-sec m-0">Đang chờ phản hồi từ cổng {gwLabel}</p>
@@ -92,7 +92,7 @@ export default function PaymentResultPage(): ReactElement {
               <CheckCircle size={44} className="text-accent-green" />
             </div>
             <div>
-              <h2 className="font-display font-black text-2xl text-white m-0 mb-1">
+              <h2 className="font-display font-black text-2xl text-ink-pri m-0 mb-1">
                 Thanh toán thành công!
               </h2>
               <p className="text-sm text-ink-sec m-0">
@@ -125,7 +125,7 @@ export default function PaymentResultPage(): ReactElement {
               <XCircle size={44} className="text-accent-red" />
             </div>
             <div>
-              <h2 className="font-display font-black text-2xl text-white m-0 mb-1">
+              <h2 className="font-display font-black text-2xl text-ink-pri m-0 mb-1">
                 Thanh toán thất bại
               </h2>
               <p className="text-sm text-ink-sec m-0">
@@ -153,7 +153,7 @@ export default function PaymentResultPage(): ReactElement {
               <AlertTriangle size={44} className="text-accent-amber shrink-0" />
             </div>
             <div>
-              <h2 className="font-display font-black text-2xl text-white m-0 mb-1">
+              <h2 className="font-display font-black text-2xl text-ink-pri m-0 mb-1">
                 Chưa xác nhận được thanh toán
               </h2>
               <p className="text-sm text-ink-sec m-0">

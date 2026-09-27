@@ -156,7 +156,7 @@ export default function PendingCategoriesPage(): ReactElement {
                           type="button"
                           disabled={reviewMutation.isPending}
                           onClick={handleRejectConfirm}
-                          className="px-3 py-1.5 rounded-tb-input bg-accent-red text-white text-xs font-body font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+                          className="px-3 py-1.5 rounded-tb-input bg-accent-red text-ink-on-accent text-xs font-body font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
                         >
                           Xác nhận từ chối
                         </button>
