@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { lowStockSeries, stockHealthSlices } from './stockChartData';
-import { CHART_AMBER, CHART_GREEN, CHART_RED } from '@/lib/chart/chartTheme';
 import type { LowStockRow } from './lowStock';
 
 function row(partial: Partial<LowStockRow>): LowStockRow {
@@ -38,8 +37,8 @@ describe('lowStockSeries', () => {
       row({ id: 1, availableStock: 0 }),
       row({ id: 2, availableStock: 2 }),
     ]);
-    expect(slices[0].color).toBe(CHART_RED);
-    expect(slices[1].color).toBe(CHART_AMBER);
+    expect(slices[0].color).toBe('red');
+    expect(slices[1].color).toBe('amber');
   });
 
   it('caps the number of bars so the axis stays readable', () => {
@@ -60,7 +59,7 @@ describe('stockHealthSlices', () => {
       ['Đủ hàng', 7],
       ['Sắp hết', 3],
     ]);
-    expect(slices[0].color).toBe(CHART_GREEN);
+    expect(slices[0].color).toBe('green');
   });
 
   it('omits the low bucket entirely when nothing is running low', () => {

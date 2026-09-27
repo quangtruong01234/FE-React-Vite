@@ -1,4 +1,3 @@
-import { CHART_AMBER, CHART_GREEN, CHART_INK_MUTED, CHART_RED } from '@/lib/chart/chartTheme';
 import type { ChartSlice } from '@/lib/chart/chartSeries';
 import type { LowStockRow } from './lowStock';
 
@@ -31,7 +30,7 @@ export function lowStockSeries(
       key: String(row.id),
       label: row.name,
       value: row.availableStock,
-      color: row.availableStock <= 0 ? CHART_RED : CHART_AMBER,
+      color: row.availableStock <= 0 ? 'red' : 'amber',
     })),
     minimums: shown.map((row) => row.minimumStock),
   };
@@ -54,15 +53,15 @@ export function stockHealthSlices(
   const healthy = Math.max(0, totalProducts - low);
   const slices: ChartSlice[] = [];
   if (healthy > 0) {
-    slices.push({ key: 'healthy', label: 'Đủ hàng', value: healthy, color: CHART_GREEN });
+    slices.push({ key: 'healthy', label: 'Đủ hàng', value: healthy, color: 'green' });
   }
   if (low > 0) {
-    slices.push({ key: 'low', label: 'Sắp hết', value: low, color: CHART_AMBER });
+    slices.push({ key: 'low', label: 'Sắp hết', value: low, color: 'amber' });
   }
   // An all-zero catalogue still needs one arc, else the ring vanishes entirely
   // and the card reads as broken rather than empty.
   if (slices.length === 0) {
-    slices.push({ key: 'none', label: 'Chưa có sản phẩm', value: 1, color: CHART_INK_MUTED });
+    slices.push({ key: 'none', label: 'Chưa có sản phẩm', value: 1, color: 'muted' });
   }
   return slices;
 }

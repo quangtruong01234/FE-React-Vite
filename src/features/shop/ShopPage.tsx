@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/format/utils";
 import { formatPrice } from "@/lib/format/utils";
+import { productCoverImage } from "@/lib/domain/productImage";
 import { useProducts } from "../product/useProducts";
 import { productCategoryNames } from "../product/productCategories";
 import { buildLowStockRows } from "./lowStock";
@@ -27,11 +28,6 @@ import { ChartFrame } from "@/components/shared/charts/ChartFrame";
 import { ChartLegend } from "@/components/shared/charts/ChartLegend";
 import { DoughnutChart } from "@/components/shared/charts/DoughnutChart";
 import { RankedBarChart } from "@/components/shared/charts/RankedBarChart";
-import {
-  CHART_AMBER,
-  CHART_INK_MUTED,
-  CHART_RED,
-} from "@/lib/chart/chartTheme";
 import type { ChartSlice } from "@/lib/chart/chartSeries";
 import { IconButton } from "@/components/shared/IconButton";
 import { ProductThumb } from "@/components/shared/ProductThumb";
@@ -46,9 +42,9 @@ import type { ProductWithInventory } from "@/types";
  * threshold series rather than sample whichever row happens to be first.
  */
 const LOW_STOCK_LEGEND: ChartSlice[] = [
-  { key: "low", label: "Sắp hết", value: 0, color: CHART_AMBER },
-  { key: "out", label: "Hết hàng", value: 0, color: CHART_RED },
-  { key: "minimum", label: "Mức tối thiểu", value: 0, color: CHART_INK_MUTED },
+  { key: "low", label: "Sắp hết", value: 0, color: "amber" },
+  { key: "out", label: "Hết hàng", value: 0, color: "red" },
+  { key: "minimum", label: "Mức tối thiểu", value: 0, color: "muted" },
 ];
 
 const CONDITION_LABEL: Record<string, string> = {
@@ -88,7 +84,7 @@ function ProductRow({
       <td className="py-3 px-4">
         <div className="flex items-center gap-3">
           <ProductThumb
-            src={product.imageUrl}
+            src={productCoverImage(product)}
             alt={product.name}
             iconSize={18}
             className="size-10 rounded-tb-card"
@@ -424,7 +420,7 @@ export default function ShopPage() {
           </div>
           <Button
             onClick={() => navigate("/sell")}
-            className="bg-tb-gradient text-ink-pri border-0 gap-2 shadow-tb-cta shrink-0"
+            className="bg-tb-gradient text-ink-on-accent border-0 gap-2 shadow-tb-cta shrink-0"
           >
             <Plus size={16} className="shrink-0" />
             Đăng sản phẩm
@@ -500,7 +496,7 @@ export default function ShopPage() {
               labelWidth={120}
               comparison={{
                 label: "Mức tối thiểu",
-                color: CHART_INK_MUTED,
+                color: "muted",
                 values: lowStockChart.minimums,
               }}
             />
