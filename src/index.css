@@ -44,6 +44,7 @@
      boxShadow / backgroundImage in tailwind.config.js, plus OnlinePill's colours. */
   --tb-shadow-cta:  0 8px 24px rgba(245,158,11,0.25);
   --tb-shadow-card: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px rgba(0,0,0,0.35);
+  --tb-gradient-text: linear-gradient(90deg, #F59E0B, #EF4444);
   --tb-login-glow:
     radial-gradient(circle at 20% 20%, rgba(245,158,11,0.18), transparent 50%),
     radial-gradient(circle at 80% 80%, rgba(239,68,68,0.14), transparent 55%);
@@ -58,8 +59,9 @@
 }
 
 /* Light theme (F13). Must define every variable :root does — src/test/themeTokens.test.ts
-   checks that, and holds each text colour to WCAG AA (4.5:1) on every canvas colour. Amber
-   text/borders use #B45309: #F59E0B on white is only ~2.1:1. The CTA gradient is unchanged. */
+   checks that, and holds each text colour to WCAG AA (4.5:1) on every canvas colour and on
+   its own tinted chip (`bg-tb-green/15 text-accent-green`). Amber text/borders use #964308:
+   #F59E0B on white is only ~2.1:1. The CTA gradient is unchanged. */
 [data-theme="light"] {
   color-scheme: light;
 
@@ -72,12 +74,12 @@
   --text-secondary: 82 82 91;    /* #52525B */
   --text-muted:     107 107 115; /* #6B6B73 */
 
-  --accent-primary:   180 83 9;    /* #B45309 */
+  --accent-primary:   150 67 8;    /* #964308 */
   --accent-secondary: 185 28 28;   /* #B91C1C */
-  --accent-cyan:      14 116 144;  /* #0E7490 */
-  --accent-green:     4 120 87;    /* #047857 */
+  --accent-cyan:      12 106 132;  /* #0C6A84 */
+  --accent-green:     6 106 75;    /* #066A4B */
   --accent-red:       185 28 28;   /* #B91C1C */
-  --accent-amber:     180 83 9;    /* #B45309 */
+  --accent-amber:     150 67 8;    /* #964308 */
   --accent-violet:    124 58 237;  /* #7C3AED */
   --accent-blue:      37 99 235;   /* #2563EB */
 
@@ -86,6 +88,8 @@
 
   --tb-shadow-cta:  0 8px 24px rgba(245,158,11,0.25);
   --tb-shadow-card: 0 1px 2px rgba(9,9,11,0.04), 0 8px 24px rgba(9,9,11,0.08);
+  /* Gradient-clipped text (prices, login stats): the CTA gradient's ends are ~2.1:1 on white. */
+  --tb-gradient-text: linear-gradient(90deg, #964308, #B91C1C);
   --tb-login-glow:
     radial-gradient(circle at 20% 20%, rgba(245,158,11,0.14), transparent 50%),
     radial-gradient(circle at 80% 80%, rgba(239,68,68,0.10), transparent 55%);

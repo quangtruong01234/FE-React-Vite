@@ -80,7 +80,7 @@ function LeftPanel(): ReactElement {
               key={s.v}
               className="py-4 px-[18px] bg-canvas-surface/60 border border-tb-border rounded-tb-cta backdrop-blur-[8px]"
             >
-              <div className="font-display font-black text-[26px] tracking-[-0.01em] bg-tb-gradient-90 bg-clip-text text-transparent">
+              <div className="font-display font-black text-[26px] tracking-[-0.01em] bg-tb-gradient-text bg-clip-text text-transparent">
                 {s.k}
               </div>
               <div className="font-body text-xs text-tb-secondary mt-0.5">

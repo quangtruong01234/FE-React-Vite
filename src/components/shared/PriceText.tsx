@@ -18,7 +18,7 @@ const sizeClasses: Record<PriceSize, string> = {
 
 export function PriceText({ price, className, size = 'md' }: PriceTextProps): ReactElement {
   return (
-    <span className={cn('font-mono font-bold leading-none bg-tb-gradient-90 bg-clip-text text-transparent', sizeClasses[size], className)}>
+    <span className={cn('font-mono font-bold leading-none bg-tb-gradient-text bg-clip-text text-transparent', sizeClasses[size], className)}>
       {formatPrice(price)}
     </span>
   );

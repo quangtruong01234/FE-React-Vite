@@ -55,10 +55,10 @@ export const CHART_PALETTES: Record<Theme, ChartPalette> = {
     inkPri: '#09090B',
     inkSec: '#52525B',
     series: {
-      amber: '#B45309',
+      amber: '#964308',
       red: '#B91C1C',
-      green: '#047857',
-      cyan: '#0E7490',
+      green: '#066A4B',
+      cyan: '#0C6A84',
       violet: '#7C3AED',
       blue: '#2563EB',
       muted: '#6B6B73',

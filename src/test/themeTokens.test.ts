@@ -99,7 +99,7 @@ describe('contrastRatio', () => {
   it('matches the WCAG endpoints and a known pair', () => {
     expect(contrastRatio('255 255 255', '0 0 0')).toBeCloseTo(21, 5);
     expect(contrastRatio('9 9 11', '9 9 11')).toBe(1);
-    // #F59E0B on white: the reason light amber text is #B45309 instead.
+    // #F59E0B on white: the reason light amber text is #964308 instead.
     expect(contrastRatio('245 158 11', '255 255 255')).toBeCloseTo(2.15, 2);
     expect(contrastRatio('255 255 255', '245 158 11')).toBe(contrastRatio('245 158 11', '255 255 255'));
   });
@@ -198,6 +198,50 @@ describe('the real tailwind.config.js + index.css', () => {
 
   it('holds every light-theme text colour to WCAG AA on every canvas colour', () => {
     expect(failingPairs(light)).toEqual([]);
+  });
+
+  // A status chip paints its accent over a /NN tint of itself (`bg-tb-green/15
+  // text-accent-green`), which sits closer to the text than a bare canvas does. The alphas are
+  // the heaviest tint each accent carries text on in src/ — raise one here if a chip goes darker.
+  const chipTints: Array<[string, number]> = [
+    ['accent-amber', 0.2],
+    ['accent-red', 0.15],
+    ['accent-green', 0.15],
+    ['accent-cyan', 0.1],
+  ];
+  const tinted = (accent: string, canvas: string, alpha: number): string => {
+    const a = accent.split(' ').map(Number);
+    const c = canvas.split(' ').map(Number);
+    return a.map((value, i) => value * alpha + c[i] * (1 - alpha)).join(' ');
+  };
+
+  it('holds light-theme chip text to AA on its own tint over every canvas colour', () => {
+    const failing = chipTints.flatMap(([text, alpha]) =>
+      backgrounds
+        .map((bg) => {
+          const fg = light[variableOf(text)];
+          return { bg, ratio: contrastRatio(fg, tinted(fg, light[variableOf(bg)], alpha)) };
+        })
+        .filter(({ ratio }) => ratio < 4.5)
+        .map(({ bg, ratio }) => `${text} on ${text}/${alpha * 100} over ${bg}: ${ratio.toFixed(2)}`),
+    );
+    expect(failing).toEqual([]);
+  });
+
+  it('keeps both ends of the light text gradient at AA on every canvas colour', () => {
+    // PriceText and the login stats clip this gradient to text; the CTA gradient's #F59E0B
+    // end is ~2.1:1 on white, so light swaps in darker stops.
+    const stops = light['--tb-gradient-text']?.match(/#[0-9A-Fa-f]{6}/g) ?? [];
+    expect(stops).toHaveLength(2);
+    const channels = (hex: string): string =>
+      [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(' ');
+    const failing = stops.flatMap((stop) =>
+      backgrounds
+        .map((bg) => ({ bg, ratio: contrastRatio(channels(stop), light[variableOf(bg)]) }))
+        .filter(({ ratio }) => ratio < 4.5)
+        .map(({ bg, ratio }) => `${stop} on ${bg}: ${ratio.toFixed(2)}`),
+    );
+    expect(failing).toEqual([]);
   });
 
   it('pins the dark-theme pairs that already miss AA, so the list cannot grow', () => {

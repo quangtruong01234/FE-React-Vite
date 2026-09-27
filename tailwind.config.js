@@ -49,8 +49,10 @@ export default {
       backgroundImage: {
         'tb-gradient':    'linear-gradient(135deg, #F59E0B, #EF4444)',
         'tb-gradient-90': 'linear-gradient(90deg, #F59E0B, #EF4444)',
-        // The gradients above stay the same in every theme; this glow does not.
+        // The gradients above stay the same in every theme; these two do not.
         'login-left': 'var(--tb-login-glow)',
+        // For `bg-clip-text` only: text needs darker ends than a filled button in light.
+        'tb-gradient-text': 'var(--tb-gradient-text)',
       },
       fontFamily: {
         display: ['"Barlow Condensed"', 'sans-serif'],
