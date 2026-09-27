@@ -30,11 +30,10 @@ interface SearchSuggestionsResult {
  * cache key and up to three requests.
  */
 export function useSearchSuggestions(query: string): SearchSuggestionsResult {
-  // Session read from the `auth.me` query, NOT from `useAuthContext()`: after an
-  // in-app login `loginSuccess` calls `queryClient.clear()`, which drops the
-  // provider's cached user without notifying its observer, so the context keeps
-  // reporting `null` until the whole page reloads. Every other gate in the app
-  // (`ProtectedRoute`, `useRole`) reads the query for the same reason.
+  // Session read from the `auth.me` query, like every other gate in the app
+  // (`ProtectedRoute`, `useRole`). This was once load-bearing: `loginSuccess`
+  // used `queryClient.clear()`, which left the context reporting `null` until a
+  // reload (AUTH-STALE-01, fixed by `replaceSessionCache`).
   const session = useRole();
   const trimmed = query.trim();
   const enabled = foldText(trimmed).length >= SEARCH_MIN_QUERY_LENGTH;

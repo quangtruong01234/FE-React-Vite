@@ -9,7 +9,7 @@ import {
 } from './searchSuggestions';
 
 const products: ProductLike[] = [
-  { id: 'prod_1', name: 'iPhone 15', price: 1000, imageUrl: 'a.jpg' },
+  { id: 'prod_1', name: 'iPhone 15', price: 1000, imageUrls: ['a.jpg'] },
   { id: 'prod_2', name: 'Bàn phím cơ', price: 200, imageUrls: ['b.jpg'] },
 ];
 
@@ -48,7 +48,7 @@ describe('buildSuggestions', () => {
     expect(result[0]).toMatchObject({ kind: 'product', to: '/product/prod_1', label: 'iPhone 15' });
   });
 
-  it('falls back to the first gallery image when imageUrl is absent', () => {
+  it('uses the first gallery image as the suggestion thumbnail', () => {
     const [, second] = buildSuggestions({ ...empty, query: 'phim', products });
     expect(second).toMatchObject({ kind: 'product', imageUrl: 'b.jpg' });
   });

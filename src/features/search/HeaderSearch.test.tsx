@@ -44,7 +44,7 @@ beforeEach(() => {
   signIn(viewer);
   server.use(
     http.get(`${API_BASE}/products/with-inventory/all`, () =>
-      HttpResponse.json(page([{ id: 'prod_1', name: 'iPhone 15 Pro', price: 1000, imageUrl: null }])),
+      HttpResponse.json(page([{ id: 'prod_1', name: 'iPhone 15 Pro', price: 1000, imageUrls: null }])),
     ),
     http.get(`${API_BASE}/social/posts`, ({ request }) => {
       postSearchSpy(new URL(request.url).searchParams.get('search'));

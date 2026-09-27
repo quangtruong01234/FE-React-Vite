@@ -1,5 +1,6 @@
 import truncate from 'lodash/truncate';
-import { userDisplayName, nonBlank } from '@/lib/format/user';
+import { userDisplayName } from '@/lib/format/user';
+import { productCoverImage } from '@/lib/domain/productImage';
 
 /**
  * Header search suggestions — the pure half.
@@ -31,7 +32,6 @@ export interface ProductLike {
   id: string;
   name: string;
   price: number;
-  imageUrl?: string | null;
   imageUrls?: string[] | null;
 }
 
@@ -71,10 +71,6 @@ export function foldText(value: string): string {
     .trim();
 }
 
-function productImage(product: ProductLike): string | null {
-  return nonBlank(product.imageUrl) ?? nonBlank(product.imageUrls?.[0]);
-}
-
 /** Every group arrives already server-searched — kept in backend order. */
 export interface SuggestionInput {
   query: string;
@@ -98,7 +94,7 @@ export function buildSuggestions({ query, products, posts, sellers }: Suggestion
       id: product.id,
       to: `/product/${product.id}`,
       label: product.name,
-      imageUrl: productImage(product),
+      imageUrl: productCoverImage(product),
       price: product.price,
     }));
 
