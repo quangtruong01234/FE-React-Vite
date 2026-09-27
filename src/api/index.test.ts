@@ -78,6 +78,23 @@ describe('request() — 401 redirect wiring', () => {
     expect(onUnauthorized).not.toHaveBeenCalled();
   });
 
+  // A wrong password on /login used to redirect to /login?next=%2Flogin, so the
+  // following successful login landed back on /login instead of the feed.
+  it('does not redirect when login fails with wrong credentials', async () => {
+    const onUnauthorized = vi.fn();
+    registerUnauthorizedHandler(onUnauthorized);
+    server.use(
+      http.post(`${API_BASE}/user/login`, () =>
+        HttpResponse.json({ message: 'Unauthorized' }, { status: 401 }),
+      ),
+    );
+
+    await expect(api.auth.login({ username: 'user1', password: 'wrong' })).rejects.toMatchObject({
+      statusCode: 401,
+    });
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
   it('does not redirect on a successful response', async () => {
     const onUnauthorized = vi.fn();
     registerUnauthorizedHandler(onUnauthorized);

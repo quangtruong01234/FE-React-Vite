@@ -10,8 +10,15 @@ import type {
 import { request } from './client';
 
 export const authApi = {
+  // 401 = wrong credentials, not an expired session. The global redirect would
+  // rewrite the URL to /login?next=%2Flogin, and the next successful login would
+  // then navigate back to /login instead of the feed.
   login: (data: LoginDto): Promise<User> =>
-    request<User>('/user/login', { method: 'POST', body: JSON.stringify(data) }),
+    request<User>('/user/login', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      skipUnauthorizedRedirect: true,
+    }),
 
   register: (data: RegisterDto): Promise<User> =>
     request<User>('/user/register', { method: 'POST', body: JSON.stringify(data) }),
