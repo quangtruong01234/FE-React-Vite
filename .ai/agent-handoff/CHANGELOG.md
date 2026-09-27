@@ -15,6 +15,25 @@
 
 ## Maintenance
 
+### PERF-MON-01-FU · Budget script Lighthouse đo lại theo nhánh demo mà CI thật sự chạy (2026-09-27)
+
+Class **A** (chỉ CI). Lần chạy CI đầu tiên của job `Lighthouse budgets` (`228fbf4`, run
+36326117326) đỏ ⇒ Deploy bị **skip**, prod kẹt ở `e70322a` trong khi `api` đã lên EMAIL-REAUTH-01.
+
+**Nguyên nhân: baseline đo sai nhánh, không phải code phình.** `resource-summary:script:size`
+found **260 267** > 220 000. Baseline 195 841 B của PERF-MON-01 được đo khi gateway local đang chạy
+⇒ `/health` 200 ⇒ nhánh online. Trên CI không có gateway ⇒ demo mode ⇒ `/login` tải thêm MSW
+(`cookieStore-*` 63.3 kB gzip, `index-*` 24.2 kB), `handlers-*` 9.6 kB, `_arrayPush-*` 2.1 kB.
+Đo lại bằng MCP trên `vite preview` của `228fbf4`: online 194 872 B (≈ baseline, nên 13 commit mới
+không làm `/login` nặng thêm); ép `/health` fail thì 12 chunk thay vì 8. Không chunk nào trong số
+đó đổi ở lượt push này (`msw` giữ nguyên version).
+
+**Thay đổi.** `lighthouserc.json`: script ≤ **300 000** (260 267 × ~1.15, cùng biên ~15% như các
+budget khác). Các budget còn lại pass trên CI nên giữ nguyên.
+
+**Bài học:** baseline Lighthouse phải đo đúng điều kiện CI — tắt gateway local (hoặc chặn `/health`)
+trước khi `lhci autorun`, nếu không sẽ đo nhánh online.
+
 ### AUD-0925-03 · Nút "+" số lượng dừng ở 999 (2026-09-27)
 
 Class **A** (chỉ thêm điều kiện `disabled`; BE cũ không có trần thì FE vẫn đúng, chỉ không cho

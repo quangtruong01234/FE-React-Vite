@@ -10,7 +10,7 @@
       "assertions": {
         "categories:performance": ["error", { "minScore": 0.8, "aggregationMethod": "median-run" }],
         "largest-contentful-paint": ["error", { "maxNumericValue": 4000, "aggregationMethod": "median-run" }],
-        "resource-summary:script:size": ["error", { "maxNumericValue": 220000 }],
+        "resource-summary:script:size": ["error", { "maxNumericValue": 300000 }],
         "resource-summary:stylesheet:size": ["error", { "maxNumericValue": 16000 }],
         "resource-summary:total:size": ["error", { "maxNumericValue": 380000 }]
       }
