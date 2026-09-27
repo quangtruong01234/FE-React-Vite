@@ -4,9 +4,11 @@ import { request, toQuery } from './client';
 export const uploadApi = {
   // No `userId`/`publicId` params: the backend derives the owner from the JWT
   // cookie and returns an owner-prefixed `public_id` (it rejects opaque
-  // `usr_…` ids with "userId must be an integer number").
-  getSignature: (folder: string): Promise<UploadSignature> => {
-    const qs = toQuery({ folder });
+  // `usr_…` ids with "userId must be an integer number"). `bytes` is the
+  // file size (UPLOAD-SIZE-01): an oversized upload is refused with a 400 before
+  // a signature is issued; omitted, the backend behaves exactly as before.
+  getSignature: (folder: string, bytes?: number): Promise<UploadSignature> => {
+    const qs = toQuery({ folder, bytes });
     return request<UploadSignature>(`/upload/signature${qs}`, { method: 'POST' });
   },
 

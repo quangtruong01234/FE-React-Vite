@@ -53,7 +53,7 @@ export function Header(): ReactElement {
                 {item.to === '/cart' && totalCount > 0 && (
                   <span className={cn(
                     'absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1',
-                    'bg-tb-gradient text-white font-body font-bold text-[10px]',
+                    'bg-tb-gradient text-ink-on-accent font-body font-bold text-[10px]',
                     'rounded-full border-2 border-tb-base flex items-center justify-center leading-none',
                   )}>
                     {totalCount}

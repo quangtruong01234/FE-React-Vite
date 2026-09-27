@@ -91,14 +91,26 @@ export interface UpdateUserDto {
   name?: string;
   email?: string;
   avatar?: string;
+  /**
+   * Required by the backend only when `email` differs from the stored one
+   * (EMAIL-REAUTH-01). Send it on no other save — see `profileUpdatePayload`.
+   */
+  currentPassword?: string;
 }
 
-/** Public seller card for the feed right-rail — no email/role/grants. */
+/**
+ * Public seller card for the feed right-rail — no email/role/grants.
+ *
+ * RAIL-RANK-01: ranked by `soldCount` DESC — units sold in the last 30 days
+ * across paid-and-onward orders. Short rails are topped up with the newest
+ * shops, which carry `soldCount: 0`. Always present, never null.
+ */
 export interface FeaturedSeller {
   id: string;
   username: string;
   name: string | null;
   avatar: string | null;
+  soldCount: number;
 }
 
 /**

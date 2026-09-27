@@ -35,7 +35,7 @@ export function Avatar({
               className="w-full h-full rounded-full object-cover block"
             />
           ) : (
-            <div className="w-full h-full rounded-full flex items-center justify-center font-display font-black text-white uppercase bg-canvas-elevated text-[var(--avatar-fs)]">
+            <div className="w-full h-full rounded-full flex items-center justify-center font-display font-black text-ink-pri uppercase bg-canvas-elevated text-[var(--avatar-fs)]">
               {initials ?? alt.charAt(0)}
             </div>
           )}

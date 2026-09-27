@@ -1,41 +1,85 @@
 import type { OrderStatus } from '@/types';
+import type { Theme } from '@/lib/theme/theme';
 
 /**
  * The ONLY file in `src/` allowed to hold chart hex literals.
  *
  * Chart.js paints into a `<canvas>`, so Tailwind utility classes cannot reach a
- * bar, an arc or a gridline — a colour has to arrive as a string. Rather than
- * scatter those strings across every dashboard (the AN-01(c) backlog item), all
- * of them live here and every chart reads from this module. When a design token
- * changes in `tailwind.config.js`, this file is the single place to mirror it.
+ * bar, an arc or a gridline — a colour has to arrive as a string, and a CSS
+ * variable does not switch it when the theme changes. So data code names a
+ * colour by role (`ChartColor`), and each chart resolves that role against the
+ * palette of the active theme (`useChartPalette`) at render time. Switching the
+ * theme hands the chart a new palette, and it redraws.
  *
- * Each constant is annotated with the `tb-*` / semantic token it mirrors so the
- * pairing stays checkable by hand.
+ * Every hex here mirrors a channel variable in `src/index.css` — `:root` for
+ * `dark`, `[data-theme="light"]` for `light`. `chartTheme.test.ts` reads the CSS
+ * and fails when the two drift, so a token change is caught rather than mirrored
+ * by hand.
  */
 
-/** `bg-canvas-elevated` / `bg-tb-elevated` — tooltip and legend surfaces. */
-export const CHART_SURFACE = '#1C1C1E';
-/** `border-bdr` / `border-tb-border` — gridlines and tooltip borders. */
-export const CHART_GRID = '#27272A';
-/** `text-ink-pri` — tooltip titles, emphasised values. */
-export const CHART_INK_PRI = '#FFFFFF';
-/** `text-ink-sec` / `text-tb-secondary` — axis ticks, legend labels. */
-export const CHART_INK_SEC = '#A1A1AA';
-/** `text-ink-muted` / `text-tb-muted` — de-emphasised series. */
-export const CHART_INK_MUTED = '#52525B';
+/** A series colour by role. Data code stores this, never a hex. */
+export type ChartColor = 'amber' | 'red' | 'green' | 'cyan' | 'violet' | 'blue' | 'muted';
 
-/** `text-accent-amber` / `accent-pri`. */
-export const CHART_AMBER = '#F59E0B';
-/** `text-accent-red` / `accent-sec`. */
-export const CHART_RED = '#EF4444';
-/** `text-accent-green`. */
-export const CHART_GREEN = '#10B981';
-/** `text-accent-cyan`. */
-export const CHART_CYAN = '#06B6D4';
-/** `text-accent-violet` — alias-only token. */
-export const CHART_VIOLET = '#8B5CF6';
-/** `text-accent-blue` — alias-only token. */
-export const CHART_BLUE = '#3B82F6';
+export interface ChartPalette {
+  /** `canvas-elevated` — tooltip surface, doughnut gaps, point rings. */
+  surface: string;
+  /** `bdr` — gridlines and tooltip borders. */
+  grid: string;
+  /** `ink-pri` — tooltip titles. */
+  inkPri: string;
+  /** `ink-sec` — axis ticks, tooltip body. */
+  inkSec: string;
+  /** `accent-*`, and `ink-muted` for `muted`. */
+  series: Record<ChartColor, string>;
+}
+
+export const CHART_PALETTES: Record<Theme, ChartPalette> = {
+  dark: {
+    surface: '#1C1C1E',
+    grid: '#27272A',
+    inkPri: '#FFFFFF',
+    inkSec: '#A1A1AA',
+    series: {
+      amber: '#F59E0B',
+      red: '#EF4444',
+      green: '#10B981',
+      cyan: '#06B6D4',
+      violet: '#8B5CF6',
+      blue: '#3B82F6',
+      muted: '#52525B',
+    },
+  },
+  light: {
+    surface: '#F4F4F5',
+    grid: '#E4E4E7',
+    inkPri: '#09090B',
+    inkSec: '#52525B',
+    series: {
+      amber: '#B45309',
+      red: '#B91C1C',
+      green: '#047857',
+      cyan: '#0E7490',
+      violet: '#7C3AED',
+      blue: '#2563EB',
+      muted: '#6B6B73',
+    },
+  },
+};
+
+/**
+ * The same roles as Tailwind classes, for the DOM legend dot. Written out in
+ * full so Tailwind's scanner sees each class; the tokens flip with the theme on
+ * their own, so the legend needs no palette.
+ */
+export const CHART_DOT_CLASS: Record<ChartColor, string> = {
+  amber: 'bg-accent-amber',
+  red: 'bg-accent-red',
+  green: 'bg-accent-green',
+  cyan: 'bg-accent-cyan',
+  violet: 'bg-accent-violet',
+  blue: 'bg-accent-blue',
+  muted: 'bg-ink-muted',
+};
 
 /** Tailwind `font-body` (DM Sans) — matches `tailwind.config.js` `fontFamily.body`. */
 export const CHART_FONT_BODY = '"DM Sans", sans-serif';
@@ -45,16 +89,16 @@ export const CHART_FONT_BODY = '"DM Sans", sans-serif';
  * `lib/domain/orderStatus.ts` so a chart legend and a `<StatusBadge>` never
  * disagree about what colour "Đang giao" is.
  */
-export const ORDER_STATUS_CHART_COLOR: Record<OrderStatus, string> = {
-  pending: CHART_AMBER,
-  confirmed: CHART_CYAN,
-  processing: CHART_VIOLET,
-  shipped: CHART_BLUE,
-  delivering: CHART_BLUE,
-  completed: CHART_GREEN,
-  canceled: CHART_RED,
-  return_requested: CHART_AMBER,
-  refunded: CHART_VIOLET,
+export const ORDER_STATUS_CHART_COLOR: Record<OrderStatus, ChartColor> = {
+  pending: 'amber',
+  confirmed: 'cyan',
+  processing: 'violet',
+  shipped: 'blue',
+  delivering: 'blue',
+  completed: 'green',
+  canceled: 'red',
+  return_requested: 'amber',
+  refunded: 'violet',
 };
 
 /**
@@ -62,22 +106,22 @@ export const ORDER_STATUS_CHART_COLOR: Record<OrderStatus, string> = {
  * own (top products, stock rows). Ordered so neighbouring slices stay
  * distinguishable rather than shading into each other.
  */
-export const CHART_CATEGORICAL_PALETTE: readonly string[] = [
-  CHART_AMBER,
-  CHART_VIOLET,
-  CHART_CYAN,
-  CHART_GREEN,
-  CHART_BLUE,
-  CHART_RED,
+export const CHART_CATEGORICAL_PALETTE: readonly ChartColor[] = [
+  'amber',
+  'violet',
+  'cyan',
+  'green',
+  'blue',
+  'red',
 ];
 
 /** Pick a palette colour by index, wrapping when a series outruns the palette. */
-export function categoricalColor(index: number): string {
+export function categoricalColor(index: number): ChartColor {
   const palette = CHART_CATEGORICAL_PALETTE;
   // Guard against a negative index from an unexpected caller: JS `%` keeps the
   // sign, which would index out of bounds and hand Chart.js `undefined`.
   const safe = ((index % palette.length) + palette.length) % palette.length;
-  return palette[safe] ?? CHART_AMBER;
+  return palette[safe] ?? 'amber';
 }
 
 /** Convert `#RRGGBB` to `rgba()` at `alpha` — Chart.js fills need real alpha. */

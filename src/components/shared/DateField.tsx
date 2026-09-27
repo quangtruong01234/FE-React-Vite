@@ -117,7 +117,7 @@ export function DateField({
           inWindow && !disabled && 'bg-tb-amber/10 text-accent-amber',
           iso === today && !selected && 'border-tb-amber/50 text-accent-amber',
           // Amber→red gradient + glow: the same treatment every primary CTA gets.
-          selected && 'bg-tb-gradient text-ink-pri font-semibold shadow-tb-cta border-transparent',
+          selected && 'bg-tb-gradient text-ink-on-accent font-semibold shadow-tb-cta border-transparent',
           disabled && 'text-tb-muted cursor-not-allowed hover:bg-transparent',
         )}
       >

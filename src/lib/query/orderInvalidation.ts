@@ -16,6 +16,8 @@ export interface OrderViewScope {
   seller?: boolean;
   /** Return-request lists (buyer "mine" + seller queue). */
   returns?: boolean;
+  /** Checkout voucher suggestions — a cancel gives the redemption back. */
+  vouchers?: boolean;
   /** Everything under the orders prefix. Overrides the narrow flags. */
   all?: boolean;
 }
@@ -37,5 +39,8 @@ export function invalidateOrderViews(scope: OrderViewScope, client: QueryClient 
   }
   if (scope.returns) {
     void client.invalidateQueries({ queryKey: queryKeys.orders.returnRequests });
+  }
+  if (scope.vouchers) {
+    void client.invalidateQueries({ queryKey: queryKeys.orders.availableVouchersAll });
   }
 }

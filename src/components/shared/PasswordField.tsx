@@ -42,9 +42,9 @@ export function PasswordField({
           placeholder={placeholder}
           autoComplete={autoComplete}
           className={cn(
-            'w-full h-11 bg-tb-elevated border rounded-tb-input pl-3.5 pr-11 text-white font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
-            'focus:border-[rgba(245,158,11,0.5)] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)]',
-            error ? 'border-tb-red focus:border-tb-red focus:shadow-[0_0_0_4px_rgba(239,68,68,0.10)]' : 'border-tb-border',
+            'w-full h-11 bg-tb-elevated border rounded-tb-input pl-3.5 pr-11 text-ink-pri font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
+            'focus:border-accent-amber/50 focus:ring-4 focus:ring-accent-amber/10',
+            error ? 'border-tb-red focus:border-tb-red focus:ring-accent-red/10' : 'border-tb-border',
           )}
           {...inputProps}
         />
@@ -52,7 +52,7 @@ export function PasswordField({
           type="button"
           onClick={() => setShow((v) => !v)}
           aria-label={show ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-          className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent !border-none p-1 flex items-center cursor-pointer text-tb-secondary hover:text-white transition-colors"
+          className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent !border-none p-1 flex items-center cursor-pointer text-tb-secondary hover:text-ink-pri transition-colors"
         >
           {show ? <EyeOff size={18} className="shrink-0" /> : <Eye size={18} className="shrink-0" />}
         </button>

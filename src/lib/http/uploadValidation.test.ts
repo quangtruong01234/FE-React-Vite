@@ -6,6 +6,8 @@ import {
   capImageBatch,
   resolveUploadCap,
   oversizeMessage,
+  serverOversizeMessage,
+  signatureBytesParam,
   MAX_IMAGE_BYTES,
   MAX_VIDEO_BYTES,
   MAX_PRODUCT_IMAGES,
@@ -191,5 +193,35 @@ describe('oversizeMessage', () => {
       .toBe(oversizeMessage('image', MAX_IMAGE_BYTES));
     expect(oversizeMessage('image', MAX_IMAGE_BYTES)).toBe('Ảnh vượt quá 10MB');
     expect(oversizeMessage('video', MAX_VIDEO_BYTES)).toBe('Video vượt quá 100MB');
+  });
+});
+
+describe('signatureBytesParam — UPLOAD-SIZE-01', () => {
+  it('sends the file size', () => {
+    expect(signatureBytesParam(2048)).toBe(2048);
+  });
+
+  it('omits the param for an empty file — the backend 400s on bytes=0', () => {
+    expect(signatureBytesParam(0)).toBeUndefined();
+  });
+});
+
+describe('serverOversizeMessage — UPLOAD-SIZE-01', () => {
+  const backend400 = {
+    statusCode: 400,
+    status: 400,
+    message: 'File is 6291456 bytes, over the 5242880 byte limit for this folder',
+  };
+
+  it('re-words the signature endpoint oversize 400 with the backend ceiling', () => {
+    expect(serverOversizeMessage(backend400, 'image')).toBe('Ảnh vượt quá 5MB');
+    expect(serverOversizeMessage(backend400, 'video')).toBe('Video vượt quá 5MB');
+  });
+
+  it('leaves every other error alone', () => {
+    expect(serverOversizeMessage({ ...backend400, message: 'Folder is not allowed' }, 'image')).toBeNull();
+    expect(serverOversizeMessage({ ...backend400, statusCode: 500, status: 500 }, 'image')).toBeNull();
+    expect(serverOversizeMessage(new TypeError('Failed to fetch'), 'image')).toBeNull();
+    expect(serverOversizeMessage(undefined, 'image')).toBeNull();
   });
 });

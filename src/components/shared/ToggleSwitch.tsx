@@ -53,7 +53,7 @@ export function ToggleSwitch({
           "pointer-events-none inline-block rounded-full shadow-sm",
           "transform transition-transform duration-200",
           s.thumb,
-          disabled ? "bg-ink-muted" : "bg-ink-pri",
+          disabled ? "bg-ink-muted" : "bg-ink-on-accent",
           checked ? s.translate : "translate-x-0",
         )}
       />

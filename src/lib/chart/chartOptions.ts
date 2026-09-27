@@ -1,11 +1,4 @@
-import {
-  CHART_FONT_BODY,
-  CHART_GRID,
-  CHART_INK_PRI,
-  CHART_INK_SEC,
-  CHART_SURFACE,
-  withAlpha,
-} from './chartTheme';
+import { CHART_FONT_BODY, withAlpha, type ChartPalette } from './chartTheme';
 
 /**
  * Shared visual options so every chart in the app reads as one system. Spread
@@ -13,20 +6,22 @@ import {
  * literals they wrap live in `chartTheme.ts`.
  */
 
-/** Tooltip chrome: elevated surface, 1px border, token text colours. */
-export const CHART_TOOLTIP_STYLE = {
-  backgroundColor: CHART_SURFACE,
-  borderColor: CHART_GRID,
-  borderWidth: 1,
-  titleColor: CHART_INK_PRI,
-  bodyColor: CHART_INK_SEC,
-  padding: 10,
-  cornerRadius: 8,
-  boxPadding: 4,
-  usePointStyle: true,
-  titleFont: { family: CHART_FONT_BODY, size: 12, weight: 600 },
-  bodyFont: { family: CHART_FONT_BODY, size: 12 },
-} as const;
+/** Tooltip chrome: elevated surface, 1px border, token text colours of the active theme. */
+export function chartTooltipStyle(palette: ChartPalette) {
+  return {
+    backgroundColor: palette.surface,
+    borderColor: palette.grid,
+    borderWidth: 1,
+    titleColor: palette.inkPri,
+    bodyColor: palette.inkSec,
+    padding: 10,
+    cornerRadius: 8,
+    boxPadding: 4,
+    usePointStyle: true,
+    titleFont: { family: CHART_FONT_BODY, size: 12, weight: 600 },
+    bodyFont: { family: CHART_FONT_BODY, size: 12 },
+  } as const;
+}
 
 /** Tick label styling shared by every axis. */
 export const CHART_TICK_FONT = {

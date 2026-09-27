@@ -57,7 +57,7 @@ export function Pagination({
             className={cn(
               'min-w-9 px-3 py-2 rounded-tb-ghost border text-sm font-body font-semibold transition-colors cursor-pointer',
               item === page
-                ? 'bg-tb-gradient border-transparent text-ink-pri'
+                ? 'bg-tb-gradient border-transparent text-ink-on-accent'
                 : 'border-bdr text-ink-sec hover:bg-canvas-elevated hover:text-ink-pri bg-transparent',
             )}
           >

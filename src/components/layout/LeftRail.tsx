@@ -32,7 +32,7 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
       >
         <span className={cn(
           'size-8 rounded-full flex-none grid place-items-center',
-          active ? 'bg-tb-gradient text-white' : 'bg-canvas-elevated text-accent-amber',
+          active ? 'bg-tb-gradient text-ink-on-accent' : 'bg-canvas-elevated text-accent-amber',
         )}>
           <item.icon size={16} className="shrink-0" />
         </span>

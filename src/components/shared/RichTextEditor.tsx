@@ -1,7 +1,4 @@
 import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Image from '@tiptap/extension-image';
-import CharacterCount from '@tiptap/extension-character-count';
 import { Bold, Italic, List, ListOrdered, ImagePlus, Heading2, Minus } from 'lucide-react';
 import { useRef, useState, useEffect, type ReactElement, type ChangeEvent } from 'react';
 import { IconButton } from '@/components/shared/IconButton';
@@ -10,8 +7,7 @@ import { cldImage } from '@/lib/http/cloudinaryUrl';
 import { validateUploadFile, MAX_IMAGE_BYTES } from '@/lib/http/uploadValidation';
 import { cn } from '@/lib/format/utils';
 import { partitionEditorImages, type TrackedImage } from './richTextImages';
-
-const MAX_CHARS = 5000;
+import { RICH_TEXT_EXTENSIONS, RICH_TEXT_MAX_CHARS as MAX_CHARS } from './richTextExtensions';
 
 interface Props {
   value: string;
@@ -54,11 +50,7 @@ export function RichTextEditor({ value, onChange, placeholder, userId, onUploadI
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Image.configure({ inline: false }),
-      CharacterCount.configure({ limit: MAX_CHARS }),
-    ],
+    extensions: RICH_TEXT_EXTENSIONS,
     content: value || '',
     onUpdate({ editor: e }) {
       const html = e.isEmpty ? '' : e.getHTML();

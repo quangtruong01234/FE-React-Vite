@@ -4,11 +4,12 @@ import type { ChartOptions } from 'chart.js';
 import '@/lib/chart/chartSetup';
 import {
   CHART_TICK_FONT,
-  CHART_TOOLTIP_STYLE,
+  chartTooltipStyle,
   truncateLabel,
 } from '@/lib/chart/chartOptions';
-import { CHART_GRID, CHART_INK_SEC } from '@/lib/chart/chartTheme';
+import type { ChartColor } from '@/lib/chart/chartTheme';
 import type { ChartSlice } from '@/lib/chart/chartSeries';
+import { useChartPalette } from './useChartPalette';
 
 interface RankedBarChartProps {
   slices: readonly ChartSlice[];
@@ -19,7 +20,7 @@ interface RankedBarChartProps {
   /** Optional second bar per row — e.g. the minimum-stock threshold. */
   comparison?: {
     label: string;
-    color: string;
+    color: ChartColor;
     values: number[];
   };
   /** Series name for the primary bars, shown in the tooltip. */
@@ -46,6 +47,8 @@ export function RankedBarChart({
   valueLabel,
   tooltipExtra,
 }: RankedBarChartProps): ReactElement {
+  const palette = useChartPalette();
+
   const data = useMemo(
     () => ({
       labels: slices.map((s) => s.label),
@@ -53,7 +56,7 @@ export function RankedBarChart({
         {
           label: valueLabel ?? 'Giá trị',
           data: slices.map((s) => s.value),
-          backgroundColor: slices.map((s) => s.color),
+          backgroundColor: slices.map((s) => palette.series[s.color]),
           borderWidth: 0,
           borderRadius: 4,
           borderSkipped: false as const,
@@ -65,7 +68,7 @@ export function RankedBarChart({
               {
                 label: comparison.label,
                 data: comparison.values,
-                backgroundColor: comparison.color,
+                backgroundColor: palette.series[comparison.color],
                 borderWidth: 0,
                 borderRadius: 4,
                 borderSkipped: false as const,
@@ -76,7 +79,7 @@ export function RankedBarChart({
           : []),
       ],
     }),
-    [slices, comparison, valueLabel],
+    [slices, comparison, valueLabel, palette],
   );
 
   const options = useMemo<ChartOptions<'bar'>>(
@@ -86,7 +89,7 @@ export function RankedBarChart({
       maintainAspectRatio: false,
       plugins: {
         tooltip: {
-          ...CHART_TOOLTIP_STYLE,
+          ...chartTooltipStyle(palette),
           callbacks: {
             // The truncated tick label must not leak into the tooltip — show
             // the full name there, which is the point of truncating the axis.
@@ -101,10 +104,10 @@ export function RankedBarChart({
       scales: {
         x: {
           beginAtZero: true,
-          grid: { color: CHART_GRID },
+          grid: { color: palette.grid },
           border: { display: false },
           ticks: {
-            color: CHART_INK_SEC,
+            color: palette.inkSec,
             font: CHART_TICK_FONT,
             maxTicksLimit: 5,
             callback: (value) => valueFormatter(Number(value)),
@@ -112,9 +115,9 @@ export function RankedBarChart({
         },
         y: {
           grid: { display: false },
-          border: { color: CHART_GRID },
+          border: { color: palette.grid },
           ticks: {
-            color: CHART_INK_SEC,
+            color: palette.inkSec,
             font: CHART_TICK_FONT,
             autoSkip: false,
             crossAlign: 'far' as const,
@@ -130,7 +133,7 @@ export function RankedBarChart({
         },
       },
     }),
-    [valueFormatter, labelWidth, tooltipExtra],
+    [valueFormatter, labelWidth, tooltipExtra, palette],
   );
 
   return <Bar data={data} options={options} aria-label={ariaLabel} role="img" />;

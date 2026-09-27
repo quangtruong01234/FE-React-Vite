@@ -1,5 +1,6 @@
-import type { CSSProperties, ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import { cn } from '@/lib/format/utils';
+import { CHART_DOT_CLASS } from '@/lib/chart/chartTheme';
 import { slicePercent, sliceTotal, type ChartSlice } from '@/lib/chart/chartSeries';
 
 interface ChartLegendProps {
@@ -51,11 +52,10 @@ export function ChartLegend({
             layout === 'inline' && 'shrink-0',
           )}
         >
-          {/* Runtime chart colour — the documented inline-style exception, in the
-              preferred custom-property form. */}
+          {/* A token class, not the canvas hex: it follows the theme on its own. */}
           <span
-            className="size-2.5 rounded-full shrink-0 bg-[var(--dot)]"
-            style={{ '--dot': slice.color } as CSSProperties}
+            data-testid="chart-legend-dot"
+            className={cn('size-2.5 rounded-full shrink-0', CHART_DOT_CLASS[slice.color])}
           />
           <span
             className={cn(

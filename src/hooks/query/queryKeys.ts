@@ -16,6 +16,7 @@ export const queryKeys = {
       ["products", "category", categoryId] as const,
     byBrand: (brandId: number) => ["products", "brand", brandId] as const,
     shopStats: ["products", "shop-stats"] as const,
+    trending: (limit: number) => ["products", "trending", limit] as const,
     // Wishlist (F6): list-level prefix invalidates both the page view and the
     // membership id-set in one call.
     wishlist: ["products", "wishlist"] as const,
@@ -87,6 +88,9 @@ export const queryKeys = {
     // choices must be part of the key or a stale discount would be shown.
     availableVouchers: (basketSignature: string) =>
       ["orders", "vouchers", "available", basketSignature] as const,
+    // Prefix over every basket's list — a cancel frees a redemption
+    // (VOUCHER-CANCEL-01) regardless of which basket last priced it.
+    availableVouchersAll: ["orders", "vouchers", "available"] as const,
   },
   auth: {
     me: ["auth", "me"] as const,

@@ -1,3 +1,5 @@
+import { toApiError } from './apiError';
+
 export type UploadKind = 'image' | 'video';
 
 /** Minimal shape of a `File` this validator needs — lets tests pass plain stubs. */
@@ -42,6 +44,33 @@ export function resolveUploadCap(caps: UploadCaps | undefined, kind: UploadKind)
 /** The oversize message, shared by the pre-upload guard and the post-signature check. */
 export function oversizeMessage(kind: UploadKind, maxBytes: number): string {
   return `${kind === 'image' ? 'Ảnh' : 'Video'} vượt quá ${formatMb(maxBytes)}MB`;
+}
+
+/**
+ * `?bytes=` for the signature request (UPLOAD-SIZE-01): the file size, so the
+ * backend can refuse an oversized upload before issuing a signature. Omitted for
+ * an empty file — the backend validates `bytes ≥ 1`, and `0` would be a 400 on a
+ * request that is otherwise fine.
+ */
+export function signatureBytesParam(size: number): number | undefined {
+  return size > 0 ? size : undefined;
+}
+
+// `File is <n> bytes, over the <max> byte limit for this folder` — the backend's
+// `UPLOAD_MESSAGE.FILE_TOO_LARGE`.
+const SERVER_OVERSIZE = /over the (\d+) byte limit/;
+
+/**
+ * The signature endpoint's oversize 400, re-worded as the same Vietnamese
+ * message the local guards show. Only reachable when the backend lowers a
+ * ceiling below the local constants the pickers pre-check with. Returns `null`
+ * for any other error so the caller rethrows it untouched.
+ */
+export function serverOversizeMessage(error: unknown, kind: UploadKind): string | null {
+  const apiError = toApiError(error);
+  if (apiError?.statusCode !== 400) return null;
+  const match = SERVER_OVERSIZE.exec(apiError.message);
+  return match ? oversizeMessage(kind, Number(match[1])) : null;
 }
 
 // Backend caps `imageUrls[]` at 10 entries on products and posts → 11+ is a 400

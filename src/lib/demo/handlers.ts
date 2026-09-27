@@ -11,6 +11,7 @@ import {
   demoPosts,
   demoProducts,
   demoPublicUsers,
+  demoTrendingProducts,
 } from './fixtures';
 
 /**
@@ -77,7 +78,7 @@ export const demoHandlers: RequestHandler[] = [
 
   // --- The signed-in shell (DEMO-RETRY-01) ---
   //
-  // `NotificationBell` and `RightRail` live in the layout, so these four reads
+  // `NotificationBell` and `RightRail` live in the layout, so these reads
   // fire on every page. Left unmocked they fell through to `offlineFallback`,
   // and each failure was then retried by TanStack Query — 16 red 503s in the
   // console of a page whose whole point is to look finished to a recruiter,
@@ -94,6 +95,10 @@ export const demoHandlers: RequestHandler[] = [
   // panel rather than as a quiet one.
   http.get(`${API_BASE}/user/featured-sellers`, () =>
     HttpResponse.json({ data: demoFeaturedSellers }),
+  ),
+  // The rail's other panel (RAIL-RANK-01). A bare array, like the real route.
+  http.get(`${API_BASE}/products/trending`, () =>
+    HttpResponse.json({ data: demoTrendingProducts }),
   ),
 
   // --- The rest of the routes a demo visitor can open (DEMO-RETRY-01) ---

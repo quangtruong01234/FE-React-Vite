@@ -2,9 +2,9 @@ import { useMemo, type ReactElement } from 'react';
 import { Doughnut } from 'react-chartjs-2';
 import type { ChartOptions } from 'chart.js';
 import '@/lib/chart/chartSetup';
-import { CHART_TOOLTIP_STYLE } from '@/lib/chart/chartOptions';
-import { CHART_SURFACE } from '@/lib/chart/chartTheme';
+import { chartTooltipStyle } from '@/lib/chart/chartOptions';
 import { slicePercent, sliceTotal, type ChartSlice } from '@/lib/chart/chartSeries';
+import { useChartPalette } from './useChartPalette';
 
 interface DoughnutChartProps {
   slices: readonly ChartSlice[];
@@ -31,6 +31,7 @@ export function DoughnutChart({
   centerLabel,
 }: DoughnutChartProps): ReactElement {
   const total = sliceTotal(slices);
+  const palette = useChartPalette();
 
   const data = useMemo(
     () => ({
@@ -38,16 +39,16 @@ export function DoughnutChart({
       datasets: [
         {
           data: slices.map((s) => s.value),
-          backgroundColor: slices.map((s) => s.color),
+          backgroundColor: slices.map((s) => palette.series[s.color]),
           // Matching the card surface makes the gap read as a separator rather
           // than a stray outline.
-          borderColor: CHART_SURFACE,
+          borderColor: palette.surface,
           borderWidth: 2,
           hoverOffset: 6,
         },
       ],
     }),
-    [slices],
+    [slices, palette],
   );
 
   const options = useMemo<ChartOptions<'doughnut'>>(
@@ -57,7 +58,7 @@ export function DoughnutChart({
       cutout: '62%',
       plugins: {
         tooltip: {
-          ...CHART_TOOLTIP_STYLE,
+          ...chartTooltipStyle(palette),
           callbacks: {
             label: (ctx) => {
               const value = Number(ctx.parsed);
@@ -67,7 +68,7 @@ export function DoughnutChart({
         },
       },
     }),
-    [valueFormatter, total],
+    [valueFormatter, total, palette],
   );
 
   return (

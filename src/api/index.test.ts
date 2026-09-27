@@ -29,6 +29,42 @@ describe('request() — 401 redirect wiring', () => {
     expect(onUnauthorized).toHaveBeenCalledWith('/login?next=%2F');
   });
 
+  // EMAIL-REAUTH-01: an email change carries `currentPassword`, and its 401 is
+  // usually a mistyped password on a live session — bouncing to /login would
+  // throw away the form. A plain profile save keeps the redirect.
+  it('skips the redirect on a profile update that carries currentPassword', async () => {
+    const onUnauthorized = vi.fn();
+    registerUnauthorizedHandler(onUnauthorized);
+    server.use(
+      http.patch(`${API_BASE}/user/usr_0000000000000021`, () =>
+        HttpResponse.json(
+          { statusCode: 401, errorCode: 'INVALID_CURRENT_PASSWORD', message: 'Unauthorized' },
+          { status: 401 },
+        ),
+      ),
+    );
+
+    await expect(
+      api.users.update('usr_0000000000000021', { email: 'new@example.com', currentPassword: 'wrong' }),
+    ).rejects.toMatchObject({ statusCode: 401, errorCode: 'INVALID_CURRENT_PASSWORD' });
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
+  it('still redirects on a profile update without currentPassword', async () => {
+    const onUnauthorized = vi.fn();
+    registerUnauthorizedHandler(onUnauthorized);
+    server.use(
+      http.patch(`${API_BASE}/user/usr_0000000000000022`, () =>
+        HttpResponse.json({ message: 'Unauthorized' }, { status: 401 }),
+      ),
+    );
+
+    await expect(api.users.update('usr_0000000000000022', { name: 'Quang' })).rejects.toMatchObject({
+      statusCode: 401,
+    });
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+  });
+
   it('does not redirect when the call opts out (auth.me session probe)', async () => {
     const onUnauthorized = vi.fn();
     registerUnauthorizedHandler(onUnauthorized);

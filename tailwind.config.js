@@ -1,3 +1,8 @@
+// Every colour token resolves through a CSS variable that holds bare RGB channels
+// (`--bg-base: 9 9 11` in src/index.css), so a theme only has to swap the variables.
+// `<alpha-value>` is what lets `/NN` opacity modifiers work on these tokens.
+const channel = (name) => `rgb(var(${name}) / <alpha-value>)`;
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
@@ -5,43 +10,47 @@ export default {
     extend: {
       colors: {
         canvas: {
-          base:     'var(--bg-base)',
-          surface:  'var(--bg-surface)',
-          elevated: 'var(--bg-elevated)',
+          base:     channel('--bg-base'),
+          surface:  channel('--bg-surface'),
+          elevated: channel('--bg-elevated'),
         },
         ink: {
-          pri: 'var(--text-primary)',
-          sec: 'var(--text-secondary)',
-          muted: 'var(--text-muted)',
+          pri: channel('--text-primary'),
+          sec: channel('--text-secondary'),
+          muted: channel('--text-muted'),
+          // Text on the CTA gradient or a photo: white in every theme.
+          'on-accent': channel('--text-on-accent'),
         },
         accent: {
-          pri:    'var(--accent-primary)',
-          sec:    'var(--accent-secondary)',
-          cyan:   'var(--accent-cyan)',
-          green:  'var(--accent-green)',
-          red:    'var(--accent-red)',
-          amber:  'var(--accent-amber)',
-          violet: '#8b5cf6',
-          blue:   '#3b82f6',
+          pri:    channel('--accent-primary'),
+          sec:    channel('--accent-secondary'),
+          cyan:   channel('--accent-cyan'),
+          green:  channel('--accent-green'),
+          red:    channel('--accent-red'),
+          amber:  channel('--accent-amber'),
+          violet: channel('--accent-violet'),
+          blue:   channel('--accent-blue'),
         },
-        bdr: 'var(--border)',
-        'tb-base':      '#09090B',
-        'tb-surface':   '#111113',
-        'tb-elevated':  '#1C1C1E',
-        'tb-border':    '#27272A',
-        'tb-amber':     '#F59E0B',
-        'tb-green':     '#10B981',
-        'tb-red':       '#EF4444',
-        'tb-cyan':      '#06B6D4',
-        'tb-muted':     '#52525B',
-        'tb-secondary': '#A1A1AA',
+        bdr: channel('--border'),
+        scrim: channel('--scrim'),
+        // Same variables as the semantic aliases above: `tb-amber` and `accent-amber`
+        // are one colour, so a theme cannot change one without the other.
+        'tb-base':      channel('--bg-base'),
+        'tb-surface':   channel('--bg-surface'),
+        'tb-elevated':  channel('--bg-elevated'),
+        'tb-border':    channel('--border'),
+        'tb-amber':     channel('--accent-amber'),
+        'tb-green':     channel('--accent-green'),
+        'tb-red':       channel('--accent-red'),
+        'tb-cyan':      channel('--accent-cyan'),
+        'tb-muted':     channel('--text-muted'),
+        'tb-secondary': channel('--text-secondary'),
       },
       backgroundImage: {
         'tb-gradient':    'linear-gradient(135deg, #F59E0B, #EF4444)',
         'tb-gradient-90': 'linear-gradient(90deg, #F59E0B, #EF4444)',
-        'login-left':
-          'radial-gradient(circle at 20% 20%, rgba(245,158,11,0.18), transparent 50%),' +
-          'radial-gradient(circle at 80% 80%, rgba(239,68,68,0.14), transparent 55%)',
+        // The gradients above stay the same in every theme; this glow does not.
+        'login-left': 'var(--tb-login-glow)',
       },
       fontFamily: {
         display: ['"Barlow Condensed"', 'sans-serif'],
@@ -57,8 +66,8 @@ export default {
         'tb-sheet': '20px',
       },
       boxShadow: {
-        'tb-cta':  '0 8px 24px rgba(245,158,11,0.25)',
-        'tb-card': '0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px rgba(0,0,0,0.35)',
+        'tb-cta':  'var(--tb-shadow-cta)',
+        'tb-card': 'var(--tb-shadow-card)',
       },
     },
   },

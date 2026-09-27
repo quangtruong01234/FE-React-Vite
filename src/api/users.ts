@@ -17,8 +17,15 @@ export const usersApi = {
   getById: (id: string): Promise<PublicUser> =>
     request<PublicUser>(`/user/${id}`),
 
+  // With `currentPassword` (an email change, EMAIL-REAUTH-01) a 401 usually
+  // means a mistyped password on a live session — the caller maps it by
+  // `errorCode`, so skip the global redirect, same as `changePassword`.
   update: (id: string, data: UpdateUserDto): Promise<User> =>
-    request<User>(`/user/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    request<User>(`/user/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+      skipUnauthorizedRedirect: data.currentPassword !== undefined,
+    }),
 
   // ROLE-ADMIN-01: the only write path for `role` — `update` above still 400s a
   // `role` key, so the two calls cannot be folded into one. Admin only; the

@@ -4,17 +4,18 @@ import type { ChartOptions, ScriptableContext } from 'chart.js';
 import '@/lib/chart/chartSetup';
 import {
   CHART_TICK_FONT,
-  CHART_TOOLTIP_STYLE,
+  chartTooltipStyle,
   trendPointRadius,
   truncateLabel,
   verticalFillGradient,
 } from '@/lib/chart/chartOptions';
-import { CHART_GRID, CHART_INK_SEC, CHART_SURFACE } from '@/lib/chart/chartTheme';
+import type { ChartColor } from '@/lib/chart/chartTheme';
+import { useChartPalette } from './useChartPalette';
 
 export interface TrendSeries {
   id: string;
   label: string;
-  color: string;
+  color: ChartColor;
   values: number[];
   /** Formats the value in the tooltip and, for the owning axis, its ticks. */
   formatter?: (value: number) => string;
@@ -49,6 +50,7 @@ export function TrendAreaChart({
   compact = false,
 }: TrendAreaChartProps): ReactElement {
   const hasRightAxis = series.some((s) => s.axis === 'right');
+  const palette = useChartPalette();
 
   // Chart.js treats a fresh `data` object as a full dataset swap and replays the
   // animation, so these must stay referentially stable across unrelated renders.
@@ -57,27 +59,28 @@ export function TrendAreaChart({
       labels,
       datasets: series.map((s) => {
         const filled = s.fill ?? true;
+        const color = palette.series[s.color];
         return {
           label: s.label,
           data: s.values,
           yAxisID: s.axis === 'right' ? 'yRight' : 'y',
-          borderColor: s.color,
+          borderColor: color,
           borderWidth: 2,
           fill: filled,
           backgroundColor: (ctx: ScriptableContext<'line'>) =>
             filled
-              ? verticalFillGradient(ctx.chart.ctx, ctx.chart.chartArea, s.color)
+              ? verticalFillGradient(ctx.chart.ctx, ctx.chart.chartArea, color)
               : 'transparent',
           tension: 0.35,
           pointRadius: trendPointRadius(s.values.length, compact),
           pointHoverRadius: compact ? 0 : 4,
-          pointBackgroundColor: s.color,
-          pointBorderColor: CHART_SURFACE,
+          pointBackgroundColor: color,
+          pointBorderColor: palette.surface,
           pointBorderWidth: 2,
         };
       }),
     }),
-    [labels, series, compact],
+    [labels, series, compact, palette],
   );
 
   const options = useMemo<ChartOptions<'line'>>(() => {
@@ -92,7 +95,7 @@ export function TrendAreaChart({
       interaction: { mode: 'index', intersect: false },
       plugins: {
         tooltip: {
-          ...CHART_TOOLTIP_STYLE,
+          ...chartTooltipStyle(palette),
           callbacks: {
             label: (ctx) => {
               // A gap in the series parses to `null` — drop the row rather than
@@ -110,9 +113,9 @@ export function TrendAreaChart({
         x: {
           display: !compact,
           grid: { display: false },
-          border: { color: CHART_GRID },
+          border: { color: palette.grid },
           ticks: {
-            color: CHART_INK_SEC,
+            color: palette.inkSec,
             font: CHART_TICK_FONT,
             maxRotation: 0,
             autoSkipPadding: 16,
@@ -126,10 +129,10 @@ export function TrendAreaChart({
         y: {
           display: !compact,
           beginAtZero: true,
-          grid: { color: CHART_GRID },
+          grid: { color: palette.grid },
           border: { display: false },
           ticks: {
-            color: CHART_INK_SEC,
+            color: palette.inkSec,
             font: CHART_TICK_FONT,
             maxTicksLimit: 5,
             callback: (value) => formatterFor('left')(Number(value)),
@@ -145,7 +148,7 @@ export function TrendAreaChart({
                 grid: { drawOnChartArea: false },
                 border: { display: false },
                 ticks: {
-                  color: CHART_INK_SEC,
+                  color: palette.inkSec,
                   font: CHART_TICK_FONT,
                   maxTicksLimit: 5,
                   callback: (value: string | number) => formatterFor('right')(Number(value)),
@@ -155,7 +158,7 @@ export function TrendAreaChart({
           : {}),
       },
     };
-  }, [series, compact, hasRightAxis]);
+  }, [series, compact, hasRightAxis, palette]);
 
   return <Line data={data} options={options} aria-label={ariaLabel} role="img" />;
 }

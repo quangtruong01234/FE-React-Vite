@@ -45,7 +45,7 @@ export function NotificationBell(): ReactElement {
       >
         <Bell size={16} className="shrink-0" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-tb-gradient text-ink-pri font-body font-bold text-[10px] rounded-full border-2 border-tb-base flex items-center justify-center leading-none">
+          <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-tb-gradient text-ink-on-accent font-body font-bold text-[10px] rounded-full border-2 border-tb-base flex items-center justify-center leading-none">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}

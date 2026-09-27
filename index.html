@@ -4,7 +4,27 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#09090B" />
     <title>TryBuy</title>
+    <!-- THEME-03: set the theme before first paint, or a light-mode visitor sees a dark flash.
+         Same rule as resolveTheme() in src/lib/theme/theme.ts (theme.test.ts runs both).
+         Vite writes true/false into the gate; THEME-06 removes it with THEME_SWITCH_ENABLED. -->
+    <script>
+      (function () {
+        if ('%DEV%' !== 'true') return;
+        var saved = null;
+        try {
+          saved = localStorage.getItem('tb-theme');
+        } catch (e) {}
+        var prefersLight =
+          typeof window.matchMedia === 'function' &&
+          window.matchMedia('(prefers-color-scheme: light)').matches;
+        var theme = saved === 'light' || saved === 'dark' ? saved : prefersLight ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', theme);
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', theme === 'light' ? '#FAFAFA' : '#09090B');
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Image CDN. Every <img> here is a plain (non-CORS) request, so this must

@@ -33,7 +33,7 @@ export function GradientButton({
       disabled={disabled}
       className={cn(
         'inline-flex items-center justify-center gap-2',
-        'bg-tb-gradient text-white border-0 rounded-tb-cta cursor-pointer',
+        'bg-tb-gradient text-ink-on-accent border-0 rounded-tb-cta cursor-pointer',
         'font-display font-black uppercase tracking-widest',
         'hover:opacity-90 active:scale-[0.98] transition-all duration-100',
         'shadow-tb-cta disabled:shadow-none disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none',

@@ -9,7 +9,7 @@ import {
   PointElement,
   Tooltip,
 } from 'chart.js';
-import { CHART_FONT_BODY, CHART_INK_SEC } from './chartTheme';
+import { CHART_FONT_BODY, CHART_PALETTES } from './chartTheme';
 
 /**
  * Chart.js v4 ships tree-shakeable: nothing renders until the pieces are
@@ -41,7 +41,9 @@ export function registerCharts(): void {
 
   ChartJS.defaults.font.family = CHART_FONT_BODY;
   ChartJS.defaults.font.size = 11;
-  ChartJS.defaults.color = CHART_INK_SEC;
+  // A global cannot follow the theme; every chart sets its tick and tooltip colours
+  // from `useChartPalette()`, so this only covers text a chart forgot to colour.
+  ChartJS.defaults.color = CHART_PALETTES.dark.inkSec;
   // Charts here live inside fixed-height frames, so let them fill the box.
   ChartJS.defaults.maintainAspectRatio = false;
   registered = true;

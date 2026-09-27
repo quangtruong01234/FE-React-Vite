@@ -1,6 +1,21 @@
 import { setBackendStatus, type BackendStatus } from './backendStatus';
 import { probeBackend } from './probeBackend';
 
+let markBootstrapped: () => void = () => {};
+const bootstrapped = new Promise<void>((resolve) => {
+  markBootstrapped = resolve;
+});
+
+/**
+ * Resolves once `bootstrapBackendStatus` has settled — the earliest moment a
+ * request may leave the app. Work that starts before React mounts (route
+ * loaders run as soon as `router.tsx` is imported) waits on this, or in demo
+ * mode it would hit the dead gateway before the service worker is intercepting.
+ */
+export function whenBackendBootstrapped(): Promise<void> {
+  return bootstrapped;
+}
+
 /**
  * Decide online/offline before the first render, and stand up the demo-mode
  * mocks if the gateway is away.
@@ -39,5 +54,8 @@ export async function bootstrapBackendStatus(): Promise<BackendStatus> {
     }
   }
 
+  // Not in a `finally`: if the probe itself throws, prefetches simply never
+  // start and every page fetches on mount as it always has.
+  markBootstrapped();
   return status;
 }

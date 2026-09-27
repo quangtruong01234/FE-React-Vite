@@ -15,7 +15,7 @@ describe('usersApi.getFeaturedSellers', () => {
     server.use(
       http.get(`${API_BASE}/user/featured-sellers`, ({ request }) => {
         captured = new URL(request.url);
-        return HttpResponse.json({ data: [{ id: 1, username: 'shop1', name: null, avatar: null }] });
+        return HttpResponse.json({ data: [{ id: 'usr_1', username: 'shop1', name: null, avatar: null, soldCount: 4 }] });
       }),
     );
 
@@ -25,7 +25,7 @@ describe('usersApi.getFeaturedSellers', () => {
     expect(captured?.searchParams.get('limit')).toBe('5');
     // Never hits the admin-only /user/all that 403'd for normal users.
     expect(captured?.pathname).not.toContain('/user/all');
-    expect(sellers).toEqual([{ id: 1, username: 'shop1', name: null, avatar: null }]);
+    expect(sellers).toEqual([{ id: 'usr_1', username: 'shop1', name: null, avatar: null, soldCount: 4 }]);
   });
 
   it('forwards a custom limit', async () => {

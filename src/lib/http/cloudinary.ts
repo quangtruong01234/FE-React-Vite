@@ -3,7 +3,13 @@ import type { UploadSignature } from '@/types';
 import { outcomeFromError, outcomeFromResult, type DeleteMediaOutcome } from './deleteMediaOutcome';
 import { buildChunkForm } from './signedUploadFields';
 import { buildUploadId, planUploadChunks } from './uploadChunkPlan';
-import { oversizeMessage, resolveUploadCap } from './uploadValidation';
+import {
+  oversizeMessage,
+  resolveUploadCap,
+  serverOversizeMessage,
+  signatureBytesParam,
+  type UploadKind,
+} from './uploadValidation';
 
 export type UploadProgressCallback = (percent: number) => void;
 
@@ -64,6 +70,25 @@ async function uploadChunked(
   return { url: secureUrl, publicId: returnedPublicId };
 }
 
+/**
+ * Signature request carrying the file size (UPLOAD-SIZE-01), so the backend can
+ * refuse an oversized file before a single chunk leaves. Its oversize 400 is
+ * re-worded to the local Vietnamese message; any other error passes through.
+ */
+async function requestSignature(
+  folder: string,
+  file: File,
+  kind: UploadKind,
+): Promise<UploadSignature> {
+  try {
+    return await api.upload.getSignature(folder, signatureBytesParam(file.size));
+  } catch (error: unknown) {
+    const message = serverOversizeMessage(error, kind);
+    if (message) throw new Error(message);
+    throw error;
+  }
+}
+
 const POSTS_FOLDER = 'trybuy/posts';
 const PRODUCTS_FOLDER = 'trybuy/products';
 const AVATARS_FOLDER = 'avatars';
@@ -78,7 +103,7 @@ export async function uploadImage(
   _userId: string,
   onProgress?: UploadProgressCallback,
 ): Promise<UploadResult> {
-  const sig = await api.upload.getSignature(POSTS_FOLDER);
+  const sig = await requestSignature(POSTS_FOLDER, file, 'image');
   return uploadChunked(file, sig, 'image', onProgress);
 }
 
@@ -87,7 +112,7 @@ export async function uploadVideo(
   _userId: string,
   onProgress?: UploadProgressCallback,
 ): Promise<UploadResult> {
-  const sig = await api.upload.getSignature(POSTS_FOLDER);
+  const sig = await requestSignature(POSTS_FOLDER, file, 'video');
   return uploadChunked(file, sig, 'video', onProgress);
 }
 
@@ -96,7 +121,7 @@ export async function uploadProductImage(
   _userId: string,
   onProgress?: UploadProgressCallback,
 ): Promise<UploadResult> {
-  const sig = await api.upload.getSignature(PRODUCTS_FOLDER);
+  const sig = await requestSignature(PRODUCTS_FOLDER, file, 'image');
   return uploadChunked(file, sig, 'image', onProgress);
 }
 
@@ -105,7 +130,7 @@ export async function uploadAvatar(
   _userId: string,
   onProgress?: UploadProgressCallback,
 ): Promise<UploadResult> {
-  const sig = await api.upload.getSignature(AVATARS_FOLDER);
+  const sig = await requestSignature(AVATARS_FOLDER, file, 'image');
   return uploadChunked(file, sig, 'image', onProgress);
 }
 

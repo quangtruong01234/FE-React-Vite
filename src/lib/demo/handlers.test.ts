@@ -2,7 +2,13 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { setupServer } from 'msw/node';
 import { demoHandlers } from './handlers';
 import { API_BASE } from '@/test/msw/handlers';
-import { DEMO_USER_ID, demoFeaturedSellers, demoPosts, demoProducts } from './fixtures';
+import {
+  DEMO_USER_ID,
+  demoFeaturedSellers,
+  demoPosts,
+  demoProducts,
+  demoTrendingProducts,
+} from './fixtures';
 
 /**
  * The suite-wide server (`test/setup.ts`) answers with the shared handlers, so
@@ -57,6 +63,7 @@ describe('demo handlers — the signed-in shell', () => {
     ['notification list', `${API_BASE}/notifications?page=1&limit=10`],
     ['unread badge', `${API_BASE}/notifications/unread-count`],
     ['featured sellers', `${API_BASE}/user/featured-sellers?limit=5`],
+    ['trending products', `${API_BASE}/products/trending?limit=5`],
     ['following list', `${API_BASE}/social/users/${DEMO_USER_ID}/following?page=1&limit=20`],
   ])('answers the %s without falling through to the 503', async (_label, url) => {
     const res = await fetch(url);
@@ -78,6 +85,24 @@ describe('demo handlers — the signed-in shell', () => {
 
     expect(body.data).toHaveLength(demoFeaturedSellers.length);
     expect(body.data.length).toBeGreaterThan(0);
+  });
+
+  it('serves "Đang hot" as a bare array ranked by soldCount, like the real route', async () => {
+    const res = await fetch(`${API_BASE}/products/trending?limit=5`);
+    const body = (await res.json()) as { data: { id: string; soldCount: number }[] };
+    const soldCounts = body.data.map((p) => p.soldCount);
+
+    // RAIL-RANK-01 returns an array, not a page — a paginated fixture here
+    // would make the rail render its empty state.
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.data).toHaveLength(demoTrendingProducts.length);
+    expect(soldCounts).toEqual([...soldCounts].sort((a, b) => b - a));
+  });
+
+  it('only ranks products the demo catalogue can open', () => {
+    const catalogIds = new Set(demoProducts.map((p) => p.id));
+
+    expect(demoTrendingProducts.every((p) => catalogIds.has(p.id))).toBe(true);
   });
 });
 

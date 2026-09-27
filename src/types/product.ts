@@ -10,7 +10,8 @@ export interface Product {
   name: string;
   description: string;
   price: number;
-  imageUrl?: string;
+  /** The only product-level image field — there is no singular `imageUrl`
+   *  (IMG-FIELD-01). Read the cover through `productCoverImage()`. */
   imageUrls?: string[] | null;
   /** Base SKU. Nullable on the backend column: the seller may leave it blank on
    *  create, and a SKU-matrix product carries its codes on `skus[]` instead — so
@@ -71,6 +72,14 @@ export interface ProductWithInventory extends Product {
   variations?: Variation[];
   skus?: ProductSku[];
 }
+
+/**
+ * One row of `GET /products/trending` (RAIL-RANK-01): exactly a
+ * `with-inventory/multiple` element plus `soldCount` — units sold in the last
+ * 30 days. Only active, in-stock products; ranked by `soldCount` DESC, then
+ * topped up by `ratingCount` with `soldCount: 0`.
+ */
+export type TrendingProduct = ProductWithInventory & { soldCount: number };
 
 export interface ProductParams {
   search?: string;

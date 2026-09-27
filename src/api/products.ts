@@ -24,6 +24,7 @@ import type {
   DuplicateCheckResult,
   PriceSuggestion,
   PriceSuggestionParams,
+  TrendingProduct,
 } from '@/types';
 import { request, toQuery } from './client';
 import chunk from 'lodash/chunk';
@@ -95,6 +96,13 @@ export const productsApi = {
     );
     return batches.flat();
   },
+
+  // RAIL-RANK-01: the feed rail's "Đang hot". Public, 60 s server cache, a bare
+  // array (not a page) that may be shorter than `limit` — or `[]` when the whole
+  // catalog is out of stock. `viewCount`/`likesCount` are never written, so do
+  // not rank by them. `limit` must be 1–20 (400 otherwise).
+  getTrending: (limit = 5): Promise<TrendingProduct[]> =>
+    request<TrendingProduct[]>(`/products/trending${toQuery({ limit })}`),
 
   getShopStats: (): Promise<{ productCount: number; totalStock: number; lowStockCount: number }> =>
     request('/products/shop/stats'),

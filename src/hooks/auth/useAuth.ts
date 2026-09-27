@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { postAuthEvent, subscribeAuthEvents } from '@/lib/auth/authChannel';
+import { replaceSessionCache } from '@/lib/auth/sessionCache';
 import type { User } from '@/types';
 
 interface AuthState {
@@ -35,15 +36,14 @@ export function useAuth(): AuthState {
   const { mutate: logoutMutate } = useMutation({
     mutationFn: () => api.auth.logout(),
     onSettled: () => {
-      queryClient.clear();
+      replaceSessionCache(queryClient, null);
       postAuthEvent({ type: 'logout' });
     },
   });
 
   const loginSuccess = useCallback(
     (user: User): void => {
-      queryClient.clear();
-      queryClient.setQueryData<User>(queryKeys.auth.me, user);
+      replaceSessionCache(queryClient, user);
       postAuthEvent({ type: 'login' });
     },
     [queryClient],

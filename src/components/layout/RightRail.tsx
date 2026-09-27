@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Store, TrendingUp, BadgeCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/format/utils';
+import { productCoverImage } from '@/lib/domain/productImage';
 import { userDisplayName } from '@/lib/format/user';
 import { Avatar } from '@/components/shared/Avatar';
 import { PriceText } from '@/components/shared/PriceText';
@@ -10,9 +11,10 @@ import { ProductThumb } from '@/components/shared/ProductThumb';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
-import type { ProductWithInventory, PaginatedResponse } from '@/types';
+import { hasSales, soldCountLabel } from './railRank';
 
 const FEATURED_SELLER_LIMIT = 5;
+const TRENDING_LIMIT = 5;
 
 export function RightRail(): ReactElement {
   const { data: sellersData, isLoading: loadingUsers } = useQuery({
@@ -22,13 +24,14 @@ export function RightRail(): ReactElement {
 
   const sellers = sellersData ?? [];
 
-  const { data: productsData, isLoading: loadingProducts } = useQuery<PaginatedResponse<ProductWithInventory>>({
-    queryKey: queryKeys.products.list({ sortBy: 'viewCount', sortOrder: 'DESC', limit: 5 }),
-    queryFn: () => api.products.getList({ sortBy: 'viewCount', sortOrder: 'DESC', limit: 5 }),
-    // TODO: confirm backend supports sortBy=viewCount; if not, results fall back gracefully
+  // RAIL-RANK-01: ranked server-side by units sold. `sortBy=viewCount` ranked
+  // nothing — that column is never written, so every product tied at 0.
+  const { data: trendingData, isLoading: loadingProducts } = useQuery({
+    queryKey: queryKeys.products.trending(TRENDING_LIMIT),
+    queryFn: () => api.products.getTrending(TRENDING_LIMIT),
   });
 
-  const trending = productsData?.data ?? [];
+  const trending = trendingData ?? [];
 
   return (
     <aside className="sticky top-[76px] self-start hidden lg:flex flex-col gap-4 pb-20">
@@ -65,9 +68,12 @@ export function RightRail(): ReactElement {
               <div className="min-w-0 flex-1">
                 <div className={cn('text-sm font-semibold text-ink-pri truncate flex items-center gap-1')}>
                   {userDisplayName(s)}
-                  <BadgeCheck size={13} className="text-accent-amber flex-none" />
+                  {hasSales(s.soldCount) && <BadgeCheck size={13} className="text-accent-amber flex-none" />}
                 </div>
-                <div className="text-[11px] text-ink-muted truncate">@{s.username}</div>
+                <div className="text-[11px] text-ink-muted truncate">
+                  @{s.username}
+                  {hasSales(s.soldCount) && ` · ${soldCountLabel(s.soldCount)}`}
+                </div>
               </div>
             </Link>
           ))}
@@ -104,7 +110,7 @@ export function RightRail(): ReactElement {
               className="flex items-center gap-3 px-2 py-2 rounded-tb-input hover:bg-canvas-elevated transition-colors"
             >
               <ProductThumb
-                src={p.imageUrl}
+                src={productCoverImage(p)}
                 alt={p.name}
                 className="w-11 h-11 rounded-lg"
                 iconSize={18}
@@ -112,7 +118,12 @@ export function RightRail(): ReactElement {
               />
               <div className="min-w-0 flex-1">
                 <div className="text-[13px] font-medium text-ink-pri truncate">{p.name}</div>
-                <PriceText price={p.price} className="text-[13px]" />
+                <div className="flex items-baseline gap-2">
+                  <PriceText price={p.price} className="text-[13px]" />
+                  {hasSales(p.soldCount) && (
+                    <span className="text-[11px] text-ink-muted truncate">{soldCountLabel(p.soldCount)}</span>
+                  )}
+                </div>
               </div>
             </Link>
           ))}

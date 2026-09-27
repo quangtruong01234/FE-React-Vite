@@ -113,7 +113,7 @@ export function ApiErrorState({ error = {} as ApiError, onRetry, embedded = fals
         </div>
 
         <div>
-          <h1 className="font-display font-black text-2xl uppercase tracking-tight text-white m-0">{cfg.title}</h1>
+          <h1 className="font-display font-black text-2xl uppercase tracking-tight text-ink-pri m-0">{cfg.title}</h1>
           <p className="font-body text-sm text-ink-sec mt-2 mb-0 leading-relaxed">{cfg.sub}</p>
         </div>
 
@@ -144,7 +144,7 @@ export function ApiErrorState({ error = {} as ApiError, onRetry, embedded = fals
         {/* tips — only when non-empty */}
         {cfg.tips.length > 0 && (
           <div className="w-full bg-tb-elevated/50 border border-bdr rounded-tb-cta p-4 text-left">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-white uppercase tracking-wide mb-2">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-ink-pri uppercase tracking-wide mb-2">
               <Lightbulb size={13} className="text-accent-amber shrink-0" /> Đề xuất
             </div>
             <ul className="m-0 pl-0 list-none flex flex-col gap-1.5">

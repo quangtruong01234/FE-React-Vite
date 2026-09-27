@@ -5,6 +5,7 @@ import { registerUnauthorizedHandler } from '@/api';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { PageSkeleton } from '@/components/shared/PageSkeleton';
 import { AppLayout, MessagesLayout, FeedLayout } from './routerLayouts';
+import { marketplaceLoader } from '@/features/product/marketplaceLoader';
 const LoginPage          = lazy(() => import('@/features/auth/LoginPage'));
 const PostDetailPage     = lazy(() => import('@/features/social/PostDetailPage'));
 const MarketplacePage    = lazy(() => import('@/features/product/MarketplacePage'));
@@ -68,7 +69,7 @@ export const router = createBrowserRouter([
     ),
     children: [
       { path: 'post/:id',          element: <PostDetailPage /> },
-      { path: 'marketplace',       element: <MarketplacePage /> },
+      { path: 'marketplace',       element: <MarketplacePage />, loader: marketplaceLoader },
       { path: 'wishlist',          element: <WishlistPage /> },
       { path: 'product/:id',       element: <ProductDetail /> },
       { path: 'cart',               element: <CartPage /> },

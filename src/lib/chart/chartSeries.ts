@@ -1,5 +1,5 @@
 import { ORDER_STATUS_META, ORDER_STATUSES } from '@/lib/domain/orderStatus';
-import { ORDER_STATUS_CHART_COLOR } from './chartTheme';
+import { ORDER_STATUS_CHART_COLOR, type ChartColor } from './chartTheme';
 import type { OrderStatus } from '@/types';
 
 /**
@@ -13,8 +13,8 @@ export interface ChartSlice {
   /** Human label shown in the legend and tooltip. */
   label: string;
   value: number;
-  /** Hex from `chartTheme.ts`. */
-  color: string;
+  /** A role; the chart resolves it against the active theme's palette. */
+  color: ChartColor;
 }
 
 /**

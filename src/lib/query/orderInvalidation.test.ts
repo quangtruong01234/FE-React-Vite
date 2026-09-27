@@ -24,6 +24,22 @@ describe('invalidateOrderViews', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.orders.byUser('usr_3') });
   });
 
+  it('vouchers sweeps the checkout suggestion list for every basket', () => {
+    const { client, invalidate } = fakeClient();
+    invalidateOrderViews({ orderId: 'ord_7', buyerId: 'usr_3', vouchers: true }, client);
+    expect(invalidate).toHaveBeenCalledTimes(3);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.orders.availableVouchersAll });
+  });
+
+  it('the voucher prefix covers every basket key but no voucher console', () => {
+    const prefix: readonly string[] = queryKeys.orders.availableVouchersAll;
+    const startsWith = (key: readonly string[]): boolean =>
+      prefix.every((part, i) => key[i] === part);
+    expect(startsWith(queryKeys.orders.availableVouchers('sig-a'))).toBe(true);
+    expect(startsWith(queryKeys.orders.sellerVouchers)).toBe(false);
+    expect(startsWith(queryKeys.orders.adminVouchers)).toBe(false);
+  });
+
   it('return request: detail + byUser + return lists', () => {
     const { client, invalidate } = fakeClient();
     invalidateOrderViews({ orderId: 'ord_7', buyerId: 'usr_3', returns: true }, client);

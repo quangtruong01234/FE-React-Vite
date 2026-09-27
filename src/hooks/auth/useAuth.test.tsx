@@ -76,12 +76,40 @@ describe('useAuth — cross-tab auth sync wiring', () => {
 
     act(() => result.current.loginSuccess(testUser));
 
-    // Assert on the cache, not result.current: after clear() the observer only
-    // reconnects on the next render, which the post-login navigation provides
-    // in the real app.
     expect(queryClient.getQueryData(queryKeys.auth.me)).toEqual(testUser);
     expect(postAuthEvent).toHaveBeenCalledWith({ type: 'login' });
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+  });
+
+  // AUTH-STALE-01: AuthProvider sits above the router, so nothing re-renders it
+  // after login — the hook itself must see the new user, no rerender() allowed.
+  it('loginSuccess updates currentUser without an extra render', async () => {
+    stubUnauthenticated();
+    const { renderUseAuth } = setup();
+    const { result } = renderUseAuth();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => result.current.loginSuccess(testUser));
+
+    await waitFor(() => expect(result.current.currentUser).toEqual(testUser));
+  });
+
+  it('logout then login as someone else never shows the previous user', async () => {
+    server.use(
+      http.get(`${API_BASE}/user/me`, () => HttpResponse.json({ data: testUser })),
+      http.post(`${API_BASE}/user/logout`, () => new HttpResponse(null, { status: 204 })),
+    );
+    const { renderUseAuth } = setup();
+    const { result } = renderUseAuth();
+    await waitFor(() => expect(result.current.currentUser).toEqual(testUser));
+
+    act(() => result.current.logout());
+    await waitFor(() => expect(result.current.currentUser).toBeNull());
+
+    const nextUser: User = { ...testUser, id: 'usr_0000000000000002', username: 'next' };
+    act(() => result.current.loginSuccess(nextUser));
+
+    await waitFor(() => expect(result.current.currentUser).toEqual(nextUser));
   });
 
   it('resets all queries when another tab broadcasts an auth change', async () => {

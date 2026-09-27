@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { buildProductListQuery, batchProductIds, MAX_BATCH_PRODUCT_IDS } from './products';
+import { http, HttpResponse } from 'msw';
+import { server } from '@/test/msw/server';
+import { API_BASE } from '@/test/msw/handlers';
+import { buildProductListQuery, batchProductIds, MAX_BATCH_PRODUCT_IDS, productsApi } from './products';
 
 describe('buildProductListQuery', () => {
   it('returns an empty string for empty params', () => {
@@ -70,5 +73,39 @@ describe('batchProductIds', () => {
     const batches = batchProductIds(ids);
     expect(batches.map((b) => b.length)).toEqual([50, 50, 20]);
     expect(batches.flat()).toEqual(ids);
+  });
+});
+
+describe('productsApi.getTrending', () => {
+  it('calls /products/trending with the default limit and returns the bare array', async () => {
+    let captured: URL | undefined;
+    server.use(
+      http.get(`${API_BASE}/products/trending`, ({ request }) => {
+        captured = new URL(request.url);
+        return HttpResponse.json({ data: [{ id: 'prod_a', soldCount: 7 }] });
+      }),
+    );
+
+    const trending = await productsApi.getTrending();
+
+    expect(captured?.pathname).toBe('/api/products/trending');
+    expect(captured?.searchParams.get('limit')).toBe('5');
+    // RAIL-RANK-01: never the old list route — `viewCount` is never written,
+    // so ranking by it tied every product at 0.
+    expect(captured?.searchParams.has('sortBy')).toBe(false);
+    expect(trending).toEqual([{ id: 'prod_a', soldCount: 7 }]);
+  });
+
+  it('forwards a custom limit', async () => {
+    let captured: URL | undefined;
+    server.use(
+      http.get(`${API_BASE}/products/trending`, ({ request }) => {
+        captured = new URL(request.url);
+        return HttpResponse.json({ data: [] });
+      }),
+    );
+
+    await expect(productsApi.getTrending(3)).resolves.toEqual([]);
+    expect(captured?.searchParams.get('limit')).toBe('3');
   });
 });

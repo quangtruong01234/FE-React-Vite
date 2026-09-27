@@ -10,6 +10,7 @@ import type {
   Post,
   ProductWithInventory,
   PublicUser,
+  TrendingProduct,
 } from '@/types';
 
 /**
@@ -48,7 +49,7 @@ export const demoCurrentUser: CurrentUser = {
  * behind them would put names in the UI that lead nowhere.
  */
 export const demoFeaturedSellers: FeaturedSeller[] = [
-  { id: DEMO_SELLER_ID, username: 'demo_store', name: 'Demo Store', avatar: null },
+  { id: DEMO_SELLER_ID, username: 'demo_store', name: 'Demo Store', avatar: null, soldCount: 18 },
 ];
 
 /**
@@ -146,6 +147,21 @@ export const demoProducts: ProductWithInventory[] = [
   demoProduct('prod_demo00000000b2', 'Nimbus Lite 5G — 128GB', 5290000, [18], 7, 22),
   demoProduct('prod_demo00000000c1', 'Nimbus Buds Air', 1290000, [21], 7, 40),
   demoProduct('prod_demo00000000c2', 'Aurora 65W GaN Charger', 690000, [21], 4, 33),
+];
+
+/**
+ * The right rail's "Đang hot" (RAIL-RANK-01): the demo catalogue ranked by
+ * `soldCount`, the backend's order. The last two are backfill rows, the way a
+ * quiet week looks in production — `soldCount: 0` and no "Đã bán" line.
+ * The three sold counts add up to `demoFeaturedSellers[0].soldCount`, since
+ * that store sells everything here.
+ */
+export const demoTrendingProducts: TrendingProduct[] = [
+  { ...demoProducts[2], soldCount: 9 },
+  { ...demoProducts[4], soldCount: 6 },
+  { ...demoProducts[0], soldCount: 3 },
+  { ...demoProducts[5], soldCount: 0 },
+  { ...demoProducts[3], soldCount: 0 },
 ];
 
 export const demoPosts: Post[] = [

@@ -101,7 +101,7 @@ export function RootErrorBoundary({ children }: { children: ReactNode }): ReactE
               <AlertTriangle size={30} className="shrink-0" />
             </div>
             <div>
-              <h1 className="font-display font-black text-2xl uppercase tracking-tight text-white m-0">
+              <h1 className="font-display font-black text-2xl uppercase tracking-tight text-ink-pri m-0">
                 Đã xảy ra lỗi
               </h1>
               <p className="font-body text-sm text-ink-sec mt-2 mb-0 leading-relaxed">

@@ -8,58 +8,94 @@
   font-weight: 400;
 
   color-scheme: dark;
-  color: #ffffff;
-  background-color: #09090B;
+  color: rgb(var(--text-primary));
+  background-color: rgb(var(--bg-base));
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  --bg-base:     #09090B;
-  --bg-surface:  #111113;
-  --bg-elevated: #1C1C1E;
-  --border:      #27272A;
+  /* Colour tokens — bare RGB channels, not hex. tailwind.config.js wraps each one as
+     `rgb(var(--x) / <alpha-value>)`, which is what makes `/NN` opacity work. Read one
+     outside Tailwind as `rgb(var(--x))`; a bare `var(--x)` is not a colour. */
+  --bg-base:     9 9 11;        /* #09090B */
+  --bg-surface:  17 17 19;      /* #111113 */
+  --bg-elevated: 28 28 30;      /* #1C1C1E */
+  --border:      39 39 42;      /* #27272A */
 
-  --text-primary:   #FFFFFF;
-  --text-secondary: #A1A1AA;
-  --text-muted:     #52525B;
+  --text-primary:   255 255 255; /* #FFFFFF */
+  --text-secondary: 161 161 170; /* #A1A1AA */
+  --text-muted:     82 82 91;    /* #52525B */
 
-  --accent-primary:   #F59E0B;
-  --accent-secondary: #EF4444;
-  --accent-cyan:      #06b6d4;
-  --accent-green:     #10b981;
-  --accent-red:       #EF4444;
-  --accent-amber:     #F59E0B;
+  --accent-primary:   245 158 11;  /* #F59E0B */
+  --accent-secondary: 239 68 68;   /* #EF4444 */
+  --accent-cyan:      6 182 212;   /* #06B6D4 */
+  --accent-green:     16 185 129;  /* #10B981 */
+  --accent-red:       239 68 68;   /* #EF4444 */
+  --accent-amber:     245 158 11;  /* #F59E0B */
+  --accent-violet:    139 92 246;  /* #8B5CF6 */
+  --accent-blue:      59 130 246;  /* #3B82F6 */
 
-  /* Design system extended tokens */
-  --tb-bg:          #09090B;
-  --tb-surface:     #111113;
-  --tb-elevated:    #1C1C1E;
-  --tb-border:      #27272A;
-  --tb-border-hi:   rgba(245,158,11,0.30);
-  --tb-amber:       #F59E0B;
-  --tb-red:         #EF4444;
-  --tb-fg:          #FFFFFF;
-  --tb-fg-2:        #A1A1AA;
-  --tb-fg-3:        #52525B;
-  --tb-fg-accent:   #F59E0B;
-  --tb-live:        #EF4444;
+  --text-on-accent:   255 255 255; /* #FFFFFF — text on the gradient; the same in every theme */
+  --scrim:            0 0 0;       /* #000000 — modal/drawer overlay, opacity set per use */
+
+  /* Non-channel values a theme also swaps: whole shadows and gradients, read through
+     boxShadow / backgroundImage in tailwind.config.js, plus OnlinePill's colours. */
+  --tb-shadow-cta:  0 8px 24px rgba(245,158,11,0.25);
+  --tb-shadow-card: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px rgba(0,0,0,0.35);
+  --tb-login-glow:
+    radial-gradient(circle at 20% 20%, rgba(245,158,11,0.18), transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(239,68,68,0.14), transparent 55%);
   --tb-online:      #22C55E;
   --tb-online-soft: rgba(34,197,94,0.08);
   --tb-online-bd:   rgba(34,197,94,0.20);
   --tb-online-tx:   #86EFAC;
-  --tb-verified:    #F59E0B;
-  --tb-info:        #378ADD;
-  --tb-shadow-cta:  0 8px 24px rgba(245,158,11,0.25);
-  --tb-shadow-card: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px rgba(0,0,0,0.35);
-  --tb-ring-amber:  0 0 0 4px rgba(245,158,11,0.10);
-  --tb-grad:        linear-gradient(135deg, #F59E0B, #EF4444);
-  --tb-grad-h:      linear-gradient(90deg, #F59E0B, #EF4444);
 
   /* shadcn compat — keeps Skeleton + other primitives visible */
   --muted: #1C1C1E;
   --muted-foreground: #52525B;
+}
+
+/* Light theme (F13). Must define every variable :root does — src/test/themeTokens.test.ts
+   checks that, and holds each text colour to WCAG AA (4.5:1) on every canvas colour. Amber
+   text/borders use #B45309: #F59E0B on white is only ~2.1:1. The CTA gradient is unchanged. */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-base:     250 250 250;   /* #FAFAFA */
+  --bg-surface:  255 255 255;   /* #FFFFFF */
+  --bg-elevated: 244 244 245;   /* #F4F4F5 */
+  --border:      228 228 231;   /* #E4E4E7 */
+
+  --text-primary:   9 9 11;      /* #09090B */
+  --text-secondary: 82 82 91;    /* #52525B */
+  --text-muted:     107 107 115; /* #6B6B73 */
+
+  --accent-primary:   180 83 9;    /* #B45309 */
+  --accent-secondary: 185 28 28;   /* #B91C1C */
+  --accent-cyan:      14 116 144;  /* #0E7490 */
+  --accent-green:     4 120 87;    /* #047857 */
+  --accent-red:       185 28 28;   /* #B91C1C */
+  --accent-amber:     180 83 9;    /* #B45309 */
+  --accent-violet:    124 58 237;  /* #7C3AED */
+  --accent-blue:      37 99 235;   /* #2563EB */
+
+  --text-on-accent:   255 255 255; /* #FFFFFF */
+  --scrim:            24 24 27;    /* #18181B */
+
+  --tb-shadow-cta:  0 8px 24px rgba(245,158,11,0.25);
+  --tb-shadow-card: 0 1px 2px rgba(9,9,11,0.04), 0 8px 24px rgba(9,9,11,0.08);
+  --tb-login-glow:
+    radial-gradient(circle at 20% 20%, rgba(245,158,11,0.14), transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(239,68,68,0.10), transparent 55%);
+  --tb-online:      #16A34A;
+  --tb-online-soft: rgba(22,163,74,0.08);
+  --tb-online-bd:   rgba(22,163,74,0.25);
+  --tb-online-tx:   #15803D;
+
+  --muted: #F4F4F5;
+  --muted-foreground: #6B6B73;
 }
 
 @keyframes tb-slide-up {
@@ -80,11 +116,11 @@
 
 a {
   font-weight: 500;
-  color: #F59E0B;
+  color: rgb(var(--accent-amber));
   text-decoration: inherit;
 }
 a:hover {
-  color: #EF4444;
+  color: rgb(var(--accent-red));
 }
 
 body {
@@ -100,7 +136,7 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1C1C1E;
+  background-color: rgb(var(--bg-elevated));
   cursor: pointer;
   transition: border-color 0.25s;
 }
@@ -109,7 +145,7 @@ button {
    that must keep its own border colour under the pointer has to say so with a
    `hover:border-*` class — see `.ai/context/pitfalls.md`. */
 button:hover {
-  border-color: #F59E0B;
+  border-color: rgb(var(--accent-amber));
 }
 button:focus,
 button:focus-visible {
@@ -121,27 +157,27 @@ button:focus-visible {
   font-family: 'Barlow Condensed', system-ui, sans-serif;
   font-size: 1.1rem;
   font-weight: 700;
-  color: #ffffff;
+  color: rgb(var(--text-primary));
   margin: 0.75em 0 0.25em;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.ProseMirror strong { font-weight: 700; color: #ffffff; }
-.ProseMirror em { font-style: italic; color: #A1A1AA; }
+.ProseMirror strong { font-weight: 700; color: rgb(var(--text-primary)); }
+.ProseMirror em { font-style: italic; color: rgb(var(--text-secondary)); }
 .ProseMirror ul {
   list-style: disc;
   padding-left: 1.25rem;
-  color: #ffffff;
+  color: rgb(var(--text-primary));
 }
 .ProseMirror ol {
   list-style: decimal;
   padding-left: 1.25rem;
-  color: #ffffff;
+  color: rgb(var(--text-primary));
 }
 .ProseMirror li { margin: 0.2em 0; }
 .ProseMirror hr {
   border: none;
-  border-top: 1px solid #27272A;
+  border-top: 1px solid rgb(var(--border));
   margin: 1em 0;
 }
 .ProseMirror img {
@@ -157,27 +193,27 @@ button:focus-visible {
   font-family: 'Barlow Condensed', system-ui, sans-serif;
   font-size: 1.1rem;
   font-weight: 700;
-  color: #ffffff;
+  color: rgb(var(--text-primary));
   margin: 0.75em 0 0.25em;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.prose-tb strong { font-weight: 700; color: #ffffff; }
-.prose-tb em { font-style: italic; color: #A1A1AA; }
+.prose-tb strong { font-weight: 700; color: rgb(var(--text-primary)); }
+.prose-tb em { font-style: italic; color: rgb(var(--text-secondary)); }
 .prose-tb ul {
   list-style: disc;
   padding-left: 1.25rem;
-  color: #A1A1AA;
+  color: rgb(var(--text-secondary));
 }
 .prose-tb ol {
   list-style: decimal;
   padding-left: 1.25rem;
-  color: #A1A1AA;
+  color: rgb(var(--text-secondary));
 }
 .prose-tb li { margin: 0.2em 0; }
 .prose-tb hr {
   border: none;
-  border-top: 1px solid #27272A;
+  border-top: 1px solid rgb(var(--border));
   margin: 1em 0;
 }
 .prose-tb img {
