@@ -13,6 +13,11 @@ import {
 import { GradientButton } from '@/components/shared/GradientButton';
 import { cn } from '@/lib/format/utils';
 import { SelectField } from '@/components/shared/SelectField';
+import { sharedMessages } from '@/components/shared/shared.i18n';
+import { useLanguage } from '@/context/useLanguage';
+import { useT } from '@/hooks/ui/useT';
+import { translateIfKey } from '@/lib/i18n/messages';
+import { addressMessages, addressMsg } from './address.i18n';
 import { useProvinces, useDistricts, useWards } from './useShippingLocations';
 import { useCreateAddress, useUpdateAddress } from './useAddresses';
 import type { Address, CreateAddressDto } from '@/types';
@@ -21,19 +26,19 @@ const schema = z.object({
   recipientName: z
     .string()
     .trim()
-    .min(1, 'Họ tên người nhận là bắt buộc')
-    .max(100, 'Họ tên tối đa 100 ký tự'),
+    .min(1, addressMsg('nameRequired'))
+    .max(100, addressMsg('nameMax')),
   phone: z
     .string()
     .trim()
-    .min(8, 'Số điện thoại không hợp lệ')
-    .max(15, 'Số điện thoại không hợp lệ')
-    .regex(/^[0-9+\s-]+$/, 'Số điện thoại không hợp lệ'),
+    .min(8, addressMsg('phoneInvalid'))
+    .max(15, addressMsg('phoneInvalid'))
+    .regex(/^[0-9+\s-]+$/, addressMsg('phoneInvalid')),
   addressLine: z
     .string()
     .trim()
-    .min(1, 'Số nhà, tên đường là bắt buộc')
-    .max(200, 'Địa chỉ tối đa 200 ký tự'),
+    .min(1, addressMsg('lineRequired'))
+    .max(200, addressMsg('lineMax')),
 });
 type FormData = z.infer<typeof schema>;
 
@@ -59,6 +64,11 @@ export function AddressFormModal({
   onSaved,
 }: AddressFormModalProps): ReactElement {
   const isEdit = !!address;
+  const { lang } = useLanguage();
+  const t = useT(addressMessages);
+  const tShared = useT(sharedMessages);
+  const fieldError = (text: string | undefined): string | undefined =>
+    translateIfKey(addressMessages, lang, text);
 
   const [province, setProvince] = useState<Picked | null>(
     address ? { id: address.provinceId, name: address.provinceName } : null,
@@ -70,7 +80,7 @@ export function AddressFormModal({
     address ? { code: address.wardCode, name: address.wardName } : null,
   );
   const [isDefault, setIsDefault] = useState(address?.isDefault ?? false);
-  const [locationError, setLocationError] = useState<string | null>(null);
+  const [locationError, setLocationError] = useState(false);
 
   const provinces = useProvinces();
   const districts = useDistricts(province?.id ?? 0);
@@ -100,7 +110,7 @@ export function AddressFormModal({
     setProvince(id ? { id, name } : null);
     setDistrict(null);
     setWard(null);
-    setLocationError(null);
+    setLocationError(false);
   }
 
   function handleDistrictChange(value: string): void {
@@ -108,18 +118,18 @@ export function AddressFormModal({
     const name = districts.data?.find((d) => d.id === id)?.name ?? '';
     setDistrict(id ? { id, name } : null);
     setWard(null);
-    setLocationError(null);
+    setLocationError(false);
   }
 
   function handleWardChange(value: string): void {
     const name = wards.data?.find((w) => w.id === value)?.name ?? '';
     setWard(value ? { code: value, name } : null);
-    setLocationError(null);
+    setLocationError(false);
   }
 
   async function onSubmit(data: FormData): Promise<void> {
     if (!province || !district || !ward) {
-      setLocationError('Vui lòng chọn đầy đủ Tỉnh/thành, Quận/huyện và Phường/xã.');
+      setLocationError(true);
       return;
     }
     const dto: CreateAddressDto = {
@@ -154,10 +164,10 @@ export function AddressFormModal({
       <DialogContent className="max-w-lg bg-canvas-surface border-bdr text-ink-pri p-0 gap-0">
         <DialogHeader className="px-5 pt-5 pb-0">
           <DialogTitle className="font-display text-lg text-ink-pri">
-            {isEdit ? 'Chỉnh sửa địa chỉ' : 'Thêm địa chỉ mới'}
+            {t(isEdit ? 'editTitle' : 'createTitle')}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Nhập họ tên, số điện thoại và địa chỉ nhận hàng.
+            {t('formDescription')}
           </DialogDescription>
         </DialogHeader>
 
@@ -165,21 +175,21 @@ export function AddressFormModal({
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="font-body font-medium text-[11px] text-ink-muted tracking-[0.04em] uppercase">
-                Họ tên người nhận
+                {t('recipientLabel')}
               </label>
               <input
                 {...register('recipientName')}
-                placeholder="Nguyễn Văn A"
+                placeholder={t('recipientPlaceholder')}
                 autoComplete="name"
                 className={inputClass(!!errors.recipientName)}
               />
               {errors.recipientName && (
-                <p className="text-xs text-accent-red">{errors.recipientName.message}</p>
+                <p className="text-xs text-accent-red">{fieldError(errors.recipientName.message)}</p>
               )}
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="font-body font-medium text-[11px] text-ink-muted tracking-[0.04em] uppercase">
-                Số điện thoại
+                {t('phoneLabel')}
               </label>
               <input
                 {...register('phone')}
@@ -188,38 +198,38 @@ export function AddressFormModal({
                 className={inputClass(!!errors.phone)}
               />
               {errors.phone && (
-                <p className="text-xs text-accent-red">{errors.phone.message}</p>
+                <p className="text-xs text-accent-red">{fieldError(errors.phone.message)}</p>
               )}
             </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
             <label className="font-body font-medium text-[11px] text-ink-muted tracking-[0.04em] uppercase">
-              Số nhà, tên đường
+              {t('lineLabel')}
             </label>
             <input
               {...register('addressLine')}
-              placeholder="123 Nguyễn Huệ"
+              placeholder={t('linePlaceholder')}
               autoComplete="address-line1"
               className={inputClass(!!errors.addressLine)}
             />
             {errors.addressLine && (
-              <p className="text-xs text-accent-red">{errors.addressLine.message}</p>
+              <p className="text-xs text-accent-red">{fieldError(errors.addressLine.message)}</p>
             )}
           </div>
 
           <div className="grid sm:grid-cols-3 gap-4">
             <SelectField
-              label="Tỉnh/thành phố"
-              placeholder="Chọn tỉnh/thành"
+              label={t('provinceLabel')}
+              placeholder={t('provincePlaceholder')}
               value={province ? String(province.id) : ''}
               loading={provinces.isLoading}
               options={(provinces.data ?? []).map((p) => ({ value: String(p.id), label: p.name }))}
               onChange={handleProvinceChange}
             />
             <SelectField
-              label="Quận/huyện"
-              placeholder="Chọn quận/huyện"
+              label={t('districtLabel')}
+              placeholder={t('districtPlaceholder')}
               value={district ? String(district.id) : ''}
               disabled={!province}
               loading={!!province && districts.isLoading}
@@ -227,8 +237,8 @@ export function AddressFormModal({
               onChange={handleDistrictChange}
             />
             <SelectField
-              label="Phường/xã"
-              placeholder="Chọn phường/xã"
+              label={t('wardLabel')}
+              placeholder={t('wardPlaceholder')}
               value={ward ? ward.code : ''}
               disabled={!district}
               loading={!!district && wards.isLoading}
@@ -236,7 +246,7 @@ export function AddressFormModal({
               onChange={handleWardChange}
             />
           </div>
-          {locationError && <p className="text-xs text-accent-red">{locationError}</p>}
+          {locationError && <p className="text-xs text-accent-red">{t('locationRequired')}</p>}
 
           <label className="flex items-center gap-2.5 cursor-pointer select-none">
             <input
@@ -245,14 +255,14 @@ export function AddressFormModal({
               onChange={(e) => setIsDefault(e.target.checked)}
               className="size-4 shrink-0 accent-accent-amber cursor-pointer"
             />
-            <span className="font-body text-sm text-ink-sec">Đặt làm địa chỉ mặc định</span>
+            <span className="font-body text-sm text-ink-sec">{t('makeDefault')}</span>
           </label>
 
           {saveError && (
             <p className="text-sm text-accent-red">
               {typeof saveError === 'object' && saveError !== null && 'message' in saveError
                 ? String((saveError as { message: unknown }).message)
-                : 'Lưu địa chỉ thất bại'}
+                : t('saveFailed')}
             </p>
           )}
 
@@ -262,11 +272,11 @@ export function AddressFormModal({
               onClick={onClose}
               className="flex-1 bg-canvas-elevated border border-bdr rounded-tb-cta py-2.5 text-sm font-semibold text-ink-sec cursor-pointer hover:border-tb-amber/50 transition-colors"
             >
-              Hủy
+              {tShared('cancel')}
             </button>
             <GradientButton type="submit" disabled={saving} size="sm" className="flex-1">
               {saving && <Loader2 size={14} className="animate-spin shrink-0" />}
-              {isEdit ? 'Lưu thay đổi' : 'Thêm địa chỉ'}
+              {t(isEdit ? 'saveChanges' : 'addAddress')}
             </GradientButton>
           </div>
         </form>

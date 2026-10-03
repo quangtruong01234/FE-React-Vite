@@ -1,0 +1,101 @@
+import { defineMessages, plural, type MessageKey } from '@/lib/i18n/messages';
+
+/**
+ * I18N-02 — copy for the address book page, the checkout picker and the address form. The zod
+ * schema in `AddressFormModal.tsx` stores keys of this book as its messages; render them with
+ * `translateIfKey`.
+ */
+export const addressMessages = defineMessages({
+  vi: {
+    // zod messages
+    nameRequired: 'Họ tên người nhận là bắt buộc',
+    nameMax: 'Họ tên tối đa 100 ký tự',
+    phoneInvalid: 'Số điện thoại không hợp lệ',
+    lineRequired: 'Số nhà, tên đường là bắt buộc',
+    lineMax: 'Địa chỉ tối đa 200 ký tự',
+    locationRequired: 'Vui lòng chọn đầy đủ Tỉnh/thành, Quận/huyện và Phường/xã.',
+    // form
+    editTitle: 'Chỉnh sửa địa chỉ',
+    createTitle: 'Thêm địa chỉ mới',
+    formDescription: 'Nhập họ tên, số điện thoại và địa chỉ nhận hàng.',
+    recipientLabel: 'Họ tên người nhận',
+    recipientPlaceholder: 'Nguyễn Văn A',
+    phoneLabel: 'Số điện thoại',
+    lineLabel: 'Số nhà, tên đường',
+    linePlaceholder: '123 Nguyễn Huệ',
+    provinceLabel: 'Tỉnh/thành phố',
+    provincePlaceholder: 'Chọn tỉnh/thành',
+    districtLabel: 'Quận/huyện',
+    districtPlaceholder: 'Chọn quận/huyện',
+    wardLabel: 'Phường/xã',
+    wardPlaceholder: 'Chọn phường/xã',
+    makeDefault: 'Đặt làm địa chỉ mặc định',
+    saveFailed: 'Lưu địa chỉ thất bại',
+    saveChanges: 'Lưu thay đổi',
+    addAddress: 'Thêm địa chỉ',
+    // picker
+    loadingBook: 'Đang tải sổ địa chỉ…',
+    loadBookFailed: 'Không tải được sổ địa chỉ. Vui lòng thử lại.',
+    noAddressYet: 'Bạn chưa có địa chỉ giao hàng nào.',
+    defaultBadge: 'Mặc định',
+    addNewAddress: 'Thêm địa chỉ mới',
+    // page
+    pageTitle: 'Sổ địa chỉ',
+    addressCount: '{count} địa chỉ giao hàng',
+    setDefault: 'Đặt mặc định',
+    editAddress: 'Chỉnh sửa địa chỉ',
+    deleteAddress: 'Xóa địa chỉ',
+    loadPageFailed: 'Không thể tải sổ địa chỉ. Vui lòng thử lại.',
+    emptyTitle: 'Chưa có địa chỉ nào',
+    emptyHint: 'Thêm địa chỉ giao hàng để thanh toán nhanh hơn.',
+    deleteBody: 'Bạn có chắc muốn xóa địa chỉ của {name}? Hành động này không thể hoàn tác.',
+    deleteConfirm: 'Xóa',
+    deleteFailed: 'Xóa địa chỉ thất bại. Vui lòng thử lại.',
+  },
+  en: {
+    nameRequired: 'Recipient name is required',
+    nameMax: 'Name can be at most 100 characters',
+    phoneInvalid: 'Invalid phone number',
+    lineRequired: 'Street address is required',
+    lineMax: 'Address can be at most 200 characters',
+    locationRequired: 'Please choose a province, a district and a ward.',
+    editTitle: 'Edit address',
+    createTitle: 'Add a new address',
+    formDescription: 'Enter the recipient name, phone number and delivery address.',
+    recipientLabel: 'Recipient name',
+    recipientPlaceholder: 'Nguyen Van A',
+    phoneLabel: 'Phone number',
+    lineLabel: 'Street address',
+    linePlaceholder: '123 Nguyen Hue',
+    provinceLabel: 'Province / city',
+    provincePlaceholder: 'Choose a province',
+    districtLabel: 'District',
+    districtPlaceholder: 'Choose a district',
+    wardLabel: 'Ward',
+    wardPlaceholder: 'Choose a ward',
+    makeDefault: 'Set as default address',
+    saveFailed: 'Could not save the address',
+    saveChanges: 'Save changes',
+    addAddress: 'Add address',
+    loadingBook: 'Loading your address book…',
+    loadBookFailed: 'Could not load your address book. Please try again.',
+    noAddressYet: 'You have no delivery address yet.',
+    defaultBadge: 'Default',
+    addNewAddress: 'Add a new address',
+    pageTitle: 'Address book',
+    addressCount: ({ count }) =>
+      `${count} ${plural(Number(count), 'delivery address', 'delivery addresses')}`,
+    setDefault: 'Set as default',
+    editAddress: 'Edit address',
+    deleteAddress: 'Delete address',
+    loadPageFailed: 'Could not load your address book. Please try again.',
+    emptyTitle: 'No addresses yet',
+    emptyHint: 'Add a delivery address to check out faster.',
+    deleteBody: 'Delete the address for {name}? This cannot be undone.',
+    deleteConfirm: 'Delete',
+    deleteFailed: 'Could not delete the address. Please try again.',
+  },
+});
+
+/** zod messages are `addressMessages` keys — the form translates them at render (`translateIfKey`). */
+export const addressMsg = (key: MessageKey<typeof addressMessages>): string => key;

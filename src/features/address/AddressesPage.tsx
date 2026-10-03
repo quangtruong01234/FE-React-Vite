@@ -4,6 +4,8 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { IconButton } from '@/components/shared/IconButton';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useT } from '@/hooks/ui/useT';
+import { addressMessages } from './address.i18n';
 import { AddressFormModal } from './AddressFormModal';
 import { useAddresses, useSetDefaultAddress, useDeleteAddress } from './useAddresses';
 import { formatAddressSummary } from './addressUtils';
@@ -22,6 +24,7 @@ function AddressRow({
   onSetDefault: () => void;
   settingDefault: boolean;
 }): ReactElement {
+  const t = useT(addressMessages);
   return (
     <li className="bg-canvas-surface border border-bdr rounded-tb-card p-4 flex flex-col sm:flex-row sm:items-start gap-3">
       <MapPin size={20} className="shrink-0 text-accent-amber mt-0.5" />
@@ -33,7 +36,7 @@ function AddressRow({
           <span className="font-mono text-xs text-ink-muted">{address.phone}</span>
           {address.isDefault && (
             <span className="text-[10px] font-semibold uppercase tracking-wide text-accent-amber border border-tb-amber/40 rounded-full px-1.5 py-0.5">
-              Mặc định
+              {t('defaultBadge')}
             </span>
           )}
         </div>
@@ -52,19 +55,19 @@ function AddressRow({
             ) : (
               <Star size={13} className="shrink-0" />
             )}
-            Đặt mặc định
+            {t('setDefault')}
           </button>
         )}
         <IconButton
           onClick={onEdit}
-          aria-label="Chỉnh sửa địa chỉ"
+          aria-label={t('editAddress')}
           className="size-8 rounded-tb-input border border-bdr text-ink-sec hover:border-tb-amber/50 hover:text-ink-pri transition-colors cursor-pointer"
         >
           <Pencil size={14} className="shrink-0" />
         </IconButton>
         <IconButton
           onClick={onDelete}
-          aria-label="Xóa địa chỉ"
+          aria-label={t('deleteAddress')}
           className="size-8 rounded-tb-input border border-bdr text-ink-sec hover:border-tb-red/50 hover:text-accent-red transition-colors cursor-pointer"
         >
           <Trash2 size={14} className="shrink-0" />
@@ -78,6 +81,7 @@ export default function AddressesPage(): ReactElement {
   const { data: addresses, isLoading, error } = useAddresses();
   const setDefault = useSetDefaultAddress();
   const deleteAddress = useDeleteAddress();
+  const t = useT(addressMessages);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Address | null>(null);
@@ -112,21 +116,21 @@ export default function AddressesPage(): ReactElement {
           <div>
             <h1 className="font-display font-black text-3xl uppercase tracking-tight text-ink-pri m-0 flex items-center gap-2.5">
               <MapPin size={26} className="text-accent-amber shrink-0" />
-              Sổ địa chỉ
+              {t('pageTitle')}
             </h1>
             <p className="text-sm text-ink-sec m-0">
-              {addresses ? `${list.length} địa chỉ giao hàng` : ''}
+              {addresses ? t('addressCount', { count: list.length }) : ''}
             </p>
           </div>
           <GradientButton size="sm" onClick={openCreate}>
             <Plus size={16} className="shrink-0" />
-            Thêm địa chỉ
+            {t('addAddress')}
           </GradientButton>
         </div>
 
         {error && (
           <div className="mb-4 px-4 py-3 rounded-tb-ghost bg-tb-red/10 border border-tb-red/30 text-accent-red text-sm font-body">
-            {(error as { message?: string }).message ?? 'Không thể tải sổ địa chỉ. Vui lòng thử lại.'}
+            {(error as { message?: string }).message ?? t('loadPageFailed')}
           </div>
         )}
 
@@ -143,14 +147,14 @@ export default function AddressesPage(): ReactElement {
           <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
             <MapPin size={48} className="text-ink-muted shrink-0" />
             <div>
-              <p className="font-display font-bold text-lg text-ink-pri m-0">Chưa có địa chỉ nào</p>
+              <p className="font-display font-bold text-lg text-ink-pri m-0">{t('emptyTitle')}</p>
               <p className="text-sm text-ink-muted mt-1 m-0">
-                Thêm địa chỉ giao hàng để thanh toán nhanh hơn.
+                {t('emptyHint')}
               </p>
             </div>
             <GradientButton size="sm" onClick={openCreate}>
               <Plus size={16} className="shrink-0" />
-              Thêm địa chỉ mới
+              {t('addNewAddress')}
             </GradientButton>
           </div>
         ) : (
@@ -180,15 +184,15 @@ export default function AddressesPage(): ReactElement {
       <ConfirmDialog
         open={pendingDelete !== null}
         tone="danger"
-        title="Xóa địa chỉ"
+        title={t('deleteAddress')}
         description={
           pendingDelete
-            ? `Bạn có chắc muốn xóa địa chỉ của ${pendingDelete.recipientName}? Hành động này không thể hoàn tác.`
+            ? t('deleteBody', { name: pendingDelete.recipientName })
             : ''
         }
-        confirmLabel="Xóa"
+        confirmLabel={t('deleteConfirm')}
         isPending={deleteAddress.isPending}
-        error={deleteAddress.error ? 'Xóa địa chỉ thất bại. Vui lòng thử lại.' : null}
+        error={deleteAddress.error ? t('deleteFailed') : null}
         onConfirm={confirmDelete}
         onCancel={() => { setPendingDelete(null); }}
       />

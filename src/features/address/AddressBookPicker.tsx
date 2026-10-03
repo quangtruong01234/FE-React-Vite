@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { Plus, Check, Loader2, MapPin } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
+import { useT } from '@/hooks/ui/useT';
+import { addressMessages } from './address.i18n';
 import { useAddresses } from './useAddresses';
 import { pickDefaultAddress, formatAddressSummary } from './addressUtils';
 import { AddressFormModal } from './AddressFormModal';
@@ -22,6 +24,7 @@ export function AddressBookPicker({
 }: AddressBookPickerProps): ReactElement {
   const { data: addresses, isLoading, isError } = useAddresses();
   const [modalOpen, setModalOpen] = useState(false);
+  const t = useT(addressMessages);
 
   useEffect(() => {
     if (!addresses || selectedId !== null) return;
@@ -33,7 +36,7 @@ export function AddressBookPicker({
     return (
       <div className="flex items-center gap-2 text-ink-muted text-sm py-6">
         <Loader2 size={16} className="animate-spin shrink-0" />
-        Đang tải sổ địa chỉ…
+        {t('loadingBook')}
       </div>
     );
   }
@@ -41,7 +44,7 @@ export function AddressBookPicker({
   if (isError) {
     return (
       <p className="text-sm text-accent-red py-4">
-        Không tải được sổ địa chỉ. Vui lòng thử lại.
+        {t('loadBookFailed')}
       </p>
     );
   }
@@ -53,7 +56,7 @@ export function AddressBookPicker({
       {list.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-6 text-center">
           <MapPin size={24} className="shrink-0 text-ink-muted" />
-          <p className="text-sm text-ink-sec">Bạn chưa có địa chỉ giao hàng nào.</p>
+          <p className="text-sm text-ink-sec">{t('noAddressYet')}</p>
         </div>
       ) : (
         <ul className="flex flex-col gap-2.5">
@@ -85,10 +88,10 @@ export function AddressBookPicker({
                       <span className="font-body font-semibold text-sm text-ink-pri">
                         {addr.recipientName}
                       </span>
-                      <span className="font-mono text-xs text-ink-muted">{addr.phone}</span>
+                      <span className="font-mono text-xs text-ink-sec">{addr.phone}</span>
                       {addr.isDefault && (
                         <span className="text-[10px] font-semibold uppercase tracking-wide text-accent-amber border border-tb-amber/40 rounded-full px-1.5 py-0.5">
-                          Mặc định
+                          {t('defaultBadge')}
                         </span>
                       )}
                     </span>
@@ -109,7 +112,7 @@ export function AddressBookPicker({
         className="flex items-center justify-center gap-2 rounded-tb-card border border-dashed border-bdr py-2.5 text-sm font-medium text-ink-sec hover:border-tb-amber/50 hover:text-ink-pri transition-colors cursor-pointer"
       >
         <Plus size={16} className="shrink-0" />
-        Thêm địa chỉ mới
+        {t('addNewAddress')}
       </button>
 
       {modalOpen && (
