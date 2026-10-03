@@ -15,6 +15,957 @@
 
 ## Maintenance
 
+### CHAT-E2E-CLEANUP-01 · Deep e2e cho `/messages` — E2E-DEBT 0/30 (2026-10-03)
+
+Class **A** (e2e + 1 `data-testid`, không đổi hành vi app). Trả entry BE→FE `CHAT-E2E-CLEANUP-01`
+(`DELETE /api/chat/messages/:id`: 204 rỗng; 403 nếu không phải người gửi; 404 nếu đã xoá; xoá cứng,
+không có socket event).
+
+**Thay đổi**
+- `e2e/api.ts` — mục Chat: `conversationWith(request, otherUserId)`, `chatMessageIdByContent(request,
+  conversationId, content)`, `deleteChatMessage(request, id)` (204 hoặc 404 ⇒ `true`: dọn hai lần vẫn an toàn).
+- `e2e/messages.buyer.spec.ts` (mới) — buyer mở `/profile/<shopId>` → "Nhắn tin" → `/messages` → gửi
+  `[E2E] chat <ts>` bằng Enter → bong bóng hiện, "Đã gửi", không có "Gửi thất bại" → reload, mở lại
+  hàng "Bạn: …" → tin còn. `finally` tìm id tin qua API và xoá cứng **bằng session buyer** (shop sẽ bị 403),
+  rồi assert tin đã biến mất. Context shop chỉ dùng để lấy `shopId`.
+- `ChatThread.tsx` — bong bóng có `data-testid="chat-message"`: bong bóng chứa cả giờ gửi nên khớp
+  `getByText(exact)` không được.
+- `e2e/routes.ts` `/messages` `deep: ['messages.buyer.spec.ts']`; dòng mới trong spec map `e2e/README.md`.
+
+**Gate** — build, `check:bundle`, lint xanh; unit 1641/1641. **Spec chưa chạy lần nào**: backend local
+tắt (ECONNREFUSED :3000) ⇒ không chạy được smoke lẫn deep; Chrome DevTools MCP không kết nối được.
+`e2e/` không nằm trong tsconfig nên build không typecheck spec.
+
+### RETURN-PHOTO-01 · Ảnh bằng chứng khi yêu cầu trả hàng (2026-10-03)
+
+FE class **C** cho riêng phần ảnh: picker xin chữ ký folder `trybuy/returns`, BE cũ từ chối ⇒ **push
+`api` trước hoặc cùng lúc**. Trả hàng chỉ có lý do vẫn byte-y-hệt trước (FE bỏ `imageUrls` khi rỗng, vì
+`forbidNonWhitelisted` của gateway cũ). Trả entry BE→FE `RETURN-PHOTO-01`.
+
+**Thay đổi**
+- `api/orders.ts` `requestReturn(orderId, body: CreateReturnRequestDto)`; `useRequestReturn` nhận DTO.
+- `lib/http/cloudinary.ts` — `uploadReturnPhoto()` (chữ ký `trybuy/returns` + `uploadChunked`).
+- `features/order/returnRequest.ts` — `MAX_RETURN_PHOTOS = 5`, `RETURN_PHOTO_ACCEPT`,
+  `returnPhotoError()` (JPG/PNG/WEBP theo MIME, thiếu MIME thì theo đuôi; rồi `validateUploadFile` ≤10MB),
+  `returnRequestPayload()` (trim lý do; lọc rỗng, `uniq`, cắt 5; chỉ thêm `imageUrls` khi có),
+  `returnRequestErrorMessage()` — 400 có chữ `imageUrls` ⇒ "Ảnh minh hoạ không hợp lệ…", 400 khác giữ "không đủ điều kiện".
+- `useReturnPhotos.ts` (mới) — `capImageBatch` + kiểm tra trước upload + `uploadFilesSequential` (commit
+  từng file, UP-01); `remove` / `discard` gọi `deleteMedia` cho upload mồ côi; `reset` sau submit thành công giữ ảnh.
+- `ReturnPhotoPicker.tsx` (mới) — lưới 5 cột, nút xoá `IconButton`, ô thêm (spinner khi đang tải), bộ đếm n/5.
+- `ReturnPhotoStrip.tsx` (mới) — thumbnail mở tab mới (`noopener noreferrer`), `null` khi `[]`/thiếu field;
+  dùng ở panel trả hàng `/order/:id`, `/returns`, `/sell/returns`.
+- `OrderDetailPage.tsx` — picker dưới ô lý do; nút gửi khoá khi đang upload; nút đóng khoá khi đang gửi và dọn ảnh.
+- `order.i18n.ts` — 7 key vi/en.
+
+**Test** — `returnRequest.test.ts` +4 (bỏ field khi rỗng; dedupe + cắt 5; định dạng + dung lượng; 400 ảnh vs 400
+không đủ điều kiện); `ReturnPhotoPicker.test.tsx` 4 (GIF bị chặn trước upload; upload → thumbnail + payload →
+xoá gọi `deleteMedia`; đóng form dọn ảnh; strip link + rỗng).
+
+**Gate** — build, `check:bundle`, lint xanh; unit 1641/1641. e2e smoke `/order/:id`, `/returns`,
+`/sell/returns` + `return-request.buyer` **chưa chạy** (backend tắt); MCP không kết nối được.
+
+**Ghi chú**
+- 403 "ảnh của tài khoản khác" hiện nguyên chữ server. Đã xin `errorCode` (RETURN-PHOTO-ERRCODE-01, nice-to-have).
+- Đây là bản thứ 3 của lưới ảnh upload (form sản phẩm, `CreatePostModal`, picker này) ⇒ đề xuất
+  UPLOAD-GRID-DRY-01 trong snapshot, chưa refactor.
+
+### ORDER-TIMELINE-01 · Card "Lịch sử đơn hàng" trên `/order/:id` — đóng F12 (2026-10-03)
+
+Class **B**: route mới `GET /api/order/:id/history`; BE cũ 404 ⇒ card không hiện, không vỡ gì. Trả entry
+BE→FE `ORDER-TIMELINE-01`.
+
+**Thay đổi**
+- `queryKeys.orders.history(id)`, type `OrderTimeline`/`OrderTimelineEvent`, `api.orders.getHistory`,
+  `useOrderHistory` (`retry: false` — 404/403 không đáng retry).
+- `orderTimeline.ts` — `ghnStatusLabel()` (22 mã GHN vi/en, mã lạ như `teleported` hiện nguyên),
+  `orderTimelineRows()` giữ thứ tự cũ → mới của server; đơn trước 2026-10-02 không có sự kiện `status` là bình thường.
+- `OrderHistoryCard.tsx` — `<section aria-labelledby>` + `<ol>`, chấm amber cho sự kiện mới nhất, nhãn
+  "GHN" cho sự kiện của hãng vận chuyển; `null` khi đang tải / lỗi / rỗng. Gắn vào `OrderDetailPage`.
+- `order.i18n.ts` — key `historyTitle`, `hist*`, `ghn*` vi/en.
+- e2e `order-detail.buyer` — test đọc "ORDER-TIMELINE-01": card đầu tiên là "Đặt hàng"; skip khi route trả không-2xx.
+
+**Test** — `orderTimeline.test.ts` 6, `OrderHistoryCard.test.tsx` 2.
+
+**Gate** — build, `check:bundle`, lint xanh; unit 1641/1641. e2e `/order/:id` **chưa chạy** (backend tắt); MCP không kết nối được.
+
+### SWEEP-1002-01 · Đặt hàng lỗi không rõ kết quả: không retry mù cùng key (2026-10-02)
+
+Class **A** (chỉ FE; đúng với BE cũ lẫn mới — BE cũ chỉ không bao giờ trả 409 giữ key). Không thêm
+dependency. Trả entry BE→FE `SWEEP-1002-01` (BE giữ `Idempotency-Key` 300s sau lỗi không rõ kết quả).
+
+**Thay đổi**
+- `features/cart/idempotency.ts` — `isOrderOutcomeUnknown(error)`: `true` cho 408, mọi 5xx, lỗi
+  không có `status` (mất mạng, body 2xx không parse được) và 409 có message "duplicate order request
+  is already being processed" (không có `errorCode` ⇒ khớp theo chữ); `false` cho mọi 4xx khác.
+- `CheckoutPage.tsx` — `onSubmit` tách thành cổng + `submitOrder`; chỉ lỗi của `placeOrder` mới
+  được phân loại (lỗi `buildOrderItems` / payment-url vẫn đi đường cũ). Không rõ kết quả ⇒
+  `invalidateOrderViews({ all: true })` + khung amber `role="alert"` "Đơn hàng có thể đã được tạo."
+  kèm `<Link to="/orders">`. Bấm đặt lần sau ⇒ `ConfirmDialog` (tone danger); "Để tôi kiểm tra"
+  không gửi gì, "Đặt lại" xoá `idemKeyRef` rồi `handleSubmit(submitOrder)()` ⇒ key **mới**.
+- `checkout.i18n.ts` — 8 key vi/en (`outcomeUnknown*`, `myOrders`, `retryConfirm*`).
+- `.ai/context/domain.md` §Idempotency — thêm quy tắc kết quả không rõ.
+
+**Test**
+- `idempotency.test.ts` +4 ca (408/5xx; network/parse; 409 giữ key; 409 khác + 4xx ⇒ false).
+- e2e `checkout-resilience.buyer` "unknown order outcome": chặn `POST /api/order` trả 504 (mọi POST
+  đều bị chặn ⇒ không tạo đơn thật), assert khung + link, hủy dialog ⇒ vẫn 1 POST, xác nhận ⇒ POST
+  thứ 2 với key khác. Lần đầu spec **skip oan** vì đọc `isEnabled()` khi nút còn chờ địa chỉ/phí ship
+  — đã đổi sang chờ `toBeEnabled` 15s rồi mới quyết định skip.
+
+**Gate** — build, `check:bundle`, lint xanh; unit 1625/1625. `/checkout`: smoke buyer + `checkout-resilience`
+(3) + `checkout-vouchers` pass; gateway uptime 773 → 914 → 1622s (không restart). MCP (buyer
+`canceltest…`, fetch bị chặn 504): khung amber đọc rõ ở theme sáng và tối, dialog đúng chữ, hủy
+⇒ 1 POST, "Place again" ⇒ 2 POST, 2 key khác nhau.
+
+**Ghi chú**
+- `request()` tự retry mọi 503 một lần (SCALE-05) kể cả POST, cùng key ⇒ 503 từ handler đến tay
+  FE thành 409 giữ key; đã được tính là "không rõ kết quả" nên không sai, chỉ là câu báo khác.
+- Ngoài phạm vi, thấy khi chụp MCP: overlay của `ConfirmDialog` không phủ tối header trên cùng
+  (`Header` `z-[100]` > overlay `ui/dialog` `z-50`) — có từ trước, áp cho mọi dialog, không phải do thay đổi này.
+- Nice-to-have phía BE: `errorCode` cho 409 này để FE bỏ khớp theo chữ (ghi trong entry handoff).
+
+### E2E-FILL-03 · Deep e2e cho `/`, nhánh EMAIL-REAUTH-01, 2 lỗ a11y; `/messages` chuyển BE (2026-10-02)
+
+Class **A** (chỉ FE, BE không đổi). Không thêm dependency. Trả các khoản nợ E2E-FILL-02 để lại.
+
+**Spec**
+- `feed.buyer` (mới) — `/`: đăng bài qua composer header → ô tìm (server-side) còn đúng 1 thẻ →
+  like/unlike từ thẻ (`aria-pressed` + API) → sửa qua menu thẻ (API tìm ra cùng id dưới nội dung
+  mới) → xóa qua menu thẻ (thẻ biến mất, API trả null, hiện câu "Không tìm thấy bài viết nào
+  khớp"). `finally` xóa post nếu bước nào hỏng. `e2e/api.ts` thêm `postIdByContent`.
+- `profile.buyer` — thêm test EMAIL-REAUTH-01, chỉ nhánh từ chối: ô `Mật khẩu hiện tại` chỉ hiện
+  khi email khác; lưu thiếu mật khẩu → báo bắt buộc; sai mật khẩu → 401 hiện đúng ô, dialog ở lại,
+  không về `/login`, email API không đổi; trả email về → ô ẩn. Không bao giờ đổi email thật của
+  account seed. `e2e/api.ts` thêm `currentUserEmail`.
+- `post-detail.buyer` — bình luận nay gửi bằng nút `Gửi bình luận` thay vì Enter.
+
+**a11y sửa kèm**
+- Nút gửi bình luận ở `PostDetailPage` là icon trơn → `aria-label={t('sendComment')}` (key mới
+  trong `social.i18n.ts`, vi/en).
+- Nút Thích ở `PostCard` thêm `aria-pressed={post.isLiked}` (khớp `PostDetailPage`).
+
+**`/messages` → BE.** Chat không có pattern/endpoint xóa tin nào (gateway: 4 route REST + socket
+`send_message`), nên một spec gửi tin sẽ để lại rác `[E2E]` trong hội thoại buyer↔shop thật. Cron
+`cleanupOldMessages` của BE chỉ xóa tin > 5 ngày. Đã ghi **CHAT-E2E-CLEANUP-01** vào
+`../../.agent-local/backend-handoff.md` (xin `DELETE /api/chat/messages/:id`, chỉ người gửi). Route
+vẫn `deep: []` tới khi endpoint lên.
+
+**Ghi chú (chưa sửa, ngoài phạm vi)**
+- Nút `Tạo bài viết` ở header trên mobile chỉ còn icon (chữ `hidden sm:inline`), không có
+  `aria-label`.
+- `EditProfileModal`: label `Tên`/`Email` không nối với input — spec phải dùng `input[name=…]`.
+
+**Gate:** `npm run build` ✓ · `npm run lint` ✓ · `npm run test:run` 1621 test / 176 file ✓ ·
+e2e `--project=buyer` 43 ✓ / 2 skip (`order-detail` hủy đơn + `payment-retry`: data guard "không có
+đơn pending", có sẵn từ trước, không liên quan). Uptime `:3000/health` không đo.
+
+### E2E-FILL-02 · Deep e2e cho 11 route + 2 bug FE lộ ra khi viết spec (2026-10-02)
+
+Class **A** (chỉ FE, BE không đổi). Không thêm dependency.
+
+**Spec mới** (đều ghi vào `deep` của `e2e/routes.ts` + bảng spec map trong `e2e/README.md`)
+- `product-detail.buyer` — `/product/:id` + `/wishlist`: trái tim → có trong wishlist → bỏ ở trang
+  wishlist; thêm 2 sản phẩm → dòng giỏ (API-check). Trả wishlist + giỏ về như cũ.
+- `address-book.buyer` — `/addresses`: thêm (chuỗi tỉnh → huyện → xã GHN) → sửa → xóa; địa chỉ mặc
+  định không bị đổi.
+- `profile.buyer` — `/profile/:id`: chủ đổi tên hiển thị; follow → còn sau reload → unfollow. Nút
+  follow scope theo cặp nút header (`Nhắn tin`), vì tab và rail gợi ý trùng chữ.
+- `post-detail.buyer` — `/post/:id`: thích → reload vẫn thích → bỏ thích; bình luận (Enter); chủ
+  xóa qua menu → về `/`, API không còn trả post. Tự tạo post `[E2E]`.
+- `shop-catalogue.shop` — `/shop` (tìm theo SKU, bật/tắt hiển thị, xóa rồi hủy), `/sell/:id` (đổi
+  tên → sang `/product/:id`), `/shop/analytics` (theo tháng khớp `summary.totalOrders`).
+- `admin-vouchers.admin` — `/admin/vouchers`: tạo tắt → tìm → bật → tắt qua confirm.
+- `admin-dashboard.admin` — `/admin`: tìm user, đổi vai trò mở confirm (luôn hủy), dòng của chính
+  admin bị khóa; `/admin/analytics`: interval/preset quyết định query; xuất CSV tải được file.
+- `e2e/api.ts` thêm `userRoleByUsername`, `shopProducts`, `patchProduct`, `postState`.
+
+**Bug FE sửa kèm**
+- **POST-LIKE-STATE-01** — `PostDetailPage` khởi tạo `liked` bằng `useState(false)`, bỏ qua
+  `post.isLiked` mà BE đã trả. Bài đã thích hiện trái tim rỗng, bấm là gọi like lần nữa. Nay
+  `likeOverride: boolean | null` (null ⇒ theo server), số like qua helper thuần
+  `features/social/postLike.ts` (`shownLikeCount`, 4 unit test), nút Thích có `aria-pressed`.
+  Spec e2e chặn hồi quy bằng bước reload.
+- **SELECT-LABEL-01** — `SelectField` không nối `<label>` với ô chọn (`useId` + `htmlFor`), nên
+  `getByLabel` / screen reader không đọc được tên ô. `SelectField.test.tsx` 3 test.
+
+**Ghi chú**
+- `catalog-review.admin` + `product-risk.admin` (viết 2026-10-01 khi `:3006` chết) lần đầu chạy
+  xanh: 3 test, 0 skip.
+- a11y còn hở (chưa sửa, ngoài phạm vi): nút gửi bình luận ở `/post/:id` là icon không có
+  `aria-label` — spec phải submit bằng Enter.
+- Còn nợ deep: `/` (feed) và `/messages` (chat không có API xóa tin ⇒ mỗi lần chạy để lại tin).
+
+**Gate:** `npm run build` ✓ · `npm run lint` ✓ · `npm run test:run` 1621 test / 176 file ✓ ·
+e2e smoke 4 role + 7 deep mới = 57 test ✓, 0 skip. Uptime `:3000/health` không đo (lệnh bị từ chối).
+
+### I18N-07 · Song ngữ VI/EN: `lib/` + test chặn chữ Việt viết thẳng — đóng F14 (2026-10-02)
+
+Class **A** (chỉ FE, BE không đổi). Bước 7/7 của F14. Không thêm dependency. Mặc định vẫn `vi`.
+
+**Từ điển mới**
+- `lib/format/format.i18n.ts`: tên dự phòng cho người không tên (`userFallback(lang)`).
+- `lib/http/upload.i18n.ts`: mọi câu lỗi/notice upload (định dạng, SVG, quá cỡ, giới hạn số ảnh có
+  `plural`, chưa đăng nhập).
+
+**Helper nhận `lang: Lang = 'vi'`**
+- `formatVnd` / `formatPrice` (`lib/format/utils.ts`): EN vẫn là VND nhưng nhóm số kiểu en-US —
+  `1,250,000 ₫`, rút gọn `1.5M ₫`.
+- `formatDate` / `formatDateTime` (`lib/format/time.ts`): EN `MM/DD/YYYY`.
+- `validateUploadFile`, `firstUploadError`, `oversizeMessage`, `capImageBatch`,
+  `serverOversizeMessage`, `resolveUploadOwner`, `uploadImage`/`uploadVideo`/`uploadProductImage`/
+  `uploadAvatar` (`lib/http/`): lỗi ném ra hiện nguyên văn cho user nên phải theo ngôn ngữ.
+- `formatIsoDay` (`lib/date/calendar.ts`), `formatExportDay` (`order/orderExport.ts`) — vẫn định
+  dạng bằng chuỗi (không qua `Date`) để không lệch ngày theo múi giờ.
+- `priceSuggestionView`, `priceDropAmounts`, `commentAuthorView`, `buildSuggestions` (`lang?`),
+  `riskFlagDescription` (số tiền), `formatMessageTime` (phần ngày theo `LANG_LOCALE`).
+- Caller truyền `useLanguage().lang` xuống; `console.error` trong `useUpdateUserRole` đổi sang
+  tiếng Anh (log cho dev, không phải copy).
+- Gỡ code chết `enrichProductForUI` / `EnrichedProduct` / `getRelativeTime` trong `useProducts.ts`
+  (không ai import, chứa chữ Việt).
+
+**Test chặn** — `src/test/vietnameseCopy.ts` + `.test.ts`
+- Dùng TypeScript compiler API (`typescript` đã là devDependency) duyệt string literal, template
+  và JSX text; bỏ qua comment, regex literal và mọi thứ nằm trong `defineMessages(...)`.
+- Quét mọi `src/**/*.{ts,tsx}` trừ `*.test.*`, `*.i18n.ts`, `src/test/` (qua `import.meta.glob`
+  `?raw`; khẳng định >300 file để glob hỏng không pass rỗng).
+- Allowlist có đếm chính xác (entry thừa cũng fail): `LanguageSwitch.tsx` 1 (tên "Tiếng Việt"),
+  `roleLabels.ts` 8 và `calendar.ts` 1 (nhánh `vi` đã song ngữ sẵn), `lib/demo/fixtures.ts` 6 (dữ
+  liệu demo).
+
+**Rò rỉ MCP rà ra (đã sửa)**
+- Formatter truyền dạng callback trần (`voucherDiscountLabel(v, formatVnd, lang)`,
+  `voucherWindowLabel(v, formatDateTime, lang)`, `voucherIneligibleMessage`, `formatter: formatPrice`
+  ở chart `/admin` + analytics shop) rơi về `vi` ⇒ `20.000 đ` / `18:31 26/08/2026` trên UI EN. Bọc
+  arrow `(n) => formatVnd(n, lang)`; deps `useMemo` thêm `lang`.
+- Ngày hiển thị trong `DateField` và khoảng ngày job export (`/admin/analytics`, `/sell/orders`)
+  vẫn `dd/MM` ⇒ thêm `lang` cho `formatIsoDay` / `formatExportDay`.
+
+**Test** — thêm block EN cho `utils`, `time`, `user`, `uploadOwner`, `uploadValidation`,
+`cloudinary` (MSW 400 quá cỡ), `notificationDisplay`, `priceSuggestion`, `commentAuthor`,
+`searchSuggestions`, `productRisk`, `calendar`, `orderExport`; sửa 3 test EN cũ từng ghim định
+dạng Việt trong câu tiếng Anh (`chatMessageTime`, `notificationDisplay`, `expectedDelivery`).
+
+**Kiểm chứng**
+- `npm run build` ✓ · `check:bundle` 695 742 / 750 000 ✓ · `lint` ✓ · `test:run` 174 file /
+  1614 test ✓.
+- e2e full (`npx playwright test`, formatter dùng ở mọi route): 70 ✓ / 3 skip — order-detail
+  cancel + payment-retry (thiếu đơn pending, data) và product-form BE-4 (`fixme` sẵn có).
+- MCP ở `en`: admin 7 route + `/`; shop `/shop`, `/sell`, `/sell/orders`, `/sell/returns`,
+  `/shop/analytics`, `/sell/vouchers`, `/sell/:id`, `/chat`, `/notifications`; public `/login`,
+  `/register`, 404; buyer `/`, `/orders`, `/order/:id`, `/messages`, `/marketplace`, `/wishlist`,
+  `/product/:id`, `/cart`, `/checkout`, `/returns`, `/payment-result`, `/profile/:id`,
+  `/addresses`, `/notifications`, `/post/:id`. Chữ Việt còn lại đều là dữ liệu (nội dung post, tên
+  tỉnh GHN, tên phân loại, lý do người dùng nhập).
+- Health uptime BE: không đo (curl `:3000/health` bị từ chối quyền).
+- Backend handoff: không cần.
+
+**Còn mở**: quyết định công tắc trước khi push (snapshot §F14) — giờ cả app đã dịch. Deep e2e của
+`/wishlist`, `/profile/:id`, `/addresses`, `/product/:id`, `/sell/:id`, `/admin*`, `/shop*` vẫn
+`deep: []` (còn nợ).
+
+### I18N-06 · Song ngữ VI/EN: admin, voucher, shop (2026-10-02)
+
+Class **A** (chỉ FE, BE không đổi). Bước 6/7 của F14. Không thêm dependency. Mặc định vẫn `vi`.
+
+**Từ điển mới**
+- `admin/admin.i18n.ts`: `/admin` (thẻ số liệu, 2 chart, bảng đơn, bảng user, đổi vai trò),
+  `/admin/analytics`, hai hàng đợi duyệt brand / danh mục.
+- `admin/postModeration.i18n.ts`: `/admin/reports` — trạng thái báo cáo, nút xử lý, toast, lỗi.
+- `admin/productRisk.i18n.ts`: `/admin/product-risk` — mức điểm, câu cờ, trạng thái chấm, backfill.
+- `voucher/voucher.i18n.ts` (+ `voucherMsg` cho zod): `VoucherConsole` dùng chung cho
+  `/sell/vouchers` và `/admin/vouchers`.
+- `shop/shop.i18n.ts`: `/shop` (seller hub, chart tồn kho).
+
+**Cách dịch**
+- Helper nhận `lang = 'vi'` ở cuối: `roleEditability`, `roleChangeConfirmTitle`,
+  `roleChangeSuccessText`, `reportStatusMeta`, `moderationSuccess/ErrorMessage`,
+  `riskScoreMeta`, `riskFlagDescription`, `riskErrorMessage`, `riskStatusMeta`,
+  `riskRetryDetail`, `backfillButtonLabel`, 8 helper `voucher*` trong `voucherRules.ts`,
+  `stockHealthSlices`.
+- Hằng copy thành hàm: `ASSIGNABLE_ROLE_OPTIONS` → `assignableRoleOptions(lang)`,
+  `ROLE_CHANGE_CONFIRM_BODY` → `roleChangeConfirmBody(lang)`.
+- Bảng cấu hình giữ key: cột bảng admin, tab lọc `/admin/reports` (`REPORT_STATUS_LABEL`) và
+  `/admin/product-risk`, nút xử lý bài viết.
+- `orderStatusSlices(…, lang)` và series "Doanh thu" của `/admin` giờ theo ngôn ngữ (nợ từ I18N-04).
+- Số nhiều EN qua `plural`: `reportCount`, `imageCount`, `retryAttempts`.
+- **Giữ nguyên, không dịch:** lỗi BE trả về, lý do báo cáo / từ chối, mô tả voucher, tên brand /
+  danh mục / sản phẩm.
+
+**Chưa làm (có chủ đích, I18N-07)**
+- `formatVnd` / `formatPrice` (`đ`), kể cả số tiền trong câu cờ giá của `riskFlagDescription`.
+- `formatDateTime` / `formatDate` trên bảng admin và thẻ báo cáo.
+
+**Test**
+- Khối EN mới: `userRole.test.ts`, `postModeration.test.ts`, `productRisk.test.ts`,
+  `voucherRules.test.ts`, `voucherConsoleBinding.test.ts`, `stockChartData.test.ts`.
+- Test VI cũ chạy nguyên (mặc định `vi`); `AdminPage.userRole.test.tsx` không phải sửa.
+
+**Kiểm**
+- `build`, `check:bundle` (694 528 / 750 000), `lint` (0 cảnh báo) ✓.
+- `test:run` 173 file / 1591 test ✓.
+- e2e 29 test ✓: smoke admin + shop, `catalog-review.admin`, `post-moderation.admin`,
+  `product-risk.admin`, `seller-vouchers.shop`, `lang-persist.public`.
+- MCP EN: `/admin`, `/admin/reports` (tab Resolved có thẻ), `/admin/product-risk`,
+  `/admin/brands/pending`, `/admin/categories/pending`, `/admin/analytics`, `/admin/vouchers`,
+  `/shop`, `/sell/vouchers` + form tạo, `/shop/analytics` — không còn chữ Việt ngoài `đ` và dữ liệu.
+
+### I18N-05 · Song ngữ VI/EN: social, chat, thông báo, thời gian tương đối (2026-10-02)
+
+Class **A** (chỉ FE, BE không đổi). Bước 5/7 của F14. Không thêm dependency. Mặc định vẫn `vi`.
+
+**Từ điển mới**
+- `lib/format/time.i18n.ts`: "Vừa xong" / "5p" / "5 phút trước" ↔ "Just now" / "5m" / "5 minutes ago".
+- `notifications/notification.i18n.ts`: tiêu đề + nội dung FE tự viết cho từng loại thông báo,
+  chrome trang `/notifications` (tab, nhóm ngày).
+- `chat/chat.i18n.ts` (`chatCopy`): banner kết nối, dialog chat, thread, `/messages`, nhãn
+  "Hôm qua" / thứ trong tuần.
+- `social/social.i18n.ts` (`socialMessages` + `socialMsg` cho zod): feed, post card,
+  `/post/:id`, comment, menu bài viết, dialog báo cáo, composer, gắn sản phẩm.
+
+**Cách dịch**
+- `relativeTimeShort/Long(dateStr, lang = 'vi', now = Date.now())` — `lang` đứng trước `now` để
+  component chỉ truyền `lang`; gọi `Date.now()` thẳng trong render bị lint `react-hooks/purity` cảnh báo.
+- `getNotificationContent(n, lang)`; `chatConnectionBanner(status, lang)`;
+  `reportPostErrorMessage(error, lang)`.
+- `formatMessageTime` tách khỏi `ChatThread` sang `chatMessageTime.ts` (thuần, nhận `now` + `lang`).
+- Số nhiều EN qua `plural`: `commentCount`, `showReplies`, `imageCount`, `likeBodyOthers`.
+- Tab feed lưu `labelKey`; zod `createPostSchema` lưu key, `CreatePostModal` render bằng `translateIfKey`.
+- `PostCard` / `PostDetailPage` định dạng số theo `LANG_LOCALE[lang]`.
+- **Giữ nguyên, không dịch:** nội dung post / comment / tin nhắn, tên người dùng, lỗi BE trả về,
+  message thô của thông báo có type FE không biết.
+
+**Chưa làm (có chủ đích, I18N-07)**
+- Notice upload từ `lib/http` (`firstUploadError`, `capImageBatch`, `resolveUploadOwner`,
+  `validateUploadFile`) vẫn tiếng Việt trong composer.
+- Giờ trong chat dùng `toLocaleTimeString(undefined)` (locale trình duyệt); giá `đ`.
+
+**Test**
+- Khối EN: `time`, `notificationDisplay`, `NotificationsPage`, `NotificationBell`, `chatConnection`,
+  `reportPostError`.
+- Mới: `chatMessageTime.test.ts` (hôm nay / hôm qua / thứ / ngày cũ, UTC không zone, chuỗi hỏng, EN),
+  `social.i18n.test.ts` (plural, mặc định VI, key zod dịch được hai ngôn ngữ).
+
+**Kiểm**
+- `build`, `check:bundle` (687 309 / 750 000), `lint` (0 cảnh báo) ✓.
+- `test:run` 173 file / 1571 test ✓.
+- e2e 47 test ✓: smoke buyer / shop / admin / public, `notifications.buyer`, `post-moderation.admin`,
+  `lang-persist.public`. `/messages`, `/post/:id` có `deep: []`.
+- MCP ở EN (buyer `test1`): `/` (tab, post card, "QUICK BUY"), `/post/:id` (comment, "View all 3
+  replies", menu bài viết), `/messages`, `/notifications`. Chữ Việt còn lại chỉ là dữ liệu người dùng
+  + đơn vị giá `đ`. MCP bắt được "Mua nhanh" sót trong `ProductChip` (không dấu nên `vilines` lọt) — đã sửa.
+
+### I18N-04 · Song ngữ VI/EN: đơn hàng buyer + seller, trả hàng, xuất CSV, analytics shop (2026-10-02)
+
+Class **A** (chỉ FE, BE không đổi). Bước 4/7 của F14. Không thêm dependency. Mặc định vẫn `vi`.
+
+**Từ điển mới**
+- `order/order.i18n.ts` (`orderMessages`): `/orders`, `/order/:id`, `/returns`, `/sell/orders`, `/sell/returns`.
+- `order/orderExport.i18n.ts`: panel xuất CSV, danh sách file, nút hoá đơn PDF.
+- `order/analytics/analytics.i18n.ts`: `/shop/analytics` + `AnalyticsDashboard`.
+- `lib/domain/orderStatus.i18n.ts`, `lib/domain/paymentUrl.i18n.ts`.
+
+**Cách dịch**
+- **Nhãn trạng thái đơn:** `orderStatusLabel(status, lang)`; `ORDER_STATUS_META` bỏ trường `label`.
+  `StatusBadge` và `orderStatusSlices(counts, lang)` dùng nó.
+- **Phương thức thanh toán:** `paymentLabel(method, lang)` thay map `PAYMENT_LABEL`.
+- **Helper thuần nhận thêm `lang: Lang = 'vi'`:** `expectedDelivery`, `orderSummary`, `returnRequest`
+  (`returnStatusMeta`, `refundStatusLabel`), `orderInvoice`, `sellerOrderActions`,
+  `sellerOrderActionError`, `orderExport`, `paymentUrl` (`PaymentUrlMissingError`, `paymentUrlErrorMessage`).
+- **Bảng cấu hình giữ key:** tab lọc của `/orders` + `/sell/returns`, timeline `/order/:id`,
+  preset khoảng ngày analytics (`daysPreset`). Tab lọc `/sell/orders` render thẳng từ `orderStatusLabel`.
+- `productId` có thể `null` ⇒ `String(item.productId)` trước khi đưa vào `t` (hành vi cũ: "#null").
+- Chữ "đang xử lý" đổi `...` → `…` cho đồng bộ.
+- **Giữ nguyên, không dịch:** tên sản phẩm, địa chỉ, lý do trả hàng do người dùng nhập; lỗi BE trả về;
+  nhãn kỳ trên trục biểu đồ analytics (chuỗi BE); giá dạng `đ`; `formatDateTime`.
+
+**Chưa làm (có chủ đích)**
+- I18N-06: `orderStatusSlices` ở `AdminPage` vẫn mặc định `vi`.
+- I18N-07: `formatDateTime` / `formatPrice` theo ngôn ngữ.
+
+**Test**
+- Khối EN cho: `orderStatus`, `StatusBadge`, `chartSeries`, `paymentUrl`, `orderConstants`,
+  `expectedDelivery`, `orderSummary`, `returnRequest`, `orderInvoice`, `sellerOrderActionError`,
+  `sellerOrderActions`, `orderExport`, `ExportJobList`, `InvoiceDownloadButton`, `ExportSellerPicker`,
+  `OrderExportPanel`.
+
+**Kiểm**
+- `build`, `check:bundle` (683 494 / 750 000), `lint` ✓.
+- `test:run` 171 file / 1551 test ✓.
+- e2e:
+  - Smoke 8 route: buyer `/orders`, `/returns`, `/order/:id`; shop `/sell/orders`, `/sell/returns`,
+    `/shop/analytics`; admin `/admin`, `/admin/analytics`.
+  - Deep pass: `order-history`, `return-request`, `order-detail` UI-1, `seller-orders` ×2, `seller-returns`.
+  - Deep skip vì thiếu data: `order-detail` cancel ("No pending order available to cancel"),
+    payment-retry ("No pending online-payment order to retry").
+- MCP ở EN: `/orders`, `/order/:id`, `/returns` (buyer `test1`); `/sell/orders` (mở chi tiết),
+  `/sell/returns` (tab All), `/shop/analytics` (shop `techstore_demo`). Chữ Việt còn lại chỉ là
+  dữ liệu người dùng + đơn vị giá `đ`.
+
+### I18N-03 · Song ngữ VI/EN: product, cart, checkout, form đăng/sửa sản phẩm (2026-10-02)
+
+Class **A** (chỉ FE, BE không đổi). Bước 3/7 của F14. Không thêm dependency. Mặc định vẫn `vi`.
+
+**Từ điển mới**
+- `cart/cart.i18n.ts`.
+- `cart/checkout.i18n.ts` (có `checkoutMsg`).
+- `product/product.i18n.ts`: marketplace, card, chi tiết, review.
+- `product/product-form/productForm.i18n.ts`: form seller.
+
+**Cách dịch**
+- **Helper thuần nhận thêm `lang: Lang = 'vi'`:**
+  - Cart/checkout: `voucher`, `voucherSuggestions`, `shippingFeeError`, `checkoutItems`, `checkoutSubmitError`.
+  - Product: `sellerName`, `reviewErrorMessage`.
+  - Form seller: `productSubmitError`, `proposalErrorMessage`, `missingFields`, `duplicateWarningView`.
+  - `checkout.schema.ts` dùng key + `translateIfKey`.
+- **Bảng cấu hình giữ key, render bằng `t(key)`:** `SORT_OPTS`, `trustItems`, `CONDITION_OPTIONS`.
+- **Số đếm:** truyền `{ count, n }`. `count` thô quyết định số nhiều ở EN; `n` được định dạng theo
+  `LANG_LOCALE[lang]`. Ngày review cũng theo locale.
+- **Lỗi validate của `useProductForm`:** dịch lúc set. Đổi ngôn ngữ giữa chừng thì lỗi đang hiện
+  giữ ngôn ngữ cũ tới lần validate sau.
+- **Giữ nguyên, không dịch:**
+  - Chữ do seller nhập: tên, mô tả, nhãn phân loại.
+  - Tên danh mục, thương hiệu, tỉnh.
+  - Lỗi 400/404 do BE trả về.
+  - Giá vẫn hiển thị dạng `đ`.
+
+**Chưa làm (có chủ đích)**
+- Để I18N-07:
+  - Notice upload `firstUploadError` / `capImageBatch` (lib).
+  - `validateUploadFile`, `BackendOfflineBanner`.
+  - Các caller khác của `listSearchEmptyText`.
+- `enrichProductForUI` / `getRelativeTime` trong `useProducts.ts` là code chết, gọi `sellerName`
+  với mặc định `vi`. Không đụng tới.
+
+**Test**
+- Thêm khối EN cho:
+  - Cart/checkout: `voucher`, `voucherSuggestions`, `shippingFeeError`, `checkoutItems`,
+    `checkoutSubmitError`.
+  - Product: `sellerName`, `productReview`.
+  - Form seller: `productSubmitError`, `proposalErrors`, `productReadiness`, `duplicateCheck`.
+
+**Kiểm**
+- `build`, `check:bundle` (679 297 / 750 000), `lint` ✓.
+- `test:run` 171 file / 1540 test ✓.
+- e2e:
+  - Smoke buyer cho `/marketplace`, `/product/:id`, `/cart`, `/checkout`, và smoke shop cho
+    `/sell`, `/sell/:id`.
+  - Deep: `cart`, `checkout-resilience`, `checkout-vouchers`, `auth-session-swap`, `product-form`.
+    BE-4 trong `product-form` vẫn là `test.fixme`, có từ trước.
+  - Lần chạy đầu, setup `authenticate admin` hỏng một lần; chạy lại thì xanh.
+- MCP ở EN:
+  - `/marketplace`, `/product/:id`, `/cart`, `/checkout`.
+  - `/sell` (shop `techstore_demo`): bật nhiều phân loại, có `VariationBuilder` + `SkuMatrix`,
+    hiện "1 combination generated", "Missing: name, category".
+
+### I18N-02 · Song ngữ VI/EN: auth, user, address, search, wishlist, payment (2026-10-02)
+
+Class **A** (chỉ FE, BE không đổi). Bước 2/7 của F14. Không thêm dependency. Mặc định vẫn `vi` ⇒
+test cũ assert chữ Việt chạy nguyên.
+
+**Từ điển**
+- Mới: `address/address.i18n.ts` (có `addressMsg`), `search/search.i18n.ts`,
+  `wishlist/wishlist.i18n.ts`, `payment/payment.i18n.ts`.
+- Mở rộng: `auth/auth.i18n.ts`, `user/user.i18n.ts` (có `userMsg`).
+- `lib/i18n/messages.ts`: thêm `isMessageKey` / `translateIfKey`.
+
+**Cách dịch**
+- **Zod:** message trong schema là **key** (`auth.schema.ts`, `profileForm.ts`, schema của
+  `AddressFormModal`). Component render qua `translateIfKey`, nên lỗi từ server (không phải key) đi
+  qua nguyên văn. Lỗi vị trí của form địa chỉ thành boolean, render `t('locationRequired')`.
+- **Helper lỗi thuần nhận thêm `lang: Lang = 'vi'`:** `changePasswordError`, `logoutAllErrorMessage`,
+  `profileUpdateError`, `forgotPassword`, `credentialConflict`. `useLogin` trả **key**
+  (`loginUsernameRequired`, `connectionError`) thay cho chữ; `LoginPage` dịch.
+- **`hooks/ui/useListSearch`:** `listSearchEmptyText(search, noun, lang = 'vi')` có book riêng.
+  Chỉ ProfilePage và WishlistPage truyền `lang`; các caller khác để I18N-07.
+- **`searchSuggestions`:** `GROUP_LABELS` (chữ) thành `GROUP_LABEL_KEYS`; `HeaderSearch` tự dịch.
+- **Trang thanh toán:** câu thành công tách quanh span `#orderId` (`orderPaidBefore` / `orderPaidAfter`).
+  Tên cổng (VNPay/ZaloPay) không dịch.
+- Nút đổi avatar trong `EditProfileModal` trước không có tên, nay có `aria-label`.
+
+**Chưa làm (có chủ đích)**
+- Caller khác của `listSearchEmptyText`; câu lỗi của `validateUploadFile`; `BackendOfflineBanner`
+  ⇒ I18N-07.
+- Post card trên `/profile/:id` ⇒ I18N-05.
+- Chuỗi do BE sinh ra không dịch; tên tỉnh/huyện/xã từ GHN giữ nguyên.
+
+**Test**
+- Thêm khối EN cho `messages`, `logoutAll`, `changePassword`, `profileForm`, `forgotPassword`,
+  `credentialConflict`, `useListSearch`.
+- `HeaderSearch.test.tsx`: khối "in English" (placeholder, tên listbox, tiêu đề nhóm, hàng "See all").
+
+**Kiểm**
+- `build`, `check:bundle` (673 409 / 750 000), `lint` ✓.
+- `test:run` 171 file / 1520 test ✓.
+- e2e 37/37: smoke public + buyer, `lang-persist`, `theme-persist`, `payment-result`,
+  `checkout-resilience`, `checkout-vouchers` (`AddressBookPicker` nằm ở `/checkout`).
+- Deep `/wishlist`, `/profile/:id`, `/addresses` vẫn `deep: []` (còn nợ).
+- MCP ở EN:
+  - `/addresses` + modal thêm địa chỉ, cả lỗi zod.
+  - `/wishlist`.
+  - `/profile/:id` + modal Sửa hồ sơ + tab Bảo mật.
+  - Header search: "Searching…", nhóm, "See all".
+
+### SESSION-REVOKE-01 · Nút "Đăng xuất khỏi tất cả thiết bị" (2026-10-01)
+
+Class **C** phía FE: nút gọi route mới `POST /user/logout-all`, BE prod cũ trả 404 ⇒ HOLD ở
+`release-gate.md` §Holding, push `api` trước rồi mới tới `frontend`. Từ `/sweep 3`, item 3/3.
+
+**Sửa**
+- `api/auth.ts`: `logoutAll()` (cookie, không body).
+- `features/user/logoutAll.ts` (thuần, có test): 503 → "chưa thiết bị nào bị đăng xuất…", 429 →
+  "thử quá nhiều lần…", 404 (BE chưa có route) → "chưa khả dụng", còn lại lỗi mạng. 401 không tới
+  đây — `request()` đã redirect.
+- `features/user/LogoutAllDevices.tsx`: khối cuối tab **Bảo mật** của `EditProfileModal`, là
+  sibling của `ChangePasswordForm` (không lồng `<form>`). Bấm → `ConfirmDialog` tone danger; 201 ⇒
+  `replaceSessionCache(null)` + `postAuthEvent(logout)` + `/login` (giống `useAuth().logout`);
+  lỗi hiện trong dialog, vẫn đăng nhập.
+- Handoff mục 5 (socket): **không sửa** — socket.io không tự reconnect sau `io server disconnect`,
+  FE không gọi `connect()` lại.
+- Handoff mục 3 (toast "các thiết bị khác đã bị đăng xuất" sau đổi mật khẩu): **cố ý hoãn** — câu
+  đó sai trên BE prod hiện tại; thêm khi `api` đã lên prod.
+
+**Test** — `logoutAll.test.ts` 5 ca.
+
+**Runtime**
+- 7a e2e: route `/profile/:id` (smoke buyer, deep `[]`) — xem dòng chạy chung ở WISHLIST-ALERT-01.
+- 7b MCP trên BE local thật (`testuser_403`, context riêng): nút + section đúng padding form, dialog
+  448px không tràn; light rgb(185,28,28) / dark rgb(239,68,68), nền 10%, viền 40%. Confirm → `/login`.
+  Phiên thứ hai cùng account (node, cookie riêng) `/user/me` 200 trước → **401 UNAUTHENTICATED** sau.
+- Không có gap BE mới.
+
+### REVIEW-VERIFIED-01 · Badge "Đã mua hàng" trên review + câu lỗi cho seller tự đánh giá (2026-10-01)
+
+Class **B** (field mới nullable; 403 mới trước đây đã rơi vào nhánh lỗi chung). Từ `/sweep 3`, item 2/3.
+Ghi ở `release-gate.md` §Ready to release cùng WISHLIST-ALERT-01.
+
+**Sửa**
+- `types/product.ts`: `Review.isVerifiedPurchase?: boolean | null`.
+- `features/product/productReview.ts`: `showsVerifiedBadge` chỉ `=== true` — `null` (order service
+  không trả lời) và thiếu field đều không render gì; 403 → "Bạn không thể đánh giá sản phẩm của chính mình".
+- `ProductReviews.tsx`: pill `BadgeCheck` "Đã mua hàng" cạnh `StarRating`.
+- Chưa ẩn form review cho chính seller (handoff ghi optional).
+
+**Test** — `productReview.test.ts` +3 ca.
+
+**Runtime**
+- 7a e2e: `/product/:id` (smoke buyer, deep `[]`) + `/order/:id` (smoke buyer + deep order-detail,
+  payment-retry, return-request) — trong lượt chạy chung ở WISHLIST-ALERT-01.
+- 7b MCP: badge trên review thật của `prod_ffc7fc2281d211f1` — light rgb(6,106,75) / dark
+  rgb(16,185,129), nền 10%, viền 20%, nằm cạnh sao.
+- Không có gap BE mới.
+
+### WISHLIST-ALERT-01 · Thông báo wishlist "có hàng lại" / "giảm giá" (2026-10-01)
+
+Class **B** (2 `type` mới + 1 field nullable). Từ `/sweep 3`, item 1/3. Ghi ở `release-gate.md`
+§Ready to release cùng REVIEW-VERIFIED-01.
+
+**Sửa**
+- `types/notification.ts`: `productId?: string | null`.
+- `features/notifications/notificationDisplay.ts`:
+  - `wishlist_back_in_stock` → `PackagePlus` xanh; `wishlist_price_drop` → `TrendingDown` vàng.
+  - Câu tiếng Việt dựng từ `preview`; `priceDropAmounts` (export) parse 2 số VND từ message BE —
+    parse hỏng ⇒ bỏ số; thiếu `preview` ⇒ tên trong ngoặc ⇒ message gốc.
+  - `getNotificationHref`: 2 type có `productId` → `/product/${productId}`; không có ⇒ không click được;
+    type khác bỏ qua `productId`.
+
+**Test** — `notificationDisplay.test.ts` +10 ca.
+
+**Runtime** (chạy chung cho cả 3 item của `/sweep 3`)
+- Gates: build ✓ · check:bundle ✓ (668.324 / 750.000; chunk ProfilePage 7.215) · lint 0 · test:run
+  **1511 / 171 file** xanh.
+- 7a e2e — smoke buyer + deep `notifications`, `order-detail`, `payment-retry`, `return-request`:
+  **25 pass, 2 skip** (thiếu data đơn pending, không phải lỗi). Route: `/notifications`,
+  `/product/:id`, `/order/:id`, `/profile/:id` đều qua. Gateway `uptime` 124,8s → 217,8s, không restart.
+- 7b MCP trên BE local thật (buyer `canceltest1779978329`; thêm `prod_ffc7fc2281d211f1` vào wishlist,
+  hạ giá 119 → 109): dòng "Sản phẩm yêu thích giảm giá — … đã giảm giá từ 119 đ xuống 109 đ" trên
+  `/notifications` và dropdown chuông, chip amber; click → `/product/prod_ffc7fc2281d211f1`. 2 theme ✓.
+- Test data: giá đã trả về 119, sản phẩm đã gỡ khỏi wishlist.
+- Không có gap BE mới.
+
+### VOUCHER-SHOP-01 phase 2 · Ghép 1 mã sàn + 1 mã/shop ở checkout, kể cả giỏ nhiều shop (2026-10-01)
+
+Class **B** (FE cũ vẫn đúng trên BE mới; FE mới vẫn đúng trên BE prod hiện tại). Từ `/sweep`, item
+top trong `frontend-handoff.md` (BE ghi 2026-09-28, BE **chưa push**). Ghi ở `release-gate.md`
+§Ready to release; cây FE vẫn bị HOLD bởi LIST-SEARCH-01 + EXPORT-CSV-01.
+
+**Contract** — probe trên BE local trước khi code, khớp handoff:
+- validate nhận `code` và/hoặc `voucherCodes` (item **bắt buộc** `productName`); response thêm
+  `vouchers[]` theo thứ tự gửi, gộp trùng, lowercase được chuẩn hoá; `code` cũ cũng trả `vouchers[]`.
+- 400 mới: `voucherCodes: []`, hai mã sàn, mã shop trên hàng shop khác; 404/400 cũ giờ có tên mã.
+- `vouchers/available` chạy cho giỏ nhiều shop; đơn có `platformVoucherCode` + `checkoutId`.
+
+**Sửa**
+- `types/order.ts`: `ValidatedVoucher`, `VoucherValidation.vouchers?`, `VoucherValidateDto.code?` +
+  `voucherCodes?`, `CreateOrderDto.voucherCodes?`, `Order.platformVoucherCode?` / `checkoutId?`.
+- `features/cart/voucher.ts` (thuần, có test):
+  - `voucherValidateCodes` / `voucherCreateCodes` — **1 mã đi field cũ** (`code` / `voucherCode`),
+    2+ mã mới dùng `voucherCodes`. Lý do: FE ship được trước BE mà không hỏng flow 1 mã.
+  - `nextVoucherCodes(applied, code, slot?)` — mã chọn từ gợi ý mang slot (sàn / `sellerId`) ⇒ thay
+    mã đang giữ slot đó thay vì ăn 400 chắc chắn; mã gõ tay không rõ slot ⇒ nối thêm, BE phân xử.
+  - `appliedVoucherRows` — BE cũ không có `vouchers[]` ⇒ một dòng, `scope: null`.
+  - `voucherErrorMessage` — đọc tên mã trong message, gỡ nó khỏi chuỗi trước khi so keyword
+    (`MINUS10` không bị đọc thành "min"); thêm 3 luật ghép mã.
+  - Bỏ `distinctSellerCount` (không còn chỗ dùng).
+- `CheckoutPage`:
+  - Bỏ chặn giỏ nhiều shop ở query gợi ý.
+  - State giữ `{ signature, validation }`; đổi giỏ ⇒ bỏ mã (guard cũ giữ nguyên).
+  - Thêm / bỏ mã đều validate lại **cả bộ**; lỗi khi thêm giữ nguyên bộ đang áp; lỗi khi bỏ ⇒ xoá hết
+    (không còn giá nào đáng tin).
+  - Breakdown: tổng "Giảm giá", rồi một dòng mỗi mã (badge phạm vi, `IconButton` "Bỏ mã X", số tiền).
+    Ô nhập luôn mở để thêm mã. Gợi ý: `aria-pressed`, nhãn "Đã áp dụng", gợi ý luật ghép.
+  - Nút đặt hàng khoá trong lúc đang validate.
+- `orderSummary.ts`: `orderVoucherLabel` → `SHOPA10 + SALE50`; `OrderDetailPage` dùng ở dòng giảm giá.
+
+**Lệch so với handoff (cố ý)**
+- Breakdown nằm trong thẻ tổng kết kèm badge "Của người bán" / "Toàn sàn", **không** dưới nhóm
+  hàng từng shop — checkout không nhóm hàng theo shop; nhóm lại là việc riêng.
+- Chưa gom đơn theo `checkoutId` ở `/order/:id` (handoff ghi optional).
+- Số tiền trên thẻ gợi ý vẫn là giá **đứng một mình** (vd. mã sàn −10.900 khi đã có mã shop,
+  áp vào thực tế −10.800). Dòng breakdown + tổng luôn lấy từ validate nên không sai tiền.
+
+**Test**
+- `voucher.test.ts` viết lại, 19 ca; `orderSummary.test.ts` +3 ca.
+- Gates: build ✓ · check:bundle ✓ (666.932 / 750.000) · lint 0 · test:run **1493 / 170 file** xanh.
+
+**Runtime**
+- 7a e2e — spec deep mới `checkout-vouchers.buyer.spec.ts` (đã thêm vào `deep` của `/checkout`):
+  stub `vouchers/available` + `voucher/validate` nên tất định, không redeem, không đặt đơn; vào
+  checkout qua CTA giỏ (checkout đọc selection từ router state). Assert body gửi đi từng bước:
+  `{code}` → `{voucherCodes:[shop, sàn]}` → thay mã sàn → bỏ mã shop ⇒ `{code: sàn}`.
+  - Theo route: smoke buyer (19) + deep `/checkout` (`checkout-resilience` 2/2,
+    `checkout-vouchers` 1/1) + deep `/order/:id` (`order-detail` 2, `payment-retry` 1,
+    `return-request` 1): **27 pass, 2 skip** (skip do thiếu data đơn phù hợp, không phải lỗi).
+  - Gateway `uptime` 351s → 562s, không restart giữa chừng.
+  - Flake 1 lần: `checkout-vouchers` timeout 30s chờ thẻ gợi ý ở một lượt chạy lại cặp spec. Sau đó
+    3 lượt cặp + `--repeat-each=8` đều xanh (12/12), không bắt được trace. Thẻ gợi ý chờ query
+    product (`productsReady`) — nghi BE local chậm lúc đó; nếu lặp lại, xem trace trước khi sửa spec.
+- 7b MCP trên BE local thật (`canceltest1779978329`, giỏ 2 shop): gợi ý hiện cho giỏ nhiều shop;
+  SWEEPSHOP01 −1.000 + SWEEPPLAT01 −10.800 = −11.800, tổng 97.200 đ (khớp: mã sàn tính trên
+  108.000 còn lại); bấm SALE10 ⇒ thay SWEEPPLAT01; bỏ SWEEPSHOP01 ⇒ SALE10 −10.900, 98.100 đ.
+  Nút X 20×20, icon lệch 0px. Theme sáng + tối sạch.
+- Không đặt đơn thật ⇒ `/order/:id` với 2 mã chỉ được chốt bằng unit test + smoke.
+- Test data: SWEEPSHOP01 (id 21, `techstore_demo`) đã được **bật lại** (`isActive: true`, bỏ
+  khung ngày) để probe; giỏ buyer tạm tăng sạc lên 5 để đạt min 10.000, đã trả về 1.
+- Không có gap BE mới.
+
+### E2E-DEBT · Deep spec cho 3 route admin: duyệt thương hiệu / danh mục, rủi ro sản phẩm (2026-10-01)
+
+Class **A** (chỉ FE: e2e + 1 `data-testid`). Theo yêu cầu user sau TOAST-TIMER-01. E2E-DEBT
+16/30 → **13/30** trên manifest — nhưng **chưa chạy xanh lần nào**, xem Runtime.
+
+**Spec**
+- `catalog-review.admin.spec.ts` — một spec chạy cho cả `/admin/brands/pending` và
+  `/admin/categories/pending` (cùng component shape). Shop submit 2 dòng `[E2E] approve|reject <stamp>`;
+  admin bấm "Duyệt" một dòng, "Từ chối" + lý do dòng kia; mỗi bước check toast, dòng rời hàng chờ,
+  và API (`GET /products/{kind}/:id` → `active` / `rejected` + `reviewNote`).
+  - Không có endpoint xoá ⇒ `finally` reject cả hai qua API admin (reject ẩn khỏi mọi list và nhả
+    tên). Cặn mỗi lượt: 2 thương hiệu + 2 danh mục `[E2E]` ở trạng thái `rejected`, 4 thông báo
+    review gửi tới shop. Không đụng dòng seed.
+- `product-risk.admin.spec.ts` — lấy 1 sản phẩm của shop, tìm theo tên ở `?minScore=0`, bấm
+  "Chấm điểm lại", đọc `riskScore` từ response; toast + badge card phải khớp số đó; "Rủi ro cao"
+  (`minScore=70`) giữ card chỉ khi điểm ≥ 70; "Tất cả sản phẩm" trả card về. Rescore tính lại từ
+  sản phẩm nên lặp được; nút feedback trùng lặp không bấm (ghi audit record).
+- `e2e/api.ts`: `ownProduct`, `submitCatalogItem`, `catalogItem`, `rejectCatalogItem`.
+- `ProductRiskPage`: card có `data-testid="risk-product-<id>"`.
+- `routes.ts`: 3 route có `deep`; `e2e/README.md`: 2 dòng spec map.
+
+**Gates:** build ✓ · lint 0 · test:run **1479 / 170 file** · `tsc --strict` riêng 3 file e2e ✓.
+
+**Runtime — chưa exercised.** Product service (`:3006`) chết suốt phiên: concurrently `nodeA` không
+còn tiến trình `start:product`; `GET /products/brands` → 500 `connect ECONNREFUSED 127.0.0.1:3006`,
+POST → 502. Kết quả: 2 spec mới **3 skipped** (submit / `ownProduct` thất bại → `test.skip`), smoke
+admin 3 route **3 failed** với "Máy chủ gặp sự cố" — đúng là error state khi service chết, không
+phải lỗi trang. Khi `:3006` lên: chạy lại
+`MSYS_NO_PATHCONV=1 npx playwright test e2e/catalog-review.admin.spec.ts e2e/product-risk.admin.spec.ts e2e/smoke.admin.spec.ts -g "catalog|rescor|/admin/brands/pending|/admin/categories/pending|/admin/product-risk"`.
+
+### TOAST-TIMER-01 · Toast admin bị timer của toast trước tắt sớm (2026-10-01)
+
+Class **A** (chỉ FE). Từ `/sweep`, item 🟡 thấy lúc chạy e2e LIST-SEARCH-01.
+
+**Lỗi**
+- `showToast` ở trang admin gọi `setTimeout(() => setToast(null), 3000)` mà không giữ timer.
+- Hai thao tác cách nhau < 3s (vd. ẩn → hiện lại bài) thì timer của toast đầu xoá luôn toast thứ hai.
+- Đây là nguyên nhân `post-moderation.admin.spec.ts` flaky ở bước "Đã hiện lại bài viết".
+- Cùng lỗi ở 4 trang: `ReportedPostsPage`, `PendingBrandsPage`, `PendingCategoriesPage`, `ProductRiskPage`.
+  `VoucherConsole`, `ShopPage`, `useSharePost` đã tự giữ timer từ trước ⇒ không đụng.
+
+**Sửa**
+- Hook mới `hooks/ui/useTimedToast<T>(durationMs = 3000)` → `{ toast, showToast }`.
+  - Một timer trong `useRef`, clear trước mỗi lần set, clear khi unmount.
+  - `showToast` ổn định qua render (`useCallback`).
+  - Generic để giữ payload `{ id, msg }` của hai trang pending.
+- 4 trang bỏ `useState` + `showToast` cục bộ, dùng hook. Markup toast không đổi.
+
+**Test**
+- `useTimedToast.test.ts` (fake timers, 5 ca): tự tắt đúng hạn; toast thứ hai sống đủ 3s
+  (ca hồi quy của item); payload object; unmount không để timer treo; `showToast` ổn định.
+- Gates: build ✓ · check:bundle ✓ · lint 0 · test:run **1479 / 170 file** xanh.
+
+**Runtime**
+- 7a e2e (chạy lại khi gateway lên): smoke admin 4 route trên ✓ (4/4) ·
+  `post-moderation.admin.spec.ts --repeat-each=3` ✓ (3/3). Gateway `uptime` 264s → 302s, không
+  restart giữa chừng. Lưu ý: trên Git Bash, `-g "/admin/..."` bị MSYS đổi thành path Windows →
+  "No tests found"; thêm `MSYS_NO_PATHCONV=1`.
+- 7b MCP: markup không đổi, nhưng đo hành vi trên `/admin/product-risk`. Cách đo: "Chấm điểm lại"
+  hai lần, cách nhau ~1,5s. Toast lần hai còn hiện **3020ms / 3041ms** sau response thứ hai (2 lượt).
+  Code cũ sẽ tắt nó ~0,9s sau response thứ hai. Console sạch. Hai trang pending render đúng; không
+  bấm Duyệt/Từ chối vì không hoàn tác được trên seed.
+- Không phải bug: 3 lần `GET /products/admin/risk` 500 và `/user/me` 502 ở lượt đo đầu. Cả hai
+  xảy ra lúc backend đang restart; lượt đo lại thì list refetch 200/200.
+- Route deep còn nợ lúc đóng: `/admin/brands/pending`, `/admin/categories/pending`,
+  `/admin/product-risk` — đã viết spec ngay sau đó, xem entry E2E-DEBT bên trên.
+
+### I18N-01 · Song ngữ VI/EN: nền móng, công tắc, khung app (2026-10-01)
+
+Class **A** (chỉ FE, BE không đổi). Bước 1/7 của F14. Không thêm dependency.
+
+**Nền móng**
+- `lib/i18n/messages.ts`:
+  - `defineMessages({ vi, en })`: TypeScript bắt `en` có đúng key của `vi`, nên thiếu bản dịch là lỗi build.
+  - Placeholder dạng `{name}` hoặc message là hàm (số nhiều tiếng Anh qua `plural`).
+  - `translate`, `bindTranslator`, `MessageKey<B>`.
+- `lib/i18n/lang.ts`:
+  - Mặc định luôn là `vi`, không đọc `navigator.language`.
+  - Đọc/ghi lựa chọn vào `localStorage` key `tb-lang`, có try/catch.
+  - `applyLang` set `<html lang>`.
+  - `LANG_LOCALE` map `vi-VN` / `en-US`.
+- `context/LanguageContext.tsx` + `useLanguage` + `hooks/ui/useT`:
+  - Context mặc định là `vi` + no-op, nên component và test không cần provider.
+  - Provider bọc **ngoài** `RootErrorBoundary`, để panel crash (`RootCrashPanel`) vẫn đọc được ngôn ngữ.
+- `index.html`: script pre-paint set `<html lang>` theo cùng luật với `resolveLang`.
+
+**Công tắc**
+- `components/shared/LanguageSwitch.tsx`: radiogroup VI | EN.
+  - Mỗi lựa chọn tự gọi tên bằng chính ngôn ngữ của nó (`lang` riêng trên từng nút).
+- Hiện ở ProfileMenu (hàng mới dưới hàng theme) và góc `/login` cạnh nút theme.
+
+**Dịch**
+- Từ điển đặt cạnh code: `layout.i18n.ts`, `shared.i18n.ts`, `apiErrorState.i18n.ts`.
+- `navItems`: `label`/`shortLabel` thành `labelKey`/`shortLabelKey`. Registry không chứa chữ; component tự dịch.
+- Prop từng có default tiếng Việt (`cancelLabel`, `label`, `placeholder`, `emptyLabel`, `valueLabel`): bỏ default, render `prop ?? t(key)`.
+- Helper thuần nhận thêm `lang = 'vi'`: `monthTitle`, `WEEKDAY_LABELS[lang]`, `soldCountLabel` (`1,234 sold`), `roleLabel`, `roleStaleNotice`.
+- Tooltip toolbar của `RichTextEditor` trước là tiếng Anh cứng, nay có bản tiếng Việt.
+
+**Chưa làm (có chủ đích)**
+- Chữ trong `BackendOfflineBanner` (nằm ở `lib/demo/backendStatus`): để I18N-07.
+- `relativeTime` và nội dung thông báo trong `NotificationBell`: để I18N-05.
+
+**Test**
+- `lang.test.ts`, `messages.test.ts`.
+- `LanguageContext.test.tsx`: mặc định, khôi phục, bỏ qua giá trị rác, persist, `<html lang>`; công tắc đổi chữ `Pagination`.
+- Thêm case cho ProfileMenu (đổi EN thì menu, theme, đăng xuất ra tiếng Anh), `calendar`, `railRank`, `roleLabels`.
+- e2e mới `lang-persist.public.spec.ts`:
+  - Browser `en-US` mà trang vẫn ra `vi`.
+  - Chọn EN, reload, vẫn là EN.
+  - Chặn bundle mà `<html lang>` vẫn đúng.
+  - Đã thêm vào `deep` của `/login`.
+- Kết quả:
+  - `build` / `lint` / `check:bundle` sạch.
+  - `test:run`: 1474 pass.
+  - Smoke 4 role + `theme-persist`: 45/45.
+
+### RAIL-LIGHT-01 · LeftRail: hàng hover / đang chọn biến mất ở theme sáng (2026-10-01)
+
+Class **A**, chỉ đổi class Tailwind.
+
+**Nguyên nhân**
+- Hàng hover và hàng active tô bằng `bg-canvas-elevated`.
+- Ở theme sáng, màu này là #F4F4F5 nằm trên canvas #FAFAFA, gần như không thấy.
+
+**Sửa** (`components/layout/LeftRail.tsx`)
+- Cả block primary lẫn block seller/admin dùng chung `rowClass(active)`:
+  - active: `bg-tb-amber/15`
+  - hover: `hover:bg-tb-amber/10`
+- Label của hàng active chuyển sang `text-accent-amber`.
+- Thêm `aria-current="page"` cho hàng active.
+- Contrast đã được `themeTokens.test.ts` pin sẵn, không cần nới:
+  - amber trên nền tint /20
+  - ink-pri trên nền tint /10
+
+**Kiểm tra**
+- Test: `LeftRail.test.tsx`.
+- Chrome: đã đo ở cả 2 theme.
+  - light: active `rgba(150,67,8,.15)`, label #964308
+  - dark: hover `rgba(245,158,11,.1)`
+- e2e: smoke 4 role + theme-persist, 45/45 pass.
+
+### LIST-SEARCH-01 · Ô search server-side cho 11 list có phân trang (2026-10-01)
+
+Class **C** phía FE, HOLD ở `release-gate.md`. BE cũ không lọc theo `q`, nên ô search sẽ trông như hỏng. `api` đã push nhưng chưa deploy vì CI đỏ.
+
+**Dùng chung**
+- `components/shared/SearchField.tsx`: ô `type="search"` kèm icon.
+  - `aria-label` mặc định lấy từ placeholder, bỏ dấu "…".
+  - `maxLength` mặc định = `LIST_SEARCH_MAX` (100).
+- `hooks/ui/useListSearch.ts`: `{input, setInput, term, pending}`.
+  - `term` = trim + debounce 400ms.
+  - `onInput` chạy trong change handler để reset page. Guard `page !== 1` để mỗi phím gõ không push một history entry.
+  - `listSearchEmptyText`: "Đang tìm…" hoặc "Không tìm thấy <noun> nào khớp “…”".
+- `api/client.ts` `toSearchTerm`: trim, cắt 100 ký tự, rỗng ⇒ `undefined` (không gửi param). Thay `FEED_SEARCH_MAX`.
+
+**Page**
+- `q`: `/admin` users, `/admin/reports`, `/admin/product-risk`, `/admin/vouchers`, `/sell/orders`, `/sell/returns`, `/sell/vouchers`, `/returns`, `/wishlist`.
+- `search`: feed `/` dùng một ô chung cho cả 2 tab; tab "Đang theo dõi" gọi `/social/users/:id/feed`.
+- `search`: `/profile/:id`, tab bài viết.
+- Placeholder ghi đúng cột BE match.
+- `/orders` chuyển sang `SearchField` (giữ `maxLength` 32, placeholder cũ, e2e selector không đổi).
+
+**Query key**
+- Term là segment **cuối** ⇒ prefix invalidate cũ (`sellerAll`, `returnsAll`, `followingFeedAll`, …) vẫn trúng trang đang search.
+- `useFollowingFeed(userId, active, search)`.
+
+**ProfilePage**
+- Default export thành `ProfilePageRoute`, render `<ProfilePage key={id} userId={id} />`.
+- Không có key thì chuyển profile bằng SPA giữ nguyên term cũ và gọi profile mới kèm `search`.
+
+**Demo MSW**
+- `handlers.ts` `postsMatching` lọc `/social/posts` và `/social/posts/user/:id` theo `?search=`.
+- Trước đây demo bỏ qua `search`, nên khi backend sập ô search trả đủ bài.
+
+**Test**
+- `api/listSearch.test.ts`: 11 endpoint gửi đúng tên param, trim, bỏ khi rỗng, `status` + `q` đi cùng nhau.
+- `useListSearch.test.ts`, `SearchField.test.tsx`.
+- `queryKeys.test.ts` "searched list keys".
+- `handlers.test.ts` (demo lọc theo search).
+
+**Verify**
+- Unit: 165 file / 1438 test.
+- e2e: smoke buyer + shop + admin, deep `order-history`, `return-request`, `seller-orders`, `seller-returns`, `seller-vouchers`, `post-moderation` ⇒ 47 pass, 1 flaky. Flaky là `post-moderation` do bug timer toast có sẵn, xem snapshot §Còn lại phía FE.
+- MCP, 3 role:
+  - hit / miss / xoá cho từng page;
+  - `/sell/orders?status=canceled&page=2` gõ ⇒ URL về `?status=canceled`, request `page=1&status=canceled&q=…`;
+  - 3 phím nhanh ⇒ 1 request;
+  - chuyển profile ⇒ ô trống, request không có `search`.
+
+### SOCIAL-LIKE-NTF-01 · Thông báo "thích bài viết", gộp một dòng mỗi bài (2026-09-28)
+
+Class **B** phía FE: BE cũ không bao giờ gửi `type: "like"`, nên code mới nằm im cho tới khi `api`
+lên. Push một mình được. Cây hiện tại vẫn bị EXPORT-CSV-01 T4+T5 giữ ở lớp C.
+
+**Hiển thị** (`notificationDisplay.ts`):
+- type `like`: icon `Heart`, tint đỏ (`text-accent-red bg-tb-red/10`), title "Lượt thích mới".
+- Body lấy số N từ `message` (contract BE: `"Someone liked your post"` = 1,
+  `"<N> people liked your post"` = N) qua helper `likeCount`. Không khớp thì coi N = 1.
+  - N = 1: "@actor đã thích bài viết của bạn."
+  - N > 1: "@actor và N-1 người khác đã thích bài viết của bạn."
+  - Không có `actor` thì dùng "Có người".
+- `like` vào `SOCIAL_TYPES` ⇒ deep link `/post/:postId`.
+
+**Cache socket** (`notificationCache.ts`):
+- `prependNotification` → `upsertNotification`. Id đã có ⇒ thay dòng đó bằng bản mới, đưa lên
+  đầu, `total` giữ nguyên. Trước đây id trùng bị bỏ qua, nên dòng gộp sẽ kẹt ở message cũ.
+- `unreadBadgeUpdate` (pure) quyết định badge: `increment` / `refetch` / `none`.
+  - `like` luôn `refetch`: dòng gộp có thể đã được đếm mà nằm ngoài page 1, client không phân
+    biệt được mới hay cũ.
+  - Type khác giữ như cũ: +1 khi thật sự chèn dòng mới.
+
+**e2e:** `notifications.buyer.spec.ts`, deep đầu tiên của `/notifications` (nợ deep còn 16/30).
+- Buyer mở trang, shop thích bài `[E2E]` ⇒ dòng hiện qua socket, không cần reload.
+- Admin thích tiếp ⇒ **cùng** `data-testid` đổi thành "@testadmin và 1 người khác…", vẫn 1 dòng,
+  và nằm trên cùng.
+- Spec tự dọn: đánh dấu đã đọc, xoá bài.
+- Đã chứng minh spec bắt được bug: trả `upsert` về hành vi cũ thì spec fail đúng ở bước thay tại
+  chỗ.
+- Assert badge tự bỏ qua khi badge hiện "99+". Account buyer seed đang có 135 chưa đọc, nên nhánh
+  này chưa chạy thật; logic badge có unit test phủ.
+- Thêm `data-testid="notification-<id>"` trên dòng ở `NotificationsPage`, và 3 helper
+  `likePost` / `postNotificationIds` / `markNotificationRead` trong `e2e/api.ts`.
+
+**Verify:** smoke buyer 22/22. MCP (theme sáng, stack local): icon tim, câu gộp đúng; bấm dòng ⇒
+`/post/post_…`.
+
+**Gates:** build ✓ · check:bundle ✓ (659 690 / 750 000) · lint ✓ · test:run **1381 / 160 file** ✓.
+
+### EXPORT-CSV-01 T4 + T5 · Admin xuất CSV toàn sàn + export chạy nền cho khoảng dài (2026-09-28)
+
+Class **C** phía FE: FE mới gọi `GET /order/export/jobs` mỗi lần mở trang, mà route này **chưa có
+trên prod**. HOLD ở `release-gate.md`; `api` phải push trước, vì cần migration
+`nodeA-20260928-001-add-export-jobs`. Phía `api` một mình là lớp B.
+
+**Đổi tên (`git mv`, giữ history)**, để seller và admin dùng chung một bộ:
+- `sellerOrderExport.ts` → `orderExport.ts`
+- `SellerOrderExportPanel.tsx` → `OrderExportPanel.tsx` (prop `scope`)
+- `useSellerOrderExport.ts` → `useOrderExport.ts`
+- hai file test tương ứng
+
+Những tên cũ nhắc trong các entry EXPORT-CSV-01 (2026-09-17) bên dưới là tên lúc viết.
+
+**API** (`api.orders`):
+- mới: `exportAdminOrders`, `createExportJob(scope, params)`, `getExportJobs`, `downloadExportJob(id)`;
+- hai đường tải CSV dùng chung `fetchCsv` (raw `fetch` → blob, lỗi thì đọc `message` từ body).
+
+Query key mới: `queryKeys.orders.exportJobs`.
+
+**T4 — admin:**
+- Section "Xuất đơn hàng (CSV)" nằm trên `/admin/analytics`, vì admin không có màn danh sách đơn.
+- `ExportSellerPicker` (tuỳ chọn): tìm qua `/user/search`, debounce 300ms, ≥ 2 ký tự; chọn xong hiện chip + nút bỏ lọc.
+- Tên file `trybuy-orders-all-<from>-<to>.csv`.
+
+**T5 — export chạy nền:**
+- Khoảng 91–366 ngày: nút "Xuất CSV" nhường chỗ cho "Tạo file trong nền".
+- Export trực tiếp trả 400 vì quá số dòng (`isOverSyncRowCap`): vẫn hiện lỗi nguyên văn, và thêm nút tạo job.
+- `ExportJobList` ("File đã xuất"):
+  - lọc theo `scope`;
+  - poll **list** mỗi 4s, chỉ khi còn job `pending`/`running` (`exportJobsRefetchInterval`);
+  - nút "Tải" chỉ hiện khi `done`.
+- Lỗi 409/410/429/404 map sang câu tiếng Việt (`exportJobErrorMessage`).
+- Hook seller tự bỏ `sellerId`, vì BE `forbidNonWhitelisted` sẽ trả 400.
+
+**Test:** `orderExport.test.ts` phủ mọi helper mới (cap 366 ngày ở biên, map lỗi, interval poll,
+nhãn trạng thái). `OrderExportPanel.test.tsx` có 17 test cho 3 nhánh: direct seller, job, admin
+(gửi `sellerId`, 404, body job admin).
+
+**Verify (stack local):**
+- Probe contract bằng shop:
+  - `admin/export` → 403;
+  - job kèm `sellerId` → 400;
+  - tạo job → 202, tải sớm → 409, sau ~4s ra `done`;
+  - download 200 `text/csv`.
+- e2e: `seller-orders.shop` 2/2, smoke shop 12/12, smoke admin pass (gồm `/admin/analytics`).
+- MCP:
+  - panel seller + admin, dropdown chọn người bán, chip, list job đều thẳng hàng;
+  - 390px không tràn ngang. Lần đo thấy tràn là do canvas chart không co lại khi resize; reload thì hết.
+
+**Gates:** build ✓ · check:bundle ✓ (659 538 / 750 000) · lint ✓ · test:run **1370 / 160 file** ✓.
+
+**Còn nợ:** deep e2e cho `/admin/analytics`. Ghi chú UX: `/user/search` không trả role, nên có
+thể chọn nhầm buyer; khi đó file rỗng, không lỗi.
+
+### E2E-DEBT · 5 deep spec: `/sell/returns`, `/returns`, `/cart`, `/orders`, `/admin/reports` (2026-09-28)
+
+Class **A**: chỉ FE — `data-testid` (không đổi giao diện) + `e2e/`. Nợ deep 22/30 → **17/30**.
+
+**Spec mới** (đều tự dọn dữ liệu):
+- `return-request.buyer.spec.ts` — `/order/:id` gửi yêu cầu trả hàng → panel "Chờ duyệt", đơn
+  `return_requested` → thẻ trên `/returns`. `finally`: shop từ chối ⇒ đơn về `completed`. Chỉ chọn
+  đơn buyer đặt với chính account shop, để shop dọn được.
+- `seller-returns.shop.spec.ts` — nhánh **từ chối**: nút xác nhận khoá tới khi có lý do → thẻ rời
+  tab "Chờ duyệt", đơn về `completed`, thẻ nằm ở tab "Từ chối" với lý do. Tái dùng yêu cầu `[E2E]`
+  còn treo hoặc seed qua context buyer; không bao giờ đụng yêu cầu không gắn `[E2E]`. Nhánh duyệt
+  cố ý không tự động hoá (hoàn tiền một chiều, đốt một đơn mỗi lần chạy).
+- `cart.buyer.spec.ts` — +1/−1 số lượng (kiểm qua API), bỏ chọn hết ⇒ "ĐẶT HÀNG (0)" khoá,
+  chọn một phần ⇒ `/checkout` nhận đúng n−1 dòng. Giỏ giữ nguyên, không đặt đơn.
+- `order-history.buyer.spec.ts` — chỉ đọc: badge đếm khớp `status-counts`, tab lọc server-side,
+  tìm theo mã đơn → trang chi tiết.
+- `post-moderation.admin.spec.ts` — buyer đăng bài `[E2E]`, shop report → admin "Ẩn bài viết"
+  (rời "Chờ xử lý") → tab "Đã xử lý" → "Hiện lại". `finally`: xoá bài.
+
+**Hạ tầng:** +10 helper trong `e2e/api.ts` (`orderStatus`, `sellerOrderIds`, return-request
+list/create/reject, `cartLines`, `orderStatusCounts`, `createPost`/`reportPost`/`deletePost`).
+Testid: `seller-return-<id>`, `return-request-<id>`, `cart-line-<id>` + `cart-line-qty` +
+`cart-subtotal`, `reported-post-<id>`. `routes.ts` và bảng Spec → audit trong `e2e/README.md` cập nhật.
+Snapshot: nợ runtime "trả hàng nhánh từ chối" đóng.
+
+**Chạy:** từng spec riêng xanh; lượt gộp (3 smoke + 5 spec mới + `checkout-resilience`) **46/47**
+với uptime gateway liền mạch 175 → 347s. Ca đỏ là smoke `/returns`: một chùm 502 trên `/api/cart`,
+`/api/notifications`, return-requests (service phía sau restart) — `--last-failed` xanh. Sau
+chạy: 0 yêu cầu trả hàng treo, 0 report treo, buyer `return_requested` 0, giỏ còn 2 dòng.
+Gates: `build` ✓ · `check:bundle` 655,730/750,000 ✓ · `lint` ✓ · `test:run` 160 file / 1344 ✓.
+MCP bỏ qua: markup chỉ thêm attribute. Không có gap BE.
+
+**Bẫy Git Bash:** `npx playwright test -g "/returns "` báo "No tests found" vì MSYS đổi `/returns`
+thành đường dẫn Windows — thêm `MSYS_NO_PATHCONV=1`.
+
 ### THEME-06 · Theme sáng lên production (F13 xong): rà mọi route, sửa tương phản ở tầng token, gỡ 2 cổng dev (2026-09-27)
 
 Class **A**: chỉ FE, không cần BE. Đây là bước 6/6 của F13. Từ commit này người dùng thật thấy
@@ -71,6 +1022,24 @@ View quên mật khẩu trong `/login` được bấm vào để đo. Rà ra đ�
 có, nhưng class mới `bg-tb-gradient-text` không được sinh ⇒ số liệu `/login` tàng hình trên dev
 (chữ trong suốt, nền `none`). `touch` config cũng không ăn. Prod build thì đúng. Thêm token Tailwind
 thì phải restart `npm run dev` trước khi soi bằng MCP.
+
+**Rà lại trên prod sau deploy `081d5a3`.** Dùng `user1`/`shop1`/`admin1` prod, mỗi role một
+context riêng. Quét đủ mọi route của 3 role, kể cả route động `/post/:id`, `/product/:id`,
+`/order/:id`, `/sell/:id`, `/profile/:id`, và kiểm các route bị chặn theo role. Kết quả: không route
+nào crash, và chỉ lọt đúng **1** lỗi mà lượt rà local không thấy (dữ liệu local không có địa chỉ
+đang được chọn):
+- **Lỗi:** SĐT trong thẻ địa chỉ đang chọn ở `/checkout` (`AddressBookPicker`) dùng
+  `text-ink-muted` trên nền `bg-tb-amber/5`, chỉ đạt **4.47**.
+- **Sửa:** đổi sang `text-ink-sec` → 6.54, cùng màu với dòng địa chỉ bên dưới.
+- **Test mới** ở `themeTokens.test.ts`: `ink-pri`/`ink-sec` phải đạt AA trên tint /10 của
+  amber/red/green/cyan, trên cả 3 nền.
+- **Quy tắc mới** ở `styling.md`: chữ trung tính trên nền tint accent không được dùng `ink-muted`.
+- Smoke buyer + `checkout-resilience`: 24/24.
+
+**Không phải lỗi, ghi lại để khỏi đo lại.** Mở 3 tab prod cùng lúc thì `/health` của một tab bị
+huỷ ở mốc 3s (`HEALTH_PROBE_TIMEOUT_MS`), nên tab đó vào demo mode. Khi đó `POST /user/login`
+trả 503 "outside its scheduled window", đúng như thiết kế. Reload thì probe lại online và đăng
+nhập được.
 
 **Còn lại (tuỳ chọn, THEME-07 trong snapshot):** 5 cặp dưới AA của bảng **tối** có từ trước F13.
 `components/ui/` vẫn ngoài phạm vi.

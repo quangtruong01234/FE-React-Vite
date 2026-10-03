@@ -163,5 +163,12 @@ consumer releases.
   also uses `useState` in `useChat`; `mergeMessages` dedupes the overlap.
 - A `new_message` / `notification` event also updates the **list preview, order, and unread
   badge** — `applyIncomingMessage` on `queryKeys.conversations.all`, or the notification
-  count. Keep the notification *list body* driven by its own fetch, not the socket.
+  count.
+- A `notification` event is **upserted** into page 1 of the list
+  (`upsertNotification` on `queryKeys.notifications.list(1)`, `notificationCache.ts`):
+  - A new id is prepended with `total + 1`.
+  - A known id **replaces** that row and moves it to the top, with `total` unchanged. The
+    backend re-pushes aggregated rows (`like`: one unread row per post) under the same id.
+  - `unreadBadgeUpdate` decides the badge: `+1` only on a real insert, and a refetch of
+    `unreadCount` for `like`, since a re-pushed row may already be counted off page 1.
 - Do **not** use an unrelated query key (e.g. `queryKeys.auth.me`) as a channel for WS data.

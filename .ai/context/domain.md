@@ -81,17 +81,28 @@ Sở hữu: `src/features/cart/voucher.ts`.
 - **Hai bước tách biệt:** `POST /order/voucher/validate` chỉ **preview** (không redeem);
   `POST /order` nhận `voucherCode` optional và mới thực sự dùng mã.
 - Mã **case-insensitive** — normalize uppercase trước khi gửi/so sánh (`normalizeVoucherCode`).
-- **Chỉ áp dụng cho giỏ một seller.** Giỏ nhiều seller + có mã → **400**. Đếm seller bằng
-  `distinctSellerCount`, **bỏ qua** item chưa load xong product (seller `undefined`) — nếu
-  không, guard sẽ bật/tắt loạn giữa lúc load.
+- **Ghép mã (VOUCHER-SHOP-01 phase 2):** mỗi checkout tối đa **1 mã sàn** (`sellerId: null`)
+  + **1 mã cho mỗi shop**, kể cả giỏ nhiều shop. Mã shop tính trên tiền hàng của shop đó, mã sàn
+  tính **sau**, trên phần còn lại. BE luôn định giá **cả bộ** — thêm/bỏ mã nào cũng validate lại
+  toàn bộ danh sách (`nextVoucherCodes`); chọn mã sàn thứ hai / mã thứ hai cùng shop từ gợi ý ⇒
+  **thay** mã đang giữ slot đó.
+- **Tương thích BE cũ:** 1 mã vẫn gửi qua `code` (validate) / `voucherCode` (create); chỉ 2+ mã
+  mới dùng `voucherCodes` (`voucherValidateCodes` / `voucherCreateCodes`). Response không có
+  `vouchers[]` ⇒ một dòng, scope không rõ (`appliedVoucherRows`).
+- Trên `Order`: có cả mã shop lẫn mã sàn ⇒ `voucherCode` = mã shop, `platformVoucherCode` = mã sàn;
+  chỉ mã sàn ⇒ nằm ở `voucherCode`. Hiển thị qua `orderVoucherLabel` (`A + B`). `checkoutId`
+  chung cho các đơn con của một checkout nhiều shop.
 - **Thứ tự tính tiền** (mirror backend, `discountedGrandTotal`):
   `total = max(0, itemsTotal − discount) + shippingFee`
   → discount **không** ăn vào phí ship; clamp ở 0 xảy ra **trước** khi cộng ship.
 - Trên `Order`: `total` đã trừ discount sẵn; `discountAmount` có thể về dạng **string decimal**
   (`"50000.00"`) ở response cũ → luôn `Number()` trước khi tính.
-- Lỗi: **404** = mã không tồn tại/đã vô hiệu. **400** = bị từ chối, phân loại theo keyword
-  trong message backend (`expired` · `not started` · `min` · `per-user`/`already` · `usage`/
-  `limit` · `seller`/`multi`) — xem `voucherErrorMessage`.
+- Lỗi: **404** = mã không tồn tại/đã vô hiệu. **400/409** = bị từ chối, phân loại theo keyword
+  trong message backend (`one platform voucher` · `same shop` · `only applies to items from the
+  shop` · `expired` · `not started` · `min` · `per-user`/`already` · `usage`/`limit` · `seller`/
+  `multi` cho BE cũ) — xem `voucherErrorMessage`. Message phase 2 có tên mã (`Voucher SALE10 …`):
+  helper tách mã ra để nêu tên **và** gỡ nó khỏi chuỗi trước khi so keyword (mã `MINUS10` không
+  được đọc thành "min").
 
 ### Voucher console (F3-ADMIN)
 
@@ -161,6 +172,13 @@ mà không rò sang tab khác hay session sau.
 - `Idempotency-Key` random được **giữ nguyên** khi signature không đổi (double-submit / retry
   mạng replay đúng order cũ, không tạo đơn trùng), và **sinh mới** khi giỏ đổi nội dung (giỏ
   khác về bản chất = đơn logic mới).
+- **Kết quả không rõ (SWEEP-1002-01):** sau `408` / `5xx` / mất mạng, BE **giữ key 300s** vì đơn
+  có thể vẫn đã tạo; retry cùng key trong 300s nhận `409 "A duplicate order request is already being
+  processed"` (không có `errorCode` ⇒ khớp theo chữ), sau 300s có thể ra **đơn thứ hai**.
+  `isOrderOutcomeUnknown()` gom các ca này ⇒ `CheckoutPage` không hiện lỗi chung mà hiện cảnh báo +
+  link `/orders`; lần submit sau phải qua `ConfirmDialog`, và chỉ confirm mới xoá `idemKeyRef` để
+  sinh key mới. 4xx khác = từ chối chắc chắn (BE đã nhả key) ⇒ giữ đường lỗi cũ. Lưu ý: `request()`
+  tự retry 503 một lần cùng key ⇒ 503 từ handler thường lộ ra thành chính 409 này.
 
 ### Payment URL
 

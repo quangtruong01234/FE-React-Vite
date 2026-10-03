@@ -1,6 +1,6 @@
 # Snapshot — TryBuy Frontend Current State
 
-> Cập nhật: 2026-09-27 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
+> Cập nhật: 2026-10-03 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
 > Keep this LEAN: chỉ giữ bức tranh sống (overview, việc còn mở/bị chặn, known issues).
 > Việc đã xong nằm ở `CHANGELOG.md` (cùng thư mục, không auto-load) — **đừng chép lại vào đây**.
 > Convention/rule nằm ở `.ai/context/` — cũng không duplicate vào đây.
@@ -15,8 +15,8 @@ kể cả P0-03: nhánh create atomic BE-side từ INV-CONTRACT-01 (prod 2026-08
 Public-ID migration (PUBID-01–07) đã
 xong — storefront id là opaque string end-to-end.
 
-**Gates (chạy lại 2026-09-27, sau AUD-0925-03):** `npm run build` ✓ · `npm run check:bundle` ✓ ·
-`npm run lint` 0 problem · `npm run test:run` **1343 test / 160 file**, all pass. Không đóng item
+**Gates (chạy lại 2026-10-03, sau `/sweep 3` ORDER-TIMELINE-01 + RETURN-PHOTO-01 + CHAT-E2E-CLEANUP-01):** `npm run build` ✓ · `npm run check:bundle` ✓ ·
+`npm run lint` 0 problem · `npm run test:run` **1641 test / 179 file**, all pass. Không đóng item
 nào khi 4 lệnh này chưa xanh. E2E smoke (không thuộc gate) **43/43 pass, 0 skip** trên stack local
 sau THEME-05 (2026-09-26), chạy trên dev server **mới khởi động** (pitfalls §18).
 
@@ -54,11 +54,11 @@ mới tới doc.)*
 
 | Ngày | Item |
 |---|---|
-| 2026-09-27 | **THEME-06 · theme sáng lên production** (class **A** — chỉ FE; F13 xong). Rà mọi route trong `e2e/routes.ts` với 4 role ở theme sáng bằng script đo tương phản qua MCP ⇒ 2 lỗi, sửa ở tầng token: (1) giá `PriceText` + số liệu `/login` là chữ clip gradient CTA (~2.1:1 trên trắng) ⇒ token mới `bg-tb-gradient-text` (`--tb-gradient-text`, sáng `#964308→#B91C1C`); (2) chip tint dưới AA ⇒ accent sáng đậm hơn: amber `#964308`, green `#066A4B`, cyan `#0C6A84` (+ `chartTheme.ts`). Gỡ cả 2 cổng (`THEME_SWITCH_ENABLED` + `%DEV%` trong `index.html`, bỏ luôn `isSwitchEnabled`). Test mới: chip trên tint của nó, 2 đầu gradient chữ, script pre-paint không còn placeholder Vite. e2e `theme-persist.public.spec.ts` (bật → reload → giữ; và chặn bundle ⇒ vẫn sáng = không nháy tối). Smoke 4 role 45/45, Lighthouse a11y 100 ở theme sáng. |
-| 2026-09-27 | **AUD-0925-03 · nút "+" số lượng dừng ở 999** (class **A** — chỉ thêm `disabled`). BE nay trả 400 khi một dòng giỏ vượt 999; stepper "+" ở `/cart` và `/checkout` không có trần mà lỗi update lại không hiện ra UI ⇒ bấm ở 999 là một 400 im lặng. `cartQuantity.ts` (`MAX_CART_LINE_QUANTITY`, `canIncreaseCartLine`) khoá nút ở 999. `ProductDetail` không đổi (trần 99 mỗi lượt thêm). +4 test. Smoke `/cart` + `/checkout` ✓, `checkout-resilience` 2/2 ✓. |
-| 2026-09-26 | **EMAIL-REAUTH-01 · đổi email phải nhập mật khẩu hiện tại** (class **C** — push `api` trước; cây FE còn bị RAIL-RANK-01 giữ). `EditProfileModal` hiện `PasswordField` "Mật khẩu hiện tại" chỉ khi email khác email đã lưu (so sánh exact như BE, đổi hoa/thường cũng tính). `profileForm.ts`: `profileFormSchemaFor`, `profileUpdatePayload` (chỉ gửi `currentPassword` khi email đổi — BE cũ 400 key lạ), `profileUpdateError` (401 theo `errorCode` qua helper chung `currentPasswordAuthError`, 429, 400, 409). `api.users.update` bỏ redirect 401 khi có `currentPassword` ⇒ gõ sai mật khẩu không bị đá về `/login`. +17 test. MCP trên stack local: BE thật trả 401, lỗi hiện đúng ô. |
-| 2026-09-26 | **THEME-05 · chart theo theme** (class **A** — chỉ FE; theme tối vẽ y hex cũ, theme sáng chỉ bật ở dev). `chartTheme.ts` giữ **một palette mỗi theme** (`CHART_PALETTES`); data chỉ lưu vai trò màu (`ChartColor`: `'amber'`, `'red'`…), chart tự tra palette qua hook mới `useChartPalette()` và thêm palette vào deps của `useMemo` ⇒ đổi theme là chart vẽ lại, không cần reload. Tooltip thành `chartTooltipStyle(palette)`. Chấm legend dùng class token (`CHART_DOT_CLASS`) ⇒ **bỏ ngoại lệ inline style của `ChartLegend`**. Guard màu hẹp lại từ `lib/chart/**` còn đúng `chartTheme.ts`; test mới đọc `index.css` và đòi mọi hex của 2 palette khớp token của nó. +6 test. CSS +13 B gzip (đo chung với THEME-04-FU). Smoke 43/43. |
-| 2026-09-26 | **THEME-04-FU · nút tim trên ảnh ở theme sáng** (class **A** — chỉ class). Nút tim của `ProductCard`/`WishlistPage` giờ nằm trên chip theo theme `bg-canvas-elevated/90 backdrop-blur-sm border border-bdr` thay vì scrim đen ⇒ màu icon sẵn có (`ink-sec` / `accent-red`) đủ tương phản ở cả 2 theme. Không thêm prop `onImage` như snapshot đề xuất; `WishlistButton` không đổi. Theme tối đổi nhẹ: scrim đen trong → chip xám nổi có viền. +1 test. |
+| 2026-10-03 | **CHAT-E2E-CLEANUP-01 · deep e2e cho `/messages` ⇒ E2E-DEBT 0/30** (class **A** — e2e + 1 `data-testid`). `e2e/api.ts` thêm `conversationWith`/`chatMessageIdByContent`/`deleteChatMessage` (204/404 = sạch); spec mới `messages.buyer` (profile shop → "Nhắn tin" → gửi → "Đã gửi" → reload còn tin → `finally` xoá cứng bằng session buyer). `ChatThread` bong bóng có `data-testid="chat-message"`. **Chưa chạy lần nào** — backend local tắt. |
+| 2026-10-03 | **RETURN-PHOTO-01 · ảnh bằng chứng khi yêu cầu trả hàng** (FE class **C** cho phần ảnh — push `api` trước; trả hàng chỉ có lý do không đổi). `ReturnPhotoPicker` + `useReturnPhotos` (≤5, JPG/PNG/WEBP ≤10MB, xoá upload mồ côi khi bỏ/đóng form), `returnRequestPayload()` chỉ gửi `imageUrls` khi có ảnh, `ReturnPhotoStrip` trên `/order/:id`, `/returns`, `/sell/returns`. +8 unit test. Verify runtime còn nợ (backend tắt). |
+| 2026-10-03 | **ORDER-TIMELINE-01 · card "Lịch sử đơn hàng" trên `/order/:id` — đóng F12** (class **B** — BE cũ 404 ⇒ card ẩn). `useOrderHistory` (`retry: false`) + `orderTimelineRows()` (22 mã GHN vi/en, mã lạ hiện nguyên) + `OrderHistoryCard`; `order-detail.buyer` thêm 1 test đọc (skip khi route 404). +8 unit test. Verify runtime còn nợ (backend tắt). |
+| 2026-10-02 | **SWEEP-1002-01 · đặt hàng lỗi không rõ kết quả ⇒ không retry mù cùng key** (class **A** — chỉ FE, đúng với BE cũ lẫn mới). `isOrderOutcomeUnknown()` (408 / 5xx / mất mạng / 409 "duplicate … already being processed") ⇒ `CheckoutPage` hiện cảnh báo amber + link `/orders`, lần bấm sau mở `ConfirmDialog`, chỉ confirm mới sinh key mới. 4 unit + e2e mới trong `checkout-resilience.buyer`; MCP sáng/tối OK. |
+| 2026-10-02 | **E2E-FILL-03 · deep e2e cho `/` + nhánh EMAIL-REAUTH-01 + 2 lỗ a11y; `/messages` chuyển BE** (class **A** — chỉ FE). Spec mới `feed.buyer` (composer → tìm → like/unlike từ thẻ → sửa/xóa qua menu thẻ, đối chiếu API); `profile.buyer` thêm test đổi email → ô mật khẩu bắt buộc → sai mật khẩu báo đúng ô, không về `/login`, email API không đổi. a11y: nút gửi bình luận `/post/:id` có `aria-label` (`sendComment` vi/en), nút Thích ở `PostCard` có `aria-pressed`. E2E-DEBT còn 1/30 (`/messages`) chờ **CHAT-E2E-CLEANUP-01** ở `backend-handoff.md`. Build/lint ✓, 1621 unit test ✓, e2e buyer 43 ✓ / 2 skip (data guard sẵn có, không liên quan). |
 
 ## Active Tasks — open / blocked
 
@@ -136,15 +136,15 @@ hoặc tiptap nới peer range. Bối cảnh + bài học "đừng xoá lockfile
 
 *(verify từ code thật 2026-08-14; không mục nào chặn runtime — đây là scale-consistency + lint)*
 
-- 🟢 **E2E-DEBT — 22/30 route mới có smoke, chưa có deep spec** (đo từ `e2e/routes.ts`
-  2026-09-25; có deep: `/login`, `/marketplace`, `/checkout`, `/order/:id`, `/payment-result`,
-  `/sell`, `/sell/orders`, `/sell/vouchers`). Smoke mở được cả 30 route; thứ còn thiếu là spec đi hết một flow thật.
-  Top 3 theo rủi ro (tiền + chuyển trạng thái): **`/sell/returns`** (duyệt trả hàng–hoàn tiền;
-  cần seed một đơn `delivered` kèm yêu cầu trả hàng đang chờ, local hiện không có), **`/cart`**, **`/orders`**.
-  Sau đó `/returns`, rồi admin
-  moderation, cuối cùng các trang chỉ đọc. `/profile/:id` nay có một flow đáng deep spec
-  (EMAIL-REAUTH-01: đổi email → ô mật khẩu hiện ra → sai mật khẩu báo lỗi đúng ô, không về
-  `/login`). Nên dùng một account throwaway, **đừng** đổi email của account seed.
+- 🟢 **E2E-DEBT — 0/30 route chỉ có smoke** (đo từ `e2e/routes.ts` 2026-10-03; `/messages` =
+  `messages.buyer`, viết sau khi BE thêm `DELETE /api/chat/messages/:id` — CHAT-E2E-CLEANUP-01).
+  **Nợ chạy:** `messages.buyer` và test ORDER-TIMELINE-01 trong `order-detail.buyer` được viết
+  2026-10-03 lúc backend local tắt ⇒ **chưa chạy lần nào**; `/sweep` kế tiếp có stack thì chạy
+  hai spec này trước, cùng smoke `/order/:id`, `/returns`, `/sell/returns` (RETURN-PHOTO-01 chưa
+  verify runtime, cũng chưa xem bằng MCP). EMAIL-REAUTH-01 đã có nhánh từ chối trong `profile.buyer` (không bao giờ đổi
+  email thật của account seed — nhánh thành công vẫn cố ý không tự động hoá).
+  Trả hàng chỉ có nhánh **từ chối** trong suite — nhánh duyệt là hoàn tiền một chiều, cố ý không
+  tự động hoá.
   Cách làm: `/e2e fill [n]` (`.ai/workflows/e2e.md`); `/sweep` chỉ chọn mục này khi không còn
   🔴/🟡. Mỗi route xong → bỏ khỏi danh sách và cập nhật số đếm; `/sweep audit` làm tươi lại con số.
 
@@ -319,14 +319,13 @@ xuất lại.)*
 
 **Luồng phụ:**
 
-- 🟢 **F12 — Dòng thời gian giao hàng cho người mua trên `/order/:id`.** Hiện buyer chỉ thấy trạng
-  thái hiện tại + ngày giao dự kiến; `Order` chỉ có `createdAt`/`paidAt`, không có lịch sử chuyển
-  trạng thái. Lịch sử GHN có ở `GET /order/admin/ghn/orders/:id/history` nhưng **chỉ admin**. **BE:
-  có** — cần endpoint buyer-scoped (vd. `GET /order/:id/history`: status transition + sự kiện GHN) ⇒
-  mở entry trong `../.agent-local/backend-handoff.md` khi user chọn. Công M–L. Test: helper dựng
-  timeline + mở rộng `order-detail.buyer.spec.ts`.
-- *Suýt vào danh sách:* ảnh bằng chứng khi yêu cầu trả hàng — `CreateReturnRequestDto` chỉ có
-  `reason` ⇒ cần BE thêm field ảnh; hạ tầng upload phía FE đã có.
+- ✅ **F12 — Dòng thời gian cho người mua trên `/order/:id`** — xong 2026-10-03 (ORDER-TIMELINE-01,
+  BE mở route `GET /order/:id/history`) — xem Recent closes / `CHANGELOG.md`.
+- ✅ *Suýt vào danh sách:* ảnh bằng chứng khi trả hàng — xong 2026-10-03 (RETURN-PHOTO-01).
+- 🟢 **UPLOAD-GRID-DRY-01 — đề xuất, chưa làm.** Lưới ảnh upload (thumbnail + nút xoá + ô "thêm")
+  nay có **3 bản**: form sản phẩm seller, `CreatePostModal`, `ReturnPhotoPicker`. Quá ngưỡng DRY ⇒
+  đề xuất tách `components/shared/ImageUploadGrid` (+ hook upload chung). Chờ user đồng ý — không
+  refactor lén trong `/sweep`.
 
 **F13 — Công tắc sáng / tối cho toàn web** *(user chọn 2026-09-25, làm tuần tự THEME-01 → 06, mỗi
 bước một `/sweep`)*. BE: không. Mọi bước class A (chỉ FE). Quyết định đã chốt:
@@ -356,6 +355,79 @@ tới THEME-06, nên người dùng thật không bao giờ thấy chế độ s
 - *Ngoài phạm vi:* `components/ui/` dùng `bg-background`/`text-foreground`/… nhưng config
   không định nghĩa các màu đó ⇒ hiện chúng không ra màu gì. Định nghĩa chúng thì giao diện tối cũng
   đổi theo ⇒ phải có quyết định riêng.
+
+**F14 — Song ngữ Tiếng Việt / English (i18n)** *(user chọn 2026-10-01, làm tuần tự I18N-01 → 07,
+mỗi bước một lượt)*. BE: không. Mọi bước class **A** (chỉ FE). Quy mô đo 2026-10-01: ~168 file
+non-test chứa chuỗi tiếng Việt, ~1 400 dòng. Quyết định đã chốt:
+(1) **không thêm dependency** — tự viết lớp i18n nhỏ, có type (`src/lib/i18n/`), không dùng
+`react-i18next`; (2) **từ điển đặt cạnh feature** (`<feature>/<name>.i18n.ts`, `defineMessages({ vi, en })`)
+thay vì một file trung tâm ⇒ chuỗi của trang lazy nằm trong chunk lazy, entry chunk không phình
+(`check:bundle`); `en` bị TypeScript ép đủ key của `vi` ⇒ thiếu bản dịch là lỗi build;
+(3) **mặc định luôn là `vi`**, không đọc `navigator.language` — người dùng chính là người Việt, và
+Playwright chạy `en-US` trong khi mọi e2e assert chữ Việt; lựa chọn của user nhớ ở `localStorage`
+key `tb-lang`, `<html lang>` đặt trước first paint như theme; (4) **chuỗi do BE sinh ra không dịch**
+(message lỗi, nội dung thông báo từ server) — chỉ dịch chuỗi FE tự viết, kể cả nhãn FE ánh xạ từ
+`errorCode`/status; (5) tiền vẫn là VND; ngày giờ định dạng theo ngôn ngữ (`vi-VN` / `en-US`).
+Công tắc nằm cạnh công tắc theme (ProfileMenu + `/login`).
+
+⏸️ **TẠM DỪNG sau I18N-01 (user dặn 2026-10-01 "ghi vào snapshot để làm sau").** I18N-02 → 07
+**chưa làm**, đừng tự nhận làm tiếp; chỉ làm khi user bảo. Điểm tiếp tục là **I18N-02**.
+*(2026-10-02: user bảo làm I18N-02 → đã xong; rồi bảo làm I18N-03 → đã xong; rồi "làm 04 luôn" → đã xong; rồi "tiep tuc I18N-05" → đã xong; rồi `/sweep lam task i18n` → I18N-06 đã xong; rồi "làm tiếp I18N-07" → đã xong ⇒ **F14 đóng**.
+Code I18N-02 → 07 cũng chưa commit/push, và quyết định công tắc bên dưới vẫn chưa có — giờ cả app
+đã dịch nên cách 1 (push luôn, không giấu công tắc) không còn trộn ngôn ngữ.)*
+- Code I18N-01 đang nằm trong working tree, **chưa commit, chưa push**. Nó lẫn với các thay đổi
+  khác chưa commit, nên phải `git status` trước khi commit.
+- ⚠️ **Trước khi push, cần user quyết định:** công tắc đã hiện thật nhưng mới dịch được khung app.
+  Người dùng chọn EN sẽ thấy nav/menu tiếng Anh còn nội dung trang vẫn tiếng Việt. Hai cách:
+  1. Push như vậy (chấp nhận trộn hai ngôn ngữ).
+  2. Giấu công tắc tới khi xong I18N-07, giống cách F13 từng gác `THEME_SWITCH_ENABLED` rồi gỡ ở THEME-06.
+
+- ✅ I18N-01 (nền móng + công tắc + khung app) đã xong 2026-10-01 — xem Recent closes / `CHANGELOG.md`.
+  **Cách làm cho các bước sau:** tạo `<feature>/<name>.i18n.ts` bằng `defineMessages({ vi, en })`;
+  component gọi `const t = useT(book)`; helper thuần nhận thêm `lang: Lang = 'vi'` (xem
+  `soldCountLabel`, `roleLabel`, `monthTitle`) và component truyền `useLanguage().lang` vào. Prop
+  có default tiếng Việt ⇒ bỏ default, render `prop ?? t(key)`. Không cần provider trong test (context
+  mặc định là `vi`) ⇒ test cũ assert chữ Việt vẫn chạy nguyên. Còn để lại cho I18N-07: chữ trong
+  `BackendOfflineBanner` (nằm ở `lib/demo/backendStatus`); cho I18N-05: `relativeTime` + nội dung
+  trong `NotificationBell` (qua `notificationDisplay.ts`).
+- ✅ I18N-02 (auth, user, address, search, wishlist, payment) đã xong 2026-10-02 — xem Recent
+  closes / `CHANGELOG.md`. **Cách làm thêm cho zod:** message trong schema là **key** của book
+  (`userMsg('nameRequired')`), component render qua `translateIfKey(book, lang, text)` ⇒ lỗi từ
+  server (không phải key) đi qua nguyên văn. Còn để lại cho I18N-07: các caller khác của
+  `listSearchEmptyText` (admin, seller, feed, voucher — vẫn mặc định `vi`), câu lỗi của
+  `validateUploadFile`. Deep e2e `/wishlist`, `/profile/:id`, `/addresses` vẫn `deep: []` (còn nợ).
+  Post card trên `/profile/:id` vẫn tiếng Việt — thuộc I18N-05 (social).
+- ✅ I18N-03 (product, cart, checkout, form seller) đã xong 2026-10-02 — xem Recent closes /
+  `CHANGELOG.md`. Lỗi validate của `useProductForm` dịch lúc set (đổi ngôn ngữ giữa chừng thì
+  giữ chữ cũ tới lần validate sau). Còn để lại cho I18N-07: notice upload `firstUploadError` /
+  `capImageBatch`. `enrichProductForUI` trong `useProducts.ts` là code chết, không đụng.
+  Deep `/product/:id`, `/sell/:id` vẫn `deep: []` (còn nợ).
+- ✅ I18N-04 (order buyer + seller, trả hàng, export CSV, analytics shop) đã xong 2026-10-02 — xem
+  Recent closes / `CHANGELOG.md`. Nhãn trạng thái đơn giờ là `orderStatusLabel(status, lang)`
+  (`ORDER_STATUS_META` không còn `label`). Còn để lại cho I18N-06: `orderStatusSlices` ở `AdminPage`
+  vẫn mặc định `vi`. Cho I18N-07: `formatDateTime` và `formatPrice` (`250.000 đ`) chưa theo ngôn ngữ;
+  nhãn kỳ trên trục biểu đồ analytics là chuỗi BE trả về. Deep `/order/:id` cancel + payment-retry
+  skip vì thiếu đơn pending (data, không phải nợ spec).
+- ✅ I18N-05 (social, chat, thông báo, thời gian tương đối) đã xong 2026-10-02 — xem Recent closes /
+  `CHANGELOG.md`. `relativeTimeShort/Long` giờ là `(dateStr, lang, now)` — `now` đứng cuối để
+  component không phải gọi `Date.now()` trong render (lint `react-hooks/purity`). Còn để lại cho
+  I18N-07: notice upload (`firstUploadError`, `capImageBatch`, `resolveUploadOwner`,
+  `validateUploadFile` trong `lib/http`) vẫn tiếng Việt trong `CreatePostModal`; giờ chat dùng
+  `toLocaleTimeString(undefined)` (theo locale trình duyệt); giá `đ` trên `ProductChip`.
+- ✅ I18N-06 (admin, voucher, shop) đã xong 2026-10-02 — xem Recent closes / `CHANGELOG.md`.
+  Hằng số copy trong `userRole.ts` thành hàm theo `lang` (`assignableRoleOptions(lang)`,
+  `roleChangeConfirmBody(lang)`); `REPORT_STATUS_LABEL` (key) dùng chung cho tab lọc và pill. Còn để
+  lại cho I18N-07: `formatVnd` / `formatPrice` (`đ`) — kể cả số tiền trong câu cờ "giá thấp bất
+  thường" của `riskFlagDescription` — và `formatDateTime` / `formatDate` trên bảng admin. Lý do từ
+  chối / lý do báo cáo / mô tả voucher là dữ liệu người dùng, đi qua nguyên văn. `/admin`,
+  `/admin/vouchers`, `/admin/analytics`, `/shop`, `/shop/analytics` vẫn `deep: []` (còn nợ).
+- ✅ I18N-07 (`lib/` + rà toàn bộ) đã xong 2026-10-02 — xem Recent closes / `CHANGELOG.md` ⇒ **F14 đóng**.
+  Test `src/test/vietnameseCopy.test.ts` quét mọi `.ts`/`.tsx` non-test (trừ `*.i18n.ts`): chữ Việt
+  mới viết thẳng ⇒ fail; muốn giữ thì thêm vào `ALLOWED` kèm lý do (số đếm phải khớp). **Bẫy:**
+  truyền formatter dạng callback trần (`formatVnd`, `formatDateTime`, `formatPrice`) làm rơi
+  `lang` ⇒ ra `vi`; luôn bọc arrow `(n) => formatVnd(n, lang)`. Chữ Việt còn lại trên UI EN là
+  dữ liệu (nội dung post, tên tỉnh GHN, tên phân loại, lý do người dùng nhập). Deep e2e vẫn nợ như
+  các bước trên.
 
 ## Perf — đo thật, phần còn mở
 
@@ -445,7 +517,8 @@ Cần full-stack live (FE↔BE) và/hoặc 2 tài khoản; không repro được
 - P0-03 / P0-04 / P0-05 — endpoint self-test happy-path + 409/idempotency.
 - Chat **reconnect** (ngắt mạng giữa chừng) — nhánh cuối của P1-06; phần E2E 2 tài khoản đã chạy
   trên prod 2026-08-13 (user1 ↔ shop1, hai chiều, không reload).
-- Trả hàng nhánh **từ chối** — nhánh cuối của F2; nhánh duyệt + hoàn tiền + trả tồn kho đã chạy full
+- ~~Trả hàng nhánh **từ chối**~~ — ✅ 2026-09-28 chạy thật local qua `seller-returns.shop.spec.ts`
+  (và `return-request.buyer.spec.ts` dọn bằng reject); nhánh duyệt + hoàn tiền + trả tồn kho đã chạy full
   E2E trên prod 2026-08-13. **F3 voucher — đã verify runtime trên prod 2026-08-26** (admin: sửa /
   chặn siết / confirm nới / tắt-bật; buyer: gợi ý ở checkout, áp mã, tổng đúng) **và 2026-08-29**
   (seller, xem gạch đầu dòng dưới — nhánh **tạo mã mới** giờ đã chạy thật). Còn nợ: nhánh **đặt đơn

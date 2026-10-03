@@ -141,6 +141,9 @@ component work in both. When you write or change UI:
 - Status chips stay `bg-<accent>/NN text-accent-<accent>`. The light accents are darkened so each
   passes AA on its own tint (`themeTokens.test.ts` pins amber /20, red /15, green /15, cyan /10);
   a heavier tint than those needs the test extended first.
+- Neutral text on an accent tint (a selected card, `bg-tb-amber/5`) is `text-ink-pri` /
+  `text-ink-sec`, never `text-ink-muted` — muted passes AA on the bare canvas only (the
+  checkout address phone read 4.47 on prod). The test pins pri/sec on /10 tints.
 - Text on the CTA gradient, a solid accent or a photo is `text-ink-on-accent` — white in both
   themes on purpose (brand); don't "fix" it for light.
 - Charts read `useChartPalette()` (Chart.js can't read CSS variables); `chartTheme.test.ts` keeps
