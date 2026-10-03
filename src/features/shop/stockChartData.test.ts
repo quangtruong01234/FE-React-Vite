@@ -80,3 +80,14 @@ describe('stockHealthSlices', () => {
     expect(slices[0].key).toBe('none');
   });
 });
+
+describe('stockHealthSlices in English (I18N-06)', () => {
+  it('labels every bucket in the requested language', () => {
+    expect(stockHealthSlices(10, 3, 'en').map((s) => s.label)).toEqual(['In stock', 'Running low']);
+    expect(stockHealthSlices(0, 0, 'en')[0].label).toBe('No products yet');
+  });
+
+  it('keeps Vietnamese as the default so existing callers are unchanged', () => {
+    expect(stockHealthSlices(0, 0)[0].label).toBe('Chưa có sản phẩm');
+  });
+});

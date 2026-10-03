@@ -1,4 +1,7 @@
 import type { ChartSlice } from '@/lib/chart/chartSeries';
+import type { Lang } from '@/lib/i18n/lang';
+import { bindTranslator } from '@/lib/i18n/messages';
+import { shopMessages } from './shop.i18n';
 import type { LowStockRow } from './lowStock';
 
 /** How many low-stock rows the bar chart shows before it stops being readable. */
@@ -48,20 +51,22 @@ export function lowStockSeries(
 export function stockHealthSlices(
   totalProducts: number,
   lowStockCount: number,
+  lang: Lang = 'vi',
 ): ChartSlice[] {
+  const t = bindTranslator(shopMessages, lang);
   const low = Math.max(0, lowStockCount);
   const healthy = Math.max(0, totalProducts - low);
   const slices: ChartSlice[] = [];
   if (healthy > 0) {
-    slices.push({ key: 'healthy', label: 'Đủ hàng', value: healthy, color: 'green' });
+    slices.push({ key: 'healthy', label: t('sliceHealthy'), value: healthy, color: 'green' });
   }
   if (low > 0) {
-    slices.push({ key: 'low', label: 'Sắp hết', value: low, color: 'amber' });
+    slices.push({ key: 'low', label: t('sliceLow'), value: low, color: 'amber' });
   }
   // An all-zero catalogue still needs one arc, else the ring vanishes entirely
   // and the card reads as broken rather than empty.
   if (slices.length === 0) {
-    slices.push({ key: 'none', label: 'Chưa có sản phẩm', value: 1, color: 'muted' });
+    slices.push({ key: 'none', label: t('sliceNone'), value: 1, color: 'muted' });
   }
   return slices;
 }

@@ -35,22 +35,27 @@ import { api } from "@/api";
 import { queryKeys } from "@/hooks/query/queryKeys";
 import { useAuthContext } from "@/context/useAuthContext";
 import type { ProductWithInventory } from "@/types";
+import { useT } from "@/hooks/ui/useT";
+import { useLanguage } from "@/context/useLanguage";
+import { shopMessages, type ShopMessageKey } from "./shop.i18n";
 
 /**
  * Fixed legend for the low-stock bars: the bar colours encode severity
  * (`lowStockSeries`), so the legend must name those two states plus the
  * threshold series rather than sample whichever row happens to be first.
  */
-const LOW_STOCK_LEGEND: ChartSlice[] = [
-  { key: "low", label: "Sắp hết", value: 0, color: "amber" },
-  { key: "out", label: "Hết hàng", value: 0, color: "red" },
-  { key: "minimum", label: "Mức tối thiểu", value: 0, color: "muted" },
+const LOW_STOCK_LEGEND: readonly (Omit<ChartSlice, "label"> & {
+  label: ShopMessageKey;
+})[] = [
+  { key: "low", label: "sliceLow", value: 0, color: "amber" },
+  { key: "out", label: "sliceOut", value: 0, color: "red" },
+  { key: "minimum", label: "lowMinimum", value: 0, color: "muted" },
 ];
 
-const CONDITION_LABEL: Record<string, string> = {
-  new: "Mới",
-  used: "Đã dùng",
-  refurbished: "Tân trang",
+const CONDITION_LABEL: Partial<Record<string, ShopMessageKey>> = {
+  new: "conditionNew",
+  used: "conditionUsed",
+  refurbished: "conditionRefurbished",
 };
 
 const CONDITION_CLASS: Record<string, string> = {
@@ -74,6 +79,9 @@ function ProductRow({
   isDeleting: boolean;
   isTogglingActive: boolean;
 }) {
+  const t = useT(shopMessages);
+  const { lang } = useLanguage();
+  const conditionKey = CONDITION_LABEL[product.condition];
   const stock = product.inventory?.availableStock ?? 0;
   const isLow = product.inventory?.isLowStock;
   const isBlocked = product.approvalBlocked ?? false;
@@ -117,7 +125,7 @@ function ProductRow({
         )}
       </td>
       <td className="py-3 px-4 text-sm text-accent-amber font-mono whitespace-nowrap">
-        {formatPrice(product.price)}
+        {formatPrice(product.price, lang)}
       </td>
       <td className="py-3 px-4">
         <span
@@ -137,21 +145,23 @@ function ProductRow({
             CONDITION_CLASS[product.condition] ?? CONDITION_CLASS.new,
           )}
         >
-          {CONDITION_LABEL[product.condition] ?? product.condition}
+          {conditionKey ? t(conditionKey) : product.condition}
         </span>
       </td>
       <td className="py-3 px-4">
         {isBlocked ? (
           <div
             className="flex items-center gap-1.5"
-            title="Bị ẩn do vi phạm — liên hệ admin"
+            title={t("blockedHint")}
           >
             <ShieldAlert size={14} className="shrink-0 text-accent-red" />
-            <span className="text-xs font-body text-accent-red">Bị khoá</span>
+            <span className="text-xs font-body text-accent-red">
+              {t("blocked")}
+            </span>
           </div>
         ) : (
           <span className="text-xs font-body text-accent-green">
-            Bình thường
+            {t("approved")}
           </span>
         )}
       </td>
@@ -159,12 +169,12 @@ function ProductRow({
         <div
           className="inline-flex"
           title={
-            isBlocked ? "Sản phẩm bị khoá — không thể bật hiển thị" : undefined
+isBlocked ? t("blockedToggleHint") : undefined
           }
         >
           <ToggleSwitch
             size="sm"
-            label={`Hiển thị ${product.name}`}
+            label={t("toggleVisible", { name: product.name })}
             checked={product.isActive ?? true}
             onChange={onToggleActive}
             disabled={isTogglingActive || isBlocked}
@@ -175,7 +185,7 @@ function ProductRow({
         <div className="flex items-center gap-1.5">
           <IconButton
             onClick={onEdit}
-            aria-label={`Sửa ${product.name}`}
+            aria-label={t("editProduct", { name: product.name })}
             className="size-7 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec hover:border-tb-amber/50 hover:text-accent-amber transition-colors"
           >
             <Pencil size={13} className="shrink-0" />
@@ -183,7 +193,7 @@ function ProductRow({
           <IconButton
             onClick={onDelete}
             disabled={isDeleting}
-            aria-label={`Xóa ${product.name}`}
+            aria-label={t("deleteProduct", { name: product.name })}
             className="size-7 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec hover:border-tb-red/50 hover:text-accent-red transition-colors disabled:opacity-40"
           >
             <Trash2 size={13} className="shrink-0" />
@@ -276,6 +286,8 @@ export default function ShopPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { currentUser } = useAuthContext();
+  const t = useT(shopMessages);
+  const { lang } = useLanguage();
   // `userId` is LOAD-BEARING, not a convenience filter (backend 2026-08-03):
   // `GET /api/products` now defaults to active-only, and the `userId` branch is
   // the sole exception that still returns every state. Drop it and the seller's
@@ -347,8 +359,12 @@ export default function ShopPage() {
     onSuccess: (_data, { id, isActive }) => {
       clearTimeout(toastTimer.current);
       const name = products.find((p) => p.id === id)?.name ?? "";
-      const label = name ? `"${name}"` : "Sản phẩm";
-      setToast(isActive ? `Đã bật hiển thị ${label}.` : `Đã ẩn ${label}.`);
+      // Worded in the language active when the toggle lands; the toast is gone in 2.5s.
+      setToast(
+        name
+          ? t(isActive ? "toastShown" : "toastHidden", { name })
+          : t(isActive ? "toastShownUnnamed" : "toastHiddenUnnamed"),
+      );
       toastTimer.current = setTimeout(() => setToast(null), 2500);
     },
   });
@@ -381,8 +397,12 @@ export default function ShopPage() {
     products.filter((p) => p.inventory?.isLowStock).length;
 
   const stockHealth = useMemo(
-    () => stockHealthSlices(productCount, lowStockCount),
-    [productCount, lowStockCount],
+    () => stockHealthSlices(productCount, lowStockCount, lang),
+    [productCount, lowStockCount, lang],
+  );
+  const lowStockLegend = useMemo<ChartSlice[]>(
+    () => LOW_STOCK_LEGEND.map((slice) => ({ ...slice, label: t(slice.label) })),
+    [t],
   );
   const lowStockChart = useMemo(() => lowStockSeries(lowStockRows), [lowStockRows]);
 
@@ -393,13 +413,13 @@ export default function ShopPage() {
         <div className="flex items-start justify-between mb-7">
           <div>
             <h1 className="text-2xl font-display font-semibold text-ink-pri">
-              Kênh người bán
+              {t("title")}
             </h1>
             {toast === "__blocked__" ? (
               <div className="flex items-center gap-1.5 mt-1">
                 <ShieldAlert size={13} className="shrink-0 text-accent-red" />
                 <span className="text-sm font-body text-accent-red">
-                  Sản phẩm bị khoá — không thể bật hiển thị. Liên hệ admin.
+                  {t("blockedToast")}
                 </span>
               </div>
             ) : toast ? (
@@ -414,7 +434,7 @@ export default function ShopPage() {
               </div>
             ) : (
               <p className="text-sm text-ink-sec mt-1">
-                Quản lý sản phẩm của bạn
+                {t("subtitle")}
               </p>
             )}
           </div>
@@ -423,24 +443,24 @@ export default function ShopPage() {
             className="bg-tb-gradient text-ink-on-accent border-0 gap-2 shadow-tb-cta shrink-0"
           >
             <Plus size={16} className="shrink-0" />
-            Đăng sản phẩm
+            {t("newProduct")}
           </Button>
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mb-7">
           <StatCard
-            label="Tổng sản phẩm"
+            label={t("statProducts")}
             value={showSkeleton ? 0 : productCount}
             icon={Package2}
           />
           <StatCard
-            label="Tổng tồn kho"
+            label={t("statStock")}
             value={showSkeleton ? 0 : totalStock}
             icon={BarChart2}
           />
           <StatCard
-            label="Sắp hết hàng"
+            label={t("statLowStock")}
             value={showSkeleton ? 0 : lowStockCount}
             icon={AlertTriangle}
             danger={lowStockCount > 0}
@@ -450,8 +470,11 @@ export default function ShopPage() {
         {/* Stock charts */}
         <div className="grid md:grid-cols-2 gap-4 mb-7">
           <ChartFrame
-            title="Tình trạng tồn kho"
-            subtitle={`${productCount} sản phẩm · ${totalStock} đơn vị tồn`}
+            title={t("healthTitle")}
+            subtitle={t("healthSubtitle", {
+              products: productCount,
+              stock: totalStock,
+            })}
             height={180}
             isLoading={showSkeleton}
           >
@@ -459,10 +482,10 @@ export default function ShopPage() {
               <div className="w-1/2 h-full shrink-0">
                 <DoughnutChart
                   slices={stockHealth}
-                  ariaLabel="Biểu đồ tỉ lệ sản phẩm đủ hàng và sắp hết hàng"
+                  ariaLabel={t("healthAria")}
                   centerValue={String(productCount)}
-                  centerLabel="sản phẩm"
-                  valueFormatter={(v) => `${v} sản phẩm`}
+                  centerLabel={t("healthCenter")}
+                  valueFormatter={(v) => t("healthValue", { value: v })}
                 />
               </div>
               <ChartLegend
@@ -474,28 +497,28 @@ export default function ShopPage() {
           </ChartFrame>
 
           <ChartFrame
-            title="Sản phẩm sắp hết hàng"
-            subtitle="Tồn hiện tại so với mức tối thiểu"
+            title={t("lowTitle")}
+            subtitle={t("lowSubtitle")}
             height={180}
             isLoading={showSkeleton}
             isEmpty={lowStockChart.slices.length === 0}
-            emptyLabel="Không có sản phẩm nào sắp hết hàng."
+            emptyLabel={t("lowEmpty")}
             footer={
               <ChartLegend
                 layout="inline"
                 className="mt-3"
                 showValues={false}
-                slices={LOW_STOCK_LEGEND}
+                slices={lowStockLegend}
               />
             }
           >
             <RankedBarChart
               slices={lowStockChart.slices}
-              valueLabel="Tồn hiện tại"
-              ariaLabel="Biểu đồ tồn kho các sản phẩm sắp hết hàng"
+              valueLabel={t("lowValueLabel")}
+              ariaLabel={t("lowAria")}
               labelWidth={120}
               comparison={{
-                label: "Mức tối thiểu",
+                label: t("lowMinimum"),
                 color: "muted",
                 values: lowStockChart.minimums,
               }}
@@ -509,7 +532,7 @@ export default function ShopPage() {
             <div className="px-5 py-4 border-b border-bdr flex items-center gap-2">
               <AlertTriangle size={16} className="shrink-0 text-accent-red" />
               <h2 className="text-sm font-body font-medium text-ink-pri">
-                Sản phẩm sắp hết hàng
+                {t("lowTitle")}
               </h2>
               <span className="text-sm text-ink-muted font-normal">
                 ({lowStockRows.length})
@@ -532,15 +555,15 @@ export default function ShopPage() {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-sm font-mono font-medium text-accent-red">
-                      Còn {row.availableStock}
+                      {t("lowRemaining", { n: row.availableStock })}
                     </p>
                     <p className="text-xs text-ink-muted">
-                      Tối thiểu {row.minimumStock}
+                      {t("lowMinimumValue", { n: row.minimumStock })}
                     </p>
                   </div>
                   <IconButton
                     onClick={() => handleEdit(row.productId)}
-                    aria-label={`Sửa ${row.name}`}
+                    aria-label={t("editProduct", { name: row.name })}
                     className="size-7 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec hover:border-tb-amber/50 hover:text-accent-amber transition-colors shrink-0"
                   >
                     <Pencil size={13} className="shrink-0" />
@@ -555,7 +578,7 @@ export default function ShopPage() {
         <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
           <div className="px-5 py-4 border-b border-bdr flex items-center gap-4">
             <h2 className="text-sm font-body font-medium text-ink-pri shrink-0">
-              Danh sách sản phẩm
+              {t("tableTitle")}
               {!showSkeleton && products.length > 0 && (
                 <span className="ml-2 text-ink-muted font-normal">
                   ({search.trim() ? `${filteredProducts.length}/` : ""}
@@ -572,7 +595,7 @@ export default function ShopPage() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Tìm tên hoặc SKU..."
+                placeholder={t("searchPlaceholder")}
                 className="w-full bg-canvas-elevated border border-bdr rounded-tb-input pl-8 pr-3 py-1.5 text-sm font-body text-ink-pri placeholder:text-ink-muted outline-none focus:border-tb-amber/50 focus:ring-1 focus:ring-tb-amber/20 transition-colors"
               />
             </div>
@@ -583,28 +606,28 @@ export default function ShopPage() {
               <thead>
                 <tr className="border-b border-bdr">
                   <th className="py-2.5 px-4 text-xs font-body font-medium text-ink-muted">
-                    Sản phẩm
+                    {t("colProduct")}
                   </th>
                   <th className="py-2.5 px-4 text-xs font-body font-medium text-ink-muted">
-                    Danh mục
+                    {t("colCategory")}
                   </th>
                   <th className="py-2.5 px-4 text-xs font-body font-medium text-ink-muted">
-                    Giá
+                    {t("colPrice")}
                   </th>
                   <th className="py-2.5 px-4 text-xs font-body font-medium text-ink-muted">
-                    Tồn kho
+                    {t("colStock")}
                   </th>
                   <th className="py-2.5 px-4 text-xs font-body font-medium text-ink-muted">
-                    Tình trạng
+                    {t("colCondition")}
                   </th>
                   <th className="py-2.5 px-4 text-xs font-body font-medium text-ink-muted">
-                    Duyệt
+                    {t("colApproval")}
                   </th>
                   <th className="py-2.5 px-4 text-xs font-body font-medium text-ink-muted">
-                    Hiển thị
+                    {t("colVisible")}
                   </th>
                   <th className="py-2.5 px-4 text-xs font-body font-medium text-ink-muted">
-                    Thao tác
+                    {t("colActions")}
                   </th>
                 </tr>
               </thead>
@@ -622,14 +645,14 @@ export default function ShopPage() {
                           />
                         </div>
                         <p className="text-sm text-ink-sec">
-                          Chưa có sản phẩm nào
+                          {t("emptyCatalogue")}
                         </p>
                         <button
                           type="button"
                           onClick={() => navigate("/sell")}
                           className="text-xs text-accent-amber hover:underline underline-offset-2 transition-colors"
                         >
-                          Đăng sản phẩm đầu tiên
+                          {t("firstProduct")}
                         </button>
                       </div>
                     </td>
@@ -638,7 +661,7 @@ export default function ShopPage() {
                   <tr>
                     <td colSpan={8} className="py-10 text-center">
                       <p className="text-sm text-ink-muted font-body">
-                        Không tìm thấy sản phẩm nào.
+                        {t("noMatch")}
                       </p>
                     </td>
                   </tr>
@@ -679,17 +702,17 @@ export default function ShopPage() {
       <ConfirmDialog
         open={pendingDelete !== null}
         tone="danger"
-        title="Xóa sản phẩm"
+        title={t("deleteTitle")}
         description={
           pendingDelete
-            ? `Xóa "${pendingDelete.name}" khỏi gian hàng? Hành động này không thể hoàn tác.`
+            ? t("deleteBody", { name: pendingDelete.name })
             : ""
         }
-        confirmLabel="Xóa sản phẩm"
+        confirmLabel={t("deleteConfirm")}
         isPending={deleteMutation.isPending}
         error={
           deleteMutation.isError
-            ? "Xóa sản phẩm thất bại. Vui lòng thử lại."
+            ? t("deleteFailed")
             : null
         }
         onConfirm={confirmDelete}
