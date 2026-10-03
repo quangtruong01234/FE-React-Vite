@@ -5,26 +5,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useRole } from '@/hooks/auth/useRole';
 import { useChat } from './useChat';
 import { chatConnectionBanner } from './chatConnection';
+import { formatMessageTime } from './chatMessageTime';
+import { chatCopy } from './chat.i18n';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
 import { cn } from '@/lib/format/utils';
 import { userDisplayName } from '@/lib/format/user';
 import type { Conversation, PublicUser } from '@/types';
-
-function formatMessageTime(iso: string): string {
-  const normalized = iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z';
-  const date = new Date(normalized);
-  if (isNaN(date.getTime())) return '';
-  const hhmm = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const startOfYesterday = startOfToday - 86400000;
-  const sevenDaysAgo = startOfToday - 6 * 86400000;
-  const dayOfWeek = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-  const t = date.getTime();
-  if (t >= startOfToday) return hhmm;
-  if (t >= startOfYesterday) return `Hôm qua ${hhmm}`;
-  if (t >= sevenDaysAgo) return `${dayOfWeek[date.getDay()]} ${hhmm}`;
-  return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()} ${hhmm}`;
-}
 
 interface ChatThreadProps {
   conversation: Conversation;
@@ -35,11 +22,13 @@ interface ChatThreadProps {
 export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps): ReactElement {
   const role = useRole();
   const meId = role?.me?.id;
+  const t = useT(chatCopy);
+  const { lang } = useLanguage();
 
   const { messages, isLoading, sendMessage, hasNextPage, fetchNextPage, isFetchingNextPage, connectionStatus } =
     useChat(conversation.id, meId);
   const [text, setText] = useState('');
-  const banner = chatConnectionBanner(connectionStatus);
+  const banner = chatConnectionBanner(connectionStatus, lang);
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
@@ -135,7 +124,7 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
         />
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm text-ink-pri truncate">
-            {peerName || `Hội thoại #${conversation.id}`}
+            {peerName || t('conversationFallback', { id: conversation.id })}
           </div>
           {otherUser?.username && (
             <div className="text-xs text-ink-muted">@{otherUser.username}</div>
@@ -202,7 +191,7 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
                   : <span className="w-[26px] flex-none" />
               )}
               <div className="flex flex-col">
-                <div className={cn(
+                <div data-testid="chat-message" className={cn(
                   'px-3.5 py-2 text-sm leading-relaxed break-words rounded-2xl',
                   isMe
                     ? 'bg-tb-gradient text-ink-on-accent rounded-br-md'
@@ -211,7 +200,7 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
                 )}>
                   {m.content}
                   <div className={cn('text-[10px] mt-0.5', isMe ? 'text-ink-on-accent/70' : 'text-ink-muted')}>
-                    {formatMessageTime(m.createdAt)}
+                    {formatMessageTime(m.createdAt, new Date(), lang)}
                   </div>
                 </div>
                 {isMe && m.status === 'sending' && (
@@ -221,12 +210,12 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
                 )}
                 {isMe && m.status === 'error' && (
                   <div className="flex justify-end mt-1">
-                    <span className="text-[10px] text-accent-red">Gửi thất bại</span>
+                    <span className="text-[10px] text-accent-red">{t('sendFailed')}</span>
                   </div>
                 )}
                 {isLastMine && (
                   <div className="flex justify-end mt-1">
-                    <span className="text-[10px] text-ink-muted">Đã gửi</span>
+                    <span className="text-[10px] text-ink-muted">{t('sent')}</span>
                   </div>
                 )}
               </div>
@@ -247,7 +236,7 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
               handleSend();
             }
           }}
-          placeholder="Nhắn tin…"
+          placeholder={t('inputPlaceholder')}
           className="flex-1 bg-canvas-elevated border border-bdr rounded-full px-4 py-2.5 text-sm text-ink-pri placeholder:text-ink-muted outline-none focus:border-tb-amber/50"
         />
         <button

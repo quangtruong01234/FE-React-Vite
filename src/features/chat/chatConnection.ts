@@ -1,3 +1,7 @@
+import { bindTranslator } from '@/lib/i18n/messages';
+import type { Lang } from '@/lib/i18n/lang';
+import { chatCopy } from './chat.i18n';
+
 export type ChatConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 
 export interface ChatConnectionBanner {
@@ -10,15 +14,19 @@ export interface ChatConnectionBanner {
  * Returns `null` when connected (no banner). Pure so it can be unit-tested
  * without a live socket.
  */
-export function chatConnectionBanner(status: ChatConnectionStatus): ChatConnectionBanner | null {
+export function chatConnectionBanner(
+  status: ChatConnectionStatus,
+  lang: Lang = 'vi',
+): ChatConnectionBanner | null {
+  const t = bindTranslator(chatCopy, lang);
   switch (status) {
     case 'connected':
       return null;
     case 'connecting':
-      return { text: 'Đang kết nối…', tone: 'info' };
+      return { text: t('connecting'), tone: 'info' };
     case 'reconnecting':
-      return { text: 'Mất kết nối — đang thử lại…', tone: 'error' };
+      return { text: t('reconnecting'), tone: 'error' };
     case 'disconnected':
-      return { text: 'Đã ngắt kết nối. Tin nhắn sẽ gửi lại khi có mạng.', tone: 'error' };
+      return { text: t('disconnected'), tone: 'error' };
   }
 }

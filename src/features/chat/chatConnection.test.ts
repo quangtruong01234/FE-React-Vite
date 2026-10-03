@@ -30,3 +30,12 @@ describe('chatConnectionBanner', () => {
     }
   });
 });
+
+describe('chatConnectionBanner in English (I18N-05)', () => {
+  it('translates every banner and keeps its tone', () => {
+    expect(chatConnectionBanner('connecting', 'en')).toEqual({ text: 'Connecting…', tone: 'info' });
+    expect(chatConnectionBanner('reconnecting', 'en')).toEqual({ text: 'Connection lost — retrying…', tone: 'error' });
+    expect(chatConnectionBanner('disconnected', 'en')?.text).toMatch(/^Disconnected\./);
+    expect(chatConnectionBanner('connected', 'en')).toBeNull();
+  });
+});

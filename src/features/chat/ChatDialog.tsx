@@ -6,8 +6,11 @@ import { api } from '@/api';
 import { queryClient } from '@/lib/query/queryClient';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { cn } from '@/lib/format/utils';
-import { userDisplayName } from '@/lib/format/user';
+import { userDisplayName, userFallback } from '@/lib/format/user';
 import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import { chatCopy } from './chat.i18n';
 import { ChatThread } from './ChatThread';
 import type { Conversation, User } from '@/types';
 
@@ -18,6 +21,8 @@ interface ChatDialogProps {
 }
 
 export function ChatDialog({ otherUser, open, onClose }: ChatDialogProps): ReactElement {
+  const t = useT(chatCopy);
+  const { lang } = useLanguage();
   const [conversation, setConversation] = useState<Conversation | null>(null);
 
   const { mutate: createConv, isPending } = useMutation({
@@ -57,23 +62,23 @@ export function ChatDialog({ otherUser, open, onClose }: ChatDialogProps): React
           )}
         >
           <DialogPrimitive.Title className="sr-only">
-            Chat với {userDisplayName(otherUser)}
+            {t('dialogTitle', { name: userDisplayName(otherUser, userFallback(lang)) })}
           </DialogPrimitive.Title>
           <DialogPrimitive.Description className="sr-only">
-            Cửa sổ trò chuyện. Đọc tin nhắn và soạn tin trả lời.
+            {t('dialogDescription')}
           </DialogPrimitive.Description>
 
           {/* Close button — always visible, overlays top-right corner of header */}
           <DialogPrimitive.Close
             className="absolute top-3 right-3 z-10 size-7 p-0 grid place-items-center rounded-full bg-canvas-elevated border border-bdr text-ink-muted hover:text-ink-pri hover:border-tb-amber/50 transition-colors"
-            aria-label="Đóng"
+            aria-label={t('close')}
           >
             <X size={14} className="shrink-0" />
           </DialogPrimitive.Close>
 
           {isPending && (
             <div className="h-full flex items-center justify-center">
-              <span className="text-sm text-ink-muted">Đang kết nối…</span>
+              <span className="text-sm text-ink-muted">{t('connecting')}</span>
             </div>
           )}
 

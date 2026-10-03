@@ -13,11 +13,16 @@ import { ChatThread } from './ChatThread';
 import { cn } from '@/lib/format/utils';
 import { userDisplayName } from '@/lib/format/user';
 import { relativeTimeShort } from '@/lib/format/time';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import { chatCopy } from './chat.i18n';
 import type { Conversation, PublicUser } from '@/types';
 
 export default function MessagesPage(): ReactElement {
   const role = useRole();
   const meId = role?.me?.id;
+  const t = useT(chatCopy);
+  const { lang } = useLanguage();
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -98,14 +103,14 @@ export default function MessagesPage(): ReactElement {
       <div className={cn('border-r border-bdr flex flex-col min-h-0', selectedConv && 'hidden md:flex')}>
         <div className="px-4 py-3.5 border-b border-bdr flex-none">
           <h2 className="font-display font-black text-xl uppercase tracking-wide text-ink-pri m-0 mb-3">
-            Tin nhắn
+            {t('pageTitle')}
           </h2>
           <div className="relative">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm hội thoại…"
+              placeholder={t('searchPlaceholder')}
               className="w-full bg-canvas-elevated border border-bdr rounded-full py-2 pl-9 pr-3 text-sm text-ink-pri placeholder:text-ink-muted outline-none focus:border-tb-amber/50"
             />
           </div>
@@ -129,7 +134,7 @@ export default function MessagesPage(): ReactElement {
           {!isLoading && filtered.length === 0 && (
             <div className="py-12 flex flex-col items-center gap-2 text-center px-4">
               <MessageSquare size={28} className="text-ink-muted" />
-              <p className="text-sm text-ink-sec m-0">Chưa có hội thoại nào</p>
+              <p className="text-sm text-ink-sec m-0">{t('noConversations')}</p>
             </div>
           )}
 
@@ -137,12 +142,12 @@ export default function MessagesPage(): ReactElement {
             const isActive = c.id === selectedId;
             const otherId = otherUserId(c);
             const otherUser = userMap.get(otherId);
-            const displayName = userDisplayName(otherUser, `Người dùng #${otherId}`);
+            const displayName = userDisplayName(otherUser, t('userFallback', { id: otherId }));
             const initials = displayName.charAt(0).toUpperCase();
             const hasUnread = c.unreadCount > 0;
             const preview = c.lastMessage
-              ? (c.lastMessage.senderId === meId ? 'Bạn: ' : '') + c.lastMessage.content
-              : 'Bắt đầu cuộc trò chuyện';
+              ? (c.lastMessage.senderId === meId ? t('youPrefix') : '') + c.lastMessage.content
+              : t('startConversation');
             return (
               <button
                 key={c.id}
@@ -160,7 +165,7 @@ export default function MessagesPage(): ReactElement {
                       {displayName}
                     </span>
                     <span className="text-[10px] text-ink-muted flex-none">
-                      {relativeTimeShort(c.lastMessage?.createdAt ?? c.createdAt)}
+                      {relativeTimeShort(c.lastMessage?.createdAt ?? c.createdAt, lang)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
@@ -192,7 +197,7 @@ export default function MessagesPage(): ReactElement {
           <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-6">
             <MessageSquare size={40} className="text-ink-muted" />
             <p className="font-body text-sm text-ink-sec m-0">
-              Chọn một hội thoại để bắt đầu
+              {t('pickConversation')}
             </p>
           </div>
         )}
