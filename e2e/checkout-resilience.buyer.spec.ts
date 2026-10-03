@@ -56,3 +56,58 @@ test.describe('Cart / checkout resilience to enrichment failure', () => {
     await expect(confirm).toBeEnabled();
   });
 });
+
+// SWEEP-1002-01: a create that dies without an answer (here a forced 504) may
+// still have committed, and the backend now holds the Idempotency-Key for 300s.
+// The buyer must be sent to check their orders, and re-placing must take an
+// explicit confirm that mints a NEW key. Every POST is intercepted, so no real
+// order is ever created.
+test.describe('Checkout — unknown order outcome', () => {
+  test('504 on create shows the check-your-orders notice and gates re-placing', async ({ page }) => {
+    const keys: string[] = [];
+    await page.route('**/api/order', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      keys.push(route.request().headers()['idempotency-key'] ?? '');
+      await route.fulfill({
+        status: 504,
+        contentType: 'application/json',
+        body: JSON.stringify({ statusCode: 504, status: 'error', message: 'Gateway Timeout' }),
+      });
+    });
+
+    await page.goto('/cart');
+    test.skip(!(await cartHasItems(page)), 'Buyer cart is empty — cannot reach checkout');
+    await page.getByRole('button', { name: /ĐẶT HÀNG/ }).click();
+    await expect(page).toHaveURL(/\/checkout/);
+
+    const confirm = page.getByRole('button', { name: /XÁC NHẬN ĐẶT HÀNG/ });
+    await expect(confirm).toBeVisible();
+    // The button is disabled until the address book and fee preview settle —
+    // wait for that before deciding the buyer genuinely cannot submit.
+    const canSubmit = await expect(confirm)
+      .toBeEnabled({ timeout: 15_000 })
+      .then(() => true, () => false);
+    test.skip(!canSubmit, 'Checkout blocked (no address / stock) — cannot submit');
+    await confirm.click();
+
+    const notice = page.getByRole('alert').filter({ hasText: 'Đơn hàng có thể đã được tạo.' });
+    await expect(notice).toBeVisible();
+    await expect(notice.getByRole('link', { name: 'Đơn hàng của tôi' })).toHaveAttribute('href', '/orders');
+    expect(keys).toHaveLength(1);
+
+    // Re-submitting asks first; backing out sends nothing.
+    await confirm.click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByText('Đặt lại đơn hàng?')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Để tôi kiểm tra' }).click();
+    await expect(dialog).toBeHidden();
+    expect(keys).toHaveLength(1);
+
+    // Confirming re-places with a fresh key — the held one would only 409.
+    await confirm.click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Đặt lại' }).click();
+    await expect.poll(() => keys.length).toBe(2);
+    expect(keys[1]).not.toBe('');
+    expect(keys[1]).not.toBe(keys[0]);
+  });
+});

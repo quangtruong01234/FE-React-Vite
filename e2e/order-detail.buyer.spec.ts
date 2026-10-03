@@ -21,6 +21,19 @@ test.describe('Order detail — cancel & address rendering', () => {
     ).toHaveCount(0);
   });
 
+  test('ORDER-TIMELINE-01: the history card starts with the placed event', async ({ page, request }) => {
+    const order = await findOrder(request, () => true);
+    test.skip(!order, 'No orders for buyer to inspect');
+    // Before the backend rollout the route 404s and the card is hidden by design.
+    const history = await request.get(`/api/order/${order!.id}/history`);
+    test.skip(!history.ok(), `GET /order/:id/history returned ${history.status()}`);
+
+    await page.goto(`/order/${order!.id}`);
+    const card = page.getByRole('region', { name: 'Lịch sử đơn hàng' });
+    await expect(card).toBeVisible();
+    await expect(card.getByRole('listitem').first()).toContainText('Đặt hàng');
+  });
+
   test('BE-2 + FE-1: cancelling a pending order gives visible feedback', async ({ page, request }) => {
     const pending = await findOrder(request, (o) => o.status === 'pending');
     test.skip(!pending, 'No pending order available to cancel');
