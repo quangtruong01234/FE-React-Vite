@@ -28,3 +28,36 @@ export function resolveIdempotencyKey(
   if (current && current.signature === signature) return current;
   return { signature, key: generateKey() };
 }
+
+/** Text of the backend `ORDER_MESSAGE.DUPLICATE_REQUEST_IN_PROGRESS` 409. */
+const DUPLICATE_IN_PROGRESS = /duplicate order request is already being processed/i;
+
+/**
+ * SWEEP-1002-01 — did a failed `POST /api/order` leave the buyer NOT knowing
+ * whether the order exists?
+ *
+ * The backend now holds the `Idempotency-Key` for 300s after a failure it
+ * cannot classify, because the order may still commit after the gateway gave
+ * up: a 408, any 5xx, or no HTTP answer at all (network drop, or a 2xx body
+ * that never parsed). A same-key retry inside that window gets the 409 below;
+ * after it, the same key can create a second order. So neither retry is safe —
+ * the buyer has to check "Đơn hàng của tôi" first.
+ *
+ * The 409 has no `errorCode`, only this message, and other 409s (stock,
+ * voucher) are definite rejections — so it is matched by text.
+ *
+ * Definite rejections (any other 4xx) return `false`: the key was released and
+ * fixing the input then retrying is safe.
+ */
+export function isOrderOutcomeUnknown(error: unknown): boolean {
+  const status =
+    error && typeof error === "object" && "status" in error
+      ? (error as { status?: unknown }).status
+      : undefined;
+  if (typeof status !== "number") return true;
+  if (status === 408 || status >= 500) return true;
+  if (status !== 409) return false;
+  const message = (error as { message?: unknown }).message;
+  return typeof message === "string" && DUPLICATE_IN_PROGRESS.test(message);
+}
+

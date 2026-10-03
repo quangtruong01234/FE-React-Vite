@@ -1,3 +1,7 @@
+import type { Lang } from '@/lib/i18n/lang';
+import { translate } from '@/lib/i18n/messages';
+import { checkoutMessages } from './checkout.i18n';
+
 /**
  * Classifies a failed GHN shipping-fee preview (RESIL-01).
  *
@@ -16,15 +20,15 @@
  * that is stripped too, for the same reason.
  *
  * What survives the strip is still English. The backend has frozen the wording
- * of the ward-level refusals (GHN-MSG-01, GHN-WARD-01), so those get Vietnamese
- * copy of our own; anything else keeps passing through, since an unrecognised
+ * of the ward-level refusals (GHN-MSG-01, GHN-WARD-01), so those get copy of
+ * our own (I18N-03: in the buyer's language); anything else keeps passing through, since an unrecognised
  * reason is still more useful to the buyer than a blank one.
  */
 export type ShippingFeeFailureKind = 'address' | 'outage' | 'unknown';
 
 export interface ShippingFeeFailure {
   kind: ShippingFeeFailureKind;
-  /** Buyer-facing Vietnamese message. */
+  /** Buyer-facing message in the caller's language. */
   message: string;
 }
 
@@ -52,10 +56,6 @@ const WARD_REFUSALS: readonly RegExp[] = [
   /^GHN no longer delivers to ward \S+$/i,
   /^Ward \S+ does not belong to GHN district \S+$/i,
 ];
-
-const WARD_REFUSED_MESSAGE =
-  'Không giao được tới địa chỉ này: đơn vị vận chuyển không nhận giao tới ' +
-  'phường/xã đã chọn. Vui lòng chọn hoặc cập nhật địa chỉ khác.';
 
 function rawMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'message' in error) {
@@ -88,31 +88,24 @@ function statusOf(error: unknown): number | undefined {
   return undefined;
 }
 
-export function shippingFeeFailure(error: unknown): ShippingFeeFailure {
+export function shippingFeeFailure(error: unknown, lang: Lang = 'vi'): ShippingFeeFailure {
   const reason = rawMessage(error);
 
   switch (statusOf(error)) {
     case 400: {
       if (WARD_REFUSALS.some((refusal) => refusal.test(reason))) {
-        return { kind: 'address', message: WARD_REFUSED_MESSAGE };
+        return { kind: 'address', message: translate(checkoutMessages, lang, 'shipWardRefused') };
       }
       return {
         kind: 'address',
         message: reason
-          ? `Không giao được tới địa chỉ này: ${reason}. Vui lòng chọn hoặc cập nhật địa chỉ khác.`
-          : 'Không giao được tới địa chỉ này. Vui lòng chọn hoặc cập nhật địa chỉ khác.',
+          ? translate(checkoutMessages, lang, 'shipAddressReason', { reason })
+          : translate(checkoutMessages, lang, 'shipAddress'),
       };
     }
     case 503:
-      return {
-        kind: 'outage',
-        message:
-          'Chưa kết nối được đơn vị vận chuyển. Phí vận chuyển sẽ được tính khi giao hàng.',
-      };
+      return { kind: 'outage', message: translate(checkoutMessages, lang, 'shipOutage') };
     default:
-      return {
-        kind: 'unknown',
-        message: 'Chưa tính được phí vận chuyển. Phí sẽ được tính khi giao hàng.',
-      };
+      return { kind: 'unknown', message: translate(checkoutMessages, lang, 'shipUnknown') };
   }
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type ReactElement } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
   Banknote,
@@ -21,7 +21,11 @@ import { AddressBookPicker } from "@/features/address/AddressBookPicker";
 import { buildGhnShippingAddress, ghnLocationIds } from "@/features/address/addressUtils";
 import { usePaymentOptions } from "./usePaymentOptions";
 import { setPendingCheckout } from "./pendingCheckout";
-import { buildCheckoutSignature, resolveIdempotencyKey } from "./idempotency";
+import {
+  buildCheckoutSignature,
+  isOrderOutcomeUnknown,
+  resolveIdempotencyKey,
+} from "./idempotency";
 import { effectiveUnitPrice, buildShippingFeeItems } from "./shippingFee";
 import { isGhnAddressRefusal, shippingFeeFailure } from "./shippingFeeError";
 import { checkoutSubmitErrorMessage } from "./checkoutSubmitError";
@@ -29,7 +33,10 @@ import { buildOrderItems, findStockShortages } from "./checkoutItems";
 import { canIncreaseCartLine } from "./cartQuantity";
 import {
   normalizeVoucherCode,
-  distinctSellerCount,
+  voucherValidateCodes,
+  voucherCreateCodes,
+  nextVoucherCodes,
+  appliedVoucherRows,
   discountedGrandTotal,
   voucherErrorMessage,
 } from "./voucher";
@@ -53,15 +60,20 @@ import type {
   CreateOrderDto,
   PaymentMethod,
   ProductWithInventory,
-  VoucherValidateDto,
+  VoucherValidation,
 } from "@/types";
 import { formatVnd, cn, buildVariantLabel } from "@/lib/format/utils";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { GradientButton } from "@/components/shared/GradientButton";
 import { IconButton } from "@/components/shared/IconButton";
 import { ProductThumb } from "@/components/shared/ProductThumb";
 import { Skeleton } from "@/components/ui/skeleton";
 import { queryKeys } from "@/hooks/query/queryKeys";
 import { invalidateOrderViews } from "@/lib/query/orderInvalidation";
+import { useLanguage } from "@/context/useLanguage";
+import { useT } from "@/hooks/ui/useT";
+import { translateIfKey } from "@/lib/i18n/messages";
+import { checkoutMessages } from "./checkout.i18n";
 
 const PAYMENT_ICON: Record<string, typeof Banknote> = {
   cod: Banknote,
@@ -72,6 +84,8 @@ const PAYMENT_ICON: Record<string, typeof Banknote> = {
 export default function CheckoutPage(): ReactElement {
   const navigate = useNavigate();
   const location = useLocation();
+  const { lang } = useLanguage();
+  const t = useT(checkoutMessages);
   const selectedIds = new Set<number>((location.state as { selectedIds?: number[] } | null)?.selectedIds ?? []);
 
   const { options: paymentOptions, isLoading: paymentLoading } =
@@ -140,6 +154,10 @@ export default function CheckoutPage(): ReactElement {
   // submit / network hiccup) so the backend replays instead of duplicating;
   // regenerated automatically when the cart contents change.
   const idemKeyRef = useRef<{ signature: string; key: string } | null>(null);
+  // SWEEP-1002-01: the last create failed without telling us whether the order
+  // exists. Re-placing is gated behind an explicit confirm that mints a new key.
+  const [outcomeUnknown, setOutcomeUnknown] = useState(false);
+  const [confirmRetryOpen, setConfirmRetryOpen] = useState(false);
 
   const { mutateAsync: placeOrder, isPending: mutationPending } = useMutation({
     mutationFn: ({ dto, idempotencyKey }: { dto: CreateOrderDto; idempotencyKey: string }) =>
@@ -179,33 +197,37 @@ export default function CheckoutPage(): ReactElement {
   });
 
   const shippingFee = shippingResult?.shippingFee ?? 0;
-  const shippingFailure = shippingFailed ? shippingFeeFailure(shippingError) : null;
+  const shippingFailure = shippingFailed ? shippingFeeFailure(shippingError, lang) : null;
   // A rejected address cannot be shipped at all — let the buyer fix it instead
   // of placing an order GHN will refuse to carry.
   const addressRejected = shippingFailure?.kind === 'address';
 
-  // F3: voucher preview. Codes only apply to single-seller baskets, so the
-  // input is hidden (and no code is sent) when items span multiple sellers.
+  // F3 + VOUCHER-SHOP-01 phase 2: a checkout stacks at most 1 platform code +
+  // 1 code per shop. Every change re-validates the WHOLE set — the platform
+  // code is priced on what the shop codes leave, so the amounts move together.
+  // `applied` is the last set the backend accepted: a failed attempt to add a
+  // code keeps it, so one bad code never wipes the ones already working.
   const [voucherInput, setVoucherInput] = useState("");
+  const [applied, setApplied] = useState<{
+    signature: string;
+    validation: VoucherValidation;
+  } | null>(null);
   const {
     mutate: validateVoucher,
-    data: voucher,
     isPending: voucherPending,
     isError: voucherFailed,
     error: voucherError,
     reset: resetVoucher,
   } = useMutation({
-    mutationFn: (dto: VoucherValidateDto) => api.orders.validateVoucher(dto),
+    mutationFn: (codes: string[]) =>
+      api.orders.validateVoucher({
+        ...voucherValidateCodes(codes),
+        items: buildOrderItems(items, productMap),
+      }),
   });
 
-  const sellerCount = distinctSellerCount(
-    items.map((i) => productMap.get(i.productId)?.userId),
-  );
-  const multiSeller = sellerCount > 1;
-
-  // A validated discount is priced against the exact basket contents — drop it
-  // whenever the items/quantities change so a stale amount is never displayed
-  // or redeemed.
+  // A validated discount is priced against the exact basket contents — one
+  // taken on another basket is never displayed or redeemed.
   const basketSignature = buildCheckoutSignature(
     items.map((i) => ({
       productId: i.productId,
@@ -213,15 +235,13 @@ export default function CheckoutPage(): ReactElement {
       ...(i.skuId != null ? { skuId: i.skuId } : {}),
     })),
   );
+  const appliedVoucher =
+    applied?.signature === basketSignature ? applied.validation : null;
+  const appliedVouchers = appliedVoucher ? appliedVoucherRows(appliedVoucher) : [];
+  const appliedCodes = appliedVouchers.map((v) => v.code);
   useEffect(() => {
     resetVoucher();
   }, [basketSignature, resetVoucher]);
-
-  function handleApplyVoucher(): void {
-    const code = normalizeVoucherCode(voucherInput);
-    if (!code) return;
-    validateVoucher({ code, items: buildOrderItems(items, productMap) });
-  }
 
   // F3 (VOUCHER-SHOP-01): codes the buyer can pick instead of guessing, already
   // priced against this exact basket — hence the signature in the key.
@@ -236,7 +256,7 @@ export default function CheckoutPage(): ReactElement {
       api.orders.getAvailableVouchers({
         items: buildOrderItems(items, productMap),
       }),
-    enabled: items.length > 0 && productsReady && !multiSeller,
+    enabled: items.length > 0 && productsReady,
     retry: false,
     staleTime: 60_000,
   });
@@ -245,13 +265,38 @@ export default function CheckoutPage(): ReactElement {
   );
 
   // Picking a row still goes through validate: the suggestion is a hint priced
-  // a moment ago, and the last redemption can be taken in between (409).
-  function handlePickVoucher(code: string): void {
-    setVoucherInput(code);
-    validateVoucher({ code, items: buildOrderItems(items, productMap) });
+  // a moment ago, and the last redemption can be taken in between (409). A
+  // listed code brings its slot, so it swaps out the code holding that slot.
+  function applyVoucher(code: string): void {
+    if (!code) return;
+    const signature = basketSignature;
+    const slot = voucherSuggestions.find((v) => v.code === code);
+    validateVoucher(nextVoucherCodes(appliedVouchers, code, slot), {
+      onSuccess: (validation) => {
+        setApplied({ signature, validation });
+        setVoucherInput("");
+      },
+    });
   }
 
-  const discountAmount = !multiSeller && voucher ? voucher.discountAmount : 0;
+  // Dropping one code re-prices the rest (the platform share grows back).
+  function handleRemoveVoucher(code: string): void {
+    const rest = appliedCodes.filter((c) => c !== code);
+    resetVoucher();
+    if (rest.length === 0) {
+      setApplied(null);
+      return;
+    }
+    const signature = basketSignature;
+    validateVoucher(rest, {
+      onSuccess: (validation) => setApplied({ signature, validation }),
+      // The remainder no longer validates on its own — redeem nothing rather
+      // than an amount the backend would price differently.
+      onError: () => setApplied(null),
+    });
+  }
+
+  const discountAmount = appliedVoucher?.discountAmount ?? 0;
   const grandTotal = discountedGrandTotal(totalPrice, discountAmount, shippingFee);
 
   // A previewed fee is priced against the chosen address + basket. Recompute it
@@ -280,18 +325,35 @@ export default function CheckoutPage(): ReactElement {
     }
   }
 
-  async function onSubmit(data: CheckoutFormData): Promise<void> {
+  function onSubmit(data: CheckoutFormData): Promise<void> | void {
+    if (outcomeUnknown) {
+      setConfirmRetryOpen(true);
+      return;
+    }
+    return submitOrder(data);
+  }
+
+  function confirmRetry(): void {
+    setConfirmRetryOpen(false);
+    setOutcomeUnknown(false);
+    // The buyer checked their order list and found nothing — a fresh key is
+    // the only way past the 300s hold, and is safe now that no order exists.
+    idemKeyRef.current = null;
+    void handleSubmit(submitOrder)();
+  }
+
+  async function submitOrder(data: CheckoutFormData): Promise<void> {
     setStockError({});
 
     if (!selectedAddress) {
-      setError("root", { message: "Vui lòng chọn địa chỉ giao hàng." });
+      setError("root", { message: t("addressRequired") });
       return;
     }
 
     try {
       const productIds = items.map((item) => item.productId);
       const stockData = await api.products.getMultipleWithInventory(productIds);
-      const newStockError = findStockShortages(items, stockData);
+      const newStockError = findStockShortages(items, stockData, lang);
       if (Object.keys(newStockError).length > 0) {
         setStockError(newStockError);
         return;
@@ -307,19 +369,32 @@ export default function CheckoutPage(): ReactElement {
         buildCheckoutSignature(orderItems),
         () => crypto.randomUUID(),
       );
-      const result = await placeOrder({
-        dto: {
-          paymentMethod: data.paymentMethod,
-          shippingAddress: buildGhnShippingAddress(selectedAddress),
-          items: orderItems,
-          // GHN-ADDR-01: same exact ids the fee was previewed with, so the
-          // waybill is built for the address the buyer actually chose.
-          ...ghnLocationIds(selectedAddress),
-          // F3: redeem the previewed code (single-seller baskets only).
-          ...(voucher && !multiSeller ? { voucherCode: voucher.code } : {}),
-        },
-        idempotencyKey: idemKeyRef.current.key,
-      });
+      let placed: Awaited<ReturnType<typeof placeOrder>>;
+      try {
+        placed = await placeOrder({
+          dto: {
+            paymentMethod: data.paymentMethod,
+            shippingAddress: buildGhnShippingAddress(selectedAddress),
+            items: orderItems,
+            // GHN-ADDR-01: same exact ids the fee was previewed with, so the
+            // waybill is built for the address the buyer actually chose.
+            ...ghnLocationIds(selectedAddress),
+            // F3: redeem exactly the set the preview accepted.
+            ...voucherCreateCodes(appliedCodes),
+          },
+          idempotencyKey: idemKeyRef.current.key,
+        });
+      } catch (createErr: unknown) {
+        // SWEEP-1002-01: a 408/5xx/network drop (or the 409 a same-key retry gets
+        // while the backend holds the key) may hide a committed order — send the
+        // buyer to check their orders instead of inviting a blind retry.
+        if (!isOrderOutcomeUnknown(createErr)) throw createErr;
+        invalidateOrderViews({ all: true });
+        setOutcomeUnknown(true);
+        return;
+      }
+      // const so the `"orders" in result` alias below narrows the union.
+      const result = placed;
       invalidateOrderViews({ all: true });
       // Multi-seller checkout returns { orders, paymentUrl } with one payment covering all orders
       const isMultiSeller = "orders" in result;
@@ -336,7 +411,7 @@ export default function CheckoutPage(): ReactElement {
           const paymentUrl = isMultiSeller
             ? result.paymentUrl
             : (await resolvePaymentUrl(() => api.orders.getPaymentUrl(result.id))).orderUrl;
-          if (!paymentUrl) throw new Error('Không nhận được đường dẫn thanh toán.');
+          if (!paymentUrl) throw new Error(t('noPaymentUrl'));
           // P0-04: do NOT clear the cart here. Record what this checkout covered
           // so PaymentResultPage can remove exactly those items once the gateway
           // confirms success — a cancelled/failed payment leaves the cart intact.
@@ -364,7 +439,7 @@ export default function CheckoutPage(): ReactElement {
     } catch (err: unknown) {
       // GHN-CREATE-01: create can now answer 400 for an undeliverable address —
       // show the buyer the same wording as the fee banner, not GHN's raw English.
-      setError("root", { message: checkoutSubmitErrorMessage(err) });
+      setError("root", { message: checkoutSubmitErrorMessage(err, lang) });
     }
   }
 
@@ -375,23 +450,23 @@ export default function CheckoutPage(): ReactElement {
           <CheckCircle size={56} className="text-accent-green" />
           <div>
             <h2 className="font-display font-black text-2xl text-ink-pri m-0 mb-1">
-              Đặt hàng thành công!
+              {t("successTitle")}
             </h2>
             <p className="font-body text-sm text-ink-sec m-0">
-              Mã đơn hàng:{" "}
+              {t("orderCodes")}{" "}
               <span className="font-mono text-accent-amber">
                 {successOrderIds.map((id) => `#${id}`).join(", ")}
               </span>
             </p>
           </div>
           <p className="font-body text-xs text-ink-muted m-0">
-            Tự động chuyển trang sau 3 giây...
+            {t("autoRedirect")}
           </p>
           <GradientButton
             onClick={() => void navigate("/orders")}
             className="w-full py-3"
           >
-            Xem đơn hàng →
+            {t("viewOrders")}
           </GradientButton>
         </div>
       </div>
@@ -414,12 +489,12 @@ export default function CheckoutPage(): ReactElement {
     return (
       <div className="min-h-screen bg-canvas-base flex items-center justify-center">
         <div className="text-center flex flex-col items-center gap-3 text-ink-sec">
-          <p className="text-sm">Không thể tải giỏ hàng. Vui lòng thử lại.</p>
+          <p className="text-sm">{t("cartLoadFailed")}</p>
           <GradientButton
             onClick={() => void navigate(-1 as never)}
             className="py-2 px-6"
           >
-            Quay lại
+            {t("back")}
           </GradientButton>
         </div>
       </div>
@@ -432,13 +507,13 @@ export default function CheckoutPage(): ReactElement {
         <div className="text-center flex flex-col items-center gap-4">
           <ShoppingCart size={48} className="text-ink-muted" />
           <p className="text-ink-sec text-sm m-0">
-            Giỏ hàng trống. Hãy thêm sản phẩm trước khi đặt hàng.
+            {t("cartEmpty")}
           </p>
           <GradientButton
             onClick={() => void navigate("/")}
             className="py-2 px-6"
           >
-            Tiếp tục mua sắm
+            {t("keepShopping")}
           </GradientButton>
         </div>
       </div>
@@ -453,20 +528,20 @@ export default function CheckoutPage(): ReactElement {
           onClick={() => navigate(-1)}
           className="bg-canvas-elevated border border-bdr rounded-lg px-3 py-2 text-ink-pri cursor-pointer text-sm hover:border-accent-amber transition-colors inline-flex items-center gap-1.5"
         >
-          <ArrowLeft size={16} /> Quay lại
+          <ArrowLeft size={16} /> {t("back")}
         </button>
         <h1 className="font-display text-xl font-black uppercase tracking-wide text-ink-pri m-0">
-          Xác nhận đơn hàng
+          {t("title")}
         </h1>
       </div>
 
       {/* Breadcrumb */}
       <div className="max-w-[1080px] mx-auto px-4 sm:px-6 pt-5 flex items-center gap-2 font-body text-xs text-ink-muted">
-        <span>Giỏ hàng</span>
+        <span>{t("crumbCart")}</span>
         <ChevronRight size={12} />
-        <span className="text-accent-amber font-semibold">Thanh toán</span>
+        <span className="text-accent-amber font-semibold">{t("crumbPayment")}</span>
         <ChevronRight size={12} />
-        <span>Hoàn tất</span>
+        <span>{t("crumbDone")}</span>
       </div>
 
       {/* Two-column layout */}
@@ -474,6 +549,22 @@ export default function CheckoutPage(): ReactElement {
         <div className="max-w-[1080px] mx-auto px-4 sm:px-6 py-6 pb-12 grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 lg:gap-8 items-start">
           {/* LEFT — form */}
           <div className="flex flex-col gap-4">
+            {outcomeUnknown && (
+              <div
+                role="alert"
+                className="bg-tb-amber/10 border border-accent-amber text-ink-pri px-4 py-3 rounded-xl text-sm flex flex-col gap-1"
+              >
+                <span className="font-semibold">{t("outcomeUnknownTitle")}</span>
+                <span className="text-ink-sec">
+                  {t("outcomeUnknownBody")}{" "}
+                  <Link to="/orders" className="text-accent-amber font-semibold underline">
+                    {t("myOrders")}
+                  </Link>
+                  {" "}
+                  {t("outcomeUnknownAfter")}
+                </span>
+              </div>
+            )}
             {errors.root?.message && (
               <div className="bg-tb-red/10 border border-accent-red text-accent-red px-4 py-3 rounded-xl text-sm">
                 {errors.root.message}
@@ -483,7 +574,7 @@ export default function CheckoutPage(): ReactElement {
             {/* Address */}
             <div className="bg-canvas-elevated rounded-tb-card border border-bdr p-5 flex flex-col gap-4">
               <h2 className="m-0 font-display font-bold text-base uppercase tracking-[0.04em] text-ink-pri">
-                1. Địa chỉ giao hàng
+                {t("sectionAddress")}
               </h2>
               <AddressBookPicker
                 selectedId={selectedAddress?.id ?? null}
@@ -501,7 +592,7 @@ export default function CheckoutPage(): ReactElement {
             {/* Payment method */}
             <div className="bg-canvas-elevated rounded-tb-card border border-bdr p-5 flex flex-col gap-4">
               <h2 className="m-0 font-display font-bold text-base uppercase tracking-[0.04em] text-ink-pri">
-                2. Phương thức thanh toán
+                {t("sectionPayment")}
               </h2>
               <Controller
                 name="paymentMethod"
@@ -556,7 +647,7 @@ export default function CheckoutPage(): ReactElement {
                     )}
                     {errors.paymentMethod && (
                       <span className="text-xs text-accent-red">
-                        {errors.paymentMethod.message}
+                        {translateIfKey(checkoutMessages, lang, errors.paymentMethod.message)}
                       </span>
                     )}
                   </div>
@@ -568,16 +659,16 @@ export default function CheckoutPage(): ReactElement {
             <div className="bg-canvas-surface border border-bdr rounded-xl overflow-hidden">
               <div className="px-4 py-3 border-b border-bdr">
                 <span className="font-display font-bold uppercase text-sm tracking-wide text-ink-sec">
-                  3. Sản phẩm ({items.length})
+                  {t("sectionItems", { count: items.length })}
                 </span>
               </div>
               {productsError ? (
                 <div className="px-4 py-6 text-center text-accent-red text-sm">
-                  Không thể tải thông tin sản phẩm. Vui lòng thử lại.
+                  {t("productsLoadFailed")}
                 </div>
               ) : items.map((item) => {
                 const product = productMap.get(item.productId);
-                const name = product?.name ?? (productsLoading ? "" : "Sản phẩm không còn tồn tại");
+                const name = product?.name ?? (productsLoading ? "" : t("productGone"));
                 const imageUrl = productCoverImage(product) ?? "";
                 const variantLabel = buildVariantLabel(item.skuTierIdx, product?.variations);
                 return (
@@ -612,7 +703,7 @@ export default function CheckoutPage(): ReactElement {
                           </div>
                         ) : null}
                       <div className="text-xs mt-0.5 font-mono text-accent-amber">
-                        {formatVnd(getEffectivePrice(item))}
+                        {formatVnd(getEffectivePrice(item), lang)}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
@@ -648,7 +739,7 @@ export default function CheckoutPage(): ReactElement {
                         +
                       </button>
                       <span className="font-mono font-bold text-sm text-ink-pri ml-2 min-w-[80px] text-right">
-                        {formatVnd(getEffectivePrice(item) * item.quantity)}
+                        {formatVnd(getEffectivePrice(item) * item.quantity, lang)}
                       </span>
                     </div>
                   </div>
@@ -667,18 +758,18 @@ export default function CheckoutPage(): ReactElement {
           <div className="lg:sticky lg:top-[88px] flex flex-col gap-4 w-full">
             <div className="bg-canvas-surface border border-bdr rounded-xl px-4 py-4">
               <div className="flex justify-between items-center mb-2 text-sm text-ink-sec">
-                <span>Tạm tính</span>
-                <span className="font-mono">{formatVnd(totalPrice)}</span>
+                <span>{t("subtotal")}</span>
+                <span className="font-mono">{formatVnd(totalPrice, lang)}</span>
               </div>
               <div className="flex justify-between items-center mb-2 text-sm text-ink-sec gap-2">
-                <span>Phí vận chuyển</span>
+                <span>{t("shippingFee")}</span>
                 {shippingPending ? (
-                  <span className="text-ink-muted">Đang tính…</span>
+                  <span className="text-ink-muted">{t("calculating")}</span>
                 ) : shippingResult ? (
                   shippingFee === 0 ? (
-                    <span className="text-accent-green font-medium">Miễn phí</span>
+                    <span className="text-accent-green font-medium">{t("free")}</span>
                   ) : (
-                    <span className="font-mono">{formatVnd(shippingFee)}</span>
+                    <span className="font-mono">{formatVnd(shippingFee, lang)}</span>
                   )
                 ) : shippingFailure ? (
                   <span
@@ -687,93 +778,114 @@ export default function CheckoutPage(): ReactElement {
                       addressRejected ? 'text-accent-red' : 'text-ink-muted',
                     )}
                   >
-                    {addressRejected ? 'Không giao được' : 'Tính khi giao hàng'}
+                    {addressRejected ? t('undeliverable') : t('feeOnDelivery')}
                   </span>
                 ) : (
                   <span className="text-ink-muted">
-                    {selectedAddress ? "Đang tính…" : "Chọn địa chỉ giao hàng"}
+                    {selectedAddress ? t("calculating") : t("pickAddress")}
                   </span>
                 )}
               </div>
-              {/* Voucher (F3) — previewed via /voucher/validate, redeemed on create */}
-              {multiSeller ? (
-                <div className="flex justify-between items-center gap-2 mb-3 text-sm text-ink-sec">
-                  <span>Giảm giá</span>
-                  <span className="text-xs text-ink-muted text-right">
-                    Không áp dụng cho đơn nhiều người bán
-                  </span>
-                </div>
-              ) : voucher ? (
-                <div className="flex justify-between items-center gap-2 mb-3 text-sm text-ink-sec">
-                  <span className="flex items-center gap-1.5 min-w-0">
-                    Giảm giá
-                    <span className="font-mono text-xs text-accent-amber truncate">
-                      {voucher.code}
+              {/* Vouchers (F3 / VOUCHER-SHOP-01 phase 2) — previewed via
+                  /voucher/validate, redeemed on create. Total first, then one
+                  row per code; the input stays open to add the next code. */}
+              {appliedVoucher && (
+                <div className="mb-2 flex flex-col gap-1">
+                  <div className="flex justify-between items-center gap-2 text-sm text-ink-sec">
+                    <span>{t("discount")}</span>
+                    <span className="font-mono text-accent-green">
+                      −{formatVnd(appliedVoucher.discountAmount, lang)}
                     </span>
-                    <IconButton
-                      aria-label="Bỏ mã giảm giá"
-                      onClick={() => {
-                        resetVoucher();
-                        setVoucherInput("");
-                      }}
-                      className="size-5 rounded-full text-ink-muted hover:text-ink-pri hover:bg-canvas-elevated transition-colors shrink-0"
-                    >
-                      <X size={12} className="shrink-0" />
-                    </IconButton>
-                  </span>
-                  <span className="font-mono text-accent-green">
-                    −{formatVnd(voucher.discountAmount)}
-                  </span>
-                </div>
-              ) : (
-                <div className="mb-3 flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2">
-                    <input
-                      value={voucherInput}
-                      onChange={(e) => setVoucherInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleApplyVoucher();
-                        }
-                      }}
-                      placeholder="Mã giảm giá"
-                      className="h-9 flex-1 min-w-0 bg-canvas-base border border-bdr rounded-tb-input px-3 text-ink-pri font-mono text-[13px] uppercase placeholder:normal-case placeholder:font-body placeholder:text-ink-muted outline-none focus:border-tb-amber/50 transition-colors"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleApplyVoucher}
-                      disabled={voucherPending || !voucherInput.trim()}
-                      className="h-9 px-3 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-pri font-body font-semibold text-[13px] whitespace-nowrap transition-colors enabled:cursor-pointer enabled:hover:border-accent-amber disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {voucherPending ? "Đang kiểm tra…" : "Áp dụng"}
-                    </button>
                   </div>
-                  {voucherFailed && (
-                    <span className="text-xs text-accent-red">
-                      {voucherErrorMessage(voucherError)}
+                  <ul className="m-0 p-0 list-none flex flex-col gap-1">
+                    {appliedVouchers.map((row) => (
+                      <li
+                        key={row.code}
+                        className="flex justify-between items-center gap-2 pl-2 text-xs text-ink-muted"
+                      >
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-mono text-accent-amber truncate">
+                            {row.code}
+                          </span>
+                          {row.scope && (
+                            <span className="shrink-0 rounded-full border border-bdr px-1.5 font-body text-[10px]">
+                              {voucherScopeLabel({ scope: row.scope }, lang)}
+                            </span>
+                          )}
+                          <IconButton
+                            aria-label={t("removeVoucher", { code: row.code })}
+                            disabled={voucherPending}
+                            onClick={() => handleRemoveVoucher(row.code)}
+                            className="size-5 rounded-full text-ink-muted hover:text-ink-pri hover:bg-canvas-elevated transition-colors shrink-0 disabled:opacity-50"
+                          >
+                            <X size={12} className="shrink-0" />
+                          </IconButton>
+                        </span>
+                        <span className="font-mono shrink-0">
+                          −{formatVnd(row.discountAmount, lang)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="mb-3 flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  <input
+                    value={voucherInput}
+                    onChange={(e) => setVoucherInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        applyVoucher(normalizeVoucherCode(voucherInput));
+                      }
+                    }}
+                    placeholder={appliedVoucher ? t("addVoucher") : t("voucherCode")}
+                    aria-label={t("voucherCode")}
+                    className="h-9 flex-1 min-w-0 bg-canvas-base border border-bdr rounded-tb-input px-3 text-ink-pri font-mono text-[13px] uppercase placeholder:normal-case placeholder:font-body placeholder:text-ink-muted outline-none focus:border-tb-amber/50 transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => applyVoucher(normalizeVoucherCode(voucherInput))}
+                    disabled={voucherPending || !voucherInput.trim()}
+                    className="h-9 px-3 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-pri font-body font-semibold text-[13px] whitespace-nowrap transition-colors enabled:cursor-pointer enabled:hover:border-accent-amber disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {voucherPending ? t("checking") : t("apply")}
+                  </button>
+                </div>
+                {voucherFailed && (
+                  <span className="text-xs text-accent-red">
+                    {voucherErrorMessage(voucherError, lang)}
+                  </span>
+                )}
+                {/* Suggestions (VOUCHER-SHOP-01) — absent whenever the backend
+                    cannot price them, so the manual input above still stands
+                    on its own. */}
+                {voucherSuggestions.length > 0 && (
+                  <div className="flex flex-col gap-1.5 mt-0.5">
+                    <span className="font-body text-[11px] uppercase tracking-[0.04em] text-ink-muted">
+                      {t("suggestionsTitle")}
                     </span>
-                  )}
-                  {/* Suggestions (VOUCHER-SHOP-01) — absent whenever the backend
-                      cannot price them, so the manual input above still stands
-                      on its own. */}
-                  {voucherSuggestions.length > 0 && (
-                    <div className="flex flex-col gap-1.5 mt-0.5">
-                      <span className="font-body text-[11px] uppercase tracking-[0.04em] text-ink-muted">
-                        Mã giảm giá cho đơn này
-                      </span>
-                      <ul className="flex flex-col gap-1.5 m-0 p-0 list-none max-h-56 overflow-y-auto">
-                        {voucherSuggestions.map((suggestion) => (
+                    <span className="font-body text-[11px] leading-[1.4] text-ink-muted">
+                      {t("suggestionsRule")}
+                    </span>
+                    <ul className="flex flex-col gap-1.5 m-0 p-0 list-none max-h-56 overflow-y-auto">
+                      {voucherSuggestions.map((suggestion) => {
+                        const isApplied = appliedCodes.includes(suggestion.code);
+                        return (
                           <li key={suggestion.code}>
                             <button
                               type="button"
-                              onClick={() => handlePickVoucher(suggestion.code)}
-                              disabled={!suggestion.isEligible || voucherPending}
+                              onClick={() => applyVoucher(suggestion.code)}
+                              disabled={!suggestion.isEligible || isApplied || voucherPending}
+                              aria-pressed={isApplied}
                               className={cn(
                                 'w-full flex items-start justify-between gap-2 rounded-tb-input border px-2.5 py-2 text-left transition-colors',
-                                suggestion.isEligible
-                                  ? 'border-bdr bg-canvas-base enabled:cursor-pointer enabled:hover:border-accent-amber'
-                                  : 'border-bdr bg-canvas-base opacity-50 cursor-not-allowed',
+                                isApplied
+                                  ? 'border-tb-amber/50 bg-tb-amber/[0.08] cursor-default'
+                                  : suggestion.isEligible
+                                    ? 'border-bdr bg-canvas-base enabled:cursor-pointer enabled:hover:border-accent-amber'
+                                    : 'border-bdr bg-canvas-base opacity-50 cursor-not-allowed',
                               )}
                             >
                               <span className="flex flex-col gap-0.5 min-w-0">
@@ -782,34 +894,38 @@ export default function CheckoutPage(): ReactElement {
                                     {suggestion.code}
                                   </span>
                                   <span className="shrink-0 rounded-full border border-bdr px-1.5 font-body text-[10px] text-ink-muted">
-                                    {voucherScopeLabel(suggestion)}
+                                    {voucherScopeLabel(suggestion, lang)}
                                   </span>
                                 </span>
                                 <span className="font-body text-[11px] leading-[1.4] text-ink-muted">
                                   {suggestion.isEligible
-                                    ? (suggestion.description ?? 'Áp dụng được cho đơn này')
-                                    : voucherIneligibleMessage(suggestion, formatVnd)}
+                                    ? (suggestion.description ?? t('suggestionUsable'))
+                                    : voucherIneligibleMessage(suggestion, (n) => formatVnd(n, lang), lang)}
                                 </span>
                               </span>
-                              {suggestion.isEligible && (
-                                <span className="shrink-0 font-mono text-[13px] text-accent-green">
-                                  −{formatVnd(voucherSuggestionDiscount(suggestion))}
+                              {isApplied ? (
+                                <span className="shrink-0 font-body text-[11px] font-semibold text-accent-amber">
+                                  {t("applied")}
                                 </span>
-                              )}
+                              ) : suggestion.isEligible ? (
+                                <span className="shrink-0 font-mono text-[13px] text-accent-green">
+                                  −{formatVnd(voucherSuggestionDiscount(suggestion), lang)}
+                                </span>
+                              ) : null}
                             </button>
                           </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
+              </div>
               <div className="flex justify-between items-center pt-3 border-t border-bdr">
                 <span className="font-semibold text-ink-pri">
-                  Tổng thanh toán
+                  {t("total")}
                 </span>
                 <span className="font-mono font-black text-2xl text-accent-amber">
-                  {formatVnd(grandTotal)}
+                  {formatVnd(grandTotal, lang)}
                 </span>
               </div>
             </div>
@@ -824,7 +940,7 @@ export default function CheckoutPage(): ReactElement {
                 )}
               >
                 {addressRejected
-                  ? "Vui lòng chọn hoặc cập nhật địa chỉ giao hàng ở mục 1 để tiếp tục."
+                  ? t("fixAddress")
                   : shippingFailure.message}
               </div>
             )}
@@ -833,6 +949,7 @@ export default function CheckoutPage(): ReactElement {
               type="submit"
               disabled={
                 loading ||
+                voucherPending ||
                 productsError ||
                 !selectedAddress ||
                 addressRejected ||
@@ -840,23 +957,34 @@ export default function CheckoutPage(): ReactElement {
               }
               className="w-full py-4 text-lg font-bold rounded-xl"
             >
-              {loading ? "Đang đặt hàng..." : "XÁC NHẬN ĐẶT HÀNG →"}
+              {loading ? t("placing") : t("placeOrder")}
             </GradientButton>
 
             <p className="text-center font-body text-xs text-ink-muted leading-relaxed m-0">
-              Bằng việc đặt hàng, bạn đồng ý với{" "}
+              {t("termsBefore")}{" "}
               <span className="text-ink-sec underline cursor-pointer">
-                Điều khoản sử dụng
+                {t("terms")}
               </span>{" "}
-              và{" "}
+              {t("and")}{" "}
               <span className="text-ink-sec underline cursor-pointer">
-                Chính sách bảo mật
+                {t("privacy")}
               </span>{" "}
-              của TryBuy.
+              {t("termsAfter")}
             </p>
           </div>
         </div>
       </form>
+
+      <ConfirmDialog
+        open={confirmRetryOpen}
+        title={t("retryConfirmTitle")}
+        description={t("retryConfirmBody")}
+        confirmLabel={t("retryConfirmAction")}
+        cancelLabel={t("retryConfirmCancel")}
+        tone="danger"
+        onConfirm={confirmRetry}
+        onCancel={() => setConfirmRetryOpen(false)}
+      />
     </div>
   );
 }

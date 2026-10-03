@@ -116,3 +116,26 @@ describe('sortVoucherSuggestions', () => {
     expect(input.map((v) => v.code)).toEqual(['SMALL', 'BIG']);
   });
 });
+
+describe('voucherSuggestions — en (I18N-03)', () => {
+  it('words the ineligibility reasons in English', () => {
+    expect(
+      voucherIneligibleMessage(makeVoucher({ isEligible: false, ineligibleReason: 'EXPIRED' }), money, 'en'),
+    ).toBe('This voucher has expired.');
+    expect(
+      voucherIneligibleMessage(
+        makeVoucher({ isEligible: false, ineligibleReason: 'MIN_ORDER_NOT_MET', amountToAdd: '50000.00' }),
+        money,
+        'en',
+      ),
+    ).toBe('Add 50000đ more to use this voucher.');
+    expect(
+      voucherIneligibleMessage(makeVoucher({ isEligible: false, ineligibleReason: 'SOMETHING_NEW' as never }), money, 'en'),
+    ).toBe('Not usable on this order yet.');
+  });
+
+  it('labels the scope in English', () => {
+    expect(voucherScopeLabel({ scope: 'shop' }, 'en')).toBe('Seller');
+    expect(voucherScopeLabel({ scope: 'platform' }, 'en')).toBe('Platform-wide');
+  });
+});

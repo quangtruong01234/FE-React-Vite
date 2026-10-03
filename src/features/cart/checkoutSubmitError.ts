@@ -1,3 +1,6 @@
+import type { Lang } from '@/lib/i18n/lang';
+import { translate } from '@/lib/i18n/messages';
+import { checkoutMessages } from './checkout.i18n';
 import { isGhnAddressRefusal, shippingFeeFailure } from './shippingFeeError';
 
 /**
@@ -14,12 +17,12 @@ import { isGhnAddressRefusal, shippingFeeFailure } from './shippingFeeError';
  * Everything else keeps passing the backend message through unchanged; only a
  * missing/blank message falls back to the generic line.
  */
-export function checkoutSubmitErrorMessage(error: unknown): string {
-  if (isGhnAddressRefusal(error)) return shippingFeeFailure(error).message;
+export function checkoutSubmitErrorMessage(error: unknown, lang: Lang = 'vi'): string {
+  if (isGhnAddressRefusal(error)) return shippingFeeFailure(error, lang).message;
 
   if (error && typeof error === 'object' && 'message' in error) {
     const message = (error as { message?: unknown }).message;
     if (typeof message === 'string' && message.trim()) return message.trim();
   }
-  return 'Đặt hàng thất bại. Vui lòng thử lại.';
+  return translate(checkoutMessages, lang, 'orderFailed');
 }

@@ -106,3 +106,19 @@ describe('findStockShortages', () => {
     });
   });
 });
+
+describe('checkoutItems — en (I18N-03)', () => {
+  it('words the missing-name fallbacks in English', () => {
+    expect(cartLineName(undefined, false, 'en')).toBe('This product no longer exists');
+    expect(cartLineName(undefined, true, 'en')).toBe("Couldn't load the product name");
+  });
+
+  it('pluralises the stock shortage', () => {
+    const stock = (n: number) => [
+      product({ id: 'prod_1', inventory: { availableStock: n } as ProductWithInventory['inventory'] }),
+    ];
+    const line = [{ productId: 'prod_1', skuId: null, quantity: 9 }];
+    expect(findStockShortages(line, stock(1), 'en')).toEqual({ prod_1: 'Only 1 item left' });
+    expect(findStockShortages(line, stock(3), 'en')).toEqual({ prod_1: 'Only 3 items left' });
+  });
+});

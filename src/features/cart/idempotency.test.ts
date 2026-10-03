@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCheckoutSignature, resolveIdempotencyKey } from "./idempotency";
+import { buildCheckoutSignature, isOrderOutcomeUnknown, resolveIdempotencyKey } from "./idempotency";
 
 describe("buildCheckoutSignature", () => {
   it("is independent of item order", () => {
@@ -44,5 +44,35 @@ describe("resolveIdempotencyKey", () => {
     const next = resolveIdempotencyKey(first, "sig-b", gen);
     expect(next.key).toBe("key-2");
     expect(next.signature).toBe("sig-b");
+  });
+});
+
+describe("isOrderOutcomeUnknown", () => {
+  const apiError = (status: number, message = "x") => ({ statusCode: status, status, message });
+
+  it("treats a timeout or any 5xx as unknown — the order may still commit", () => {
+    for (const status of [408, 500, 502, 503, 504]) {
+      expect(isOrderOutcomeUnknown(apiError(status))).toBe(true);
+    }
+  });
+
+  it("treats a failure with no HTTP answer as unknown", () => {
+    expect(isOrderOutcomeUnknown(new TypeError("Failed to fetch"))).toBe(true);
+    expect(isOrderOutcomeUnknown(new SyntaxError("Unexpected end of JSON input"))).toBe(true);
+    expect(isOrderOutcomeUnknown(undefined)).toBe(true);
+  });
+
+  it("treats the held-key 409 as unknown", () => {
+    expect(
+      isOrderOutcomeUnknown(apiError(409, "A duplicate order request is already being processed")),
+    ).toBe(true);
+  });
+
+  it("keeps every definite rejection definite, other 409s included", () => {
+    expect(isOrderOutcomeUnknown(apiError(409, "Insufficient stock for product prod_x"))).toBe(false);
+    expect(isOrderOutcomeUnknown(apiError(409))).toBe(false);
+    for (const status of [400, 401, 403, 404, 429]) {
+      expect(isOrderOutcomeUnknown(apiError(status))).toBe(false);
+    }
   });
 });

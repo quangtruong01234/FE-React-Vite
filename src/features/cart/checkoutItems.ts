@@ -1,4 +1,7 @@
 import type { CreateOrderItemDto, ProductWithInventory } from '@/types';
+import type { Lang } from '@/lib/i18n/lang';
+import { translate } from '@/lib/i18n/messages';
+import { checkoutMessages } from './checkout.i18n';
 
 /** Minimal cart-line shape needed to build order items / check stock. */
 export interface CheckoutCartLine {
@@ -39,9 +42,10 @@ export function buildOrderItems(
 export function cartLineName(
   product: Pick<ProductWithInventory, 'name'> | undefined,
   lookupFailed: boolean,
+  lang: Lang = 'vi',
 ): string {
   if (product) return product.name;
-  return lookupFailed ? 'Chưa tải được tên sản phẩm' : 'Sản phẩm không còn tồn tại';
+  return translate(checkoutMessages, lang, lookupFailed ? 'nameLoadFailed' : 'productGone');
 }
 
 /**
@@ -54,6 +58,7 @@ export function cartLineName(
 export function findStockShortages(
   lines: CheckoutCartLine[],
   products: ProductWithInventory[],
+  lang: Lang = 'vi',
 ): Record<string, string> {
   const byId = new Map<string, ProductWithInventory>();
   for (const product of products) byId.set(product.id, product);
@@ -69,7 +74,7 @@ export function findStockShortages(
       available = product?.inventory?.availableStock ?? 0;
     }
     if (line.quantity > available) {
-      shortages[line.productId] = `Chỉ còn ${available} sản phẩm`;
+      shortages[line.productId] = translate(checkoutMessages, lang, 'onlyLeft', { count: available });
     }
   }
   return shortages;

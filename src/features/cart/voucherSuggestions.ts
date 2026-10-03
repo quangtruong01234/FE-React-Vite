@@ -1,5 +1,8 @@
 import type { AvailableVoucher, VoucherIneligibleReason } from '@/types';
 import { toVoucherNumber } from '@/lib/domain/voucherMoney';
+import type { Lang } from '@/lib/i18n/lang';
+import { translate, type MessageKey } from '@/lib/i18n/messages';
+import { checkoutMessages } from './checkout.i18n';
 
 /**
  * Pure helpers for the checkout voucher suggestion list (F3 / VOUCHER-SHOP-01).
@@ -15,19 +18,19 @@ import { toVoucherNumber } from '@/lib/domain/voucherMoney';
  */
 
 /** Widest ineligibility copy: reason → what the buyer can do about it. */
-const INELIGIBLE_COPY: Record<VoucherIneligibleReason, string> = {
-  INACTIVE: 'Mã đã bị tắt.',
-  WRONG_SELLER: 'Chỉ áp dụng cho sản phẩm của người bán khác.',
-  NOT_ACTIVE_YET: 'Chưa đến thời gian áp dụng.',
-  EXPIRED: 'Mã đã hết hạn.',
-  MIN_ORDER_NOT_MET: 'Đơn hàng chưa đạt giá trị tối thiểu.',
-  FULLY_REDEEMED: 'Mã đã hết lượt sử dụng.',
-  USER_LIMIT_REACHED: 'Bạn đã dùng hết lượt của mã này.',
-  NO_DISCOUNT: 'Mã không giảm thêm cho đơn này.',
+const INELIGIBLE_COPY: Record<VoucherIneligibleReason, MessageKey<typeof checkoutMessages>> = {
+  INACTIVE: 'ineligibleInactive',
+  WRONG_SELLER: 'ineligibleWrongSeller',
+  NOT_ACTIVE_YET: 'ineligibleNotActiveYet',
+  EXPIRED: 'ineligibleExpired',
+  MIN_ORDER_NOT_MET: 'ineligibleMinOrder',
+  FULLY_REDEEMED: 'ineligibleFullyRedeemed',
+  USER_LIMIT_REACHED: 'ineligibleUserLimit',
+  NO_DISCOUNT: 'ineligibleNoDiscount',
 };
 
 /**
- * Why this row is greyed out, in Vietnamese. `MIN_ORDER_NOT_MET` is the only
+ * Why this row is greyed out, in the buyer's language. `MIN_ORDER_NOT_MET` is the only
  * reason the buyer can act on right now, so it upgrades to the concrete
  * "buy N more" line whenever the backend priced the gap (`amountToAdd > 0`).
  *
@@ -37,16 +40,19 @@ const INELIGIBLE_COPY: Record<VoucherIneligibleReason, string> = {
 export function voucherIneligibleMessage(
   voucher: Pick<AvailableVoucher, 'ineligibleReason' | 'amountToAdd'>,
   formatMoney: (n: number) => string,
+  lang: Lang = 'vi',
 ): string {
   const reason = voucher.ineligibleReason;
   if (reason === 'MIN_ORDER_NOT_MET') {
     const gap = toVoucherNumber(voucher.amountToAdd);
-    if (gap > 0) return `Mua thêm ${formatMoney(gap)} để dùng mã này.`;
+    if (gap > 0) {
+      return translate(checkoutMessages, lang, 'ineligibleBuyMore', { amount: formatMoney(gap) });
+    }
   }
   if (reason != null && reason in INELIGIBLE_COPY) {
-    return INELIGIBLE_COPY[reason as VoucherIneligibleReason];
+    return translate(checkoutMessages, lang, INELIGIBLE_COPY[reason as VoucherIneligibleReason]);
   }
-  return 'Chưa dùng được cho đơn này.';
+  return translate(checkoutMessages, lang, 'ineligibleFallback');
 }
 
 /**
@@ -56,8 +62,9 @@ export function voucherIneligibleMessage(
  */
 export function voucherScopeLabel(
   voucher: Pick<AvailableVoucher, 'scope'>,
+  lang: Lang = 'vi',
 ): string {
-  return voucher.scope === 'shop' ? 'Của người bán' : 'Toàn sàn';
+  return translate(checkoutMessages, lang, voucher.scope === 'shop' ? 'scopeShop' : 'scopePlatform');
 }
 
 /** Discount this row would give on the current basket, as a usable number. */

@@ -18,9 +18,14 @@ import { effectiveUnitPrice } from './shippingFee';
 import { cartLineName } from './checkoutItems';
 import { canIncreaseCartLine } from './cartQuantity';
 import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
+import { useLanguage } from '@/context/useLanguage';
+import { useT } from '@/hooks/ui/useT';
+import { cartMessages } from './cart.i18n';
 
 export default function CartPage(): ReactElement {
   const navigate = useNavigate();
+  const { lang } = useLanguage();
+  const t = useT(cartMessages);
   const { data: cart, isLoading: cartLoading, error: cartError, refetch: refetchCart } = useCart();
   const updateItem = useUpdateCartItem();
   const removeItem = useRemoveCartItem();
@@ -107,13 +112,13 @@ export default function CartPage(): ReactElement {
           onClick={() => navigate(-1)}
           className="bg-canvas-elevated border border-bdr rounded-lg px-3 py-2 text-ink-pri cursor-pointer text-sm hover:border-accent-amber transition-colors inline-flex items-center gap-1.5"
         >
-          <ArrowLeft size={16} className="shrink-0" /> Quay lại
+          <ArrowLeft size={16} className="shrink-0" /> {t('back')}
         </button>
         <h1 className="m-0 font-display font-black text-lg uppercase tracking-wide text-ink-pri">
-          Giỏ hàng
+          {t('title')}
           {items.length > 0 && (
             <span className="ml-2 text-sm font-body font-normal text-ink-sec normal-case tracking-normal">
-              ({items.length} sản phẩm)
+              {t('itemCount', { count: items.length })}
             </span>
           )}
         </h1>
@@ -134,13 +139,13 @@ export default function CartPage(): ReactElement {
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-5 py-24 text-ink-sec">
             <ShoppingCart size={56} className="text-ink-muted shrink-0" />
-            <p className="m-0 font-body text-base">Giỏ hàng trống</p>
+            <p className="m-0 font-body text-base">{t('empty')}</p>
             <button
               type="button"
               onClick={() => navigate('/marketplace')}
               className="bg-canvas-elevated border border-bdr rounded-lg px-4 py-2 text-sm text-ink-pri cursor-pointer hover:border-accent-amber transition-colors font-body"
             >
-              Khám phá sản phẩm
+              {t('explore')}
             </button>
           </div>
         ) : (
@@ -158,7 +163,7 @@ export default function CartPage(): ReactElement {
                     className="w-4 h-4 rounded accent-tb-amber cursor-pointer"
                   />
                   <span className="font-body text-sm text-ink-pri">
-                    Chọn tất cả ({items.length})
+                    {t('selectAll', { count: items.length })}
                   </span>
                 </label>
                 {selectedIds.size > 0 && (
@@ -171,7 +176,7 @@ export default function CartPage(): ReactElement {
                     }}
                     className="font-body text-xs text-accent-red cursor-pointer hover:underline disabled:opacity-40 bg-transparent border-0"
                   >
-                    Xóa đã chọn ({selectedIds.size})
+                    {t('removeSelected', { count: selectedIds.size })}
                   </button>
                 )}
               </div>
@@ -179,14 +184,14 @@ export default function CartPage(): ReactElement {
               {productsFailed && (
                 <div className="flex items-center justify-between gap-3 px-4 py-3 bg-tb-red/10 border border-tb-red/30 rounded-xl">
                   <span className="font-body text-xs text-ink-sec">
-                    Chưa tải được thông tin sản phẩm. Giỏ hàng của bạn vẫn còn nguyên.
+                    {t('productsFailed')}
                   </span>
                   <button
                     type="button"
                     onClick={() => void refetchProducts()}
                     className="font-body text-xs text-accent-amber cursor-pointer hover:underline bg-transparent border-0 shrink-0"
                   >
-                    Thử lại
+                    {t('retry')}
                   </button>
                 </div>
               )}
@@ -194,7 +199,7 @@ export default function CartPage(): ReactElement {
               {/* Items */}
               {items.map(item => {
                 const product = productMap.get(item.productId);
-                const name = cartLineName(product, productsFailed);
+                const name = cartLineName(product, productsFailed, lang);
                 const imageUrl = productCoverImage(product) ?? '';
                 const variantLabel = buildVariantLabel(item.skuTierIdx, product?.variations);
                 const price = getEffectivePrice(item);
@@ -203,6 +208,7 @@ export default function CartPage(): ReactElement {
                 return (
                   <div
                     key={item.id}
+                    data-testid={`cart-line-${item.id}`}
                     className={cn(
                       'flex gap-4 p-4 bg-canvas-surface border rounded-xl transition-colors',
                       checked ? 'border-tb-amber/40' : 'border-bdr',
@@ -232,7 +238,7 @@ export default function CartPage(): ReactElement {
                       {variantLabel && (
                         <p className="m-0 font-body text-xs text-ink-muted">{variantLabel}</p>
                       )}
-                      <p className="m-0 font-mono font-bold text-sm text-accent-amber">{formatPrice(price)}</p>
+                      <p className="m-0 font-mono font-bold text-sm text-accent-amber">{formatPrice(price, lang)}</p>
                     </div>
 
                     {/* Qty + delete */}
@@ -240,7 +246,7 @@ export default function CartPage(): ReactElement {
                       <IconButton
                         disabled={isMutating}
                         onClick={() => removeItem.mutate(item.id)}
-                        aria-label={`Xóa ${name} khỏi giỏ hàng`}
+                        aria-label={t('removeLine', { name })}
                         className="size-7 rounded-md text-ink-muted hover:text-accent-red transition-colors"
                       >
                         <Trash2 size={14} className="shrink-0" />
@@ -250,18 +256,18 @@ export default function CartPage(): ReactElement {
                         <IconButton
                           disabled={isMutating || item.quantity <= 1}
                           onClick={() => handleDecrement(item.id, item.quantity)}
-                          aria-label="Giảm số lượng"
+                          aria-label={t('decreaseQty')}
                           className="size-7 rounded-md border border-bdr bg-canvas-elevated text-ink-pri transition-colors enabled:cursor-pointer enabled:hover:border-accent-amber disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           <Minus size={13} className="shrink-0" />
                         </IconButton>
-                        <span className="font-mono text-sm font-bold min-w-[24px] text-center text-ink-pri">
+                        <span data-testid="cart-line-qty" className="font-mono text-sm font-bold min-w-[24px] text-center text-ink-pri">
                           {item.quantity}
                         </span>
                         <IconButton
                           disabled={isMutating || !canIncreaseCartLine(item.quantity)}
                           onClick={() => updateItem.mutate({ itemId: item.id, quantity: item.quantity + 1 })}
-                          aria-label="Tăng số lượng"
+                          aria-label={t('increaseQty')}
                           className="size-7 rounded-md border border-bdr bg-canvas-elevated text-ink-pri transition-colors enabled:cursor-pointer enabled:hover:border-accent-amber disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           <Plus size={13} className="shrink-0" />
@@ -269,7 +275,7 @@ export default function CartPage(): ReactElement {
                       </div>
 
                       <p className="m-0 font-mono text-xs text-ink-sec">
-                        {formatPrice(price * item.quantity)}
+                        {formatPrice(price * item.quantity, lang)}
                       </p>
                     </div>
                   </div>
@@ -280,27 +286,27 @@ export default function CartPage(): ReactElement {
             {/* Right — order summary (sticky) */}
             <div className="lg:sticky lg:top-24 flex flex-col gap-4 bg-canvas-surface border border-bdr rounded-xl p-5">
               <h2 className="m-0 font-display font-black text-base uppercase tracking-wide text-ink-pri">
-                Tóm tắt đơn hàng
+                {t('summary')}
               </h2>
 
               <div className="flex flex-col gap-2.5 text-sm font-body">
                 <div className="flex justify-between text-ink-sec">
-                  <span>Sản phẩm đã chọn</span>
+                  <span>{t('selectedCount')}</span>
                   <span className="text-ink-pri font-semibold">{selectedItems.length}</span>
                 </div>
                 <div className="flex justify-between text-ink-sec">
-                  <span>Tạm tính</span>
-                  <span className="font-mono text-ink-pri">{formatPrice(subtotal)}</span>
+                  <span>{t('subtotal')}</span>
+                  <span data-testid="cart-subtotal" className="font-mono text-ink-pri">{formatPrice(subtotal, lang)}</span>
                 </div>
                 <div className="flex justify-between text-ink-sec">
-                  <span>Phí vận chuyển</span>
-                  <span className="text-accent-green font-semibold">Miễn phí</span>
+                  <span>{t('shippingFee')}</span>
+                  <span className="text-accent-green font-semibold">{t('free')}</span>
                 </div>
               </div>
 
               <div className="flex justify-between items-center pt-3 border-t border-bdr">
-                <span className="font-body font-semibold text-sm text-ink-pri">Tổng cộng</span>
-                <span className="font-mono font-bold text-lg text-accent-amber">{formatPrice(subtotal)}</span>
+                <span className="font-body font-semibold text-sm text-ink-pri">{t('total')}</span>
+                <span className="font-mono font-bold text-lg text-accent-amber">{formatPrice(subtotal, lang)}</span>
               </div>
 
               <GradientButton
@@ -308,12 +314,12 @@ export default function CartPage(): ReactElement {
                 disabled={selectedIds.size === 0 || isMutating}
                 className="w-full py-3 text-sm"
               >
-                ĐẶT HÀNG ({selectedIds.size}) →
+                {t('checkout', { count: selectedIds.size })}
               </GradientButton>
 
               {selectedIds.size === 0 && (
                 <p className="m-0 text-center font-body text-xs text-ink-muted">
-                  Chọn ít nhất 1 sản phẩm để đặt hàng
+                  {t('selectHint')}
                 </p>
               )}
             </div>

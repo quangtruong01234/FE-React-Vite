@@ -53,3 +53,19 @@ describe('checkoutSubmitErrorMessage', () => {
     }
   });
 });
+
+describe('checkoutSubmitErrorMessage — en (I18N-03)', () => {
+  it('routes a GHN refusal through the English fee-banner copy', () => {
+    expect(
+      checkoutSubmitErrorMessage({ statusCode: 400, status: 400, message: 'GHN cannot deliver to this ward' }, 'en'),
+    ).toBe(
+      'We cannot deliver to this address: the carrier does not serve the selected ward. Please choose or update another address.',
+    );
+  });
+
+  it('falls back to English when the message is blank', () => {
+    expect(checkoutSubmitErrorMessage({ statusCode: 500, status: 500, message: '  ' }, 'en')).toBe(
+      'Could not place the order. Please try again.',
+    );
+  });
+});

@@ -1,12 +1,17 @@
-import type { ApiError } from '@/types';
+import type { ApiError, VoucherScope, VoucherValidation, ValidatedVoucher } from '@/types';
+import type { Lang } from '@/lib/i18n/lang';
+import { bindTranslator } from '@/lib/i18n/messages';
+import { checkoutMessages } from './checkout.i18n';
 
 /**
  * Pure helpers for the checkout voucher flow (F3).
  *
- * Backend contract: `POST /order/voucher/validate` previews a code against the
- * basket without redeeming; `POST /order` accepts an optional `voucherCode`.
- * Codes are case-insensitive (normalized to uppercase server-side) and only
- * valid on single-seller baskets (multi-seller + code → 400).
+ * Backend contract: `POST /order/voucher/validate` previews codes against the
+ * basket without redeeming; `POST /order` redeems them. Codes are
+ * case-insensitive (normalized to uppercase server-side). Since VOUCHER-SHOP-01
+ * phase 2 a checkout stacks at most 1 platform code + 1 code per shop: shop
+ * codes price on that shop's slice, the platform code on what is left after
+ * them, and shipping is never discounted.
  */
 
 /** Codes are case-insensitive server-side; normalize before sending/comparing. */
@@ -15,11 +20,71 @@ export function normalizeVoucherCode(raw: string): string {
 }
 
 /**
- * Distinct sellers in the basket, ignoring items whose product hasn't loaded
- * yet (unknown seller must not flip the single-seller guard on/off mid-load).
+ * Validate body for a set of codes. One code still goes out as the legacy
+ * `code` so a backend that predates `voucherCodes` keeps working; only a real
+ * stack needs the new field.
  */
-export function distinctSellerCount(sellerIds: Array<string | undefined>): number {
-  return new Set(sellerIds.filter((id): id is string => id != null)).size;
+export function voucherValidateCodes(
+  codes: readonly string[],
+): { code: string } | { voucherCodes: string[] } {
+  return codes.length === 1 ? { code: codes[0] } : { voucherCodes: [...codes] };
+}
+
+/** Create-order counterpart of `voucherValidateCodes`; no codes → no key at all. */
+export function voucherCreateCodes(
+  codes: readonly string[],
+): { voucherCode?: string; voucherCodes?: string[] } {
+  if (codes.length === 0) return {};
+  return codes.length === 1 ? { voucherCode: codes[0] } : { voucherCodes: [...codes] };
+}
+
+/** An applied code; `scope: null` when a pre-phase-2 backend did not say. */
+export type AppliedVoucherRow = Omit<ValidatedVoucher, 'scope'> & { scope: VoucherScope | null };
+
+/** Which stacking slot a code occupies: the single platform slot, or one per shop. */
+export interface VoucherSlot {
+  scope: VoucherScope;
+  sellerId: string | null;
+}
+
+function sameSlot(a: AppliedVoucherRow, b: VoucherSlot): boolean {
+  return a.scope === b.scope && (a.scope === 'platform' || a.sellerId === b.sellerId);
+}
+
+/**
+ * The code list to validate when the buyer adds `code` to what is applied.
+ * A code whose slot is known (picked from the suggestion list) replaces the one
+ * already holding that slot — picking a second platform code swaps it rather
+ * than earning a guaranteed 400. An unknown slot (typed by hand, not in the
+ * list) is simply appended and the backend decides.
+ */
+export function nextVoucherCodes(
+  applied: readonly AppliedVoucherRow[],
+  code: string,
+  slot?: VoucherSlot,
+): string[] {
+  if (applied.some((v) => v.code === code)) return applied.map((v) => v.code);
+  const kept = slot ? applied.filter((v) => !sameSlot(v, slot)) : applied;
+  return [...kept.map((v) => v.code), code];
+}
+
+/**
+ * Per-code rows of a validation. A backend that predates phase 2 sends no
+ * `vouchers`, so its single code becomes one row with an unknown scope.
+ */
+export function appliedVoucherRows(
+  validation: VoucherValidation,
+): AppliedVoucherRow[] {
+  if (validation.vouchers && validation.vouchers.length > 0) return validation.vouchers;
+  return [
+    {
+      code: validation.code,
+      scope: null,
+      sellerId: null,
+      discountType: validation.discountType,
+      discountAmount: validation.discountAmount,
+    },
+  ];
 }
 
 /** Backend computes `total = itemsTotal - discount + shippingFee`; mirror it for the preview. */
@@ -31,24 +96,52 @@ export function discountedGrandTotal(
   return Math.max(0, itemsTotal - discountAmount) + shippingFee;
 }
 
+// Messages name the failing code ("Voucher SALE10 has expired", "… to use
+// voucher SALE10"). Codes are uppercase, which keeps the old code-less wording
+// ("Voucher not found") from being read as a code named "not".
+const CODE_IN_MESSAGE = /\b[Vv]oucher ([A-Z0-9][A-Z0-9_-]*)\b/;
+
 /**
  * Friendly message for a failed voucher validate/redeem. 404 = unknown or
- * inactive code; 400 covers the rejection reasons (message keywords come from
- * the backend contract — fall back to the raw server message when unmatched).
+ * inactive code; 400/409 carry the rejection reason as English prose, matched
+ * by keyword with the code stripped out first (a code like `MINUS10` must not
+ * read as "min order"). Unmatched → the raw server message.
  */
-export function voucherErrorMessage(error: unknown): string {
+export function voucherErrorMessage(error: unknown, lang: Lang = 'vi'): string {
+  const t = bindTranslator(checkoutMessages, lang);
   const err = error as ApiError | undefined;
   const status = err?.statusCode ?? err?.status;
-  if (status === 404) return 'Mã giảm giá không tồn tại hoặc đã bị vô hiệu hóa.';
   const message = typeof err?.message === 'string' ? err.message.trim() : '';
-  if (status === 400) {
-    const m = message.toLowerCase();
-    if (m.includes('expired')) return 'Mã giảm giá đã hết hạn.';
-    if (m.includes('not started') || m.includes('not yet')) return 'Mã giảm giá chưa đến thời gian áp dụng.';
-    if (m.includes('min')) return 'Đơn hàng chưa đạt giá trị tối thiểu để dùng mã này.';
-    if (m.includes('per-user') || m.includes('per user') || m.includes('already')) return 'Bạn đã sử dụng mã này rồi.';
-    if (m.includes('usage') || m.includes('limit')) return 'Mã giảm giá đã hết lượt sử dụng.';
-    if (m.includes('seller') || m.includes('multi')) return 'Mã giảm giá chỉ áp dụng cho đơn hàng từ một người bán.';
+  const code = CODE_IN_MESSAGE.exec(message)?.[1];
+  const subject = code ? t('voucherSubjectCode', { code }) : t('voucherSubjectGeneric');
+  if (status === 404) return t('voucherNotFound', { subject });
+  if (status === 400 || status === 409) {
+    const m = (code ? message.split(code).join('') : message).toLowerCase();
+    if (m.includes('just been fully redeemed')) return t('voucherJustRedeemed', { subject });
+    if (m.includes('one platform voucher')) return t('voucherOnePlatform');
+    if (m.includes('same shop')) return t('voucherOnePerShop');
+    if (m.includes('only applies to items from the shop')) {
+      return t('voucherWrongShop', { subject });
+    }
+    if (m.includes('expired')) return t('voucherExpired', { subject });
+    if (m.includes('not started') || m.includes('not yet') || m.includes('not active yet')) {
+      return t('voucherNotStarted', { subject });
+    }
+    if (m.includes('min') || m.includes('at least')) {
+      const target = code ? t('voucherTargetCode', { code }) : t('voucherTargetThis');
+      return t('voucherMinOrder', { target });
+    }
+    if (m.includes('per-user') || m.includes('per user') || m.includes('already')) {
+      return code ? t('voucherUserLimitCode', { code }) : t('voucherUserLimit');
+    }
+    if (m.includes('fully redeemed') || m.includes('usage') || m.includes('limit')) {
+      return t('voucherUsedUp', { subject });
+    }
+    if (m.includes('no discount')) return t('voucherNoDiscount', { subject });
+    // Legacy backend (before phase 2): any code on a multi-seller basket → 400.
+    if (m.includes('seller') || m.includes('multi')) {
+      return t('voucherSingleSeller');
+    }
   }
-  return message || 'Không thể áp dụng mã giảm giá. Vui lòng thử lại.';
+  return message || t('voucherFailed');
 }

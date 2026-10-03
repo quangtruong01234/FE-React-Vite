@@ -116,3 +116,25 @@ describe('isGhnAddressRefusal', () => {
     expect(isGhnAddressRefusal(null)).toBe(false);
   });
 });
+
+describe('shippingFeeFailure — en (I18N-03)', () => {
+  const failure = (statusCode: number, message: string) =>
+    shippingFeeFailure({ statusCode, status: statusCode, message }, 'en');
+
+  it('gives the frozen ward refusal our own English copy', () => {
+    expect(failure(400, 'GHN preview error: GHN cannot deliver to this ward').message).toBe(
+      'We cannot deliver to this address: the carrier does not serve the selected ward. Please choose or update another address.',
+    );
+  });
+
+  it('wraps an unrecognised reason and words the outage branches', () => {
+    expect(failure(400, 'GHN preview error: weird reason').message).toBe(
+      'We cannot deliver to this address: weird reason. Please choose or update another address.',
+    );
+    expect(failure(503, 'GHN unavailable')).toEqual({
+      kind: 'outage',
+      message: 'The carrier is unreachable right now. Shipping will be charged on delivery.',
+    });
+    expect(failure(500, 'boom').message).toBe('Shipping could not be calculated yet. It will be charged on delivery.');
+  });
+});
