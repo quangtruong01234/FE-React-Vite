@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { voucherMsg } from './voucher.i18n';
 
 /**
  * Create-voucher form (F3-ADMIN). Every numeric/date field is kept as a
@@ -16,13 +17,13 @@ const INTEGER_PATTERN = /^\d+$/;
 
 const optionalAmount = z
   .string()
-  .refine((v) => v.trim() === '' || AMOUNT_PATTERN.test(v.trim()), 'Nhập số tiền hợp lệ (VND)');
+  .refine((v) => v.trim() === '' || AMOUNT_PATTERN.test(v.trim()), voucherMsg('zodAmount'));
 
 const optionalCount = z
   .string()
   .refine(
     (v) => v.trim() === '' || (INTEGER_PATTERN.test(v.trim()) && Number(v.trim()) >= 1),
-    'Nhập số nguyên từ 1 trở lên',
+    voucherMsg('zodCount'),
   );
 
 const voucherFormObject = z
@@ -30,16 +31,16 @@ const voucherFormObject = z
     code: z
       .string()
       .trim()
-      .min(1, 'Bắt buộc')
-      .max(64, 'Tối đa 64 ký tự')
-      .regex(CODE_PATTERN, 'Chỉ dùng chữ, số, gạch ngang và gạch dưới'),
-    description: z.string().max(255, 'Tối đa 255 ký tự'),
-    discountType: z.enum(['percent', 'fixed'], { error: 'Chọn loại giảm giá' }),
+      .min(1, voucherMsg('zodRequired'))
+      .max(64, voucherMsg('zodMax64'))
+      .regex(CODE_PATTERN, voucherMsg('zodCodePattern')),
+    description: z.string().max(255, voucherMsg('zodMax255')),
+    discountType: z.enum(['percent', 'fixed'], { error: voucherMsg('zodDiscountType') }),
     discountValue: z
       .string()
       .trim()
-      .min(1, 'Bắt buộc')
-      .refine((v) => AMOUNT_PATTERN.test(v) && Number(v) > 0, 'Nhập số lớn hơn 0'),
+      .min(1, voucherMsg('zodRequired'))
+      .refine((v) => AMOUNT_PATTERN.test(v) && Number(v) > 0, voucherMsg('zodPositive')),
     minOrderAmount: optionalAmount,
     maxDiscountAmount: optionalAmount,
     usageLimit: optionalCount,
@@ -61,7 +62,7 @@ function refineShared(form: VoucherFormShape, ctx: Ctx): void {
     ctx.addIssue({
       code: 'custom',
       path: ['discountValue'],
-      message: 'Giảm theo phần trăm phải trong khoảng 1–100',
+      message: voucherMsg('zodPercentRange'),
     });
   }
 
@@ -77,7 +78,7 @@ function refineShared(form: VoucherFormShape, ctx: Ctx): void {
     ctx.addIssue({
       code: 'custom',
       path: ['expiresAt'],
-      message: 'Ngày kết thúc phải sau ngày bắt đầu',
+      message: voucherMsg('zodExpiresAfterStart'),
     });
   }
 }
@@ -106,7 +107,7 @@ function refineFixedMinimum(form: VoucherFormShape, ctx: Ctx): void {
     ctx.addIssue({
       code: 'custom',
       path: ['minOrderAmount'],
-      message: 'Mã giảm tiền cố định cần đơn tối thiểu lớn hơn số tiền giảm',
+      message: voucherMsg('zodFixedMinimum'),
     });
   }
 }

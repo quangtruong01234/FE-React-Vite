@@ -4,6 +4,9 @@ import { queryKeys } from '@/hooks/query/queryKeys';
 import { ADMIN_VOUCHER_BINDING, SELLER_VOUCHER_BINDING } from './voucherConsoleBinding';
 import { buildCreateVoucherDto } from './voucherRules';
 import { VOUCHER_FORM_DEFAULTS } from './voucherRules.schema';
+import { voucherMessages } from './voucher.i18n';
+import { translate } from '@/lib/i18n/messages';
+import { LANGS } from '@/lib/i18n/lang';
 import type { PaginatedResponse, Voucher } from '@/types';
 
 const VOUCHER: Voucher = {
@@ -50,7 +53,15 @@ describe('voucher console query keys', () => {
     for (const binding of [ADMIN_VOUCHER_BINDING, SELLER_VOUCHER_BINDING]) {
       expect(isPrefixOf(binding.listKey, binding.listPageKey(1, 20))).toBe(true);
       expect(isPrefixOf(binding.listKey, binding.listPageKey(4, 20))).toBe(true);
+      // A searched page is swept by the same write-invalidation.
+      expect(isPrefixOf(binding.listKey, binding.listPageKey(1, 20, 'SALE'))).toBe(true);
     }
+  });
+
+  it('keys each search term separately, or a new term shows the old rows', () => {
+    expect(ADMIN_VOUCHER_BINDING.listPageKey(1, 20, 'SALE')).not.toEqual(
+      ADMIN_VOUCHER_BINDING.listPageKey(1, 20),
+    );
   });
 
   it('keeps the page key varying with the page, or paging never refetches', () => {
@@ -79,11 +90,11 @@ describe('voucher console bindings', () => {
     const update = vi.spyOn(api.orders, 'updateVoucher').mockResolvedValue(VOUCHER);
     const deactivate = vi.spyOn(api.orders, 'deactivateVoucher').mockResolvedValue(VOUCHER);
 
-    await ADMIN_VOUCHER_BINDING.fetchList(2, 20);
+    await ADMIN_VOUCHER_BINDING.fetchList(2, 20, 'SALE');
     await ADMIN_VOUCHER_BINDING.update(7, { isActive: true });
     await ADMIN_VOUCHER_BINDING.deactivate(7);
 
-    expect(list).toHaveBeenCalledWith(2, 20);
+    expect(list).toHaveBeenCalledWith(2, 20, 'SALE');
     expect(update).toHaveBeenCalledWith(7, { isActive: true });
     expect(deactivate).toHaveBeenCalledWith(7);
   });
@@ -96,11 +107,11 @@ describe('voucher console bindings', () => {
     const deactivate = vi.spyOn(api.orders, 'deactivateSellerVoucher').mockResolvedValue(VOUCHER);
     const adminList = vi.spyOn(api.orders, 'getAdminVouchers').mockResolvedValue(PAGE);
 
-    await SELLER_VOUCHER_BINDING.fetchList(2, 20);
+    await SELLER_VOUCHER_BINDING.fetchList(2, 20, 'SALE');
     await SELLER_VOUCHER_BINDING.update(7, { isActive: true });
     await SELLER_VOUCHER_BINDING.deactivate(7);
 
-    expect(list).toHaveBeenCalledWith(2, 20);
+    expect(list).toHaveBeenCalledWith(2, 20, 'SALE');
     expect(update).toHaveBeenCalledWith(7, { isActive: true });
     expect(deactivate).toHaveBeenCalledWith(7);
     expect(adminList).not.toHaveBeenCalled();
@@ -129,6 +140,23 @@ describe('voucher console copy', () => {
     // and the backend deliberately does not say which — the copy must not
     // claim it is only about permissions to manage vouchers at all.
     expect(SELLER_VOUCHER_BINDING.copy.forbidden).not.toBe(ADMIN_VOUCHER_BINDING.copy.forbidden);
-    expect(SELLER_VOUCHER_BINDING.copy.forbidden).toContain('mã của chính mình');
+    expect(translate(voucherMessages, 'vi', SELLER_VOUCHER_BINDING.copy.forbidden)).toContain(
+      'mã của chính mình',
+    );
+    expect(translate(voucherMessages, 'en', SELLER_VOUCHER_BINDING.copy.forbidden)).toContain(
+      'its own vouchers',
+    );
+  });
+
+  it('names every copy slot with a key that has a non-empty line in both languages', () => {
+    for (const binding of [ADMIN_VOUCHER_BINDING, SELLER_VOUCHER_BINDING]) {
+      for (const key of Object.values(binding.copy)) {
+        for (const lang of LANGS) {
+          expect(translate(voucherMessages, lang, key).trim()).not.toBe('');
+        }
+      }
+    }
+    expect(translate(voucherMessages, 'en', ADMIN_VOUCHER_BINDING.copy.title)).toBe('Vouchers');
+    expect(translate(voucherMessages, 'en', SELLER_VOUCHER_BINDING.copy.title)).toBe('Shop vouchers');
   });
 });

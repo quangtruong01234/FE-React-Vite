@@ -2,6 +2,9 @@ import type { ApiError, CreateVoucherDto, UpdateVoucherDto, Voucher } from '@/ty
 import { formatVnd } from '@/lib/format/utils';
 import { toVoucherNumber } from '@/lib/domain/voucherMoney';
 import type { VoucherFormData } from './voucherRules.schema';
+import type { Lang } from '@/lib/i18n/lang';
+import { translate } from '@/lib/i18n/messages';
+import { voucherMessages, type VoucherMessageKey } from './voucher.i18n';
 
 /**
  * Pure helpers for the voucher console (F3-ADMIN), shared by the platform-wide
@@ -40,33 +43,36 @@ export interface VoucherStatusMeta {
 export function voucherStatusMeta(
   voucher: Pick<Voucher, 'isActive' | 'startsAt' | 'expiresAt' | 'usageLimit' | 'usedCount'>,
   now: number = Date.now(),
+  lang: Lang = 'vi',
 ): VoucherStatusMeta {
+  const label = (key: VoucherMessageKey): string => translate(voucherMessages, lang, key);
   if (!voucher.isActive) {
-    return { kind: 'inactive', label: 'Đã tắt', className: 'bg-canvas-elevated text-ink-muted border-bdr' };
+    return { kind: 'inactive', label: label('statusInactive'), className: 'bg-canvas-elevated text-ink-muted border-bdr' };
   }
   const expiresAt = voucher.expiresAt ? new Date(voucher.expiresAt).getTime() : null;
   if (expiresAt !== null && Number.isFinite(expiresAt) && now > expiresAt) {
-    return { kind: 'expired', label: 'Hết hạn', className: 'bg-tb-red/15 text-accent-red border-tb-red/30' };
+    return { kind: 'expired', label: label('statusExpired'), className: 'bg-tb-red/15 text-accent-red border-tb-red/30' };
   }
   if (voucher.usageLimit !== null && voucher.usedCount >= voucher.usageLimit) {
-    return { kind: 'used_up', label: 'Hết lượt', className: 'bg-tb-red/15 text-accent-red border-tb-red/30' };
+    return { kind: 'used_up', label: label('statusUsedUp'), className: 'bg-tb-red/15 text-accent-red border-tb-red/30' };
   }
   const startsAt = voucher.startsAt ? new Date(voucher.startsAt).getTime() : null;
   if (startsAt !== null && Number.isFinite(startsAt) && now < startsAt) {
-    return { kind: 'scheduled', label: 'Chưa bắt đầu', className: 'bg-tb-cyan/15 text-accent-cyan border-tb-cyan/30' };
+    return { kind: 'scheduled', label: label('statusScheduled'), className: 'bg-tb-cyan/15 text-accent-cyan border-tb-cyan/30' };
   }
-  return { kind: 'active', label: 'Đang chạy', className: 'bg-tb-green/15 text-accent-green border-tb-green/30' };
+  return { kind: 'active', label: label('statusActive'), className: 'bg-tb-green/15 text-accent-green border-tb-green/30' };
 }
 
 /** "10%" · "10% (tối đa 50.000 đ)" · "50.000 đ" — formatting stays in the page. */
 export function voucherDiscountLabel(
   voucher: Pick<Voucher, 'discountType' | 'discountValue' | 'maxDiscountAmount'>,
   formatMoney: (n: number) => string,
+  lang: Lang = 'vi',
 ): string {
   const value = toVoucherNumber(voucher.discountValue);
   if (voucher.discountType === 'fixed') return formatMoney(value);
   const cap = voucher.maxDiscountAmount != null ? toVoucherNumber(voucher.maxDiscountAmount) : null;
-  return cap != null && cap > 0 ? `${value}% (tối đa ${formatMoney(cap)})` : `${value}%`;
+  return cap != null && cap > 0 ? translate(voucherMessages, lang, 'discountWithCap', { value, cap: formatMoney(cap) }) : `${value}%`;
 }
 
 /** "3 / 100" · "3 / ∞" — a null `usageLimit` means unlimited, not zero. */
@@ -83,12 +89,13 @@ export function voucherUsageLabel(
 export function voucherWindowLabel(
   voucher: Pick<Voucher, 'startsAt' | 'expiresAt'>,
   formatWhen: (iso: string) => string,
+  lang: Lang = 'vi',
 ): string {
   const from = voucher.startsAt ? formatWhen(voucher.startsAt) : '';
   const to = voucher.expiresAt ? formatWhen(voucher.expiresAt) : '';
-  if (!from && !to) return 'Không giới hạn';
-  if (from && !to) return `Từ ${from}`;
-  if (!from && to) return `Đến ${to}`;
+  if (!from && !to) return translate(voucherMessages, lang, 'windowUnlimited');
+  if (from && !to) return translate(voucherMessages, lang, 'windowFrom', { from });
+  if (!from && to) return translate(voucherMessages, lang, 'windowTo', { to });
   return `${from} → ${to}`;
 }
 
@@ -109,7 +116,7 @@ export function canReactivateVoucher(voucher: Pick<Voucher, 'isActive'>): boolea
 export type VoucherConsoleAction = 'list' | 'create' | 'deactivate' | 'update';
 
 /** What a 401/403 means when only the role is checked. */
-export const VOUCHER_FORBIDDEN_DEFAULT = 'Bạn không có quyền quản lý mã giảm giá.';
+export const VOUCHER_FORBIDDEN_DEFAULT: VoucherMessageKey = 'forbiddenDefault';
 
 /**
  * Friendly message for a voucher console call. 409 is the duplicate-code guard
@@ -124,23 +131,25 @@ export const VOUCHER_FORBIDDEN_DEFAULT = 'Bạn không có quyền quản lý m�
 export function voucherConsoleErrorMessage(
   error: unknown,
   action: VoucherConsoleAction,
-  forbidden: string = VOUCHER_FORBIDDEN_DEFAULT,
+  forbidden: VoucherMessageKey = VOUCHER_FORBIDDEN_DEFAULT,
+  lang: Lang = 'vi',
 ): string {
+  const t = (key: VoucherMessageKey): string => translate(voucherMessages, lang, key);
   const err = error as ApiError | undefined;
   const status = err?.statusCode ?? err?.status;
   const message = typeof err?.message === 'string' ? err.message.trim() : '';
-  if (status === 401 || status === 403) return forbidden;
-  if (status === 409) return 'Mã này đã tồn tại. Hãy chọn một mã khác.';
-  if (status === 404) return 'Không tìm thấy mã giảm giá này.';
+  if (status === 401 || status === 403) return t(forbidden);
+  if (status === 409) return t('errorDuplicate');
+  if (status === 404) return t('errorNotFound');
   if (status === 400 && message) return message;
   if (message) return message;
-  const fallbackByAction: Record<VoucherConsoleAction, string> = {
-    list: 'Không tải được danh sách mã giảm giá. Vui lòng thử lại.',
-    create: 'Không tạo được mã giảm giá. Vui lòng thử lại.',
-    deactivate: 'Không tắt được mã giảm giá. Vui lòng thử lại.',
-    update: 'Không lưu được thay đổi. Vui lòng thử lại.',
+  const fallbackByAction: Record<VoucherConsoleAction, VoucherMessageKey> = {
+    list: 'errorList',
+    create: 'errorCreate',
+    deactivate: 'errorDeactivate',
+    update: 'errorUpdate',
   };
-  return fallbackByAction[action];
+  return t(fallbackByAction[action]);
 }
 
 /**
@@ -230,11 +239,13 @@ export function isoToLocalInput(iso: string | null | undefined): string {
 export function voucherActiveToggleCopy(
   isEdit: boolean,
   isActive: boolean,
+  lang: Lang = 'vi',
 ): { label: string; state: string } {
+  const t = (key: VoucherMessageKey): string => translate(voucherMessages, lang, key);
   if (!isEdit) {
-    return { label: 'Kích hoạt mã ngay sau khi tạo', state: 'Kích hoạt ngay' };
+    return { label: t('toggleCreateLabel'), state: t('toggleCreateState') };
   }
-  return { label: 'Trạng thái mã', state: isActive ? 'Đang bật' : 'Đã tắt' };
+  return { label: t('toggleEditLabel'), state: isActive ? t('toggleOn') : t('toggleOff') };
 }
 
 /** Existing row → edit-form state. DECIMAL strings ("10.00") become "10". */
@@ -359,13 +370,15 @@ export function hasVoucherEdits(dto: UpdateVoucherDto): boolean {
 export function voucherTighteningFields(
   dto: UpdateVoucherDto,
   original: Voucher,
+  lang: Lang = 'vi',
 ): string[] {
   const fields: string[] = [];
+  const field = (key: VoucherMessageKey): void => { fields.push(translate(voucherMessages, lang, key)); };
 
   if (dto.minOrderAmount !== undefined) {
     // Never null (see `diffMinOrderAmount`); 0 is the loosest value.
     if (dto.minOrderAmount > toVoucherNumber(original.minOrderAmount)) {
-      fields.push('Đơn tối thiểu');
+      field('fieldMinOrder');
     }
   }
   if (dto.maxDiscountAmount !== undefined) {
@@ -374,27 +387,27 @@ export function voucherTighteningFields(
       original.maxDiscountAmount == null
         ? Infinity
         : toVoucherNumber(original.maxDiscountAmount);
-    if (next < current) fields.push('Giảm tối đa');
+    if (next < current) field('fieldMaxDiscount');
   }
   if (dto.usageLimit !== undefined) {
     if ((dto.usageLimit ?? Infinity) < (original.usageLimit ?? Infinity)) {
-      fields.push('Tổng lượt dùng');
+      field('fieldUsageLimit');
     }
   }
   if (dto.perUserLimit !== undefined) {
     if ((dto.perUserLimit ?? Infinity) < (original.perUserLimit ?? Infinity)) {
-      fields.push('Lượt mỗi người');
+      field('fieldPerUserLimit');
     }
   }
   if (dto.startsAt !== undefined) {
     const next = dto.startsAt == null ? -Infinity : new Date(dto.startsAt).getTime();
     const current = original.startsAt ? new Date(original.startsAt).getTime() : -Infinity;
-    if (next > current) fields.push('Thời gian bắt đầu');
+    if (next > current) field('fieldStartsAt');
   }
   if (dto.expiresAt !== undefined) {
     const next = dto.expiresAt == null ? Infinity : new Date(dto.expiresAt).getTime();
     const current = original.expiresAt ? new Date(original.expiresAt).getTime() : Infinity;
-    if (next < current) fields.push('Thời gian kết thúc');
+    if (next < current) field('fieldExpiresAt');
   }
 
   return fields;
@@ -408,9 +421,10 @@ export function voucherTighteningFields(
 export function voucherEditBlockedMessage(
   dto: UpdateVoucherDto,
   original: Voucher,
+  lang: Lang = 'vi',
 ): string | null {
   if (dto.usageLimit != null && dto.usageLimit < original.usedCount) {
-    return `Tổng lượt dùng không thể nhỏ hơn số lượt đã dùng (${original.usedCount}).`;
+    return translate(voucherMessages, lang, 'blockedUsageBelowUsed', { used: original.usedCount });
   }
   // VOUCHER-GUARD-01, re-checked server-side on every patch that carries a
   // minimum: a fixed voucher worth at least its own threshold zeroes the goods
@@ -420,13 +434,16 @@ export function voucherEditBlockedMessage(
   if (dto.minOrderAmount !== undefined && original.discountType === 'fixed') {
     const discountValue = toVoucherNumber(original.discountValue);
     if (discountValue >= dto.minOrderAmount) {
-      return `Mã giảm tiền cố định phải có đơn tối thiểu lớn hơn số tiền giảm (${formatVnd(discountValue)}).`;
+      return translate(voucherMessages, lang, 'blockedFixedMinimum', { value: formatVnd(discountValue, lang) });
     }
   }
   if (original.usedCount === 0) return null;
-  const tightened = voucherTighteningFields(dto, original);
+  const tightened = voucherTighteningFields(dto, original, lang);
   if (tightened.length === 0) return null;
-  return `Mã đã được dùng ${original.usedCount} lần nên chỉ có thể nới lỏng điều kiện. Không thể siết: ${tightened.join(', ')}.`;
+  return translate(voucherMessages, lang, 'blockedTightening', {
+    used: original.usedCount,
+    fields: tightened.join(', '),
+  });
 }
 
 /** Constrained fields — the ones the backend one-ways once a voucher is used. */
@@ -447,9 +464,13 @@ const CONSTRAINED_FIELDS = [
 export function voucherLooseningConfirm(
   dto: UpdateVoucherDto,
   original: Voucher,
+  lang: Lang = 'vi',
 ): string | null {
   if (original.usedCount === 0) return null;
   const changed = CONSTRAINED_FIELDS.filter((field) => dto[field] !== undefined);
   if (changed.length === 0) return null;
-  return `Mã "${original.code}" đã được dùng ${original.usedCount} lần. Nới lỏng điều kiện là thay đổi một chiều — sau này không siết lại được. Tiếp tục?`;
+  return translate(voucherMessages, lang, 'looseningConfirm', {
+    code: original.code,
+    used: original.usedCount,
+  });
 }

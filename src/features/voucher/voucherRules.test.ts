@@ -24,6 +24,8 @@ import {
   VOUCHER_FORM_DEFAULTS,
 } from './voucherRules.schema';
 import type { Voucher } from '@/types';
+import { translateIfKey } from '@/lib/i18n/messages';
+import { voucherMessages } from './voucher.i18n';
 
 const NOW = new Date('2026-08-18T10:00:00.000Z').getTime();
 
@@ -163,9 +165,10 @@ describe('voucherConsoleErrorMessage', () => {
   it('uses the caller-supplied wording for a 401/403, since 403 is role-dependent', () => {
     // The shop routes are ownership-gated as well as role-gated, so their 403
     // has to read differently — but only 401/403 may be overridden.
-    const sellerForbidden = 'Bạn không quản lý được mã này. Shop chỉ sửa được mã của chính mình.';
-    expect(voucherConsoleErrorMessage({ statusCode: 403 }, 'update', sellerForbidden)).toBe(sellerForbidden);
-    expect(voucherConsoleErrorMessage({ statusCode: 401 }, 'list', sellerForbidden)).toBe(sellerForbidden);
+    const sellerForbidden = 'sellerForbidden';
+    const sellerText = 'Bạn không quản lý được mã này. Shop chỉ sửa được mã của chính mình.';
+    expect(voucherConsoleErrorMessage({ statusCode: 403 }, 'update', sellerForbidden)).toBe(sellerText);
+    expect(voucherConsoleErrorMessage({ statusCode: 401 }, 'list', sellerForbidden)).toBe(sellerText);
     expect(voucherConsoleErrorMessage({ statusCode: 404 }, 'update', sellerForbidden))
       .toBe('Không tìm thấy mã giảm giá này.');
     expect(voucherConsoleErrorMessage({ statusCode: 409, message: 'dup' }, 'create', sellerForbidden))
@@ -658,5 +661,76 @@ describe('voucherActiveToggleCopy', () => {
 
   it('phrases create mode as an intent, not a current state', () => {
     expect(voucherActiveToggleCopy(false, true).state).toBe('Kích hoạt ngay');
+  });
+});
+
+describe('voucher copy in English (I18N-06)', () => {
+  it('labels every status kind', () => {
+    expect(voucherStatusMeta(makeVoucher({ isActive: false }), NOW, 'en').label).toBe('Off');
+    expect(voucherStatusMeta(makeVoucher({ expiresAt: '2026-08-17T00:00:00.000Z' }), NOW, 'en').label)
+      .toBe('Expired');
+    expect(voucherStatusMeta(makeVoucher({ usageLimit: 5, usedCount: 5 }), NOW, 'en').label)
+      .toBe('Used up');
+    expect(voucherStatusMeta(makeVoucher({ startsAt: '2026-08-19T00:00:00.000Z' }), NOW, 'en').label)
+      .toBe('Scheduled');
+    expect(voucherStatusMeta(makeVoucher(), NOW, 'en').label).toBe('Running');
+  });
+
+  it('formats the discount cap and the validity window', () => {
+    const money = (n: number): string => `${n}đ`;
+    const when = (iso: string): string => iso.slice(0, 10);
+    expect(voucherDiscountLabel(makeVoucher({ maxDiscountAmount: '50000.00' }), money, 'en'))
+      .toBe('10% (up to 50000đ)');
+    expect(voucherWindowLabel(makeVoucher(), when, 'en')).toBe('No limit');
+    expect(voucherWindowLabel(makeVoucher({ startsAt: '2026-08-01T00:00:00.000Z' }), when, 'en'))
+      .toBe('From 2026-08-01');
+    expect(voucherWindowLabel(makeVoucher({ expiresAt: '2026-09-01T00:00:00.000Z' }), when, 'en'))
+      .toBe('Until 2026-09-01');
+  });
+
+  it('translates the console errors, including the binding-specific 403', () => {
+    expect(voucherConsoleErrorMessage({ statusCode: 409 }, 'create', undefined, 'en'))
+      .toBe('This code already exists. Please choose another one.');
+    expect(voucherConsoleErrorMessage({ statusCode: 403 }, 'list', 'sellerForbidden', 'en'))
+      .toContain('its own vouchers');
+    expect(voucherConsoleErrorMessage({ statusCode: 403 }, 'list', undefined, 'en'))
+      .toBe('You do not have permission to manage vouchers.');
+    expect(voucherConsoleErrorMessage(new Error(''), 'deactivate', undefined, 'en'))
+      .toBe('Could not turn the voucher off. Please try again.');
+  });
+
+  it('passes a server message through untranslated', () => {
+    expect(voucherConsoleErrorMessage({ statusCode: 400, message: 'Mã không hợp lệ' }, 'create', undefined, 'en'))
+      .toBe('Mã không hợp lệ');
+  });
+
+  it('names the toggle states', () => {
+    expect(voucherActiveToggleCopy(true, false, 'en')).toEqual({ label: 'Code status', state: 'Off' });
+    expect(voucherActiveToggleCopy(false, true, 'en').state).toBe('Activate now');
+  });
+
+  it('explains blocked edits and the one-way confirm with English plurals', () => {
+    const once = makeVoucher({ usedCount: 1, code: 'SALE10', minOrderAmount: '100000.00' });
+    expect(voucherEditBlockedMessage({ minOrderAmount: 500000 }, once, 'en')).toBe(
+      'This code has been used 1 time, so its conditions can only be loosened. Cannot tighten: Minimum order.',
+    );
+    const thrice = makeVoucher({ usedCount: 3, code: 'SALE10' });
+    expect(voucherLooseningConfirm({ minOrderAmount: 0 }, thrice, 'en')).toContain(
+      'Code "SALE10" has been used 3 times.',
+    );
+    expect(voucherEditBlockedMessage({ usageLimit: 2 }, thrice, 'en')).toBe(
+      'Total uses cannot be lower than the uses already made (3).',
+    );
+  });
+
+  it('stores zod messages as keys so the form can render either language', () => {
+    const result = voucherCreateSchema.safeParse({ ...VOUCHER_FORM_DEFAULTS, code: 'SALE 10%' });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    const codeIssue = result.error.issues.find((issue) => issue.path[0] === 'code');
+    expect(translateIfKey(voucherMessages, 'en', codeIssue?.message))
+      .toBe('Use only letters, digits, hyphens and underscores');
+    expect(translateIfKey(voucherMessages, 'vi', codeIssue?.message))
+      .toBe('Chỉ dùng chữ, số, gạch ngang và gạch dưới');
   });
 });

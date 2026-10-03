@@ -11,8 +11,14 @@ import { ToggleSwitch } from '@/components/shared/ToggleSwitch';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { IconButton } from '@/components/shared/IconButton';
+import { SearchField } from '@/components/shared/SearchField';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePageParam } from '@/hooks/ui/usePageParam';
+import { useListSearch, listSearchEmptyText } from '@/hooks/ui/useListSearch';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import { translateIfKey } from '@/lib/i18n/messages';
+import { voucherMessages, type VoucherMessageKey } from './voucher.i18n';
 import {
   voucherStatusMeta,
   voucherDiscountLabel,
@@ -108,6 +114,11 @@ function VoucherForm({
   onSaved: (voucher: Voucher, mode: 'create' | 'update') => void;
 }): ReactElement {
   const queryClient = useQueryClient();
+  const t = useT(voucherMessages);
+  const { lang } = useLanguage();
+  /** Field errors hold a zod key (or raw server text) — render it in the current language. */
+  const fieldError = (message: string | undefined): string | undefined =>
+    translateIfKey(voucherMessages, lang, message);
   const isEdit = voucher != null;
   const {
     register,
@@ -130,7 +141,7 @@ function VoucherForm({
   // render, which opts the whole component out of React Compiler memoization.
   const discountType = useWatch({ control, name: 'discountType' });
   const isActive = useWatch({ control, name: 'isActive' });
-  const toggleCopy = voucherActiveToggleCopy(isEdit, isActive);
+  const toggleCopy = voucherActiveToggleCopy(isEdit, isActive, lang);
 
   /** The one-way edit waiting on its confirm modal, plus the form it will save. */
   const [loosening, setLoosening] = useState<
@@ -148,18 +159,18 @@ function VoucherForm({
     if (voucher) {
       const dto = buildUpdateVoucherDto(form, voucher);
       if (!hasVoucherEdits(dto)) {
-        setError('root', { message: 'Chưa có thay đổi nào để lưu.' });
+        setError('root', { message: t('noChanges') });
         return;
       }
       // Mirror the backend's own refusals before spending the request…
-      const blocked = voucherEditBlockedMessage(dto, voucher);
+      const blocked = voucherEditBlockedMessage(dto, voucher, lang);
       if (blocked) {
         setError('root', { message: blocked });
         return;
       }
       // …and make the one-way edits an explicit decision. The answer comes back
       // from the modal, which resumes the save through `persist`.
-      const confirmation = voucherLooseningConfirm(dto, voucher);
+      const confirmation = voucherLooseningConfirm(dto, voucher, lang);
       if (confirmation) {
         setLoosening({ message: confirmation, form });
         return;
@@ -183,6 +194,7 @@ function VoucherForm({
           error,
           isEdit ? 'update' : 'create',
           binding.copy.forbidden,
+          lang,
         ),
       });
     }
@@ -196,16 +208,16 @@ function VoucherForm({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="font-display font-semibold text-base text-ink-pri">
-            {isEdit ? `Sửa mã ${voucher.code}` : 'Tạo mã giảm giá'}
+            {isEdit ? t('formEditTitle', { code: voucher.code }) : t('formCreateTitle')}
           </h2>
           <p className="font-body text-xs text-ink-muted mt-1 m-0">
             {isEdit
-              ? 'Mã, loại giảm và mức giảm không đổi được. Mã đã có lượt dùng chỉ nới lỏng được điều kiện, và nới rồi thì không siết lại được.'
-              : binding.copy.createHint}
+              ? t('formEditHint')
+              : t(binding.copy.createHint)}
           </p>
         </div>
         <IconButton
-          aria-label={isEdit ? 'Đóng biểu mẫu sửa mã' : 'Đóng biểu mẫu tạo mã'}
+          aria-label={isEdit ? t('closeEditForm') : t('closeCreateForm')}
           onClick={onCancel}
           className="size-8 shrink-0 rounded-tb-input text-ink-muted hover:text-ink-pri hover:bg-canvas-elevated transition-colors"
         >
@@ -221,10 +233,10 @@ function VoucherForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField
-          label="Mã"
+          label={t('labelCode')}
           htmlFor="voucher-code"
-          error={errors.code?.message}
-          hint={isEdit ? 'Không sửa được sau khi tạo.' : 'Tự động viết hoa khi gửi lên.'}
+          error={fieldError(errors.code?.message)}
+          hint={isEdit ? t('hintImmutable') : t('hintUppercase')}
         >
           <input
             id="voucher-code"
@@ -240,18 +252,22 @@ function VoucherForm({
           />
         </FormField>
 
-        <FormField label="Mô tả" htmlFor="voucher-description" error={errors.description?.message}>
+        <FormField
+          label={t('labelDescription')}
+          htmlFor="voucher-description"
+          error={fieldError(errors.description?.message)}
+        >
           <input
             id="voucher-description"
             {...register('description')}
-            placeholder="Giảm 10% cho đơn đầu tiên"
+            placeholder={t('descriptionPlaceholder')}
             className={INPUT_CLASS}
           />
         </FormField>
 
-        <FormField label="Loại giảm giá" error={errors.discountType?.message}>
+        <FormField label={t('labelDiscountType')} error={fieldError(errors.discountType?.message)}>
           {/* A two-button choice, so the label names the group rather than one control. */}
-          <div role="group" aria-label="Loại giảm giá" className="flex gap-2">
+          <div role="group" aria-label={t('labelDiscountType')} className="flex gap-2">
             {(['percent', 'fixed'] as const).map((type) => (
               <button
                 key={type}
@@ -267,17 +283,17 @@ function VoucherForm({
                   isEdit && discountType !== type && 'opacity-40',
                 )}
               >
-                {type === 'percent' ? 'Theo phần trăm' : 'Số tiền cố định'}
+                {type === 'percent' ? t('typePercent') : t('typeFixed')}
               </button>
             ))}
           </div>
         </FormField>
 
         <FormField
-          label={discountType === 'percent' ? 'Phần trăm giảm (%)' : 'Số tiền giảm (VND)'}
+          label={discountType === 'percent' ? t('labelPercentValue') : t('labelFixedValue')}
           htmlFor="voucher-discount-value"
-          hint={isEdit ? 'Không sửa được sau khi tạo.' : undefined}
-          error={errors.discountValue?.message}
+          hint={isEdit ? t('hintImmutable') : undefined}
+          error={fieldError(errors.discountValue?.message)}
         >
           <input
             id="voucher-discount-value"
@@ -290,16 +306,16 @@ function VoucherForm({
         </FormField>
 
         <FormField
-          label="Đơn tối thiểu (VND)"
+          label={t('labelMinOrder')}
           htmlFor="voucher-min-order"
           hint={
             // A fixed voucher with no minimum is compared against 0 server-side
             // and always rejected, so "leave blank" is only true for percent.
             discountType === 'fixed'
-              ? 'Bắt buộc, phải lớn hơn số tiền giảm.'
-              : 'Bỏ trống = không yêu cầu.'
+              ? t('hintMinOrderFixed')
+              : t('hintMinOrderPercent')
           }
-          error={errors.minOrderAmount?.message}
+          error={fieldError(errors.minOrderAmount?.message)}
         >
           <input
             id="voucher-min-order"
@@ -313,10 +329,10 @@ function VoucherForm({
         {/* A cap only means something for a percentage discount. */}
         {discountType === 'percent' && (
           <FormField
-            label="Giảm tối đa (VND)"
+            label={t('labelMaxDiscount')}
             htmlFor="voucher-max-discount"
-            hint="Bỏ trống = không giới hạn."
-            error={errors.maxDiscountAmount?.message}
+            hint={t('hintUnlimited')}
+            error={fieldError(errors.maxDiscountAmount?.message)}
           >
             <input
               id="voucher-max-discount"
@@ -329,10 +345,10 @@ function VoucherForm({
         )}
 
         <FormField
-          label="Tổng lượt dùng"
+          label={t('labelUsageLimit')}
           htmlFor="voucher-usage-limit"
-          hint="Bỏ trống = không giới hạn."
-          error={errors.usageLimit?.message}
+          hint={t('hintUnlimited')}
+          error={fieldError(errors.usageLimit?.message)}
         >
           <input
             id="voucher-usage-limit"
@@ -344,10 +360,10 @@ function VoucherForm({
         </FormField>
 
         <FormField
-          label="Lượt dùng mỗi người"
+          label={t('labelPerUserLimit')}
           htmlFor="voucher-per-user-limit"
-          hint="Bỏ trống = không giới hạn."
-          error={errors.perUserLimit?.message}
+          hint={t('hintUnlimited')}
+          error={fieldError(errors.perUserLimit?.message)}
         >
           <input
             id="voucher-per-user-limit"
@@ -359,10 +375,10 @@ function VoucherForm({
         </FormField>
 
         <FormField
-          label="Bắt đầu"
+          label={t('labelStartsAt')}
           htmlFor="voucher-starts-at"
-          hint="Giờ địa phương. Bỏ trống = hiệu lực ngay."
-          error={errors.startsAt?.message}
+          hint={t('hintStartsAt')}
+          error={fieldError(errors.startsAt?.message)}
         >
           <input
             id="voucher-starts-at"
@@ -373,10 +389,10 @@ function VoucherForm({
         </FormField>
 
         <FormField
-          label="Kết thúc"
+          label={t('labelExpiresAt')}
           htmlFor="voucher-expires-at"
-          hint="Bỏ trống = không hết hạn."
-          error={errors.expiresAt?.message}
+          hint={t('hintExpiresAt')}
+          error={fieldError(errors.expiresAt?.message)}
         >
           <input
             id="voucher-expires-at"
@@ -403,21 +419,21 @@ function VoucherForm({
             onClick={onCancel}
             className="h-10 px-4 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec font-body font-semibold text-[13px] cursor-pointer hover:text-ink-pri transition-colors"
           >
-            Hủy
+            {t('cancel')}
           </button>
           <GradientButton type="submit" size="sm" disabled={isSubmitting}>
             {isSubmitting
-              ? isEdit ? 'Đang lưu…' : 'Đang tạo…'
-              : isEdit ? 'Lưu thay đổi' : 'Tạo mã'}
+              ? isEdit ? t('saving') : t('creating')
+              : isEdit ? t('saveChanges') : t('createCode')}
           </GradientButton>
         </div>
       </div>
 
       <ConfirmDialog
         open={loosening !== null}
-        title="Nới lỏng điều kiện?"
+        title={t('looseningTitle')}
         description={loosening?.message ?? ''}
-        confirmLabel="Tiếp tục"
+        confirmLabel={t('continue')}
         isPending={saveVoucher.isPending}
         onConfirm={() => {
           const pending = loosening;
@@ -451,7 +467,10 @@ function VoucherRow({
   onDeactivate: (voucher: Voucher) => void;
   onReactivate: (voucher: Voucher) => void;
 }): ReactElement {
-  const status = voucherStatusMeta(voucher);
+  const t = useT(voucherMessages);
+  const { lang } = useLanguage();
+  // `now` stays the helper's default — `Date.now()` in render trips react-hooks/purity.
+  const status = voucherStatusMeta(voucher, undefined, lang);
   const minOrder = toVoucherNumber(voucher.minOrderAmount);
 
   return (
@@ -465,16 +484,16 @@ function VoucherRow({
         )}
       </td>
       <td className="px-4 py-3 align-top font-body text-sm text-ink-pri">
-        {voucherDiscountLabel(voucher, formatVnd)}
+        {voucherDiscountLabel(voucher, (n) => formatVnd(n, lang), lang)}
       </td>
       <td className="px-4 py-3 align-top font-body text-sm text-ink-sec">
-        {minOrder > 0 ? formatVnd(minOrder) : '—'}
+        {minOrder > 0 ? formatVnd(minOrder, lang) : '—'}
       </td>
       <td className="px-4 py-3 align-top font-mono text-sm text-ink-sec">
         {voucherUsageLabel(voucher)}
       </td>
       <td className="px-4 py-3 align-top font-body text-xs text-ink-sec">
-        {voucherWindowLabel(voucher, formatDateTime)}
+        {voucherWindowLabel(voucher, (iso) => formatDateTime(iso, lang), lang)}
       </td>
       <td className="px-4 py-3 align-top">
         <span
@@ -494,7 +513,7 @@ function VoucherRow({
             className={cn(ROW_ACTION_CLASS, 'text-ink-sec hover:border-tb-amber/50 hover:text-ink-pri')}
           >
             <Pencil size={14} className="shrink-0" />
-            Sửa
+            {t('edit')}
           </button>
           {canDeactivateVoucher(voucher) && (
             <button
@@ -504,7 +523,7 @@ function VoucherRow({
               className={cn(ROW_ACTION_CLASS, 'text-accent-red hover:border-tb-red/50')}
             >
               <PowerOff size={14} className="shrink-0" />
-              {deactivatePending ? 'Đang tắt…' : 'Tắt mã'}
+              {deactivatePending ? t('deactivating') : t('deactivate')}
             </button>
           )}
           {canReactivateVoucher(voucher) && (
@@ -515,7 +534,7 @@ function VoucherRow({
               className={cn(ROW_ACTION_CLASS, 'text-accent-green hover:border-tb-green/50')}
             >
               <Power size={14} className="shrink-0" />
-              {reactivatePending ? 'Đang bật…' : 'Bật lại'}
+              {reactivatePending ? t('reactivating') : t('reactivate')}
             </button>
           )}
         </div>
@@ -524,10 +543,21 @@ function VoucherRow({
   );
 }
 
-const COLUMNS = ['Mã', 'Giảm', 'Đơn tối thiểu', 'Lượt dùng', 'Hiệu lực', 'Trạng thái', ''];
+/** Header keys; the action column has no heading. */
+const COLUMNS: readonly (VoucherMessageKey | null)[] = [
+  'colCode',
+  'colDiscount',
+  'colMinOrder',
+  'colUsage',
+  'colWindow',
+  'colStatus',
+  null,
+];
 
 export function VoucherConsole({ binding }: { binding: VoucherConsoleBinding }): ReactElement {
   const queryClient = useQueryClient();
+  const t = useT(voucherMessages);
+  const { lang } = useLanguage();
   const [page, setPage] = usePageParam();
   const [isFormOpen, setIsFormOpen] = useState(false);
   // The row being edited. Held as the row object (not just an id) so the form
@@ -536,10 +566,11 @@ export function VoucherConsole({ binding }: { binding: VoucherConsoleBinding }):
   const [toast, setToast] = useState<string | null>(null);
   /** The row waiting on the deactivate confirm modal. */
   const [pendingDeactivate, setPendingDeactivate] = useState<Voucher | null>(null);
+  const search = useListSearch(() => { if (page !== 1) setPage(1); });
 
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: binding.listPageKey(page, LIMIT),
-    queryFn: () => binding.fetchList(page, LIMIT),
+    queryKey: binding.listPageKey(page, LIMIT, search.term),
+    queryFn: () => binding.fetchList(page, LIMIT, search.term),
     placeholderData: keepPreviousData,
   });
 
@@ -560,7 +591,7 @@ export function VoucherConsole({ binding }: { binding: VoucherConsoleBinding }):
     mutationFn: (voucher: Voucher) => binding.deactivate(voucher.id),
     onSuccess: (_result, voucher) => {
       void queryClient.invalidateQueries({ queryKey: binding.listKey });
-      showToast(`Đã tắt mã ${voucher.code}.`);
+      showToast(t('toastDeactivated', { code: voucher.code }));
     },
   });
 
@@ -570,7 +601,7 @@ export function VoucherConsole({ binding }: { binding: VoucherConsoleBinding }):
     mutationFn: (voucher: Voucher) => binding.update(voucher.id, { isActive: true }),
     onSuccess: (_result, voucher) => {
       void queryClient.invalidateQueries({ queryKey: binding.listKey });
-      showToast(`Đã bật lại mã ${voucher.code}.`);
+      showToast(t('toastReactivated', { code: voucher.code }));
     },
   });
 
@@ -588,20 +619,20 @@ export function VoucherConsole({ binding }: { binding: VoucherConsoleBinding }):
 
   const { forbidden } = binding.copy;
   const vouchers = data?.data ?? [];
-  const listErrorMsg = error ? voucherConsoleErrorMessage(error, 'list', forbidden) : null;
+  const listErrorMsg = error ? voucherConsoleErrorMessage(error, 'list', forbidden, lang) : null;
   const deactivateErrorMsg = deactivate.isError
-    ? voucherConsoleErrorMessage(deactivate.error, 'deactivate', forbidden)
+    ? voucherConsoleErrorMessage(deactivate.error, 'deactivate', forbidden, lang)
     : null;
   const reactivateErrorMsg = reactivate.isError
-    ? voucherConsoleErrorMessage(reactivate.error, 'update', forbidden)
+    ? voucherConsoleErrorMessage(reactivate.error, 'update', forbidden, lang)
     : null;
 
   return (
     <div className="max-w-5xl mx-auto py-8 px-4 space-y-6">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="font-display font-bold text-2xl text-ink-pri">{binding.copy.title}</h1>
-          <p className="font-body text-sm text-ink-sec mt-1 m-0">{binding.copy.intro}</p>
+          <h1 className="font-display font-bold text-2xl text-ink-pri">{t(binding.copy.title)}</h1>
+          <p className="font-body text-sm text-ink-sec mt-1 m-0">{t(binding.copy.intro)}</p>
         </div>
         {!isFormOpen && !editing && (
           <button
@@ -610,7 +641,7 @@ export function VoucherConsole({ binding }: { binding: VoucherConsoleBinding }):
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr text-ink-sec hover:border-tb-amber/50 hover:text-ink-pri transition-colors cursor-pointer shrink-0"
           >
             <Plus size={14} className="shrink-0" />
-            Tạo mã mới
+            {t('newCode')}
           </button>
         )}
       </div>
@@ -656,11 +687,18 @@ export function VoucherConsole({ binding }: { binding: VoucherConsoleBinding }):
             setIsFormOpen(false);
             setEditing(null);
             showToast(
-              mode === 'create' ? `Đã tạo mã ${voucher.code}.` : `Đã lưu mã ${voucher.code}.`,
+              t(mode === 'create' ? 'toastCreated' : 'toastSaved', { code: voucher.code }),
             );
           }}
         />
       )}
+
+      <SearchField
+        value={search.input}
+        onChange={search.setInput}
+        placeholder={t('searchPlaceholder')}
+        className="max-w-sm"
+      />
 
       {isLoading && (
         <div className="flex flex-col gap-3">
@@ -674,7 +712,7 @@ export function VoucherConsole({ binding }: { binding: VoucherConsoleBinding }):
         <div className="bg-canvas-surface border border-bdr rounded-tb-card py-14 px-6 text-center">
           <span className="flex flex-col items-center gap-2 font-body text-sm text-ink-muted">
             <TicketPercent size={32} className="shrink-0 opacity-40" />
-            {binding.copy.empty}
+            {listSearchEmptyText(search, t('searchNoun'), lang) ?? t(binding.copy.empty)}
           </span>
         </div>
       )}
@@ -687,10 +725,10 @@ export function VoucherConsole({ binding }: { binding: VoucherConsoleBinding }):
                 <tr className="border-b border-bdr">
                   {COLUMNS.map((header, idx) => (
                     <th
-                      key={header || `col-${idx}`}
+                      key={header ?? `col-${idx}`}
                       className="text-left px-4 py-3 font-body font-semibold text-ink-muted text-xs uppercase tracking-wide"
                     >
-                      {header}
+                      {header ? t(header) : ''}
                     </th>
                   ))}
                 </tr>
@@ -726,9 +764,9 @@ export function VoucherConsole({ binding }: { binding: VoucherConsoleBinding }):
       <ConfirmDialog
         open={pendingDeactivate !== null}
         tone="danger"
-        title={pendingDeactivate ? `Tắt mã ${pendingDeactivate.code}?` : ''}
-        description="Người mua sẽ không dùng được cho tới khi bật lại."
-        confirmLabel="Tắt mã"
+        title={pendingDeactivate ? t('deactivateTitle', { code: pendingDeactivate.code }) : ''}
+        description={t('deactivateBody')}
+        confirmLabel={t('deactivate')}
         isPending={deactivate.isPending}
         onConfirm={confirmDeactivate}
         onCancel={() => { setPendingDeactivate(null); }}
