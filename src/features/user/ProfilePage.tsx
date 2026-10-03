@@ -13,27 +13,39 @@ import ProductCard from '@/features/product/ProductCard';
 import { useProducts } from '@/features/product/useProducts';
 import { useFollowers, useFollowing, useFollowUser, useUnfollowUser, useIsFollowing } from '@/features/social/useFollow';
 import { useAuthContext } from '@/context/useAuthContext';
+import { useLanguage } from '@/context/useLanguage';
+import { useT } from '@/hooks/ui/useT';
+import { userMessages } from './user.i18n';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { usePageParam } from '@/hooks/ui/usePageParam';
 import { Pagination } from '@/components/shared/Pagination';
 import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
+import { SearchField } from '@/components/shared/SearchField';
+import { useListSearch, listSearchEmptyText } from '@/hooks/ui/useListSearch';
 import { api } from '@/api';
 import { cn } from '@/lib/format/utils';
-import { userDisplayName } from '@/lib/format/user';
+import { userDisplayName, userFallback } from '@/lib/format/user';
 
 const PAGE_SIZE = 10;
 
 type TabKey = 'posts' | 'products' | 'about' | 'following';
 
-export default function ProfilePage(): ReactElement {
+// Keyed by the profile id: /profile/:id reuses the element across profiles, so
+// without the key a posts search typed on one profile would filter the next.
+export default function ProfilePageRoute(): ReactElement {
   const { id } = useParams<{ id: string }>();
-  const userId = id ?? '';
+  return <ProfilePage key={id} userId={id ?? ''} />;
+}
+
+function ProfilePage({ userId }: { userId: string }): ReactElement {
 
   const { currentUser } = useAuthContext();
   const viewerId = currentUser?.id ?? '';
   const isMe = viewerId.length > 0 && viewerId === userId;
 
   const navigate = useNavigate();
+  const { lang } = useLanguage();
+  const t = useT(userMessages);
   const [tab, setTab] = useState<TabKey>('posts');
   const [editing, setEditing] = useState(false);
   const [postsLoaded, setPostsLoaded] = useState(false);
@@ -42,6 +54,9 @@ export default function ProfilePage(): ReactElement {
   // so pagination naturally resets when navigating between profiles.
   const [postsPageNum, setPostsPageNum] = usePageParam('postsPage');
   const [productsPageNum, setProductsPageNum] = usePageParam('productsPage');
+  const postsSearch = useListSearch(() => {
+    if (postsPageNum !== 1) setPostsPageNum(1);
+  });
   const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null);
 
   const { data: followersData } = useFollowers(userId);
@@ -64,8 +79,8 @@ export default function ProfilePage(): ReactElement {
   const contactInfo = profileContactInfo(isMe, currentUser);
 
   const { data: postsPage, isLoading: postsLoading, isFetching: postsFetching } = useQuery({
-    queryKey: queryKeys.social.postsByUser(userId, postsPageNum),
-    queryFn: () => api.social.getPostsByUser(userId, postsPageNum, PAGE_SIZE),
+    queryKey: queryKeys.social.postsByUser(userId, postsPageNum, postsSearch.term),
+    queryFn: () => api.social.getPostsByUser(userId, postsPageNum, PAGE_SIZE, postsSearch.term),
     enabled: postsLoaded && userId.length > 0,
     // Keep the previous page rendered while the next one loads (no empty flash).
     placeholderData: keepPreviousData,
@@ -115,7 +130,7 @@ export default function ProfilePage(): ReactElement {
   if (userError || !user) {
     const msg = userError && typeof userError === 'object' && 'message' in userError
       ? String((userError as { message: unknown }).message)
-      : 'Không tìm thấy người dùng.';
+      : t('userNotFound');
     return (
       <div className="max-w-[680px] mx-auto">
         <div className="bg-tb-red/10 border border-accent-red text-accent-red px-4 py-3 rounded-xl text-sm">
@@ -125,13 +140,15 @@ export default function ProfilePage(): ReactElement {
     );
   }
 
-  const displayName = userDisplayName(user);
+  const displayName = userDisplayName(user, userFallback(lang));
 
+  const withCount = (label: string, count: number): string =>
+    count > 0 ? t('withCount', { label, count }) : label;
   const TABS: { key: TabKey; label: string }[] = [
-    { key: 'posts', label: `Bài viết${postsTotal > 0 ? ` (${postsTotal})` : ''}` },
-    { key: 'following', label: `Đang theo dõi${followingCount > 0 ? ` (${followingCount})` : ''}` },
-    { key: 'products', label: `Sản phẩm${productsTotal > 0 ? ` (${productsTotal})` : ''}` },
-    { key: 'about', label: 'Giới thiệu' },
+    { key: 'posts', label: withCount(t('tabPosts'), postsTotal) },
+    { key: 'following', label: withCount(t('tabFollowing'), followingCount) },
+    { key: 'products', label: withCount(t('tabProducts'), productsTotal) },
+    { key: 'about', label: t('tabAbout') },
   ];
 
   return (
@@ -155,14 +172,14 @@ export default function ProfilePage(): ReactElement {
                 onClick={() => setFollowModal('followers')}
                 className="text-xs text-ink-sec hover:text-ink-pri transition-colors cursor-pointer border-0 bg-transparent p-0"
               >
-                <span className="font-semibold text-ink-pri">{followersCount}</span> người theo dõi
+                <span className="font-semibold text-ink-pri">{followersCount}</span> {t('followerCount', { count: followersCount })}
               </button>
               <button
                 type="button"
                 onClick={() => setFollowModal('following')}
                 className="text-xs text-ink-sec hover:text-ink-pri transition-colors cursor-pointer border-0 bg-transparent p-0"
               >
-                <span className="font-semibold text-ink-pri">{followingCount}</span> đang theo dõi
+                <span className="font-semibold text-ink-pri">{followingCount}</span> {t('followingCount')}
               </button>
             </div>
           </div>
@@ -173,7 +190,7 @@ export default function ProfilePage(): ReactElement {
               className="flex items-center gap-1.5 bg-canvas-elevated border border-bdr rounded-tb-cta px-3 py-2 text-sm font-semibold text-ink-sec cursor-pointer hover:border-tb-amber/50 transition-colors flex-none mb-1"
             >
               <Pencil size={13} />
-              Sửa hồ sơ
+              {t('editProfile')}
             </button>
           ) : (
             <div className="flex gap-2 pb-1 flex-none">
@@ -187,7 +204,7 @@ export default function ProfilePage(): ReactElement {
                   className="flex items-center gap-1.5 bg-canvas-elevated border border-bdr rounded-full px-4 py-2 text-sm font-semibold text-ink-pri cursor-pointer hover:border-tb-red/50 hover:text-accent-red transition-colors disabled:opacity-50"
                 >
                   <UserCheck size={14} className="shrink-0" />
-                  Đang theo dõi
+                  {t('following')}
                 </button>
               ) : (
                 <GradientButton
@@ -196,14 +213,14 @@ export default function ProfilePage(): ReactElement {
                   onClick={() => follow()}
                   disabled={isFollowPending || viewerId.length === 0}
                 >
-                  Theo dõi
+                  {t('follow')}
                 </GradientButton>
               )}
               <button
                 type="button"
                 onClick={() => void navigate('/messages', { state: { otherUserId: userId } })}
                 className="bg-canvas-elevated border border-bdr rounded-full w-9 h-9 flex items-center justify-center text-ink-sec hover:border-tb-amber/50 transition-colors"
-                aria-label="Nhắn tin"
+                aria-label={t('message')}
               >
                 <MessageCircle size={15} className="shrink-0" />
               </button>
@@ -235,6 +252,12 @@ export default function ProfilePage(): ReactElement {
       <div className="px-1">
         {tab === 'posts' && (
           <>
+            <SearchField
+              value={postsSearch.input}
+              onChange={postsSearch.setInput}
+              placeholder={t('searchPosts')}
+              className="mb-4"
+            />
             {postsLoading && (
               <div className="flex flex-col gap-4">
                 {[1, 2].map((i) => (
@@ -245,7 +268,9 @@ export default function ProfilePage(): ReactElement {
             {!postsLoading && posts.length === 0 && (
               <div className="bg-canvas-surface border border-bdr rounded-tb-card py-14 flex flex-col items-center gap-2 text-center">
                 <Newspaper size={32} className="text-ink-muted" />
-                <p className="text-sm text-ink-sec m-0">Chưa có bài viết nào</p>
+                <p className="text-sm text-ink-sec m-0">
+                  {listSearchEmptyText(postsSearch, t('postsNoun'), lang) ?? t('noPosts')}
+                </p>
               </div>
             )}
             {!postsLoading && posts.length > 0 && (
@@ -271,7 +296,7 @@ export default function ProfilePage(): ReactElement {
             {followingData?.data.length === 0 && (
               <div className="py-14 flex flex-col items-center gap-2 text-center">
                 <UserCheck size={32} className="text-ink-muted" />
-                <p className="text-sm text-ink-sec m-0">Chưa theo dõi ai</p>
+                <p className="text-sm text-ink-sec m-0">{t('noFollowing')}</p>
               </div>
             )}
             {followingData?.data.map((item) => (
@@ -299,7 +324,7 @@ export default function ProfilePage(): ReactElement {
             {!productsLoading && products.length === 0 && (
               <div className="bg-canvas-surface border border-bdr rounded-tb-card py-14 flex flex-col items-center gap-2 text-center">
                 <Package size={32} className="text-ink-muted" />
-                <p className="text-sm text-ink-sec m-0">Chưa đăng bán sản phẩm nào</p>
+                <p className="text-sm text-ink-sec m-0">{t('noProducts')}</p>
               </div>
             )}
             {!productsLoading && products.length > 0 && (
@@ -330,16 +355,16 @@ export default function ProfilePage(): ReactElement {
                 </div>
                 <div className="flex items-center gap-3 text-sm text-ink-pri">
                   <Shield size={16} className="text-ink-sec flex-none" />
-                  Vai trò:
+                  {t('role')}
                   <span className="uppercase font-semibold text-accent-amber">{contactInfo.roleName}</span>
                 </div>
               </>
             )}
             <div className="flex items-center gap-3 text-sm text-ink-pri">
               <CheckCircle size={16} className="text-ink-sec flex-none" />
-              Trạng thái:
+              {t('status')}
               <span className={user.isActive ? 'text-accent-green' : 'text-ink-muted'}>
-                {user.isActive ? 'Đang hoạt động' : 'Không hoạt động'}
+                {t(user.isActive ? 'active' : 'inactive')}
               </span>
             </div>
           </div>

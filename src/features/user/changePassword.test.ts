@@ -27,28 +27,28 @@ describe('changePasswordSchema', () => {
   it('requires the current password', () => {
     expect(firstIssue({ ...valid, currentPassword: '' })).toEqual({
       path: 'currentPassword',
-      message: 'Vui lòng nhập mật khẩu hiện tại',
+      message: 'currentPasswordRequired',
     });
   });
 
   it('enforces the 6-char minimum on the new password', () => {
     expect(firstIssue({ ...valid, newPassword: 'abc12', confirmPassword: 'abc12' })).toEqual({
       path: 'newPassword',
-      message: 'Tối thiểu 6 ký tự',
+      message: 'min6',
     });
   });
 
   it('rejects a mismatched confirmation', () => {
     expect(firstIssue({ ...valid, confirmPassword: 'different1' })).toEqual({
       path: 'confirmPassword',
-      message: 'Mật khẩu nhập lại không khớp',
+      message: 'confirmMismatch',
     });
   });
 
   it('rejects a new password identical to the current one', () => {
     expect(
       firstIssue({ currentPassword: 'samepass', newPassword: 'samepass', confirmPassword: 'samepass' }),
-    ).toEqual({ path: 'newPassword', message: 'Mật khẩu mới phải khác mật khẩu hiện tại' });
+    ).toEqual({ path: 'newPassword', message: 'newMustDiffer' });
   });
 });
 
@@ -167,5 +167,20 @@ describe('isAuthFailure', () => {
     expect(isAuthFailure({ statusCode: 400 })).toBe(false);
     expect(isAuthFailure({ statusCode: 429 })).toBe(false);
     expect(isAuthFailure(new TypeError('Failed to fetch'))).toBe(false);
+  });
+});
+
+describe('changePasswordError — English (I18N-02)', () => {
+  it('keeps the field mapping and translates the message', () => {
+    expect(
+      changePasswordError(
+        { statusCode: 401, status: 401, message: 'Unauthorized', errorCode: 'UNAUTHENTICATED' },
+        'en',
+      ),
+    ).toEqual({ field: 'root', message: 'Your session has expired. Please sign in again.' });
+    expect(changePasswordError({ statusCode: 401, status: 401, message: 'Unauthorized' }, 'en')).toEqual({
+      field: 'currentPassword',
+      message: 'The current password is incorrect.',
+    });
   });
 });

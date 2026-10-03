@@ -1,5 +1,8 @@
 import { z } from 'zod';
 import type { ApiError, ChangePasswordDto } from '@/types';
+import type { Lang } from '@/lib/i18n/lang';
+import { translate } from '@/lib/i18n/messages';
+import { userMessages, userMsg } from './user.i18n';
 
 /**
  * Schema + pure helpers for the signed-in change-password form.
@@ -25,16 +28,16 @@ import type { ApiError, ChangePasswordDto } from '@/types';
 // passwords — a stricter rule here would reject passwords the reset flow sets.
 export const changePasswordSchema = z
   .object({
-    currentPassword: z.string().min(1, 'Vui lòng nhập mật khẩu hiện tại'),
-    newPassword: z.string().min(6, 'Tối thiểu 6 ký tự'),
-    confirmPassword: z.string().min(1, 'Vui lòng nhập lại mật khẩu mới'),
+    currentPassword: z.string().min(1, userMsg('currentPasswordRequired')),
+    newPassword: z.string().min(6, userMsg('min6')),
+    confirmPassword: z.string().min(1, userMsg('confirmNewRequired')),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
-    message: 'Mật khẩu nhập lại không khớp',
+    message: userMsg('confirmMismatch'),
     path: ['confirmPassword'],
   })
   .refine((data) => data.newPassword !== data.currentPassword, {
-    message: 'Mật khẩu mới phải khác mật khẩu hiện tại',
+    message: userMsg('newMustDiffer'),
     path: ['newPassword'],
   });
 
@@ -86,12 +89,13 @@ export interface ChangePasswordError {
  */
 export function currentPasswordAuthError(
   error: unknown,
+  lang: Lang = 'vi',
 ): { field: 'currentPassword' | 'root'; message: string } | null {
   if (!isAuthFailure(error)) return null;
   if (errorCodeOf(error) === UNAUTHENTICATED) {
-    return { field: 'root', message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.' };
+    return { field: 'root', message: translate(userMessages, lang, 'sessionExpired') };
   }
-  return { field: 'currentPassword', message: 'Mật khẩu hiện tại không đúng.' };
+  return { field: 'currentPassword', message: translate(userMessages, lang, 'currentPasswordWrong') };
 }
 
 /**
@@ -105,15 +109,15 @@ export function currentPasswordAuthError(
  * form. Bouncing a live session to `/login` on a guess is the worse mistake of
  * the two, and it is the exact bug CHG-PW-02 was filed for.
  */
-export function changePasswordError(error: unknown): ChangePasswordError {
+export function changePasswordError(error: unknown, lang: Lang = 'vi'): ChangePasswordError {
   const status = statusOf(error);
-  const authError = currentPasswordAuthError(error);
+  const authError = currentPasswordAuthError(error, lang);
   if (authError) return authError;
   if (status === 429) {
-    return { field: 'root', message: 'Bạn thao tác quá nhanh. Vui lòng thử lại sau ít phút.' };
+    return { field: 'root', message: translate(userMessages, lang, 'rateLimited') };
   }
   if (status === 400) {
-    return { field: 'newPassword', message: 'Mật khẩu mới không hợp lệ. Vui lòng chọn mật khẩu khác.' };
+    return { field: 'newPassword', message: translate(userMessages, lang, 'newPasswordRejected') };
   }
-  return { field: 'root', message: 'Không thể kết nối đến máy chủ. Vui lòng thử lại.' };
+  return { field: 'root', message: translate(userMessages, lang, 'connectionError') };
 }

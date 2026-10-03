@@ -20,7 +20,7 @@ describe('profileFormSchema', () => {
     // for the account renders blank afterwards.
     const result = profileFormSchema.safeParse({ ...valid, name: '   ' });
     expect(result.success).toBe(false);
-    expect(result.error?.issues[0]?.message).toBe('Tên không được trống');
+    expect(result.error?.issues[0]?.message).toBe('nameRequired');
   });
 
   it('rejects an empty name', () => {
@@ -35,7 +35,7 @@ describe('profileFormSchema', () => {
   it('still rejects a malformed email', () => {
     const result = profileFormSchema.safeParse({ ...valid, email: 'not-an-email' });
     expect(result.success).toBe(false);
-    expect(result.error?.issues[0]?.message).toBe('Email không hợp lệ');
+    expect(result.error?.issues[0]?.message).toBe('emailInvalid');
   });
 
   it('treats the avatar as optional', () => {
@@ -69,7 +69,7 @@ describe('email change re-auth', () => {
       const result = schema.safeParse({ ...valid, email: 'new@example.com' });
       expect(result.success).toBe(false);
       expect(result.error?.issues[0]?.path).toEqual(['currentPassword']);
-      expect(result.error?.issues[0]?.message).toBe('Nhập mật khẩu hiện tại để đổi email');
+      expect(result.error?.issues[0]?.message).toBe('passwordForEmail');
     });
 
     it('treats an empty password as missing — the backend 400s an empty string', () => {
@@ -144,5 +144,17 @@ describe('email change re-auth', () => {
         message: 'Cập nhật thất bại',
       });
     });
+  });
+});
+
+describe('profileUpdateError — English (I18N-02)', () => {
+  it('translates its own copy and the conflict mapping', () => {
+    expect(profileUpdateError({ statusCode: 429, status: 429, message: 'Too Many' }, 'en').message).toMatch(
+      /too fast/,
+    );
+    expect(
+      profileUpdateError({ statusCode: 409, status: 409, message: 'Email is already registered' }, 'en'),
+    ).toEqual({ field: 'email', message: 'This email is already registered. Use another email or sign in.' });
+    expect(profileUpdateError(new TypeError('Failed to fetch'), 'en').message).toBe('Update failed');
   });
 });

@@ -5,7 +5,9 @@ import { Dialog, DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { ModalCloseButton } from '@/components/shared/ModalCloseButton';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useFollowers, useFollowing } from '@/features/social/useFollow';
+import { useT } from '@/hooks/ui/useT';
 import type { FollowerItem, FollowingItem } from '@/types';
+import { userMessages } from './user.i18n';
 
 interface FollowListModalProps {
   open: boolean;
@@ -17,9 +19,10 @@ interface FollowListModalProps {
 export function FollowListModal({ open, onClose, userId, mode }: FollowListModalProps) {
   const followersQuery = useFollowers(userId);
   const followingQuery = useFollowing(userId);
+  const t = useT(userMessages);
 
   const query = mode === 'followers' ? followersQuery : followingQuery;
-  const title = mode === 'followers' ? 'Người theo dõi' : 'Đang theo dõi';
+  const title = t(mode === 'followers' ? 'followers' : 'following');
 
   const items = query.data?.data ?? [];
 
@@ -50,7 +53,7 @@ export function FollowListModal({ open, onClose, userId, mode }: FollowListModal
 
             {!query.isLoading && items.length === 0 && (
               <p className="text-center text-sm text-ink-muted py-8">
-                {mode === 'followers' ? 'Chưa có người theo dõi' : 'Chưa theo dõi ai'}
+                {t(mode === 'followers' ? 'noFollowers' : 'noFollowing')}
               </p>
             )}
 

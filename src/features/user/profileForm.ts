@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import type { ApiError, UpdateUserDto } from '@/types';
 import { credentialConflictError } from '@/lib/domain/credentialConflict';
+import type { Lang } from '@/lib/i18n/lang';
+import { translate } from '@/lib/i18n/messages';
 import { currentPasswordAuthError } from './changePassword';
+import { userMessages, userMsg } from './user.i18n';
 
 /**
  * Validation for "Chỉnh sửa hồ sơ" — the only screen in the app that writes
@@ -13,8 +16,8 @@ import { currentPasswordAuthError } from './changePassword';
  * here also normalises what we send, so `" Quang "` is saved as `"Quang"`.
  */
 export const profileFormSchema = z.object({
-  name: z.string().trim().min(1, 'Tên không được trống'),
-  email: z.string().email('Email không hợp lệ'),
+  name: z.string().trim().min(1, userMsg('nameRequired')),
+  email: z.string().email(userMsg('emailInvalid')),
   avatar: z.string().optional(),
   currentPassword: z.string().optional(),
 });
@@ -36,7 +39,7 @@ export function isEmailChanged(storedEmail: string, typedEmail: string): boolean
 export function profileFormSchemaFor(storedEmail: string): typeof profileFormSchema {
   return profileFormSchema.refine(
     (data) => !isEmailChanged(storedEmail, data.email) || Boolean(data.currentPassword),
-    { message: 'Nhập mật khẩu hiện tại để đổi email', path: ['currentPassword'] },
+    { message: userMsg('passwordForEmail'), path: ['currentPassword'] },
   );
 }
 
@@ -70,19 +73,23 @@ export interface ProfileUpdateError {
  * - 429 → the route is rate-limited to 10 edits / 60s per user.
  * - Anything else → the existing 409 email-taken mapping.
  */
-export function profileUpdateError(error: unknown): ProfileUpdateError {
-  const authError = currentPasswordAuthError(error);
+export function profileUpdateError(error: unknown, lang: Lang = 'vi'): ProfileUpdateError {
+  const authError = currentPasswordAuthError(error, lang);
   if (authError) return authError;
 
   const err = error as ApiError | undefined;
   const status = err?.statusCode ?? err?.status;
   if (status === 429) {
-    return { field: 'root', message: 'Bạn thao tác quá nhanh. Vui lòng thử lại sau ít phút.' };
+    return { field: 'root', message: translate(userMessages, lang, 'rateLimited') };
   }
   if (status === 400 && typeof err?.message === 'string' && /currentPassword/i.test(err.message)) {
-    return { field: 'currentPassword', message: 'Nhập mật khẩu hiện tại để đổi email' };
+    return { field: 'currentPassword', message: translate(userMessages, lang, 'passwordForEmail') };
   }
 
-  const { field, message } = credentialConflictError(error, 'Cập nhật thất bại');
+  const { field, message } = credentialConflictError(
+    error,
+    translate(userMessages, lang, 'updateFailed'),
+    lang,
+  );
   return { field: field === 'email' ? 'email' : 'root', message };
 }

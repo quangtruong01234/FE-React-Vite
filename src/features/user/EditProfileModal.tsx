@@ -13,13 +13,17 @@ import {
 import { GradientButton } from '@/components/shared/GradientButton';
 import { Avatar } from '@/components/shared/Avatar';
 import { PasswordField } from '@/components/shared/PasswordField';
+import { sharedMessages } from '@/components/shared/shared.i18n';
+import { useLanguage } from '@/context/useLanguage';
+import { useT } from '@/hooks/ui/useT';
+import { translateIfKey } from '@/lib/i18n/messages';
 import { queryClient } from '@/lib/query/queryClient';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { api } from '@/api';
 import { uploadAvatar, deleteMedia } from '@/lib/http/cloudinary';
 import { validateUploadFile, MAX_IMAGE_BYTES } from '@/lib/http/uploadValidation';
 import { cn } from '@/lib/format/utils';
-import { nonBlank, userDisplayName } from '@/lib/format/user';
+import { nonBlank, userDisplayName, userFallback } from '@/lib/format/user';
 import { replacePendingAvatar, discardedAvatarOrphan, type PendingAvatar } from './avatarUpload';
 import {
   isEmailChanged,
@@ -29,6 +33,8 @@ import {
   type ProfileFormData,
 } from './profileForm';
 import { ChangePasswordForm } from './ChangePasswordForm';
+import { LogoutAllDevices } from './LogoutAllDevices';
+import { userMessages } from './user.i18n';
 import type { User } from '@/types';
 
 type Tab = 'profile' | 'security';
@@ -47,6 +53,11 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('profile');
+  const { lang } = useLanguage();
+  const t = useT(userMessages);
+  const tShared = useT(sharedMessages);
+  const fieldError = (text: string | undefined): string | undefined =>
+    translateIfKey(userMessages, lang, text);
 
   const {
     register,
@@ -102,7 +113,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
     const file = e.target.files?.[0];
     if (!file) return;
     // UP-04: reject bad files before wasting an upload round-trip.
-    const invalid = validateUploadFile(file, { kind: 'image', maxBytes: MAX_IMAGE_BYTES });
+    const invalid = validateUploadFile(file, { kind: 'image', maxBytes: MAX_IMAGE_BYTES }, lang);
     if (invalid) {
       setUploadError(invalid);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -111,14 +122,14 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
     setUploading(true);
     setUploadError(null);
     try {
-      const { url, publicId } = await uploadAvatar(file, user.id);
+      const { url, publicId } = await uploadAvatar(file, user.id, undefined, lang);
       // Replacing an earlier not-yet-saved avatar orphans it — delete it now.
       const { next, orphan } = replacePendingAvatar(pendingAvatar, { url, publicId });
       if (orphan) void deleteMedia(orphan);
       setPendingAvatar(next);
       setValue('avatar', next.url);
     } catch (err: unknown) {
-      setUploadError(err instanceof Error ? err.message : 'Upload thất bại');
+      setUploadError(err instanceof Error ? err.message : t('uploadFailed'));
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -131,7 +142,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
     } catch (err: unknown) {
       // 409 email taken → email input; 401 wrong password → password input
       // (the session is still alive); see `profileUpdateError`.
-      const { field, message } = profileUpdateError(err);
+      const { field, message } = profileUpdateError(err, lang);
       setError(field, { message });
     }
   }
@@ -142,18 +153,18 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
       <DialogContent className="max-w-md bg-canvas-surface border-bdr text-ink-pri p-0 gap-0">
         <DialogHeader className="px-5 pt-5 pb-0">
-          <DialogTitle className="font-display text-lg text-ink-pri">Chỉnh sửa hồ sơ</DialogTitle>
+          <DialogTitle className="font-display text-lg text-ink-pri">{t('editTitle')}</DialogTitle>
           <DialogDescription className="sr-only">
-            Cập nhật ảnh đại diện, thông tin cá nhân, hoặc đổi mật khẩu.
+            {t('editDescription')}
           </DialogDescription>
         </DialogHeader>
 
         {/* Tabs — the two panels are separate <form>s rendered one at a time;
             they must never nest, which rules out one form wrapping both. */}
-        <div role="tablist" aria-label="Mục cài đặt" className="flex gap-1 px-5 pt-4 border-b border-bdr">
+        <div role="tablist" aria-label={t('settingsTabs')} className="flex gap-1 px-5 pt-4 border-b border-bdr">
           {([
-            { id: 'profile', label: 'Hồ sơ' },
-            { id: 'security', label: 'Bảo mật' },
+            { id: 'profile', label: t('tabProfile') },
+            { id: 'security', label: t('tabSecurity') },
           ] as const).map(({ id, label }) => (
             <button
               key={id}
@@ -179,17 +190,21 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
         </div>
 
         {tab === 'security' ? (
-          <ChangePasswordForm onCancel={handleClose} />
+          <>
+            <ChangePasswordForm onCancel={handleClose} />
+            <LogoutAllDevices />
+          </>
         ) : (
         <form onSubmit={(e) => void handleSubmit(onSubmit)(e)} className="flex flex-col gap-4 p-5">
           {/* Avatar upload */}
           <div className="flex flex-col items-center gap-2">
             <div className="relative">
-              <Avatar src={displayAvatar} alt={userDisplayName(user)} size={84} />
+              <Avatar src={displayAvatar} alt={userDisplayName(user, userFallback(lang))} size={84} />
               <button
                 type="button"
                 disabled={uploading}
                 onClick={() => fileInputRef.current?.click()}
+                aria-label={t('changeAvatar')}
                 className="absolute bottom-0 right-0 p-2 rounded-full bg-tb-gradient text-ink-on-accent border-2 border-canvas-surface flex items-center justify-center cursor-pointer disabled:opacity-40 overflow-visible"
               >
                 {uploading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
@@ -208,7 +223,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
           {/* Name */}
           <div className="flex flex-col gap-1.5">
             <label className="font-body font-medium text-[11px] text-ink-muted tracking-[0.04em] uppercase">
-              Tên hiển thị
+              {t('displayName')}
             </label>
             <input
               {...register('name')}
@@ -219,13 +234,13 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
                 errors.name && 'border-accent-red',
               )}
             />
-            {errors.name && <p className="text-xs text-accent-red">{errors.name.message}</p>}
+            {errors.name && <p className="text-xs text-accent-red">{fieldError(errors.name.message)}</p>}
           </div>
 
           {/* Email */}
           <div className="flex flex-col gap-1.5">
             <label className="font-body font-medium text-[11px] text-ink-muted tracking-[0.04em] uppercase">
-              Email
+              {t('emailLabel')}
             </label>
             <input
               {...register('email')}
@@ -237,22 +252,22 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
                 errors.email && 'border-accent-red',
               )}
             />
-            {errors.email && <p className="text-xs text-accent-red">{errors.email.message}</p>}
+            {errors.email && <p className="text-xs text-accent-red">{fieldError(errors.email.message)}</p>}
           </div>
 
           {emailChanged && (
             <PasswordField
               id="profile-current-password"
-              label="Mật khẩu hiện tại"
-              placeholder="Nhập mật khẩu để xác nhận đổi email"
+              label={t('currentPasswordLabel')}
+              placeholder={t('passwordForEmailPlaceholder')}
               autoComplete="current-password"
-              error={errors.currentPassword?.message}
+              error={fieldError(errors.currentPassword?.message)}
               inputProps={register('currentPassword')}
             />
           )}
 
           {/* Server error that belongs to no single field */}
-          {errors.root && <p className="text-sm text-accent-red">{errors.root.message}</p>}
+          {errors.root && <p className="text-sm text-accent-red">{fieldError(errors.root.message)}</p>}
 
           {/* Actions */}
           <div className="flex gap-3 pt-1">
@@ -261,7 +276,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
               onClick={handleClose}
               className="flex-1 bg-canvas-elevated border border-bdr rounded-tb-cta py-2.5 text-sm font-semibold text-ink-sec cursor-pointer hover:border-tb-amber/50 transition-colors"
             >
-              Hủy
+              {tShared('cancel')}
             </button>
             <GradientButton
               type="submit"
@@ -270,7 +285,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
               className="flex-1"
             >
               {(isSubmitting || updateUser.isPending) && <Loader2 size={14} className="animate-spin" />}
-              Lưu thay đổi
+              {t('saveChanges')}
             </GradientButton>
           </div>
         </form>
