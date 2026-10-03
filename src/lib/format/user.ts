@@ -1,4 +1,7 @@
 import type { UserSummary } from '@/types';
+import type { Lang } from '@/lib/i18n/lang';
+import { translate } from '@/lib/i18n/messages';
+import { formatMessages } from './format.i18n';
 
 /**
  * The trimmed string, or `null` when there is nothing visible in it.
@@ -20,7 +23,12 @@ export function nonBlank(value: string | null | undefined): string | null {
 }
 
 /** Shown when nothing identifies a person — never paired with a raw id. */
-export const USER_FALLBACK = 'Người dùng';
+export function userFallback(lang: Lang = 'vi'): string {
+  return translate(formatMessages, lang, 'userFallback');
+}
+
+/** The Vietnamese `userFallback` — the default when a caller passes no fallback. */
+export const USER_FALLBACK = userFallback('vi');
 
 /**
  * Display label for a person: the display name they set, else their username.

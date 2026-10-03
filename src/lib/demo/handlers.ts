@@ -35,6 +35,16 @@ import {
  * array.
  */
 
+/**
+ * The feed and profile search boxes send `?search=`; ignoring it would show the
+ * whole fixture list under a "no match" query. The fixtures are plain English,
+ * so a case-insensitive substring stands in for the backend's accent folding.
+ */
+function postsMatching<T extends { content: string }>(posts: T[], url: string): T[] {
+  const term = new URL(url).searchParams.get('search')?.trim().toLowerCase();
+  return term ? posts.filter((p) => p.content.toLowerCase().includes(term)) : posts;
+}
+
 /** Anything not explicitly mocked. 503 is the truth: the service is away. */
 const offlineFallback = http.all(`${API_BASE}/*`, () =>
   HttpResponse.json(
@@ -48,7 +58,9 @@ const offlineFallback = http.all(`${API_BASE}/*`, () =>
 export const demoHandlers: RequestHandler[] = [
   http.get(`${API_BASE}/user/me`, () => HttpResponse.json({ data: demoCurrentUser })),
 
-  http.get(`${API_BASE}/social/posts`, () => HttpResponse.json({ data: demoPage(demoPosts) })),
+  http.get(`${API_BASE}/social/posts`, ({ request }) =>
+    HttpResponse.json({ data: demoPage(postsMatching(demoPosts, request.url)) }),
+  ),
   // "Following" tab — a fresh demo visitor follows nobody.
   http.get(`${API_BASE}/social/users/:id/feed`, () =>
     HttpResponse.json({ data: demoPage([]) }),
@@ -135,8 +147,10 @@ export const demoHandlers: RequestHandler[] = [
   // Post detail and profile. `/social/posts/user/:id` is four segments and
   // `/social/posts/:id` three, so they cannot shadow each other — but keeping
   // the narrower path first documents the intent.
-  http.get(`${API_BASE}/social/posts/user/:id`, ({ params }) =>
-    HttpResponse.json({ data: demoPage(demoPosts.filter((p) => p.userId === params.id)) }),
+  http.get(`${API_BASE}/social/posts/user/:id`, ({ params, request }) =>
+    HttpResponse.json({
+      data: demoPage(postsMatching(demoPosts.filter((p) => p.userId === params.id), request.url)),
+    }),
   ),
   http.get(`${API_BASE}/social/posts/:id`, ({ params }) => {
     const post = demoPosts.find((p) => p.id === params.id);

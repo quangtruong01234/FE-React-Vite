@@ -1,6 +1,8 @@
 import { X } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
+import { useT } from '@/hooks/ui/useT';
 import { IconButton } from './IconButton';
+import { sharedMessages } from './shared.i18n';
 
 interface ModalCloseButtonProps {
   onClick: () => void;
@@ -9,11 +11,12 @@ interface ModalCloseButtonProps {
   label?: string;
 }
 
-export function ModalCloseButton({ onClick, className, label = 'Đóng' }: ModalCloseButtonProps) {
+export function ModalCloseButton({ onClick, className, label }: ModalCloseButtonProps) {
+  const t = useT(sharedMessages);
   return (
     <IconButton
       onClick={onClick}
-      aria-label={label}
+      aria-label={label ?? t('close')}
       className={cn(
         'size-8 rounded-full border-0 bg-transparent cursor-pointer shrink-0',
         'hover:bg-canvas-elevated text-ink-sec transition-colors',

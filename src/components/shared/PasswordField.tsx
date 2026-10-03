@@ -2,6 +2,8 @@ import { useState, type ReactElement } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import type { UseFormRegisterReturn } from 'react-hook-form';
 import { cn } from '@/lib/format/utils';
+import { useT } from '@/hooks/ui/useT';
+import { sharedMessages } from './shared.i18n';
 
 interface PasswordFieldProps {
   id: string;
@@ -29,6 +31,7 @@ export function PasswordField({
   autoComplete = 'new-password',
 }: PasswordFieldProps): ReactElement {
   const [show, setShow] = useState(false);
+  const t = useT(sharedMessages);
 
   return (
     <div className="flex flex-col gap-1">
@@ -51,7 +54,7 @@ export function PasswordField({
         <button
           type="button"
           onClick={() => setShow((v) => !v)}
-          aria-label={show ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+          aria-label={show ? t('hidePassword') : t('showPassword')}
           className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent !border-none p-1 flex items-center cursor-pointer text-tb-secondary hover:text-ink-pri transition-colors"
         >
           {show ? <EyeOff size={18} className="shrink-0" /> : <Eye size={18} className="shrink-0" />}

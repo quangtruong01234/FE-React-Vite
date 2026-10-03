@@ -10,7 +10,7 @@ import type {
   CreateAddressDto,
   UpdateAddressDto,
 } from '@/types';
-import { request, toQuery } from './client';
+import { request, toQuery, toSearchTerm } from './client';
 
 export const usersApi = {
   // Public read — no email/role (backend strips them from public profiles, 2026-07-07).
@@ -57,8 +57,9 @@ export const usersApi = {
     });
   },
 
-  getPaginated: (page = 1, limit = 20): Promise<PaginatedResponse<User>> => {
-    const qs = toQuery({ page, limit });
+  // LIST-SEARCH-01: `q` matches username, email or name — locked users included.
+  getPaginated: (page = 1, limit = 20, q?: string): Promise<PaginatedResponse<User>> => {
+    const qs = toQuery({ page, limit, q: toSearchTerm(q) });
     return request<PaginatedResponse<User>>(`/user${qs}`);
   },
 

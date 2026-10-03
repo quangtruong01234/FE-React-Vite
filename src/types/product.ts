@@ -204,6 +204,8 @@ export interface ProductRiskParams {
   minScore?: number;
   page?: number;
   limit?: number;
+  /** LIST-SEARCH-01: product-name search. */
+  q?: string;
 }
 
 /** Body of `POST /products/admin/risk/backfill` — cursor-resumable legacy
@@ -285,6 +287,12 @@ export interface Review {
   userId: string;
   rating: number;
   comment: string | null;
+  /**
+   * REVIEW-VERIFIED-01 — recomputed on every read: `true` while the author holds a
+   * COMPLETED order with this product, `false` once they don't (refund / return),
+   * `null` when the order service did not answer. Absent before that rollout.
+   */
+  isVerifiedPurchase?: boolean | null;
   createdAt: string;
   updatedAt: string;
 }

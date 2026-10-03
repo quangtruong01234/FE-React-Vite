@@ -2,6 +2,8 @@ import { type ReactElement } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
 import { getPageItems } from '@/lib/format/pagination';
+import { useT } from '@/hooks/ui/useT';
+import { sharedMessages } from './shared.i18n';
 
 interface PaginationProps {
   page: number;
@@ -23,6 +25,7 @@ export function Pagination({
   hasNext,
   className,
 }: PaginationProps): ReactElement | null {
+  const t = useT(sharedMessages);
   if (totalPages <= 1) return null;
 
   const pageItems = getPageItems(page, totalPages);
@@ -35,7 +38,7 @@ export function Pagination({
         type="button"
         disabled={!canPrev}
         onClick={() => onPageChange(page - 1)}
-        aria-label="Trang trước"
+        aria-label={t('prevPage')}
         className={cn(
           'flex items-center gap-1.5 px-3 py-2 rounded-tb-ghost border text-sm font-body font-medium transition-colors',
           !canPrev
@@ -44,7 +47,7 @@ export function Pagination({
         )}
       >
         <ChevronLeft size={15} className="shrink-0" />
-        <span className="hidden sm:inline">Trước</span>
+        <span className="hidden sm:inline">{t('prev')}</span>
       </button>
 
       {pageItems.map(item =>
@@ -77,7 +80,7 @@ export function Pagination({
         type="button"
         disabled={!canNext}
         onClick={() => onPageChange(page + 1)}
-        aria-label="Trang sau"
+        aria-label={t('nextPage')}
         className={cn(
           'flex items-center gap-1.5 px-3 py-2 rounded-tb-ghost border text-sm font-body font-medium transition-colors',
           !canNext
@@ -85,7 +88,7 @@ export function Pagination({
             : 'border-bdr text-ink-sec hover:bg-canvas-elevated hover:text-ink-pri cursor-pointer bg-transparent',
         )}
       >
-        <span className="hidden sm:inline">Sau</span>
+        <span className="hidden sm:inline">{t('next')}</span>
         <ChevronRight size={15} className="shrink-0" />
       </button>
     </div>

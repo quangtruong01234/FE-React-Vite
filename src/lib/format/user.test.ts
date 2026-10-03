@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { USER_FALLBACK, userDisplayName, nonBlank, userSummaryLabel } from './user';
+import { USER_FALLBACK, userDisplayName, userFallback, nonBlank, userSummaryLabel } from './user';
 
 describe('nonBlank', () => {
   it('trims and keeps a string with visible content', () => {
@@ -85,5 +85,13 @@ describe('userSummaryLabel', () => {
 
   it('returns null when there is neither an embed nor an id', () => {
     expect(userSummaryLabel(null, null)).toBeNull();
+  });
+});
+
+describe('userFallback (I18N-07)', () => {
+  it('names a nameless person in the UI language', () => {
+    expect(userFallback('vi')).toBe(USER_FALLBACK);
+    expect(userFallback('en')).toBe('User');
+    expect(userDisplayName(null, userFallback('en'))).toBe('User');
   });
 });

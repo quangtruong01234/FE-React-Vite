@@ -54,3 +54,14 @@ export function toQuery(params: Record<string, unknown>): string {
   if (!entries.length) return '';
   return '?' + new URLSearchParams(entries.map(([k, v]) => [k, String(v)])).toString();
 }
+
+// LIST-SEARCH-01: every list search param (`q`, or `search` on the social
+// routes) is trimmed server-side, treats blank as "no filter" and answers 400
+// past 100 chars. Trim + cap here so an over-long paste narrows instead of
+// erroring, and a blank term drops out of the URL through `toQuery`.
+export const LIST_SEARCH_MAX = 100;
+
+export function toSearchTerm(raw?: string): string | undefined {
+  const term = raw?.trim().slice(0, LIST_SEARCH_MAX);
+  return term || undefined;
+}

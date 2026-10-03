@@ -67,3 +67,19 @@ describe('upload signature request', () => {
     expect(captured?.searchParams.has('bytes')).toBe(false);
   });
 });
+
+describe('upload errors in English (I18N-07)', () => {
+  it('turns the backend oversize 400 into the English guard message', async () => {
+    server.use(
+      http.post(`${API_BASE}/upload/signature`, () =>
+        HttpResponse.json(
+          { statusCode: 400, message: 'File is 6291456 bytes, over the 5242880 byte limit for this folder' },
+          { status: 400 },
+        ),
+      ),
+    );
+    const png = new File([new Uint8Array(16)], 'a.png', { type: 'image/png' });
+
+    await expect(uploadProductImage(png, 'usr_1', undefined, 'en')).rejects.toThrow('Image is larger than 5MB');
+  });
+});

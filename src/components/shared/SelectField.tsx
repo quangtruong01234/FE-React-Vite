@@ -1,6 +1,8 @@
-import { type ReactElement } from 'react';
+import { type ReactElement, useId } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
+import { useT } from '@/hooks/ui/useT';
+import { sharedMessages } from './shared.i18n';
 
 export interface SelectFieldOption {
   value: string;
@@ -42,9 +44,13 @@ export function SelectField({
   loading,
   size = 'md',
 }: SelectFieldProps): ReactElement {
+  const t = useT(sharedMessages);
+  // Ties the visible label to the control, so it names the select for assistive tech.
+  const selectId = useId();
   const control = (
     <div className="relative">
       <select
+        id={label === undefined ? undefined : selectId}
         value={value}
         aria-label={ariaLabel}
         disabled={disabled || loading}
@@ -63,7 +69,7 @@ export function SelectField({
       >
         {placeholder !== undefined && (
           <option value="" disabled className="text-ink-muted bg-canvas-base">
-            {loading ? 'Đang tải…' : placeholder}
+            {loading ? t('loading') : placeholder}
           </option>
         )}
         {options.map((opt) => (
@@ -86,7 +92,7 @@ export function SelectField({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="font-body font-medium text-[11px] text-ink-muted tracking-[0.04em] uppercase">
+      <label htmlFor={selectId} className="font-body font-medium text-[11px] text-ink-muted tracking-[0.04em] uppercase">
         {label}
       </label>
       {control}

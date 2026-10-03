@@ -1,5 +1,7 @@
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import { cn } from '@/lib/format/utils';
+import { useT } from '@/hooks/ui/useT';
+import { sharedMessages } from '../shared.i18n';
 
 interface ChartFrameProps {
   title: string;
@@ -35,13 +37,14 @@ export function ChartFrame({
   subtitle,
   height = 260,
   isEmpty = false,
-  emptyLabel = 'Chưa có dữ liệu.',
+  emptyLabel,
   isLoading = false,
   action,
   footer,
   className,
   children,
 }: ChartFrameProps): ReactElement {
+  const t = useT(sharedMessages);
   return (
     <section
       className={cn(
@@ -64,14 +67,14 @@ export function ChartFrame({
           className="grid place-items-center rounded-tb-input bg-canvas-elevated [height:var(--h)] tb-pulse"
           style={{ '--h': `${height}px` } as CSSProperties}
         >
-          <span className="font-body text-xs text-ink-muted">Đang tải biểu đồ...</span>
+          <span className="font-body text-xs text-ink-muted">{t('chartLoading')}</span>
         </div>
       ) : isEmpty ? (
         <div
           className="grid place-items-center [height:var(--h)]"
           style={{ '--h': `${height}px` } as CSSProperties}
         >
-          <p className="font-body text-sm text-ink-muted text-center px-4">{emptyLabel}</p>
+          <p className="font-body text-sm text-ink-muted text-center px-4">{emptyLabel ?? t('noData')}</p>
         </div>
       ) : (
         <>

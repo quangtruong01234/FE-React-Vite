@@ -4,7 +4,7 @@ import { Store, TrendingUp, BadgeCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/format/utils';
 import { productCoverImage } from '@/lib/domain/productImage';
-import { userDisplayName } from '@/lib/format/user';
+import { userDisplayName, userFallback } from '@/lib/format/user';
 import { Avatar } from '@/components/shared/Avatar';
 import { PriceText } from '@/components/shared/PriceText';
 import { ProductThumb } from '@/components/shared/ProductThumb';
@@ -12,11 +12,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { hasSales, soldCountLabel } from './railRank';
+import { useLanguage } from '@/context/useLanguage';
+import { useT } from '@/hooks/ui/useT';
+import { layoutMessages } from './layout.i18n';
 
 const FEATURED_SELLER_LIMIT = 5;
 const TRENDING_LIMIT = 5;
 
 export function RightRail(): ReactElement {
+  const { lang } = useLanguage();
+  const t = useT(layoutMessages);
   const { data: sellersData, isLoading: loadingUsers } = useQuery({
     queryKey: queryKeys.users.featuredSellers(FEATURED_SELLER_LIMIT),
     queryFn: () => api.users.getFeaturedSellers(FEATURED_SELLER_LIMIT),
@@ -39,7 +44,7 @@ export function RightRail(): ReactElement {
       <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
         <div className="px-4 py-3 border-b border-bdr flex items-center gap-2">
           <Store size={15} className="text-accent-amber" />
-          <span className="font-display font-bold text-sm uppercase tracking-wide text-ink-pri">Seller nổi bật</span>
+          <span className="font-display font-bold text-sm uppercase tracking-wide text-ink-pri">{t('featuredSellers')}</span>
         </div>
         <div className="p-2">
           {loadingUsers && (
@@ -56,7 +61,7 @@ export function RightRail(): ReactElement {
             </div>
           )}
           {!loadingUsers && sellers.length === 0 && (
-            <p className="text-ink-muted text-xs px-2 py-3">Chưa có seller nổi bật.</p>
+            <p className="text-ink-muted text-xs px-2 py-3">{t('noFeaturedSellers')}</p>
           )}
           {!loadingUsers && sellers.map(s => (
             <Link
@@ -67,12 +72,12 @@ export function RightRail(): ReactElement {
               <Avatar src={s.avatar ?? undefined} alt={s.username} size={36} />
               <div className="min-w-0 flex-1">
                 <div className={cn('text-sm font-semibold text-ink-pri truncate flex items-center gap-1')}>
-                  {userDisplayName(s)}
+                  {userDisplayName(s, userFallback(lang))}
                   {hasSales(s.soldCount) && <BadgeCheck size={13} className="text-accent-amber flex-none" />}
                 </div>
                 <div className="text-[11px] text-ink-muted truncate">
                   @{s.username}
-                  {hasSales(s.soldCount) && ` · ${soldCountLabel(s.soldCount)}`}
+                  {hasSales(s.soldCount) && ` · ${soldCountLabel(s.soldCount, lang)}`}
                 </div>
               </div>
             </Link>
@@ -84,7 +89,7 @@ export function RightRail(): ReactElement {
       <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
         <div className="px-4 py-3 border-b border-bdr flex items-center gap-2">
           <TrendingUp size={15} className="text-accent-amber" />
-          <span className="font-display font-bold text-sm uppercase tracking-wide text-ink-pri">Đang hot</span>
+          <span className="font-display font-bold text-sm uppercase tracking-wide text-ink-pri">{t('trending')}</span>
         </div>
         <div className="p-2 flex flex-col gap-1">
           {loadingProducts && (
@@ -101,7 +106,7 @@ export function RightRail(): ReactElement {
             </div>
           )}
           {!loadingProducts && trending.length === 0 && (
-            <p className="text-ink-muted text-xs px-2 py-3">Chưa có sản phẩm hot.</p>
+            <p className="text-ink-muted text-xs px-2 py-3">{t('noTrending')}</p>
           )}
           {!loadingProducts && trending.map(p => (
             <Link
@@ -121,7 +126,7 @@ export function RightRail(): ReactElement {
                 <div className="flex items-baseline gap-2">
                   <PriceText price={p.price} className="text-[13px]" />
                   {hasSales(p.soldCount) && (
-                    <span className="text-[11px] text-ink-muted truncate">{soldCountLabel(p.soldCount)}</span>
+                    <span className="text-[11px] text-ink-muted truncate">{soldCountLabel(p.soldCount, lang)}</span>
                   )}
                 </div>
               </div>

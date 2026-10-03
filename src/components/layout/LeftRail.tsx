@@ -1,16 +1,21 @@
 import { type ReactElement } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/format/utils';
-import { userDisplayName } from '@/lib/format/user';
+import { userDisplayName, userFallback } from '@/lib/format/user';
 import { Avatar } from '@/components/shared/Avatar';
 import { useRole } from '@/hooks/auth/useRole';
 import {
   getPrimaryNavItems, isNavItemActive, SELLER_NAV_ITEMS, ADMIN_NAV_ITEMS, type NavItem,
 } from './navItems';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import { layoutMessages } from './layout.i18n';
 
 export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactElement {
   const location = useLocation();
   const roleState = useRole();
+  const t = useT(layoutMessages);
+  const { lang } = useLanguage();
 
   const me = roleState?.me;
   const isSeller = roleState?.isSeller ?? false;
@@ -18,18 +23,24 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
 
   const navItems = getPrimaryNavItems();
 
+  /**
+   * Row highlight shared by both blocks. An amber tint, not `canvas-elevated`:
+   * in the light theme elevated (#F4F4F5) sits on a #FAFAFA canvas and the
+   * hover / active row all but vanishes. Amber-on-/15 stays inside the chip
+   * contrast pinned in themeTokens.test.ts (amber on /20).
+   */
+  function rowClass(active: boolean): string {
+    return cn(
+      'flex items-center gap-3 px-3 py-2.5 rounded-tb-input cursor-pointer transition-colors w-full',
+      active ? 'bg-tb-amber/15' : 'hover:bg-tb-amber/10',
+    );
+  }
+
   /** Top block: the active entry gets the gradient chip. */
   function renderPrimary(item: NavItem): ReactElement {
     const active = isNavItemActive(item, location.pathname);
     return (
-      <Link
-        key={item.to}
-        to={item.to}
-        className={cn(
-          'flex items-center gap-3 px-3 py-2.5 rounded-tb-input cursor-pointer transition-colors w-full',
-          active ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
-        )}
-      >
+      <Link key={item.to} to={item.to} aria-current={active ? 'page' : undefined} className={rowClass(active)}>
         <span className={cn(
           'size-8 rounded-full flex-none grid place-items-center',
           active ? 'bg-tb-gradient text-ink-on-accent' : 'bg-canvas-elevated text-accent-amber',
@@ -38,9 +49,9 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
         </span>
         <span className={cn(
           'flex-1 font-body text-sm',
-          active ? 'text-ink-pri font-semibold' : 'text-ink-pri font-medium',
+          active ? 'text-accent-amber font-semibold' : 'text-ink-pri font-medium',
         )}>
-          {item.label}
+          {t(item.labelKey)}
         </span>
       </Link>
     );
@@ -48,19 +59,15 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
 
   /** Role blocks (seller / admin): amber chip throughout, row highlight only. */
   function renderRoleItem(item: NavItem): ReactElement {
+    const active = isNavItemActive(item, location.pathname);
     return (
-      <Link
-        key={item.to}
-        to={item.to}
-        className={cn(
-          'flex items-center gap-3 px-3 py-2.5 rounded-tb-input cursor-pointer transition-colors',
-          isNavItemActive(item, location.pathname) ? 'bg-canvas-elevated' : 'hover:bg-canvas-elevated',
-        )}
-      >
+      <Link key={item.to} to={item.to} aria-current={active ? 'page' : undefined} className={rowClass(active)}>
         <span className="size-8 rounded-full bg-tb-amber/10 text-accent-amber flex-none grid place-items-center">
           <item.icon size={16} className="shrink-0" />
         </span>
-        <span className="flex-1 font-body font-semibold text-sm text-ink-pri">{item.label}</span>
+        <span className={cn('flex-1 font-body font-semibold text-sm', active ? 'text-accent-amber' : 'text-ink-pri')}>
+          {t(item.labelKey)}
+        </span>
       </Link>
     );
   }
@@ -72,9 +79,9 @@ export function LeftRail({ fullHeight }: { fullHeight?: boolean } = {}): ReactEl
         <div className="flex items-center gap-3 px-3 py-2.5 mb-1">
           <Avatar src={me.avatar ?? undefined} alt={me.username} size={38} />
           <div className="min-w-0">
-            <div className="font-body font-semibold text-sm text-ink-pri truncate">{userDisplayName(me)}</div>
+            <div className="font-body font-semibold text-sm text-ink-pri truncate">{userDisplayName(me, userFallback(lang))}</div>
             <div className="text-xs text-ink-muted truncate">
-              {isAdmin ? 'Quản trị sàn' : isSeller ? 'Người bán' : `@${me.username}`}
+              {isAdmin ? t('roleAdmin') : isSeller ? t('roleSeller') : `@${me.username}`}
             </div>
           </div>
         </div>

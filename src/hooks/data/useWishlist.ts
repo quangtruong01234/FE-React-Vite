@@ -4,11 +4,11 @@ import { queryKeys } from '@/hooks/query/queryKeys';
 import { collectWishlistIds, toggleWishlistId } from '@/features/wishlist/wishlistCache';
 import type { PaginatedResponse, WishlistItem } from '@/types';
 
-/** Paginated wishlist for the `/wishlist` page. */
-export function useWishlistPage(page: number, limit: number) {
+/** Paginated wishlist for the `/wishlist` page; `q` searches product names. */
+export function useWishlistPage(page: number, limit: number, q = '') {
   return useQuery<PaginatedResponse<WishlistItem>>({
-    queryKey: queryKeys.products.wishlistList(page, limit),
-    queryFn: () => api.products.getWishlist({ page, limit }),
+    queryKey: queryKeys.products.wishlistList(page, limit, q),
+    queryFn: () => api.products.getWishlist({ page, limit, q }),
     // Keep the previous page rendered while the next one loads (no empty flash).
     placeholderData: keepPreviousData,
   });

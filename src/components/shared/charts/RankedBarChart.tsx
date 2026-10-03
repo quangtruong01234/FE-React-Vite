@@ -10,6 +10,8 @@ import {
 import type { ChartColor } from '@/lib/chart/chartTheme';
 import type { ChartSlice } from '@/lib/chart/chartSeries';
 import { useChartPalette } from './useChartPalette';
+import { useT } from '@/hooks/ui/useT';
+import { sharedMessages } from '../shared.i18n';
 
 interface RankedBarChartProps {
   slices: readonly ChartSlice[];
@@ -48,13 +50,14 @@ export function RankedBarChart({
   tooltipExtra,
 }: RankedBarChartProps): ReactElement {
   const palette = useChartPalette();
+  const t = useT(sharedMessages);
 
   const data = useMemo(
     () => ({
       labels: slices.map((s) => s.label),
       datasets: [
         {
-          label: valueLabel ?? 'Giá trị',
+          label: valueLabel ?? t('value'),
           data: slices.map((s) => s.value),
           backgroundColor: slices.map((s) => palette.series[s.color]),
           borderWidth: 0,
@@ -79,7 +82,7 @@ export function RankedBarChart({
           : []),
       ],
     }),
-    [slices, comparison, valueLabel, palette],
+    [slices, comparison, valueLabel, palette, t],
   );
 
   const options = useMemo<ChartOptions<'bar'>>(

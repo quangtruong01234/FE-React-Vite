@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -21,6 +21,17 @@
         document.documentElement.setAttribute('data-theme', theme);
         var meta = document.querySelector('meta[name="theme-color"]');
         if (meta) meta.setAttribute('content', theme === 'light' ? '#FAFAFA' : '#09090B');
+      })();
+    </script>
+    <!-- I18N-01: <html lang> before first paint — screen readers pick their voice from it.
+         Same rule as resolveLang() in src/lib/i18n/lang.ts (lang.test.ts runs both). -->
+    <script>
+      (function () {
+        var saved = null;
+        try {
+          saved = localStorage.getItem('tb-lang');
+        } catch (e) {}
+        document.documentElement.setAttribute('lang', saved === 'en' || saved === 'vi' ? saved : 'vi');
       })();
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />

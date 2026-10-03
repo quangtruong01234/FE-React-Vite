@@ -3,12 +3,17 @@ import type {
   OrderWithBuyer,
   OrderStatus,
   OrderStatusCounts,
+  OrderTimeline,
   SellerOrderDetail,
   SellerOrderListRow,
   SellerOrderExportParams,
+  AdminOrderExportParams,
+  OrderExportScope,
+  ExportJob,
   CreateOrderDto,
   CreateOrderResponse,
   ReturnRequest,
+  CreateReturnRequestDto,
   ReturnRequestStatus,
   VoucherValidateDto,
   VoucherValidation,
@@ -24,7 +29,7 @@ import type {
   PaginatedResponse,
   ApiError,
 } from "@/types";
-import { request, toQuery, API_BASE } from "./client";
+import { request, toQuery, toSearchTerm, API_BASE } from "./client";
 
 // `GET /order/user/:id?status=` (handoff 2026-08-07) takes the filter as REPEATED
 // singular `status` keys — `?status=return_requested&status=refunded`. Bracket
@@ -49,6 +54,24 @@ export function buildUserOrdersQuery(
   const term = q.trim().slice(0, ORDER_SEARCH_MAX);
   if (term) sp.append("q", term);
   return `?${sp.toString()}`;
+}
+
+// EXPORT-CSV-01: a CSV route answers the file itself, not a JSON envelope — so
+// it bypasses `request()` exactly like `getInvoice` does. The error legs DO
+// answer JSON, and a 400 names the real number of rows / days, so the body is
+// read for `message` instead of falling back to `res.statusText`;
+// `orderExportErrorMessage` surfaces it verbatim.
+async function fetchCsv(path: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE}${path}`, { credentials: "include" });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { message?: string };
+    throw {
+      statusCode: res.status,
+      status: res.status,
+      message: body.message ?? res.statusText,
+    } as ApiError;
+  }
+  return res.blob();
 }
 
 export const ordersApi = {
@@ -106,11 +129,13 @@ export const ordersApi = {
       body: JSON.stringify(data),
     }),
 
+  // LIST-SEARCH-01: `q` matches the voucher `code` (both voucher lists).
   getAdminVouchers: (
     page = 1,
     limit = 20,
+    q?: string,
   ): Promise<PaginatedResponse<Voucher>> => {
-    const qs = toQuery({ page, limit });
+    const qs = toQuery({ page, limit, q: toSearchTerm(q) });
     return request<PaginatedResponse<Voucher>>(`/order/admin/vouchers${qs}`);
   },
 
@@ -151,8 +176,9 @@ export const ordersApi = {
   getSellerVouchers: (
     page = 1,
     limit = 20,
+    q?: string,
   ): Promise<PaginatedResponse<Voucher>> => {
-    const qs = toQuery({ page, limit });
+    const qs = toQuery({ page, limit, q: toSearchTerm(q) });
     return request<PaginatedResponse<Voucher>>(`/order/vouchers/mine${qs}`);
   },
 
@@ -179,6 +205,10 @@ export const ordersApi = {
     ),
 
   getById: (id: string): Promise<Order> => request<Order>(`/order/${id}`),
+
+  // ORDER-TIMELINE-01: placed/paid/status/GHN events, oldest first.
+  getHistory: (id: string): Promise<OrderTimeline> =>
+    request<OrderTimeline>(`/order/${id}/history`),
 
   // P1-02: full-history per-status counts, so filter badges reflect the whole
   // history rather than only the pages loaded so far.
@@ -212,29 +242,36 @@ export const ordersApi = {
     ),
 
   // EXPORT-CSV-01: the seller's own orders as a CSV file (one row per order
-  // ITEM), not a JSON envelope — so it bypasses `request()` exactly like
-  // `getInvoice` does. The error legs DO answer JSON, and a 400 names the real
-  // number of rows / days, so the body is read for `message` instead of falling
-  // back to `res.statusText`; `sellerOrderExportErrorMessage` surfaces it verbatim.
-  exportSellerOrders: async (
-    params: SellerOrderExportParams,
-  ): Promise<Blob> => {
-    const res = await fetch(
-      `${API_BASE}/order/seller/export${toQuery({ ...params })}`,
-      { credentials: "include" },
-    );
-    if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as {
-        message?: string;
-      };
-      throw {
-        statusCode: res.status,
-        status: res.status,
-        message: body.message ?? res.statusText,
-      } as ApiError;
-    }
-    return res.blob();
-  },
+  // ITEM), not a JSON envelope — see `fetchCsv`.
+  exportSellerOrders: (params: SellerOrderExportParams): Promise<Blob> =>
+    fetchCsv(`/order/seller/export${toQuery({ ...params })}`),
+
+  // EXPORT-CSV-01 T4: the same file across every seller (or one, `sellerId`),
+  // admin only — a shop gets 403 even though it holds `order read:any`.
+  exportAdminOrders: (params: AdminOrderExportParams): Promise<Blob> =>
+    fetchCsv(`/order/admin/export${toQuery({ ...params })}`),
+
+  // EXPORT-CSV-01 T5: async export jobs for windows over the synchronous caps
+  // (366 days / 50 000 rows instead of 90 / 5 000). Answers 202 + the job,
+  // which may sit `pending` for ~30s before a worker picks it up. The body is
+  // strict: a key the scope does not know (a seller sending `sellerId`) is a 400.
+  createExportJob: (
+    scope: OrderExportScope,
+    params: AdminOrderExportParams,
+  ): Promise<ExportJob> =>
+    request<ExportJob>(`/order/${scope}/export/jobs`, {
+      method: "POST",
+      body: JSON.stringify(params),
+    }),
+
+  // The caller's latest 20 jobs, newest first — both scopes mixed.
+  getExportJobs: (): Promise<ExportJob[]> =>
+    request<ExportJob[]>("/order/export/jobs"),
+
+  // 409 while `pending`/`running` or once `failed`, 410 once expired; another
+  // user's job is a 404, never a 403.
+  downloadExportJob: (id: string): Promise<Blob> =>
+    fetchCsv(`/order/export/jobs/${id}/download`),
 
   getPaymentUrl: (
     id: string,
@@ -247,8 +284,11 @@ export const ordersApi = {
     page = 1,
     limit = 20,
     status?: string,
+    q?: string,
   ): Promise<PaginatedResponse<SellerOrderListRow>> => {
-    const qs = toQuery({ page, limit, status });
+    // LIST-SEARCH-01: `q` matches the order code OR the shipping-address
+    // string (recipient name / phone / address) — not the buyer's username.
+    const qs = toQuery({ page, limit, status, q: toSearchTerm(q) });
     return request<PaginatedResponse<SellerOrderListRow>>(`/order/seller${qs}`);
   },
 
@@ -270,18 +310,22 @@ export const ordersApi = {
 
   // F2: buyer-initiated return/refund. Eligible only on delivering/completed
   // orders without an active request (400 otherwise); flips the order to
-  // `return_requested`.
-  requestReturn: (orderId: string, reason: string): Promise<ReturnRequest> =>
+  // `return_requested`. RETURN-PHOTO-01: `imageUrls` is optional — callers omit
+  // it when empty, since a pre-rollout gateway rejects unknown body fields.
+  requestReturn: (orderId: string, body: CreateReturnRequestDto): Promise<ReturnRequest> =>
     request<ReturnRequest>(`/order/${orderId}/return-request`, {
       method: "POST",
-      body: JSON.stringify({ reason }),
+      body: JSON.stringify(body),
     }),
 
   getMyReturnRequests: (
     page = 1,
     limit = 10,
+    q?: string,
   ): Promise<PaginatedResponse<ReturnRequest>> => {
-    const qs = toQuery({ page, limit });
+    // LIST-SEARCH-01: `q` matches the request code (`rr_…`) or order code
+    // (`ord_…`) — on both return-request lists.
+    const qs = toQuery({ page, limit, q: toSearchTerm(q) });
     return request<PaginatedResponse<ReturnRequest>>(
       `/order/return-requests/mine${qs}`,
     );
@@ -292,8 +336,9 @@ export const ordersApi = {
     page = 1,
     limit = 10,
     status?: ReturnRequestStatus,
+    q?: string,
   ): Promise<PaginatedResponse<ReturnRequest>> => {
-    const qs = toQuery({ page, limit, status });
+    const qs = toQuery({ page, limit, status, q: toSearchTerm(q) });
     return request<PaginatedResponse<ReturnRequest>>(
       `/order/return-requests${qs}`,
     );

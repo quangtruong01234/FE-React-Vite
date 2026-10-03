@@ -80,6 +80,16 @@ describe('monthTitle', () => {
   it('reads as a vi-VN month header', () => {
     expect(monthTitle({ year: 2026, month: 9 })).toBe('Tháng 9 2026');
   });
+
+  it('names the month in English', () => {
+    expect(monthTitle({ year: 2026, month: 9 }, 'en')).toBe('September 2026');
+    expect(monthTitle({ year: 2027, month: 1 }, 'en')).toBe('January 2027');
+  });
+
+  it('has seven weekday labels per language', () => {
+    expect(WEEKDAY_LABELS.vi).toHaveLength(7);
+    expect(WEEKDAY_LABELS.en).toHaveLength(7);
+  });
 });
 
 describe('formatIsoDay', () => {
@@ -99,7 +109,7 @@ describe('monthGrid', () => {
     for (const month of [1, 2, 5, 8, 11, 12]) {
       const grid = monthGrid({ year: 2026, month });
       expect(grid).toHaveLength(6);
-      expect(grid.every(week => week.length === WEEKDAY_LABELS.length)).toBe(true);
+      expect(grid.every(week => week.length === WEEKDAY_LABELS.vi.length)).toBe(true);
     }
   });
 
@@ -148,5 +158,12 @@ describe('isDayInRange', () => {
     expect(isDayInRange('2030-01-01')).toBe(true);
     expect(isDayInRange('2030-01-01', '', '')).toBe(true);
     expect(isDayInRange('2030-01-01', undefined, '2026-09-17')).toBe(false);
+  });
+});
+
+describe('formatIsoDay in English (I18N-07)', () => {
+  it('orders the day month-first, still without a Date round-trip', () => {
+    expect(formatIsoDay('2026-08-19', 'en')).toBe('08/19/2026');
+    expect(formatIsoDay('2026-02-31', 'en')).toBe('');
   });
 });

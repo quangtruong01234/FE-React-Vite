@@ -6,6 +6,9 @@ import { deleteMedia } from '@/lib/http/cloudinary';
 import { cldImage } from '@/lib/http/cloudinaryUrl';
 import { validateUploadFile, MAX_IMAGE_BYTES } from '@/lib/http/uploadValidation';
 import { cn } from '@/lib/format/utils';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import { sharedMessages } from './shared.i18n';
 import { partitionEditorImages, type TrackedImage } from './richTextImages';
 import { RICH_TEXT_EXTENSIONS, RICH_TEXT_MAX_CHARS as MAX_CHARS } from './richTextExtensions';
 
@@ -48,6 +51,8 @@ export function RichTextEditor({ value, onChange, placeholder, userId, onUploadI
   const trackedRef = useRef<TrackedImage[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const t = useT(sharedMessages);
+  const { lang } = useLanguage();
 
   const editor = useEditor({
     extensions: RICH_TEXT_EXTENSIONS,
@@ -89,7 +94,7 @@ export function RichTextEditor({ value, onChange, placeholder, userId, onUploadI
     if (!file || !editor) return;
     if (imageInputRef.current) imageInputRef.current.value = '';
     // UP-04: reject bad files before wasting an upload round-trip.
-    const invalid = validateUploadFile(file, { kind: 'image', maxBytes: MAX_IMAGE_BYTES });
+    const invalid = validateUploadFile(file, { kind: 'image', maxBytes: MAX_IMAGE_BYTES }, lang);
     if (invalid) {
       setUploadError(invalid);
       return;
@@ -105,7 +110,7 @@ export function RichTextEditor({ value, onChange, placeholder, userId, onUploadI
       editor.chain().focus().setImage({ src }).run();
       trackedRef.current = [...trackedRef.current, { url: src, publicId: result.publicId }];
     } catch (err: unknown) {
-      setUploadError(err instanceof Error ? err.message : 'Upload ảnh thất bại');
+      setUploadError(err instanceof Error ? err.message : t('editorUploadFailed'));
     } finally {
       setUploading(false);
     }
@@ -121,21 +126,21 @@ export function RichTextEditor({ value, onChange, placeholder, userId, onUploadI
         <ToolbarButton
           onClick={() => editor?.chain().focus().toggleBold().run()}
           active={editor?.isActive('bold')}
-          title="Bold"
+          title={t('editorBold')}
         >
           <Bold size={13} className="shrink-0" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor?.chain().focus().toggleItalic().run()}
           active={editor?.isActive('italic')}
-          title="Italic"
+          title={t('editorItalic')}
         >
           <Italic size={13} className="shrink-0" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
           active={editor?.isActive('heading', { level: 2 })}
-          title="Heading"
+          title={t('editorHeading')}
         >
           <Heading2 size={13} className="shrink-0" />
         </ToolbarButton>
@@ -145,14 +150,14 @@ export function RichTextEditor({ value, onChange, placeholder, userId, onUploadI
         <ToolbarButton
           onClick={() => editor?.chain().focus().toggleBulletList().run()}
           active={editor?.isActive('bulletList')}
-          title="Bullet list"
+          title={t('editorBulletList')}
         >
           <List size={13} className="shrink-0" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor?.chain().focus().toggleOrderedList().run()}
           active={editor?.isActive('orderedList')}
-          title="Ordered list"
+          title={t('editorOrderedList')}
         >
           <ListOrdered size={13} className="shrink-0" />
         </ToolbarButton>
@@ -161,13 +166,13 @@ export function RichTextEditor({ value, onChange, placeholder, userId, onUploadI
 
         <ToolbarButton
           onClick={() => editor?.chain().focus().setHorizontalRule().run()}
-          title="Divider"
+          title={t('editorDivider')}
         >
           <Minus size={13} className="shrink-0" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => imageInputRef.current?.click()}
-          title={uploading ? 'Đang tải ảnh...' : 'Insert image'}
+          title={uploading ? t('editorUploading') : t('editorInsertImage')}
         >
           <ImagePlus size={13} className={cn('shrink-0', uploading && 'opacity-40')} />
         </ToolbarButton>
@@ -185,7 +190,7 @@ export function RichTextEditor({ value, onChange, placeholder, userId, onUploadI
       <div className="relative px-3.5 py-2.5">
         {!editor?.getText().trim() && (
           <p className="absolute top-2.5 left-3.5 text-sm text-ink-muted font-body pointer-events-none select-none">
-            {placeholder ?? 'Mô tả chi tiết về sản phẩm...'}
+            {placeholder ?? t('editorPlaceholder')}
           </p>
         )}
         <EditorContent editor={editor} />

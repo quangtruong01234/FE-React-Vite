@@ -1,4 +1,7 @@
+import type { Lang } from '@/lib/i18n/lang';
+import { bindTranslator } from '@/lib/i18n/messages';
 import { toApiError } from './apiError';
+import { uploadMessages } from './upload.i18n';
 
 export type UploadKind = 'image' | 'video';
 
@@ -42,8 +45,13 @@ export function resolveUploadCap(caps: UploadCaps | undefined, kind: UploadKind)
 }
 
 /** The oversize message, shared by the pre-upload guard and the post-signature check. */
-export function oversizeMessage(kind: UploadKind, maxBytes: number): string {
-  return `${kind === 'image' ? 'Ảnh' : 'Video'} vượt quá ${formatMb(maxBytes)}MB`;
+export function oversizeMessage(kind: UploadKind, maxBytes: number, lang: Lang = 'vi'): string {
+  const t = bindTranslator(uploadMessages, lang);
+  return t('oversize', { kind: kindLabel(kind, lang), mb: formatMb(maxBytes) });
+}
+
+function kindLabel(kind: UploadKind, lang: Lang): string {
+  return bindTranslator(uploadMessages, lang)(kind === 'image' ? 'kindImage' : 'kindVideo');
 }
 
 /**
@@ -61,16 +69,20 @@ export function signatureBytesParam(size: number): number | undefined {
 const SERVER_OVERSIZE = /over the (\d+) byte limit/;
 
 /**
- * The signature endpoint's oversize 400, re-worded as the same Vietnamese
- * message the local guards show. Only reachable when the backend lowers a
+ * The signature endpoint's oversize 400, re-worded as the same message the
+ * local guards show. Only reachable when the backend lowers a
  * ceiling below the local constants the pickers pre-check with. Returns `null`
  * for any other error so the caller rethrows it untouched.
  */
-export function serverOversizeMessage(error: unknown, kind: UploadKind): string | null {
+export function serverOversizeMessage(
+  error: unknown,
+  kind: UploadKind,
+  lang: Lang = 'vi',
+): string | null {
   const apiError = toApiError(error);
   if (apiError?.statusCode !== 400) return null;
   const match = SERVER_OVERSIZE.exec(apiError.message);
-  return match ? oversizeMessage(kind, Number(match[1])) : null;
+  return match ? oversizeMessage(kind, Number(match[1]), lang) : null;
 }
 
 // Backend caps `imageUrls[]` at 10 entries on products and posts → 11+ is a 400
@@ -108,13 +120,19 @@ export interface ImageBatchCap<T> {
  * UP-07: cap an image batch AND produce the message telling the user what was
  * dropped — a silent slice leaves them wondering where their files went.
  */
-export function capImageBatch<T>(currentCount: number, files: T[], max: number): ImageBatchCap<T> {
+export function capImageBatch<T>(
+  currentCount: number,
+  files: T[],
+  max: number,
+  lang: Lang = 'vi',
+): ImageBatchCap<T> {
   const { accepted, dropped } = capFilesToLimit(currentCount, files, max);
   if (dropped === 0) return { accepted, notice: null };
-  if (accepted.length === 0) return { accepted, notice: `Tối đa ${max} ảnh` };
+  const t = bindTranslator(uploadMessages, lang);
+  if (accepted.length === 0) return { accepted, notice: t('maxImages', { max }) };
   return {
     accepted,
-    notice: `Chỉ thêm được ${accepted.length}/${files.length} ảnh — tối đa ${max} ảnh`,
+    notice: t('partialImages', { accepted: accepted.length, total: files.length, max }),
   };
 }
 
@@ -142,31 +160,33 @@ function formatMb(bytes: number): string {
  *   2. type mismatch (MIME prefix, falling back to extension when the browser
  *      omits the MIME type),
  *   3. oversize.
- * Returns a Vietnamese error message, or `null` when the file is acceptable.
+ * Returns an error message in `lang`, or `null` when the file is acceptable.
  */
 export function validateUploadFile(
   file: FileLike,
   { kind, maxBytes }: ValidateUploadOptions,
+  lang: Lang = 'vi',
 ): string | null {
-  const label = kind === 'image' ? 'Ảnh' : 'Video';
+  const t = bindTranslator(uploadMessages, lang);
+  const label = kindLabel(kind, lang);
   const allowed = kind === 'image' ? IMAGE_EXTENSIONS : VIDEO_EXTENSIONS;
   const ext = extensionOf(file.name);
   const mime = (file.type ?? '').toLowerCase();
 
   if (kind === 'image' && (mime === 'image/svg+xml' || ext === 'svg')) {
-    return 'Không hỗ trợ ảnh SVG';
+    return t('svgUnsupported');
   }
 
   // Prefer the MIME prefix; fall back to the extension when the browser gives no
   // MIME type (some drag/paste sources leave `type` empty).
   if (mime) {
-    if (!mime.startsWith(`${kind}/`)) return `${label} không đúng định dạng`;
+    if (!mime.startsWith(`${kind}/`)) return t('wrongFormat', { kind: label });
   } else if (!(ext != null && allowed.includes(ext))) {
-    return `${label} không đúng định dạng`;
+    return t('wrongFormat', { kind: label });
   }
 
   if (file.size > maxBytes) {
-    return oversizeMessage(kind, maxBytes);
+    return oversizeMessage(kind, maxBytes, lang);
   }
 
   return null;
@@ -176,9 +196,10 @@ export function validateUploadFile(
 export function firstUploadError(
   files: FileLike[],
   opts: ValidateUploadOptions,
+  lang: Lang = 'vi',
 ): string | null {
   for (const file of files) {
-    const err = validateUploadFile(file, opts);
+    const err = validateUploadFile(file, opts, lang);
     if (err) return err;
   }
   return null;

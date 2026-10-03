@@ -1,6 +1,7 @@
 import { type ReactElement } from 'react';
 import { formatPrice } from '@/lib/format/utils';
 import { cn } from '@/lib/format/utils';
+import { useLanguage } from '@/context/useLanguage';
 
 type PriceSize = 'sm' | 'md' | 'lg';
 
@@ -17,9 +18,10 @@ const sizeClasses: Record<PriceSize, string> = {
 };
 
 export function PriceText({ price, className, size = 'md' }: PriceTextProps): ReactElement {
+  const { lang } = useLanguage();
   return (
     <span className={cn('font-mono font-bold leading-none bg-tb-gradient-text bg-clip-text text-transparent', sizeClasses[size], className)}>
-      {formatPrice(price)}
+      {formatPrice(price, lang)}
     </span>
   );
 }

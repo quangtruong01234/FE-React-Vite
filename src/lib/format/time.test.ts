@@ -39,23 +39,23 @@ describe('relativeTimeShort', () => {
   const at = (msAgo: number): string => new Date(now - msAgo).toISOString();
 
   it('under a minute → Vừa xong', () => {
-    expect(relativeTimeShort(at(30_000), now)).toBe('Vừa xong');
+    expect(relativeTimeShort(at(30_000), 'vi', now)).toBe('Vừa xong');
   });
 
   it('minutes → Np', () => {
-    expect(relativeTimeShort(at(5 * 60_000), now)).toBe('5p');
+    expect(relativeTimeShort(at(5 * 60_000), 'vi', now)).toBe('5p');
   });
 
   it('hours → Ng', () => {
-    expect(relativeTimeShort(at(3 * 3_600_000), now)).toBe('3g');
+    expect(relativeTimeShort(at(3 * 3_600_000), 'vi', now)).toBe('3g');
   });
 
   it('days → Nn', () => {
-    expect(relativeTimeShort(at(2 * 86_400_000), now)).toBe('2n');
+    expect(relativeTimeShort(at(2 * 86_400_000), 'vi', now)).toBe('2n');
   });
 
   it('invalid input → empty string', () => {
-    expect(relativeTimeShort('not-a-date', now)).toBe('');
+    expect(relativeTimeShort('not-a-date', 'vi', now)).toBe('');
   });
 });
 
@@ -64,22 +64,54 @@ describe('relativeTimeLong', () => {
   const at = (msAgo: number): string => new Date(now - msAgo).toISOString();
 
   it('under a minute → Vừa xong', () => {
-    expect(relativeTimeLong(at(30_000), now)).toBe('Vừa xong');
+    expect(relativeTimeLong(at(30_000), 'vi', now)).toBe('Vừa xong');
   });
 
   it('minutes → N phút trước', () => {
-    expect(relativeTimeLong(at(5 * 60_000), now)).toBe('5 phút trước');
+    expect(relativeTimeLong(at(5 * 60_000), 'vi', now)).toBe('5 phút trước');
   });
 
   it('hours → N giờ trước', () => {
-    expect(relativeTimeLong(at(3 * 3_600_000), now)).toBe('3 giờ trước');
+    expect(relativeTimeLong(at(3 * 3_600_000), 'vi', now)).toBe('3 giờ trước');
   });
 
   it('days → N ngày trước', () => {
-    expect(relativeTimeLong(at(2 * 86_400_000), now)).toBe('2 ngày trước');
+    expect(relativeTimeLong(at(2 * 86_400_000), 'vi', now)).toBe('2 ngày trước');
   });
 
   it('invalid input → empty string', () => {
-    expect(relativeTimeLong('not-a-date', now)).toBe('');
+    expect(relativeTimeLong('not-a-date', 'vi', now)).toBe('');
+  });
+});
+
+describe('relative time in English', () => {
+  const now = new Date('2026-07-04T12:00:00').getTime();
+  const at = (msAgo: number): string => new Date(now - msAgo).toISOString();
+
+  it('short form uses m / h / d', () => {
+    expect(relativeTimeShort(at(30_000), 'en', now)).toBe('Just now');
+    expect(relativeTimeShort(at(5 * 60_000), 'en', now)).toBe('5m');
+    expect(relativeTimeShort(at(3 * 3_600_000), 'en', now)).toBe('3h');
+    expect(relativeTimeShort(at(2 * 86_400_000), 'en', now)).toBe('2d');
+  });
+
+  it('long form pluralises the unit', () => {
+    expect(relativeTimeLong(at(30_000), 'en', now)).toBe('Just now');
+    expect(relativeTimeLong(at(60_000), 'en', now)).toBe('1 minute ago');
+    expect(relativeTimeLong(at(5 * 60_000), 'en', now)).toBe('5 minutes ago');
+    expect(relativeTimeLong(at(3_600_000), 'en', now)).toBe('1 hour ago');
+    expect(relativeTimeLong(at(2 * 86_400_000), 'en', now)).toBe('2 days ago');
+  });
+});
+
+describe('dates in English (I18N-07)', () => {
+  it('orders the date month-first', () => {
+    expect(formatDate(SAMPLE, 'en')).toBe('03/02/2026');
+    expect(formatDateTime(SAMPLE, 'en')).toContain('03/02/2026');
+  });
+
+  it('still returns an empty string for bad input', () => {
+    expect(formatDate('not-a-date', 'en')).toBe('');
+    expect(formatDateTime('', 'en')).toBe('');
   });
 });

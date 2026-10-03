@@ -225,3 +225,34 @@ describe('serverOversizeMessage — UPLOAD-SIZE-01', () => {
     expect(serverOversizeMessage(undefined, 'image')).toBeNull();
   });
 });
+
+describe('upload messages in English (I18N-07)', () => {
+  const opts = { kind: 'image' as const, maxBytes: MAX_IMAGE_BYTES };
+
+  it('words the local guards in English', () => {
+    expect(validateUploadFile(img({ type: 'image/svg+xml', name: 'x.svg' }), opts, 'en'))
+      .toBe('SVG images are not supported');
+    expect(validateUploadFile(vid(), opts, 'en')).toBe('Image is not in a supported format');
+    expect(validateUploadFile(img({ size: MAX_IMAGE_BYTES + 1 }), opts, 'en')).toBe('Image is larger than 10MB');
+    expect(firstUploadError([img(), img({ size: MAX_IMAGE_BYTES + 1 })], opts, 'en'))
+      .toBe('Image is larger than 10MB');
+    expect(oversizeMessage('video', MAX_VIDEO_BYTES, 'en')).toBe('Video is larger than 100MB');
+  });
+
+  it('pluralises the image-cap notices', () => {
+    const files = (n: number): number[] => Array.from({ length: n }, (_, i) => i);
+    expect(capImageBatch(4, files(2), 4, 'en').notice).toBe('Up to 4 images');
+    expect(capImageBatch(1, files(2), 1, 'en').notice).toBe('Up to 1 image');
+    expect(capImageBatch(2, files(5), 4, 'en').notice)
+      .toBe('Only 2/5 images could be added — up to 4 images');
+  });
+
+  it('translates the backend oversize 400', () => {
+    const backend400 = {
+      statusCode: 400,
+      status: 400,
+      message: 'File is 6291456 bytes, over the 5242880 byte limit for this folder',
+    };
+    expect(serverOversizeMessage(backend400, 'image', 'en')).toBe('Image is larger than 5MB');
+  });
+});

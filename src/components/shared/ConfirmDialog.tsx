@@ -9,6 +9,8 @@ import {
 } from '@/components/ui/dialog';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { cn } from '@/lib/format/utils';
+import { useT } from '@/hooks/ui/useT';
+import { sharedMessages } from './shared.i18n';
 
 /**
  * The project's confirm box, and the only sanctioned one: `window.confirm` is
@@ -49,13 +51,14 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
-  cancelLabel = 'Hủy',
+  cancelLabel,
   tone = 'default',
   isPending = false,
   error,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps): ReactElement {
+  const t = useT(sharedMessages);
   // A request in flight owns the dialog: an overlay click or Esc would drop the
   // pending state on the floor while the mutation keeps running.
   function handleOpenChange(next: boolean): void {
@@ -91,7 +94,7 @@ export function ConfirmDialog({
               'bg-canvas-elevated border border-bdr text-ink-sec hover:border-tb-amber/50',
             )}
           >
-            {cancelLabel}
+            {cancelLabel ?? t('cancel')}
           </button>
           {tone === 'danger' ? (
             <button

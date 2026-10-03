@@ -2,6 +2,8 @@ import { type ReactElement } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/format/utils';
 import { getPrimaryNavItems, isNavItemActive } from './navItems';
+import { useT } from '@/hooks/ui/useT';
+import { layoutMessages } from './layout.i18n';
 
 /**
  * Bottom tab bar shown only on mobile (`md:hidden`) where the desktop
@@ -11,6 +13,7 @@ import { getPrimaryNavItems, isNavItemActive } from './navItems';
 export function MobileNav(): ReactElement {
   const location = useLocation();
   const items = getPrimaryNavItems();
+  const t = useT(layoutMessages);
 
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-[100] bg-tb-surface/95 border-t border-bdr backdrop-blur-md">
@@ -28,7 +31,7 @@ export function MobileNav(): ReactElement {
             >
               <item.icon size={20} className="shrink-0" />
               <span className="font-body text-[10px] leading-none truncate max-w-full">
-                {item.shortLabel}
+                {t(item.shortLabelKey)}
               </span>
             </Link>
           );

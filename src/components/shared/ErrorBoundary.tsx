@@ -3,6 +3,8 @@ import { useLocation } from 'react-router-dom';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
 import { ApiErrorState } from '@/components/shared/ApiErrorState';
 import { GradientButton } from '@/components/shared/GradientButton';
+import { useT } from '@/hooks/ui/useT';
+import { sharedMessages } from './shared.i18n';
 
 /**
  * Without a boundary anywhere in the tree, a single render throw unmounts the
@@ -92,30 +94,30 @@ export function RouteErrorBoundary({ children }: { children: ReactNode }): React
  * rather than a `<Link>`.
  */
 export function RootErrorBoundary({ children }: { children: ReactNode }): ReactElement {
+  return <ErrorBoundary fallback={() => <RootCrashPanel />}>{children}</ErrorBoundary>;
+}
+
+/** A component of its own so the copy can follow the language — `LanguageProvider` sits above the root boundary. */
+function RootCrashPanel(): ReactElement {
+  const t = useT(sharedMessages);
   return (
-    <ErrorBoundary
-      fallback={() => (
-        <div className="min-h-screen bg-canvas-base flex items-center justify-center px-5">
-          <div className="w-full max-w-md bg-canvas-surface border border-tb-red/30 rounded-tb-sheet p-7 flex flex-col items-center text-center gap-4">
-            <div className="size-16 rounded-2xl grid place-items-center bg-tb-red/10 text-accent-red">
-              <AlertTriangle size={30} className="shrink-0" />
-            </div>
-            <div>
-              <h1 className="font-display font-black text-2xl uppercase tracking-tight text-ink-pri m-0">
-                Đã xảy ra lỗi
-              </h1>
-              <p className="font-body text-sm text-ink-sec mt-2 mb-0 leading-relaxed">
-                Ứng dụng gặp sự cố ngoài dự kiến. Tải lại trang để tiếp tục.
-              </p>
-            </div>
-            <GradientButton className="w-full" onClick={() => { window.location.reload(); }}>
-              <RotateCcw size={16} className="shrink-0" /> Tải lại trang
-            </GradientButton>
-          </div>
+    <div className="min-h-screen bg-canvas-base flex items-center justify-center px-5">
+      <div className="w-full max-w-md bg-canvas-surface border border-tb-red/30 rounded-tb-sheet p-7 flex flex-col items-center text-center gap-4">
+        <div className="size-16 rounded-2xl grid place-items-center bg-tb-red/10 text-accent-red">
+          <AlertTriangle size={30} className="shrink-0" />
         </div>
-      )}
-    >
-      {children}
-    </ErrorBoundary>
+        <div>
+          <h1 className="font-display font-black text-2xl uppercase tracking-tight text-ink-pri m-0">
+            {t('crashTitle')}
+          </h1>
+          <p className="font-body text-sm text-ink-sec mt-2 mb-0 leading-relaxed">
+            {t('crashSub')}
+          </p>
+        </div>
+        <GradientButton className="w-full" onClick={() => { window.location.reload(); }}>
+          <RotateCcw size={16} className="shrink-0" /> {t('crashReload')}
+        </GradientButton>
+      </div>
+    </div>
   );
 }

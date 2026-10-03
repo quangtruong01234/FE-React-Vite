@@ -9,12 +9,17 @@ import {
   relativeTime,
 } from '@/features/notifications/notificationDisplay';
 import { cn } from '@/lib/format/utils';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import { layoutMessages } from './layout.i18n';
 import type { Notification } from '@/types';
 
 export function NotificationBell(): ReactElement {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const t = useT(layoutMessages);
+  const { lang } = useLanguage();
 
   const { notifications, unreadCount, markRead, markAllRead } = useNotifications();
   const preview = notifications.slice(0, 5);
@@ -40,7 +45,7 @@ export function NotificationBell(): ReactElement {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(o => !o)}
-        aria-label="Thông báo"
+        aria-label={t('navNotifications')}
         className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-tb-input p-2.5 grid place-items-center cursor-pointer hover:border-accent-amber transition-colors"
       >
         <Bell size={16} className="shrink-0" />
@@ -54,7 +59,7 @@ export function NotificationBell(): ReactElement {
       {open && (
         <div className="absolute right-0 top-11 w-[360px] max-w-[90vw] bg-canvas-surface border border-bdr rounded-tb-card shadow-tb-card z-[120] overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-bdr">
-            <span className="font-display font-black uppercase tracking-wide text-ink-pri">Thông báo</span>
+            <span className="font-display font-black uppercase tracking-wide text-ink-pri">{t('navNotifications')}</span>
             {/* Marks the loaded notifications read in place — the footer link is the
                 only way out of this dropdown, so the two never lead to the same page. */}
             {unreadCount > 0 && (
@@ -63,18 +68,18 @@ export function NotificationBell(): ReactElement {
                 onClick={markAllRead}
                 className="bg-transparent border-0 p-0 cursor-pointer text-accent-amber text-xs font-semibold hover:underline"
               >
-                Đọc tất cả
+                {t('markAllRead')}
               </button>
             )}
           </div>
 
           <div className="max-h-[400px] overflow-y-auto">
             {preview.length === 0 && (
-              <div className="py-10 text-center text-ink-sec text-sm">Chưa có thông báo</div>
+              <div className="py-10 text-center text-ink-sec text-sm">{t('noNotifications')}</div>
             )}
             {preview.map((n) => {
               const { Icon, color } = getNotificationMeta(n.type);
-              const { title, body } = getNotificationContent(n);
+              const { title, body } = getNotificationContent(n, lang);
               return (
                 <button
                   key={n.id}
@@ -97,7 +102,7 @@ export function NotificationBell(): ReactElement {
                       {title}
                     </p>
                     <p className="m-0 text-[13px] leading-snug text-ink-sec">{body}</p>
-                    <span className="text-[11px] text-ink-muted">{relativeTime(n.createdAt)}</span>
+                    <span className="text-[11px] text-ink-muted">{relativeTime(n.createdAt, lang)}</span>
                   </div>
                   {!n.isRead && <span className="w-2 h-2 rounded-full bg-accent-amber flex-none mt-1.5" />}
                 </button>
@@ -110,7 +115,7 @@ export function NotificationBell(): ReactElement {
             onClick={() => setOpen(false)}
             className="block text-center py-2.5 text-xs font-semibold text-accent-amber border-t border-bdr hover:bg-canvas-elevated transition-colors"
           >
-            Xem tất cả thông báo
+            {t('seeAllNotifications')}
           </Link>
         </div>
       )}

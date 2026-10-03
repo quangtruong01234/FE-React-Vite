@@ -1,3 +1,7 @@
+import type { Lang } from '@/lib/i18n/lang';
+import { translate } from '@/lib/i18n/messages';
+import { uploadMessages } from './upload.i18n';
+
 /**
  * Resolves the Cloudinary owner id for an upload. Signed uploads tag every asset
  * with a `<ownerId>_<publicId>` prefix, so an unauthenticated uploader must be
@@ -6,11 +10,18 @@
  * cannot be cleaned up by the real user. Returns the id, or an error message the
  * caller surfaces instead of starting the upload (UP-06).
  */
-export const UPLOAD_LOGIN_REQUIRED = 'Bạn cần đăng nhập để tải tệp lên.';
+export function uploadLoginRequired(lang: Lang = 'vi'): string {
+  return translate(uploadMessages, lang, 'loginRequired');
+}
+
+export const UPLOAD_LOGIN_REQUIRED = uploadLoginRequired('vi');
 
 export type UploadOwner = { ownerId: string } | { error: string };
 
-export function resolveUploadOwner(currentUser: { id: string } | null | undefined): UploadOwner {
-  if (currentUser?.id == null) return { error: UPLOAD_LOGIN_REQUIRED };
+export function resolveUploadOwner(
+  currentUser: { id: string } | null | undefined,
+  lang: Lang = 'vi',
+): UploadOwner {
+  if (currentUser?.id == null) return { error: uploadLoginRequired(lang) };
   return { ownerId: currentUser.id };
 }

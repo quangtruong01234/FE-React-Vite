@@ -22,5 +22,10 @@ describe('soldCountLabel', () => {
 
   it('shows nothing for a backfill row rather than "Đã bán 0"', () => {
     expect(soldCountLabel(0)).toBeNull();
+    expect(soldCountLabel(0, 'en')).toBeNull();
+  });
+
+  it('reads as English with en-US grouping', () => {
+    expect(soldCountLabel(1234, 'en')).toBe('1,234 sold');
   });
 });

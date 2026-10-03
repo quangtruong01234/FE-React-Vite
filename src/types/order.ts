@@ -29,6 +29,25 @@ export type OrderStatus =
   | "return_requested"
   | "refunded";
 
+/** One entry of `GET /api/order/:id/history` (ORDER-TIMELINE-01). */
+export type OrderTimelineEventKind = "placed" | "paid" | "status" | "shipping";
+
+export interface OrderTimelineEvent {
+  kind: OrderTimelineEventKind;
+  /** `placed` → "pending"; `status` → the NEW status; null otherwise. */
+  status: OrderStatus | null;
+  /** Raw GHN status code on `shipping` events (unknown codes may appear); null otherwise. */
+  ghnStatus: string | null;
+  at: string;
+}
+
+/** `GET /api/order/:id/history` — events oldest first, never empty. */
+export interface OrderTimeline {
+  orderId: string;
+  status: OrderStatus;
+  events: OrderTimelineEvent[];
+}
+
 /** `GET /api/order/user/:id/status-counts` — full-history order count per status (not page-scoped). */
 export interface OrderStatusCounts {
   all: number;
@@ -70,8 +89,20 @@ export interface ReturnRequest {
    * backend rollout.
    */
   reviewer?: UserSummary | null;
+  /**
+   * RETURN-PHOTO-01 evidence photos (Cloudinary `trybuy/returns` URLs) — always
+   * an array on a current backend, absent on responses from before the rollout.
+   */
+  imageUrls?: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+/** `POST /api/order/:id/return-request` body. */
+export interface CreateReturnRequestDto {
+  reason: string;
+  /** Max 5, unique, `trybuy/returns` uploads by the caller. Omit when empty. */
+  imageUrls?: string[];
 }
 
 export interface Order {
@@ -97,8 +128,17 @@ export interface Order {
    * refresh it without a manual admin sync, so do not poll.
    */
   expectedDeliveryTime?: string | null;
-  /** F3 voucher redeemed at checkout, or null/absent. `total` is already net of the discount. */
+  /**
+   * F3 voucher redeemed at checkout, or null/absent. `total` is already net of
+   * the discount. When the order carries both a shop and a platform code
+   * (VOUCHER-SHOP-01 phase 2) this is the **shop** code — the platform one is
+   * in `platformVoucherCode`.
+   */
   voucherCode?: string | null;
+  /** The platform code — only set when `voucherCode` holds a shop code too. */
+  platformVoucherCode?: string | null;
+  /** Shared by the sibling orders of one multi-shop checkout; `null` otherwise. */
+  checkoutId?: string | null;
   /** Decimal column — may arrive as a string ("50000.00") on older responses. */
   discountAmount?: number | string | null;
   /** Line subtotal (Σ item price×qty), server-computed as a number. Optional for legacy/multi-seller responses that predate the field. */
@@ -177,8 +217,10 @@ export interface CreateOrderDto extends GhnLocationDto {
   paymentMethod: PaymentMethod;
   shippingAddress: string;
   items: CreateOrderItemDto[];
-  /** F3: optional voucher — single-seller baskets only (multi-seller + code → 400). */
+  /** F3: legacy single code. Send `voucherCodes` instead when there are 2+. */
   voucherCode?: string;
+  /** VOUCHER-SHOP-01 phase 2: at most 1 platform code + 1 code per shop. */
+  voucherCodes?: string[];
 }
 
 // --- Voucher (F3) ---
@@ -187,16 +229,33 @@ export type VoucherDiscountType = "percent" | "fixed";
 
 /** `POST /api/order/voucher/validate` — previews a code against the basket; does NOT redeem. */
 export interface VoucherValidateDto {
-  code: string;
+  /** Legacy single code — optional now, but `code` + `voucherCodes` must hold at least one. */
+  code?: string;
+  /** VOUCHER-SHOP-01 phase 2: max 20, each ≤ 64 chars; duplicates are merged server-side. */
+  voucherCodes?: string[];
   items: CreateOrderItemDto[];
 }
 
+/** One code of a validated checkout, in the order the codes were sent. */
+export interface ValidatedVoucher {
+  code: string;
+  scope: VoucherScope;
+  /** `usr_…` on a shop code, `null` on the platform one. */
+  sellerId: string | null;
+  discountType: VoucherDiscountType;
+  discountAmount: number;
+}
+
 export interface VoucherValidation {
+  /** `code` / `discountType` describe the FIRST code sent. */
   code: string;
   discountType: VoucherDiscountType;
+  /** `discountAmount` / `finalItemsTotal` are totals for the whole checkout. */
   discountAmount: number;
   itemsTotal: number;
   finalItemsTotal: number;
+  /** Per-code breakdown. Absent on a backend that predates phase 2. */
+  vouchers?: ValidatedVoucher[];
 }
 
 /**
@@ -405,6 +464,46 @@ export interface SellerOrderExportParams {
   from: string;
   to: string;
   status?: OrderStatus;
+}
+
+/**
+ * `GET /api/order/admin/export` (EXPORT-CSV-01 T4) — admin only. Same window
+ * rules and caps as the seller route, across every seller unless `sellerId`
+ * (a `usr_` public id) narrows it to one. The file carries two extra trailing
+ * columns, `sellerId` and `sellerUsername`.
+ */
+export interface AdminOrderExportParams extends SellerOrderExportParams {
+  sellerId?: string;
+}
+
+/** Which export route a job (or a synchronous export) runs against. */
+export type OrderExportScope = "seller" | "admin";
+
+/**
+ * `pending` → `running` → `done` | `failed`; a `done` job turns `expired`
+ * after 24h, when its file is deleted.
+ */
+export type ExportJobState = "pending" | "running" | "done" | "failed" | "expired";
+
+/**
+ * `ExportJobView` from `/api/order/export/jobs*` (EXPORT-CSV-01 T5). The id is
+ * an opaque `exp_…` public id. `errorMessage` is only set on `failed`.
+ */
+export interface ExportJob {
+  id: string;
+  scope: OrderExportScope;
+  from: string;
+  to: string;
+  statusFilter: string | null;
+  state: ExportJobState;
+  rowCount: number | null;
+  fileName: string | null;
+  fileSizeBytes: number | null;
+  errorMessage: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  expiresAt: string | null;
 }
 
 // --- Analytics (F4) ---

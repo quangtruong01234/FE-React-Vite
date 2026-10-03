@@ -2,6 +2,9 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { IconButton } from './IconButton';
 import { cn } from '@/lib/format/utils';
+import { useLanguage } from '@/context/useLanguage';
+import { useT } from '@/hooks/ui/useT';
+import { sharedMessages } from './shared.i18n';
 import {
   WEEKDAY_LABELS,
   currentMonth,
@@ -55,8 +58,10 @@ export function DateField({
   rangeFrom,
   rangeTo,
   hasError = false,
-  placeholder = 'Chọn ngày',
+  placeholder,
 }: DateFieldProps): ReactElement {
+  const { lang } = useLanguage();
+  const t = useT(sharedMessages);
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<CalendarMonth>(() => monthOfIsoDay(value) ?? currentMonth());
   const ref = useRef<HTMLDivElement>(null);
@@ -164,29 +169,29 @@ export function DateField({
           id={id === undefined ? undefined : `${id}-value`}
           className={cn('font-mono text-sm leading-[1.4]', value ? 'text-ink-pri' : 'text-ink-muted')}
         >
-          {value ? formatIsoDay(value) : placeholder}
+          {value ? formatIsoDay(value, lang) : (placeholder ?? t('pickDate'))}
         </span>
       </button>
 
       {open && (
         <div
           role="dialog"
-          aria-label={`Chọn ngày — ${monthTitle(view)}`}
+          aria-label={t('pickDateFor', { month: monthTitle(view, lang) })}
           className="absolute left-0 top-full mt-2 z-[120] w-80 p-3 bg-canvas-surface border border-bdr rounded-tb-card shadow-tb-card"
         >
           <div className="flex items-center justify-between mb-2">
             <IconButton
-              aria-label="Tháng trước"
+              aria-label={t('prevMonth')}
               onClick={() => setView(v => shiftMonth(v, -1))}
               className="size-8 rounded-tb-ghost text-ink-sec cursor-pointer hover:bg-canvas-elevated hover:text-ink-pri transition-colors"
             >
               <ChevronLeft size={16} className="shrink-0" />
             </IconButton>
             <span className="font-display text-sm font-semibold uppercase tracking-[0.04em] text-ink-pri">
-              {monthTitle(view)}
+              {monthTitle(view, lang)}
             </span>
             <IconButton
-              aria-label="Tháng sau"
+              aria-label={t('nextMonth')}
               onClick={() => setView(v => shiftMonth(v, 1))}
               className="size-8 rounded-tb-ghost text-ink-sec cursor-pointer hover:bg-canvas-elevated hover:text-ink-pri transition-colors"
             >
@@ -195,7 +200,7 @@ export function DateField({
           </div>
 
           <div className="grid grid-cols-7 gap-1 mb-1">
-            {WEEKDAY_LABELS.map(day => (
+            {WEEKDAY_LABELS[lang].map(day => (
               <span
                 key={day}
                 className="h-6 grid place-items-center font-body font-medium text-[10px] uppercase text-ink-muted tracking-[0.04em]"
@@ -222,7 +227,7 @@ export function DateField({
               'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-bdr',
             )}
           >
-            Hôm nay
+            {t('today')}
           </button>
         </div>
       )}

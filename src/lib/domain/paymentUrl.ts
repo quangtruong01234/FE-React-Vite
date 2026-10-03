@@ -1,3 +1,7 @@
+import type { Lang } from '@/lib/i18n/lang';
+import { translate } from '@/lib/i18n/messages';
+import { paymentUrlMessages } from './paymentUrl.i18n';
+
 interface PaymentUrlResult {
   orderUrl: string | null;
 }
@@ -7,6 +11,14 @@ export interface ResolvePaymentUrlOptions {
   delayMs?: number;
   /** Injectable delay so tests don't wait on real timers. */
   sleep?: (ms: number) => Promise<void>;
+}
+
+/** Thrown when the gateway URL never arrives — a class, so the message can be re-translated on screen. */
+export class PaymentUrlMissingError extends Error {
+  constructor() {
+    super(translate(paymentUrlMessages, 'vi', 'urlMissing'));
+    this.name = 'PaymentUrlMissingError';
+  }
 }
 
 const defaultSleep = (ms: number): Promise<void> =>
@@ -32,10 +44,8 @@ export async function resolvePaymentUrl<T extends PaymentUrlResult>(
     if (result.orderUrl) return result as T & { orderUrl: string };
     if (attempt < retries) await sleep(delayMs);
   }
-  throw new Error('Không nhận được đường dẫn thanh toán.');
+  throw new PaymentUrlMissingError();
 }
-
-const PAYMENT_URL_FALLBACK = 'Không tạo được liên kết thanh toán. Vui lòng thử lại.';
 
 /**
  * User-facing message for a failed `GET /api/order/:id/payment-url`.
@@ -50,12 +60,13 @@ const PAYMENT_URL_FALLBACK = 'Không tạo được liên kết thanh toán. Vui
  * `error instanceof Error` check silently drops every backend message here —
  * duck-type on `message` instead.
  */
-export function paymentUrlErrorMessage(error: unknown): string {
+export function paymentUrlErrorMessage(error: unknown, lang: Lang = 'vi'): string {
+  if (error instanceof PaymentUrlMissingError) return translate(paymentUrlMessages, lang, 'urlMissing');
   if (error && typeof error === 'object' && 'message' in error) {
     const message = (error as { message?: unknown }).message;
     if (typeof message === 'string' && message.trim().length > 0) return message;
   }
-  return PAYMENT_URL_FALLBACK;
+  return translate(paymentUrlMessages, lang, 'fallback');
 }
 
 /**

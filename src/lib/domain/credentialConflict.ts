@@ -1,4 +1,17 @@
 import type { ApiError } from '@/types';
+import type { Lang } from '@/lib/i18n/lang';
+import { defineMessages, translate } from '@/lib/i18n/messages';
+
+const conflictMessages = defineMessages({
+  vi: {
+    usernameTaken: 'Tên đăng nhập này đã có người dùng. Hãy chọn tên khác.',
+    emailTaken: 'Email này đã được đăng ký. Hãy dùng email khác hoặc đăng nhập.',
+  },
+  en: {
+    usernameTaken: 'This username is already taken. Please choose another.',
+    emailTaken: 'This email is already registered. Use another email or sign in.',
+  },
+});
 
 export interface CredentialConflict {
   /** Form field the message belongs to; `null` → the form-level banner. */
@@ -21,7 +34,11 @@ export interface CredentialConflict {
  * Match on `statusCode` + `message`: the envelope's `error` field still reads
  * `"HttpException"` rather than `"Conflict"` (backend known issue #5).
  */
-export function credentialConflictError(error: unknown, fallback: string): CredentialConflict {
+export function credentialConflictError(
+  error: unknown,
+  fallback: string,
+  lang: Lang = 'vi',
+): CredentialConflict {
   const err = error as ApiError | undefined;
   const status = err?.statusCode ?? err?.status;
   // Only a real backend failure has a message worth showing. A network-level
@@ -32,13 +49,13 @@ export function credentialConflictError(error: unknown, fallback: string): Crede
     if (/username/i.test(raw)) {
       return {
         field: 'username',
-        message: 'Tên đăng nhập này đã có người dùng. Hãy chọn tên khác.',
+        message: translate(conflictMessages, lang, 'usernameTaken'),
       };
     }
     if (/email/i.test(raw)) {
       return {
         field: 'email',
-        message: 'Email này đã được đăng ký. Hãy dùng email khác hoặc đăng nhập.',
+        message: translate(conflictMessages, lang, 'emailTaken'),
       };
     }
   }

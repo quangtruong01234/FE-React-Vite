@@ -4,6 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { useRole } from '@/hooks/auth/useRole';
 import { useAuthContext } from '@/context/useAuthContext';
 import { roleStaleNotice } from '@/lib/auth/roleLabels';
+import { useLanguage } from '@/context/useLanguage';
+import { useT } from '@/hooks/ui/useT';
+import { layoutMessages } from './layout.i18n';
 
 /**
  * Tells a user whose role changed mid-session that their session is running on
@@ -23,6 +26,8 @@ export function RoleStaleBanner(): ReactElement | null {
   const navigate = useNavigate();
   // Central logout (useAuth): clears the cache and broadcasts to other tabs.
   const { logout } = useAuthContext();
+  const { lang } = useLanguage();
+  const t = useT(layoutMessages);
 
   if (!roleState?.isRoleStale) return null;
 
@@ -33,13 +38,13 @@ export function RoleStaleBanner(): ReactElement | null {
     >
       <ShieldAlert size={16} className="shrink-0 text-accent-amber" />
       <p className="flex-1 min-w-0 font-body text-xs text-accent-amber">
-        {roleStaleNotice(roleState.me.role.name, roleState.roleName)}
+        {roleStaleNotice(roleState.me.role.name, roleState.roleName, lang)}
       </p>
       <button
         onClick={() => logout({ onSuccess: () => void navigate('/login') })}
         className="shrink-0 px-3 py-1.5 rounded-tb-input border border-tb-amber/40 bg-canvas-elevated text-accent-amber font-body font-semibold text-xs cursor-pointer hover:border-tb-amber/70 transition-colors"
       >
-        Đăng xuất
+        {t('logout')}
       </button>
     </div>
   );

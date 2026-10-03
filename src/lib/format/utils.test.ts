@@ -72,3 +72,20 @@ describe('buildVariantLabel', () => {
     expect(buildVariantLabel('[0]', [])).toBeNull();
   });
 });
+
+describe('money in English (I18N-07)', () => {
+  it('keeps VND but groups the en-US way behind ₫', () => {
+    expect(formatVnd(1_250_000, 'en')).toBe('1,250,000 ₫');
+    expect(formatPrice(199_000, 'en')).toBe('199,000 ₫');
+  });
+
+  it('abbreviates millions as M ₫', () => {
+    expect(formatPrice(1_500_000, 'en')).toBe('1.5M ₫');
+    expect(formatPrice(2_000_000, 'en')).toBe('2M ₫');
+  });
+
+  it('still renders a missing amount as an em dash', () => {
+    expect(formatVnd(null as unknown as number, 'en')).toBe('—');
+    expect(formatPrice(NaN, 'en')).toBe('—');
+  });
+});

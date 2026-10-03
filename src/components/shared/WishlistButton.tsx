@@ -2,6 +2,8 @@ import { type ReactElement, type MouseEvent } from 'react';
 import { Heart } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
 import { IconButton } from '@/components/shared/IconButton';
+import { useT } from '@/hooks/ui/useT';
+import { sharedMessages } from './shared.i18n';
 import { useWishlistIds, useToggleWishlist } from '@/hooks/data/useWishlist';
 
 interface WishlistButtonProps {
@@ -19,6 +21,7 @@ interface WishlistButtonProps {
 export function WishlistButton({ productId, className, iconSize = 20 }: WishlistButtonProps): ReactElement {
   const { data: ids } = useWishlistIds();
   const toggle = useToggleWishlist();
+  const t = useT(sharedMessages);
   const wishlisted = ids?.has(productId) ?? false;
 
   function handleClick(e: MouseEvent<HTMLButtonElement>): void {
@@ -31,7 +34,7 @@ export function WishlistButton({ productId, className, iconSize = 20 }: Wishlist
     <IconButton
       onClick={handleClick}
       disabled={toggle.isPending}
-      aria-label={wishlisted ? 'Bỏ yêu thích' : 'Thêm vào yêu thích'}
+      aria-label={wishlisted ? t('wishlistRemove') : t('wishlistAdd')}
       aria-pressed={wishlisted}
       className={cn(
         'transition-colors',

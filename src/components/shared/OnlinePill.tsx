@@ -1,5 +1,7 @@
 import { type ReactElement } from 'react';
 import { cn } from '@/lib/format/utils';
+import { useT } from '@/hooks/ui/useT';
+import { sharedMessages } from './shared.i18n';
 
 interface OnlinePillProps {
   count: number;
@@ -7,6 +9,7 @@ interface OnlinePillProps {
 }
 
 export function OnlinePill({ count, className }: OnlinePillProps): ReactElement {
+  const t = useT(sharedMessages);
   return (
     <span
       className={cn(
@@ -16,7 +19,7 @@ export function OnlinePill({ count, className }: OnlinePillProps): ReactElement 
       )}
     >
       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-[var(--tb-online)] [animation:tb-pulse_1.6s_ease-in-out_infinite]" />
-      {count} người online
+      {t('online', { count })}
     </span>
   );
 }

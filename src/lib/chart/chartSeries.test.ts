@@ -24,6 +24,11 @@ describe('orderStatusSlices', () => {
     });
   });
 
+  it('labels slices in English when asked', () => {
+    const [slice] = orderStatusSlices({ delivering: 4 }, 'en');
+    expect(slice.label).toBe('Out for delivery');
+  });
+
   it('never turns the OrderStatusCounts `all` total into a slice', () => {
     // `all` is a grand total, not a status — charting it would double every
     // count and swamp the real slices.

@@ -12,10 +12,19 @@
  */
 
 import chunk from 'lodash/chunk';
+import type { Lang } from '@/lib/i18n/lang';
 import { toVnIsoDay } from './vnDay';
 
-/** Monday-first, the way a vi-VN calendar is printed. */
-export const WEEKDAY_LABELS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'] as const;
+/** Monday-first in both languages — the grid geometry (`monthGrid`) is Monday-first. */
+export const WEEKDAY_LABELS: Record<Lang, readonly string[]> = {
+  vi: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
+  en: ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'],
+};
+
+const EN_MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+] as const;
 
 /** Always render 6 rows so the popover does not resize when the month changes. */
 const GRID_ROWS = 6;
@@ -77,15 +86,19 @@ export function shiftMonth({ year, month }: CalendarMonth, delta: number): Calen
   };
 }
 
-/** Header text, e.g. `Tháng 9 2026`. */
-export function monthTitle({ year, month }: CalendarMonth): string {
-  return `Tháng ${month} ${year}`;
+/** Header text, e.g. `Tháng 9 2026` / `September 2026`. */
+export function monthTitle({ year, month }: CalendarMonth, lang: Lang = 'vi'): string {
+  return lang === 'en' ? `${EN_MONTHS[month - 1] ?? month} ${year}` : `Tháng ${month} ${year}`;
 }
 
-/** `19/08/2026` — the trigger's text, formatted from the string so no timezone is involved. */
-export function formatIsoDay(iso: string): string {
+/**
+ * `19/08/2026` vi · `08/19/2026` en — the trigger's text, formatted from the string so no
+ * timezone is involved.
+ */
+export function formatIsoDay(iso: string, lang: Lang = 'vi'): string {
   if (monthOfIsoDay(iso) === null) return '';
-  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+  const [year, month, day] = [iso.slice(0, 4), iso.slice(5, 7), iso.slice(8, 10)];
+  return lang === 'en' ? `${month}/${day}/${year}` : `${day}/${month}/${year}`;
 }
 
 function daysInMonth(year: number, month: number): number {

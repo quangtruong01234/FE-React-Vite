@@ -44,6 +44,12 @@ export const authApi = {
   logout: (): Promise<void> =>
     request('/user/logout', { method: 'POST' }),
 
+  // SESSION-REVOKE-01: kills every session of the account, this one included —
+  // the 201 clears the cookie. 503 = session store down, nothing revoked and the
+  // cookie is kept; 429 above 5/min.
+  logoutAll: (): Promise<{ message: string }> =>
+    request<{ message: string }>('/user/logout-all', { method: 'POST' }),
+
   // The only route carrying `tokenRole`/`isRoleStale` — login mints the token in
   // the same call, so it has nothing to compare (ROLE-ADMIN-01, 2026-09-16).
   me: (): Promise<CurrentUser> =>

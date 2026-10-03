@@ -74,7 +74,7 @@ describe('chrome destinations', () => {
 
 describe('isNavItemActive', () => {
   const item = (to: string, extra: Partial<NavItem> = {}): NavItem =>
-    ({ icon: Home, label: to, to, ...extra });
+    ({ icon: Home, labelKey: 'navFeed', to, ...extra });
 
   const feed = item('/');
   const admin = item('/admin', { exact: true });

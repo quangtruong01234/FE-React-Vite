@@ -1,4 +1,5 @@
-import { ORDER_STATUS_META, ORDER_STATUSES } from '@/lib/domain/orderStatus';
+import { ORDER_STATUSES, orderStatusLabel } from '@/lib/domain/orderStatus';
+import type { Lang } from '@/lib/i18n/lang';
 import { ORDER_STATUS_CHART_COLOR, type ChartColor } from './chartTheme';
 import type { OrderStatus } from '@/types';
 
@@ -32,12 +33,13 @@ export interface ChartSlice {
  */
 export function orderStatusSlices(
   counts: Partial<Record<OrderStatus, number>> | undefined,
+  lang: Lang = 'vi',
 ): ChartSlice[] {
   if (!counts) return [];
   return ORDER_STATUSES.filter((status) => (counts[status] ?? 0) > 0)
     .map((status) => ({
       key: status,
-      label: ORDER_STATUS_META[status].label,
+      label: orderStatusLabel(status, lang),
       value: counts[status] ?? 0,
       color: ORDER_STATUS_CHART_COLOR[status],
     }))

@@ -228,6 +228,28 @@ describe('the real tailwind.config.js + index.css', () => {
     expect(failing).toEqual([]);
   });
 
+  // A selected card or row tints its background with an accent (`bg-tb-amber/5`) and keeps
+  // neutral text on it. ink-muted clears AA on the bare canvas by a hair and drops under it on
+  // any tint (4.47 for the checkout address phone, found on prod), so text there is ink-pri or
+  // ink-sec — these two must hold on the heaviest tint a card uses.
+  it('holds light-theme ink-pri and ink-sec to AA on a /10 accent tint over every canvas', () => {
+    const failing = ['ink-pri', 'ink-sec'].flatMap((text) =>
+      ['accent-amber', 'accent-red', 'accent-green', 'accent-cyan'].flatMap((accent) =>
+        backgrounds
+          .map((bg) => ({
+            bg,
+            ratio: contrastRatio(
+              light[variableOf(text)],
+              tinted(light[variableOf(accent)], light[variableOf(bg)], 0.1),
+            ),
+          }))
+          .filter(({ ratio }) => ratio < 4.5)
+          .map(({ bg, ratio }) => `${text} on ${accent}/10 over ${bg}: ${ratio.toFixed(2)}`),
+      ),
+    );
+    expect(failing).toEqual([]);
+  });
+
   it('keeps both ends of the light text gradient at AA on every canvas colour', () => {
     // PriceText and the login stats clip this gradient to text; the CTA gradient's #F59E0B
     // end is ~2.1:1 on white, so light swaps in darker stops.

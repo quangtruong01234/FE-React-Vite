@@ -18,3 +18,9 @@ describe('resolveUploadOwner', () => {
     expect(resolveUploadOwner(undefined)).toEqual({ error: UPLOAD_LOGIN_REQUIRED });
   });
 });
+
+describe('resolveUploadOwner in English (I18N-07)', () => {
+  it('asks a signed-out user to sign in, in English', () => {
+    expect(resolveUploadOwner(null, 'en')).toEqual({ error: 'You need to sign in to upload files.' });
+  });
+});

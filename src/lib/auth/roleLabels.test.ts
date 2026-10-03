@@ -42,3 +42,18 @@ describe('roleStaleNotice', () => {
     expect(roleStaleNotice('warehouse_clerk', 'user')).toContain('"warehouse_clerk"');
   });
 });
+
+describe('English (I18N-01)', () => {
+  it('labels roles in English and still falls back to the raw name', () => {
+    expect(roleLabel('shop', 'en')).toBe('Seller');
+    expect(roleLabel('warehouse_clerk', 'en')).toBe('warehouse_clerk');
+  });
+
+  it('writes the stale-role notice in English with both English labels', () => {
+    const notice = roleStaleNotice('shop', 'user', 'en');
+
+    expect(notice).toContain('changed to "Seller"');
+    expect(notice).toContain('"Buyer" permissions');
+    expect(notice).toContain('sign in again');
+  });
+});

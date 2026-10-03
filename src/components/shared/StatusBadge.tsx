@@ -1,5 +1,6 @@
 import { cn } from '@/lib/format/utils';
-import { ORDER_STATUS_META } from '@/lib/domain/orderStatus';
+import { ORDER_STATUS_META, orderStatusLabel } from '@/lib/domain/orderStatus';
+import { useLanguage } from '@/context/useLanguage';
 import type { OrderStatus } from '@/types';
 
 interface StatusBadgeProps {
@@ -7,7 +8,8 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ status }: StatusBadgeProps) {
-  const { label, badgeClass } = ORDER_STATUS_META[status];
+  const { lang } = useLanguage();
+  const { badgeClass } = ORDER_STATUS_META[status];
   return (
     <span
       className={cn(
@@ -15,7 +17,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
         badgeClass,
       )}
     >
-      {label}
+      {orderStatusLabel(status, lang)}
     </span>
   );
 }

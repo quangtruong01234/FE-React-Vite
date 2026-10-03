@@ -17,7 +17,7 @@ import type {
   FollowingItem,
   PaginatedResponse,
 } from '@/types';
-import { request, toQuery } from './client';
+import { request, toQuery, toSearchTerm } from './client';
 
 export const socialApi = {
   createPost: (data: CreatePostDto): Promise<Post> =>
@@ -31,14 +31,16 @@ export const socialApi = {
 
   // SEARCH-01: `search` filters on post content server-side, case- and
   // accent-insensitively ("ban phim" matches "bàn phím"). Omitted or blank
-  // returns the full feed, which is what every existing caller gets.
+  // returns the full feed, which is what every existing caller gets. The
+  // backend 400s past 100 chars, so the term is trimmed and capped here.
   getFeed: (page = 1, limit = 20, search?: string): Promise<PaginatedResponse<Post>> => {
-    const qs = toQuery({ page, limit, search });
+    const qs = toQuery({ page, limit, search: toSearchTerm(search) });
     return request<PaginatedResponse<Post>>(`/social/posts${qs}`);
   },
 
-  getPostsByUser: (userId: string, page = 1, limit = 20): Promise<PaginatedResponse<Post>> => {
-    const qs = toQuery({ page, limit });
+  // LIST-SEARCH-01: same `search` semantics as `getFeed` (content only).
+  getPostsByUser: (userId: string, page = 1, limit = 20, search?: string): Promise<PaginatedResponse<Post>> => {
+    const qs = toQuery({ page, limit, search: toSearchTerm(search) });
     return request<PaginatedResponse<Post>>(`/social/posts/user/${userId}${qs}`);
   },
 
@@ -89,8 +91,9 @@ export const socialApi = {
     return request<PaginatedResponse<FollowingItem>>(`/social/users/${id}/following${qs}`);
   },
 
-  getFollowingFeed: (id: string, page = 1, limit = 20): Promise<PaginatedResponse<Post>> => {
-    const qs = toQuery({ page, limit });
+  // LIST-SEARCH-01: same `search` semantics as `getFeed` (content only).
+  getFollowingFeed: (id: string, page = 1, limit = 20, search?: string): Promise<PaginatedResponse<Post>> => {
+    const qs = toQuery({ page, limit, search: toSearchTerm(search) });
     return request<PaginatedResponse<Post>>(`/social/users/${id}/feed${qs}`);
   },
 
@@ -100,8 +103,10 @@ export const socialApi = {
     status: PostReportStatus = 'pending',
     page = 1,
     limit = 20,
+    q?: string,
   ): Promise<PaginatedResponse<ReportedPostGroup>> => {
-    const qs = toQuery({ status, page, limit });
+    // LIST-SEARCH-01: `q` matches the reported post's content only.
+    const qs = toQuery({ status, page, limit, q: toSearchTerm(q) });
     return request<PaginatedResponse<ReportedPostGroup>>(`/social/admin/reports${qs}`);
   },
 

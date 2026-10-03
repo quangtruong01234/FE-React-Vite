@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   ORDER_STATUS_META,
+  orderStatusLabel,
   ORDER_STATUSES,
   ACTIVE_STATUSES,
   RETURN_STATUSES,
@@ -13,9 +14,16 @@ describe('ORDER_STATUS_META', () => {
   it('covers every status with a non-empty label and badge class', () => {
     for (const status of ORDER_STATUSES) {
       const meta = ORDER_STATUS_META[status];
-      expect(meta.label.length, status).toBeGreaterThan(0);
+      expect(orderStatusLabel(status).length, status).toBeGreaterThan(0);
+      expect(orderStatusLabel(status, 'en').length, status).toBeGreaterThan(0);
       expect(meta.badgeClass.length, status).toBeGreaterThan(0);
     }
+  });
+
+  it('labels a status in the requested language, Vietnamese by default', () => {
+    expect(orderStatusLabel('delivering')).toBe('Đang giao');
+    expect(orderStatusLabel('delivering', 'en')).toBe('Out for delivery');
+    expect(orderStatusLabel('return_requested', 'en')).toBe('Return requested');
   });
 
   it('no status is both active and return', () => {

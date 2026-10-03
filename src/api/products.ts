@@ -26,7 +26,7 @@ import type {
   PriceSuggestionParams,
   TrendingProduct,
 } from '@/types';
-import { request, toQuery } from './client';
+import { request, toQuery, toSearchTerm } from './client';
 import chunk from 'lodash/chunk';
 
 // Gateway DTO whitelist only knows the plural array keys `categoryIds`/`brandIds`,
@@ -179,7 +179,7 @@ export const productsApi = {
   // --- Admin product risk queue (AI-02) — advisory scoring, admin-only ---
 
   getAdminRisk: (params: ProductRiskParams = {}): Promise<PaginatedResponse<RiskProduct>> => {
-    const qs = toQuery(params as Record<string, unknown>);
+    const qs = toQuery({ ...params, q: toSearchTerm(params.q) });
     return request<PaginatedResponse<RiskProduct>>(`/products/admin/risk${qs}`);
   },
 
@@ -210,8 +210,9 @@ export const productsApi = {
 
   // --- Wishlist / favorites (F6) ---
 
-  getWishlist: async (params: { page?: number; limit?: number } = {}): Promise<PaginatedResponse<WishlistItem>> => {
-    const qs = toQuery(params as Record<string, unknown>);
+  // LIST-SEARCH-01: `q` matches the product name.
+  getWishlist: async (params: { page?: number; limit?: number; q?: string } = {}): Promise<PaginatedResponse<WishlistItem>> => {
+    const qs = toQuery({ ...params, q: toSearchTerm(params.q) });
     const result = await request<PaginatedResponse<WishlistItem> | WishlistItem[]>(`/products/wishlist${qs}`);
     if (Array.isArray(result)) {
       const page = params.page ?? 1;

@@ -11,10 +11,13 @@ import { NotificationBell } from './NotificationBell';
 import { ProfileMenu } from './ProfileMenu';
 import { openCreatePost } from '@/features/social/composerEvents';
 import { HEADER_ICON_ITEMS } from './navItems';
+import { useT } from '@/hooks/ui/useT';
+import { layoutMessages } from './layout.i18n';
 
 export function Header(): ReactElement {
   const { data: cart } = useCart();
   const totalCount = cart?.items.length ?? 0;
+  const t = useT(layoutMessages);
 
   // App-wide chat sound: play a beep for any incoming message while online.
   useChatPresence(useRole()?.me?.id);
@@ -37,7 +40,7 @@ export function Header(): ReactElement {
             onClick={openCreatePost}
           >
             <Plus size={15} className="shrink-0" />
-            <span className="hidden sm:inline">Tạo bài viết</span>
+            <span className="hidden sm:inline">{t('createPost')}</span>
           </GradientButton>
 
           {/* Messages · [bell] · wishlist · cart — destinations come from the shared
@@ -46,7 +49,7 @@ export function Header(): ReactElement {
             <Fragment key={item.to}>
               <Link
                 to={item.to}
-                aria-label={item.label}
+                aria-label={t(item.labelKey)}
                 className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-tb-input p-2.5 grid place-items-center hover:border-accent-amber transition-colors overflow-visible"
               >
                 <item.icon size={20} className="shrink-0" />

@@ -20,8 +20,10 @@ export const queryKeys = {
     // Wishlist (F6): list-level prefix invalidates both the page view and the
     // membership id-set in one call.
     wishlist: ["products", "wishlist"] as const,
-    wishlistList: (page: number, limit: number) =>
-      ["products", "wishlist", "list", page, limit] as const,
+    // `q` (LIST-SEARCH-01) is the last segment so the prefixes above still
+    // sweep every searched page — same convention for every list key below.
+    wishlistList: (page: number, limit: number, q = "") =>
+      ["products", "wishlist", "list", page, limit, q] as const,
     wishlistIds: ["products", "wishlist", "ids"] as const,
     // Catalog price suggestion (AI-01): advisory stats for the seller form.
     priceSuggestion: (params: PriceSuggestionParams) =>
@@ -29,8 +31,8 @@ export const queryKeys = {
     // Admin risk queue (AI-02): list-level prefix invalidates every
     // minScore/page combination after a rescore.
     adminRisk: ["products", "admin-risk"] as const,
-    adminRiskList: (minScore: number, page: number) =>
-      ["products", "admin-risk", minScore, page] as const,
+    adminRiskList: (minScore: number, page: number, q = "") =>
+      ["products", "admin-risk", minScore, page, q] as const,
   },
   brands: {
     all: ["brands"] as const,
@@ -55,16 +57,23 @@ export const queryKeys = {
     statusCounts: (userId: string) =>
       ["orders", "user", userId, "status-counts"] as const,
     detail: (id: string) => ["orders", id] as const,
+    // Nested under detail so every invalidation of the order (cancel, confirm
+    // receipt, return) refreshes its timeline too.
+    history: (id: string) => ["orders", id, "history"] as const,
     admin: ["orders", "admin"] as const,
     seller: ["orders", "seller"] as const,
-    sellerList: (page: number, limit: number, status?: string) =>
-      ["orders", "seller", page, limit, status] as const,
+    sellerList: (page: number, limit: number, status?: string, q = "") =>
+      ["orders", "seller", page, limit, status, q] as const,
     sellerDetail: (id: string) => ["orders", "seller", "detail", id] as const,
     returnRequests: ["orders", "return-requests"] as const,
-    returnMine: (page: number, limit: number) =>
-      ["orders", "return-requests", "mine", page, limit] as const,
-    returnQueue: (page: number, limit: number, status?: string) =>
-      ["orders", "return-requests", "queue", page, limit, status] as const,
+    // EXPORT-CSV-01 T5: the caller's own background export jobs (both scopes —
+    // the server answers one list per user). Outside `seller`/`admin` so a
+    // polling refetch never drags an order list along with it.
+    exportJobs: ["orders", "export-jobs"] as const,
+    returnMine: (page: number, limit: number, q = "") =>
+      ["orders", "return-requests", "mine", page, limit, q] as const,
+    returnQueue: (page: number, limit: number, status?: string, q = "") =>
+      ["orders", "return-requests", "queue", page, limit, status, q] as const,
     sellerAnalytics: (params: AnalyticsQueryParams) =>
       ["orders", "seller", "analytics", params] as const,
     adminAnalytics: (params: AnalyticsQueryParams) =>
@@ -72,8 +81,8 @@ export const queryKeys = {
     // Admin voucher console (F3-ADMIN): list-level prefix invalidates every page
     // after a create/deactivate, since both reorder or restatus the list.
     adminVouchers: ["orders", "admin", "vouchers"] as const,
-    adminVouchersList: (page: number, limit: number) =>
-      ["orders", "admin", "vouchers", page, limit] as const,
+    adminVouchersList: (page: number, limit: number, q = "") =>
+      ["orders", "admin", "vouchers", page, limit, q] as const,
     // Seller voucher console (`GET /order/vouchers/mine`). Keyed off the route
     // rather than under `["orders","seller"]`, which is the *seller orders*
     // invalidation prefix — parking vouchers there would make every seller
@@ -81,8 +90,8 @@ export const queryKeys = {
     // from `adminVouchers`: the two lists answer different questions for
     // different accounts, so invalidating one must never sweep the other.
     sellerVouchers: ["orders", "vouchers", "mine"] as const,
-    sellerVouchersList: (page: number, limit: number) =>
-      ["orders", "vouchers", "mine", page, limit] as const,
+    sellerVouchersList: (page: number, limit: number, q = "") =>
+      ["orders", "vouchers", "mine", page, limit, q] as const,
     // F3: vouchers priced against one exact basket. The signature keys the
     // cache — a different basket is a different answer, so quantities and SKU
     // choices must be part of the key or a stale discount would be shown.
@@ -97,8 +106,8 @@ export const queryKeys = {
   },
   users: {
     all: ["users"] as const,
-    list: (page: number, limit: number) =>
-      ["users", "list", page, limit] as const,
+    list: (page: number, limit: number, q = "") =>
+      ["users", "list", page, limit, q] as const,
     detail: (id: string) => ["users", id] as const,
     featuredSellers: (limit: number) =>
       ["users", "featured-sellers", limit] as const,
@@ -116,17 +125,21 @@ export const queryKeys = {
     wardsAll: ["shipping", "wards"] as const,
   },
   social: {
-    feed: (page: number) => ["social", "feed", page] as const,
+    // List-level prefix for every for-you feed query, searched or not — a new
+    // post, like, edit or delete can land in any of them.
+    feedAll: ["social", "feed"] as const,
+    // One infinite query per search term; `""` is the unfiltered feed.
+    feed: (search = "") => ["social", "feed", search] as const,
     // List-level prefix for invalidating every following-feed query at once.
     followingFeedAll: ["social", "following-feed"] as const,
-    followingFeed: (userId: string) =>
-      ["social", "following-feed", userId] as const,
+    followingFeed: (userId: string, search = "") =>
+      ["social", "following-feed", userId, search] as const,
     // List-level prefix covering the user-scoped social surfaces (profile posts,
     // followers, following). Used to invalidate a user's post lists on
     // post edit/delete without inlining the raw key array.
     userScopeAll: ["social", "user"] as const,
-    postsByUser: (userId: string, page = 1) =>
-      ["social", "user", userId, "posts", page] as const,
+    postsByUser: (userId: string, page = 1, search = "") =>
+      ["social", "user", userId, "posts", page, search] as const,
     post: (id: string) => ["social", "posts", id] as const,
     comments: (postId: string) =>
       ["social", "posts", postId, "comments"] as const,
@@ -139,8 +152,8 @@ export const queryKeys = {
     isFollowing: (viewerId: string, targetId: string) =>
       ["social", "is-following", viewerId, targetId] as const,
     adminReports: ["social", "admin-reports"] as const,
-    adminReportsList: (status: string, page: number) =>
-      ["social", "admin-reports", status, page] as const,
+    adminReportsList: (status: string, page: number, q = "") =>
+      ["social", "admin-reports", status, page, q] as const,
   },
   // Header suggestion dropdown — the server-side searches behind SEARCH-01.
   // Posts deliberately do NOT live under `social.feed`: that key holds an

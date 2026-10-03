@@ -165,6 +165,19 @@ describe('demo handlers — the routes a visitor can open', () => {
     expect(body.data.data.every((p) => p.userId === firstPost.userId)).toBe(true);
   });
 
+  it('filters the feed and a profile by `search`, like the backend', async () => {
+    const posts = async (url: string): Promise<string[]> => {
+      const body = (await (await fetch(url)).json()) as { data: { data: { content: string }[] } };
+      return body.data.data.map((p) => p.content);
+    };
+
+    expect(await posts(`${API_BASE}/social/posts?search=NIMBUS`)).toEqual(
+      demoPosts.filter((p) => p.content.includes('Nimbus')).map((p) => p.content),
+    );
+    expect(await posts(`${API_BASE}/social/posts/user/${firstPost.userId}?search=zzqx`)).toEqual([]);
+    expect(await posts(`${API_BASE}/social/posts?search=%20%20`)).toHaveLength(demoPosts.length);
+  });
+
   it('404s a post and a profile that are not in the fixtures', async () => {
     const [post, user] = await Promise.all([
       fetch(`${API_BASE}/social/posts/post_nope000000000`),

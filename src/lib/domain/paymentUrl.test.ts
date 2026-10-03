@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { resolvePaymentUrl, redirectToPaymentGateway, paymentUrlErrorMessage } from './paymentUrl';
+import {
+  resolvePaymentUrl,
+  redirectToPaymentGateway,
+  paymentUrlErrorMessage,
+  PaymentUrlMissingError,
+} from './paymentUrl';
 
 const noSleep = (): Promise<void> => Promise.resolve();
 
@@ -59,6 +64,14 @@ describe('paymentUrlErrorMessage', () => {
     expect(paymentUrlErrorMessage('boom')).toBe(fallback);
     expect(paymentUrlErrorMessage({ statusCode: 500 })).toBe(fallback);
     expect(paymentUrlErrorMessage({ message: '   ' })).toBe(fallback);
+  });
+});
+
+describe('paymentUrlErrorMessage in English', () => {
+  it('translates the client-side messages and still passes backend text through', () => {
+    expect(paymentUrlErrorMessage(new PaymentUrlMissingError(), 'en')).toBe("Didn't receive a payment link.");
+    expect(paymentUrlErrorMessage(undefined, 'en')).toBe("Couldn't create a payment link. Please try again.");
+    expect(paymentUrlErrorMessage({ message: 'Gateway down' }, 'en')).toBe('Gateway down');
   });
 });
 

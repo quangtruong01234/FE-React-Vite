@@ -1,5 +1,7 @@
 import { api } from '@/api';
 import type { UploadSignature } from '@/types';
+import type { Lang } from '@/lib/i18n/lang';
+import { translate } from '@/lib/i18n/messages';
 import { outcomeFromError, outcomeFromResult, type DeleteMediaOutcome } from './deleteMediaOutcome';
 import { buildChunkForm } from './signedUploadFields';
 import { buildUploadId, planUploadChunks } from './uploadChunkPlan';
@@ -10,6 +12,7 @@ import {
   signatureBytesParam,
   type UploadKind,
 } from './uploadValidation';
+import { uploadMessages } from './upload.i18n';
 
 export type UploadProgressCallback = (percent: number) => void;
 
@@ -22,7 +25,8 @@ async function uploadChunked(
   file: File,
   sig: UploadSignature,
   resourceType: 'image' | 'video',
-  onProgress?: UploadProgressCallback,
+  onProgress: UploadProgressCallback | undefined,
+  lang: Lang,
 ): Promise<UploadResult> {
   // UPLOAD-SIZE-01: the signature carries the backend's ceiling, so honour that
   // number rather than the local constant. This also covers the asymmetry the
@@ -31,7 +35,7 @@ async function uploadChunked(
   // `trybuy/posts` clears the 100 MB video ceiling there and is caught only by a
   // per-type check like this one.
   const cap = resolveUploadCap(sig, resourceType);
-  if (file.size > cap) throw new Error(oversizeMessage(resourceType, cap));
+  if (file.size > cap) throw new Error(oversizeMessage(resourceType, cap, lang));
 
   const url = `https://api.cloudinary.com/v1_1/${sig.cloud_name}/${resourceType}/upload`;
   const publicId = sig.public_id;
@@ -56,7 +60,7 @@ async function uploadChunked(
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({})) as { error?: { message?: string } };
-      throw new Error(errBody.error?.message ?? 'Upload thất bại');
+      throw new Error(errBody.error?.message ?? translate(uploadMessages, lang, 'uploadFailed'));
     }
 
     const json = (await res.json()) as { secure_url?: string; public_id?: string };
@@ -66,24 +70,25 @@ async function uploadChunked(
     onProgress?.(percent);
   }
 
-  if (!secureUrl) throw new Error('Không nhận được URL sau khi upload');
+  if (!secureUrl) throw new Error(translate(uploadMessages, lang, 'noUrl'));
   return { url: secureUrl, publicId: returnedPublicId };
 }
 
 /**
  * Signature request carrying the file size (UPLOAD-SIZE-01), so the backend can
  * refuse an oversized file before a single chunk leaves. Its oversize 400 is
- * re-worded to the local Vietnamese message; any other error passes through.
+ * re-worded to the local message; any other error passes through.
  */
 async function requestSignature(
   folder: string,
   file: File,
   kind: UploadKind,
+  lang: Lang,
 ): Promise<UploadSignature> {
   try {
     return await api.upload.getSignature(folder, signatureBytesParam(file.size));
   } catch (error: unknown) {
-    const message = serverOversizeMessage(error, kind);
+    const message = serverOversizeMessage(error, kind, lang);
     if (message) throw new Error(message);
     throw error;
   }
@@ -92,6 +97,9 @@ async function requestSignature(
 const POSTS_FOLDER = 'trybuy/posts';
 const PRODUCTS_FOLDER = 'trybuy/products';
 const AVATARS_FOLDER = 'avatars';
+// RETURN-PHOTO-01: buyer evidence on a return request. The backend accepts only
+// jpg/png/webp here, and `imageUrls` on the request must point into this folder.
+const RETURNS_FOLDER = 'trybuy/returns';
 
 // The signature endpoint derives the owner from the JWT cookie and returns an
 // owner-prefixed `public_id`, so FE sends neither `userId` nor `publicId`:
@@ -102,36 +110,50 @@ export async function uploadImage(
   file: File,
   _userId: string,
   onProgress?: UploadProgressCallback,
+  lang: Lang = 'vi',
 ): Promise<UploadResult> {
-  const sig = await requestSignature(POSTS_FOLDER, file, 'image');
-  return uploadChunked(file, sig, 'image', onProgress);
+  const sig = await requestSignature(POSTS_FOLDER, file, 'image', lang);
+  return uploadChunked(file, sig, 'image', onProgress, lang);
 }
 
 export async function uploadVideo(
   file: File,
   _userId: string,
   onProgress?: UploadProgressCallback,
+  lang: Lang = 'vi',
 ): Promise<UploadResult> {
-  const sig = await requestSignature(POSTS_FOLDER, file, 'video');
-  return uploadChunked(file, sig, 'video', onProgress);
+  const sig = await requestSignature(POSTS_FOLDER, file, 'video', lang);
+  return uploadChunked(file, sig, 'video', onProgress, lang);
 }
 
 export async function uploadProductImage(
   file: File,
   _userId: string,
   onProgress?: UploadProgressCallback,
+  lang: Lang = 'vi',
 ): Promise<UploadResult> {
-  const sig = await requestSignature(PRODUCTS_FOLDER, file, 'image');
-  return uploadChunked(file, sig, 'image', onProgress);
+  const sig = await requestSignature(PRODUCTS_FOLDER, file, 'image', lang);
+  return uploadChunked(file, sig, 'image', onProgress, lang);
 }
 
 export async function uploadAvatar(
   file: File,
   _userId: string,
   onProgress?: UploadProgressCallback,
+  lang: Lang = 'vi',
 ): Promise<UploadResult> {
-  const sig = await requestSignature(AVATARS_FOLDER, file, 'image');
-  return uploadChunked(file, sig, 'image', onProgress);
+  const sig = await requestSignature(AVATARS_FOLDER, file, 'image', lang);
+  return uploadChunked(file, sig, 'image', onProgress, lang);
+}
+
+export async function uploadReturnPhoto(
+  file: File,
+  _userId: string,
+  onProgress?: UploadProgressCallback,
+  lang: Lang = 'vi',
+): Promise<UploadResult> {
+  const sig = await requestSignature(RETURNS_FOLDER, file, 'image', lang);
+  return uploadChunked(file, sig, 'image', onProgress, lang);
 }
 
 /**

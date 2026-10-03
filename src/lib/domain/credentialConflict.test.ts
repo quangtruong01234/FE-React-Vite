@@ -56,3 +56,15 @@ describe('credentialConflictError', () => {
     expect(credentialConflictError(undefined, FALLBACK).message).toBe(FALLBACK);
   });
 });
+
+describe('credentialConflictError — English (I18N-02)', () => {
+  it('names the taken field in the requested language', () => {
+    expect(
+      credentialConflictError({ statusCode: 409, message: 'Username is already taken' }, FALLBACK, 'en'),
+    ).toEqual({ field: 'username', message: 'This username is already taken. Please choose another.' });
+    expect(
+      credentialConflictError({ statusCode: 409, message: 'Email is already registered' }, FALLBACK, 'en')
+        .message,
+    ).toMatch(/already registered/);
+  });
+});
