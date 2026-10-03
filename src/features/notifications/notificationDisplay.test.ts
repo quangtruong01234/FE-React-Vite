@@ -5,8 +5,11 @@ import {
   getNotificationMeta,
   getNotificationContent,
   getNotificationHref,
+  likeCount,
+  priceDropAmounts,
   relativeTime,
 } from './notificationDisplay';
+import { formatVnd } from '@/lib/format/utils';
 
 function notif(partial: Partial<Notification> = {}): Notification {
   return {
@@ -122,6 +125,24 @@ describe('getNotificationContent', () => {
       .toBe('Có người vừa bình luận về bài viết của bạn.');
   });
 
+  it('names the latest liker on a single like (SOCIAL-LIKE-NTF-01)', () => {
+    const actor = { id: 'usr_0000000000000009', username: 'quang', avatar: null };
+    const content = getNotificationContent(notif({
+      type: 'like', orderId: null, postId: 'post_0000000000000008', actorId: actor.id, actor,
+      message: 'Someone liked your post',
+    }));
+    expect(content.title).toBe('Lượt thích mới');
+    expect(content.body).toBe('@quang đã thích bài viết của bạn.');
+  });
+
+  it('summarises an aggregated like row as "<actor> và N-1 người khác"', () => {
+    const actor = { id: 'usr_0000000000000009', username: 'quang', avatar: null };
+    expect(getNotificationContent(notif({ type: 'like', actor, message: '5 people liked your post' })).body)
+      .toBe('@quang và 4 người khác đã thích bài viết của bạn.');
+    expect(getNotificationContent(notif({ type: 'like', message: '2 people liked your post' })).body)
+      .toBe('Có người và 1 người khác đã thích bài viết của bạn.');
+  });
+
   it('renders order types with a bigint-string orderId', () => {
     expect(getNotificationContent(notif({ type: 'payment_completed', orderId: 'ord_0000000000000107' })).body)
       .toBe('Đơn hàng #ord_0000000000000107 đã được thanh toán thành công.');
@@ -196,6 +217,12 @@ describe('getNotificationHref', () => {
     expect(getNotificationHref(notif({ type: 'reply', orderId: null, postId: 'post_0000000000000008' }))).toBe('/post/post_0000000000000008');
   });
 
+  it('links a like row to the liked post', () => {
+    expect(getNotificationHref(notif({ type: 'like', orderId: null, postId: 'post_0000000000000008' })))
+      .toBe('/post/post_0000000000000008');
+    expect(getNotificationHref(notif({ type: 'like', orderId: null, postId: null }))).toBeNull();
+  });
+
   it('does not link legacy comment/reply rows without a postId', () => {
     expect(getNotificationHref(notif({ type: 'comment', orderId: 'ord_0000000000000123', postId: null }))).toBeNull();
     expect(getNotificationHref(notif({ type: 'reply', orderId: 'ord_0000000000000123', postId: null }))).toBeNull();
@@ -214,7 +241,7 @@ describe('getNotificationMeta', () => {
       'new_order', 'order_confirmed', 'order_processing', 'order_delivering', 'order_completed',
       'order_return_requested', 'order_return_approved', 'order_return_rejected',
       'order_delivery_attempt_failed',
-      'comment', 'reply', 'brand_approved', 'brand_rejected',
+      'comment', 'reply', 'like', 'brand_approved', 'brand_rejected',
       'category_approved', 'category_rejected',
     ];
     for (const type of types) {
@@ -247,5 +274,149 @@ describe('relativeTime', () => {
     expect(relativeTime('2026-06-24T11:45:00.000Z')).toBe('15 phút trước');
     expect(relativeTime('2026-06-24T09:00:00.000Z')).toBe('3 giờ trước');
     expect(relativeTime('2026-06-21T12:00:00.000Z')).toBe('3 ngày trước');
+  });
+});
+
+describe('likeCount', () => {
+  it('reads N from the aggregated backend message', () => {
+    expect(likeCount('2 people liked your post')).toBe(2);
+    expect(likeCount('127 people liked your post')).toBe(127);
+  });
+
+  it('treats the single-like message and anything unrecognised as 1', () => {
+    expect(likeCount('Someone liked your post')).toBe(1);
+    expect(likeCount('0 people liked your post')).toBe(1);
+    expect(likeCount('')).toBe(1);
+  });
+});
+
+describe('wishlist alerts (WISHLIST-ALERT-01)', () => {
+  const restock = notif({
+    type: 'wishlist_back_in_stock',
+    orderId: null,
+    productId: 'prod_ffc7fd3181d211f1',
+    preview: 'Sạc nhanh 20W',
+    message: "'Sạc nhanh 20W' from your wishlist is back in stock.",
+  });
+  const priceDrop = notif({
+    type: 'wishlist_price_drop',
+    orderId: null,
+    productId: 'prod_ffc7fd3181d211f1',
+    preview: 'Sạc nhanh 20W',
+    message: "'Sạc nhanh 20W' from your wishlist dropped from 200,000 VND to 150,000 VND.",
+  });
+
+  it('deep-links both types to the product page', () => {
+    expect(getNotificationHref(restock)).toBe('/product/prod_ffc7fd3181d211f1');
+    expect(getNotificationHref(priceDrop)).toBe('/product/prod_ffc7fd3181d211f1');
+  });
+
+  it('leaves a row without a productId unclickable', () => {
+    expect(getNotificationHref({ ...restock, productId: null })).toBeNull();
+    expect(getNotificationHref({ ...priceDrop, productId: undefined })).toBeNull();
+  });
+
+  it('ignores a productId on other types', () => {
+    expect(getNotificationHref(notif({ type: 'brand_approved', orderId: null, productId: 'prod_x' }))).toBeNull();
+  });
+
+  it('renders the restock row in Vietnamese from the preview name', () => {
+    expect(getNotificationContent(restock)).toEqual({
+      title: 'Sản phẩm yêu thích có hàng',
+      body: "'Sạc nhanh 20W' trong danh sách yêu thích đã có hàng trở lại.",
+    });
+  });
+
+  it('renders the price-drop row with both amounts in VND', () => {
+    const content = getNotificationContent(priceDrop);
+    expect(content.title).toBe('Sản phẩm yêu thích giảm giá');
+    expect(content.body).toBe(
+      `'Sạc nhanh 20W' trong danh sách yêu thích đã giảm giá từ ${(200000).toLocaleString('vi-VN')} đ xuống ${(150000).toLocaleString('vi-VN')} đ.`,
+    );
+  });
+
+  it('drops the amounts when the message cannot be parsed', () => {
+    expect(getNotificationContent({ ...priceDrop, message: 'Price changed' }).body)
+      .toBe("'Sạc nhanh 20W' trong danh sách yêu thích vừa giảm giá.");
+  });
+
+  it('falls back to the quoted name, then to the raw message', () => {
+    expect(getNotificationContent({ ...restock, preview: null }).body)
+      .toBe("'Sạc nhanh 20W' trong danh sách yêu thích đã có hàng trở lại.");
+    expect(getNotificationContent({ ...restock, preview: null, message: 'Back in stock' }).body)
+      .toBe('Back in stock');
+  });
+
+  it('gives both types their own icon', () => {
+    expect(getNotificationMeta('wishlist_back_in_stock').Icon).not.toBe(Bell);
+    expect(getNotificationMeta('wishlist_price_drop').Icon).not.toBe(Bell);
+  });
+});
+
+describe('priceDropAmounts', () => {
+  it('parses grouped VND amounts', () => {
+    expect(priceDropAmounts('x dropped from 35 VND to 30 VND.')).toEqual({ from: formatVnd(35), to: formatVnd(30) });
+    expect(priceDropAmounts('x dropped from 1,250,000 VND to 999,000 VND.'))
+      .toEqual({ from: formatVnd(1250000), to: formatVnd(999000) });
+  });
+
+  it('returns null for an unrecognised message', () => {
+    expect(priceDropAmounts('dropped to 150,000 VND')).toBeNull();
+  });
+});
+
+describe('getNotificationContent in English (I18N-05)', () => {
+  const actor = { id: 'usr_0000000000000009', username: 'quang', avatar: null };
+
+  it('renders order lifecycle rows from the orderId', () => {
+    const content = getNotificationContent(notif({ type: 'order_delivering' }), 'en');
+    expect(content.title).toBe('On its way to you');
+    expect(content.body).toBe('Order #ord_0000000000000042 is on its way to you.');
+  });
+
+  it('names the actor and quotes the preview on social rows', () => {
+    expect(getNotificationContent(notif({ type: 'comment', actor, preview: 'Nice!' }), 'en').body)
+      .toBe('@quang commented on your post: “Nice!”');
+    expect(getNotificationContent(notif({ type: 'reply', actor: null }), 'en').body)
+      .toBe('Someone replied to your comment.');
+  });
+
+  it('pluralises the aggregated like row', () => {
+    expect(getNotificationContent(notif({ type: 'like', actor, message: '2 people liked your post' }), 'en').body)
+      .toBe('@quang and 1 other liked your post.');
+    expect(getNotificationContent(notif({ type: 'like', actor, message: '5 people liked your post' }), 'en').body)
+      .toBe('@quang and 4 others liked your post.');
+  });
+
+  it('keeps the rejection reason the backend sent', () => {
+    const content = getNotificationContent(
+      notif({ type: 'brand_rejected', message: "Your brand 'Nike' was rejected. Reason: duplicate" }),
+      'en',
+    );
+    expect(content.title).toBe('Brand rejected');
+    expect(content.body).toBe("Brand 'Nike' was rejected. Reason: duplicate");
+  });
+
+  it('formats the wishlist price drop', () => {
+    const content = getNotificationContent(notif({
+      type: 'wishlist_price_drop',
+      preview: 'Charger',
+      message: "'Charger' dropped from 200,000 VND to 150,000 VND.",
+    }), 'en');
+    expect(content.body).toBe(
+      `'Charger' on your wishlist dropped from 200,000 ₫ to 150,000 ₫.`,
+    );
+  });
+
+  it('falls back to a generic title and the raw message for an unknown type', () => {
+    expect(getNotificationContent(notif({ type: 'mystery' }), 'en'))
+      .toEqual({ title: 'Notification', body: 'raw backend message' });
+  });
+});
+
+describe('priceDropAmounts in English (I18N-07)', () => {
+  it('formats both amounts as en-US grouped ₫', () => {
+    expect(priceDropAmounts('x dropped from 1,250,000 VND to 999,000 VND.', 'en'))
+      .toEqual({ from: '1,250,000 ₫', to: '999,000 ₫' });
   });
 });

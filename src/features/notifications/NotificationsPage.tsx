@@ -15,15 +15,21 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Pagination } from '@/components/shared/Pagination';
 import { cn } from '@/lib/format/utils';
 import type { Notification } from '@/types';
+import type { MessageKey } from '@/lib/i18n/messages';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import { notificationMessages } from './notification.i18n';
 
-function groupByDate(notifications: Notification[]): { label: string; items: Notification[] }[] {
+type DateGroup = { labelKey: MessageKey<typeof notificationMessages>; items: Notification[] };
+
+function groupByDate(notifications: Notification[]): DateGroup[] {
   const now = Date.now();
   const DAY = 86400000;
-  const groups: { label: string; items: Notification[] }[] = [
-    { label: 'Hôm nay', items: [] },
-    { label: 'Hôm qua', items: [] },
-    { label: 'Tuần này', items: [] },
-    { label: 'Cũ hơn', items: [] },
+  const groups: DateGroup[] = [
+    { labelKey: 'groupToday', items: [] },
+    { labelKey: 'groupYesterday', items: [] },
+    { labelKey: 'groupThisWeek', items: [] },
+    { labelKey: 'groupOlder', items: [] },
   ];
   for (const n of notifications) {
     const age = now - new Date(n.createdAt).getTime();
@@ -45,6 +51,8 @@ const FILTER_KEYS: readonly FilterKey[] = ['all', 'unread'];
 
 export default function NotificationsPage(): ReactElement {
   const navigate = useNavigate();
+  const t = useT(notificationMessages);
+  const { lang } = useLanguage();
   const [page, setPage] = usePageParam();
   const { notifications, unreadCount, totalPages, isLoading, isFetching, markRead, markAllRead } = useNotifications(page);
   const [tab, setTab] = useFilterParam<FilterKey>('tab', FILTER_KEYS, 'all');
@@ -65,7 +73,7 @@ export default function NotificationsPage(): ReactElement {
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <h1 className="font-display font-black text-3xl uppercase tracking-tight text-ink-pri m-0">
-          Thông báo
+          {t('pageTitle')}
         </h1>
         {unreadCount > 0 && (
           <button
@@ -73,7 +81,7 @@ export default function NotificationsPage(): ReactElement {
             onClick={markAllRead}
             className="text-accent-amber text-sm font-semibold bg-transparent border-0 cursor-pointer hover:underline p-0"
           >
-            Đánh dấu đã đọc
+            {t('markAllRead')}
           </button>
         )}
       </div>
@@ -81,7 +89,7 @@ export default function NotificationsPage(): ReactElement {
       {/* Filter tabs */}
       <div className="flex gap-2 mb-4">
         {(['all', 'unread'] as FilterKey[]).map((key) => {
-          const label = key === 'all' ? 'Tất cả' : `Chưa đọc (${unreadCount})`;
+          const label = key === 'all' ? t('tabAll') : t('tabUnread', { count: unreadCount });
           const active = tab === key;
           return (
             <button
@@ -121,7 +129,7 @@ export default function NotificationsPage(): ReactElement {
         <div className="bg-canvas-surface border border-bdr rounded-tb-card py-16 flex flex-col items-center gap-3 text-center">
           <BellOff size={36} className="text-ink-muted" />
           <p className="font-body text-sm text-ink-sec m-0">
-            {tab === 'unread' ? 'Bạn đã đọc tất cả thông báo!' : 'Không có thông báo'}
+            {tab === 'unread' ? t('allRead') : t('empty')}
           </p>
         </div>
       )}
@@ -130,19 +138,20 @@ export default function NotificationsPage(): ReactElement {
       {!isLoading && groups.length > 0 && (
         <FetchingOverlay fetching={isFetching && !isLoading}>
           <div className="flex flex-col gap-4">
-          {groups.map(({ label, items }) => (
-            <div key={label}>
+          {groups.map(({ labelKey, items }) => (
+            <div key={labelKey}>
               <div className="text-xs font-semibold uppercase tracking-wide text-ink-muted mb-1.5 px-1">
-                {label}
+                {t(labelKey)}
               </div>
               <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
                 {items.map((n) => {
                   const { Icon, color } = getNotificationMeta(n.type);
-                  const { title, body } = getNotificationContent(n);
+                  const { title, body } = getNotificationContent(n, lang);
                   return (
                     <button
                       key={n.id}
                       type="button"
+                      data-testid={`notification-${n.id}`}
                       onClick={() => handleClick(n)}
                       className={cn(
                         'w-full text-left flex gap-3 px-4 py-3.5 border-b border-tb-border/60 last:border-0',
@@ -161,7 +170,7 @@ export default function NotificationsPage(): ReactElement {
                           {title}
                         </p>
                         <p className="m-0 text-sm leading-snug text-ink-sec">{body}</p>
-                        <span className="text-xs text-ink-muted">{relativeTime(n.createdAt)}</span>
+                        <span className="text-xs text-ink-muted">{relativeTime(n.createdAt, lang)}</span>
                       </div>
                       {!n.isRead && (
                         <span className="w-2.5 h-2.5 rounded-full bg-accent-amber flex-none mt-1.5" />

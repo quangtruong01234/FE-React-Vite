@@ -4,7 +4,7 @@ import { queryKeys } from '@/hooks/query/queryKeys';
 import { createRefCountedSocket } from '@/lib/realtime/socket';
 import { resolveSocketUrl } from '@/lib/realtime/socketUrl';
 import type { Notification } from '@/types';
-import { prependNotification, didInsert, type NotifCache } from './notificationCache';
+import { upsertNotification, unreadBadgeUpdate, type NotifCache } from './notificationCache';
 
 const NOTIF_SOCKET_URL = resolveSocketUrl(
   import.meta.env.VITE_WS_NOTIFICATION_URL as string | undefined,
@@ -21,15 +21,16 @@ const notificationSocket = createRefCountedSocket<NotifSocket>(NOTIF_SOCKET_URL,
     socket.on('notification', (incoming: Notification) => {
       const listKey = queryKeys.notifications.list(1);
       const before = queryClient.getQueryData<NotifCache>(listKey);
-      const after = prependNotification(before, incoming);
+      const after = upsertNotification(before, incoming);
       queryClient.setQueryData<NotifCache>(listKey, after);
-      // Only bump the global unread badge when the notification was actually
-      // inserted (prependNotification dedupes duplicate socket events).
-      if (didInsert(before, after) && !incoming.isRead) {
+      const badge = unreadBadgeUpdate(before, after, incoming);
+      if (badge === 'increment') {
         queryClient.setQueryData<{ unreadCount: number }>(
           queryKeys.notifications.unreadCount,
           (old) => ({ unreadCount: (old?.unreadCount ?? 0) + 1 }),
         );
+      } else if (badge === 'refetch') {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.unreadCount });
       }
     });
   },
