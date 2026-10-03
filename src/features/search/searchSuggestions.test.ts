@@ -143,3 +143,14 @@ describe('buildSuggestions', () => {
     expect(row.label.endsWith('...')).toBe(true);
   });
 });
+
+describe('buildSuggestions in English (I18N-07)', () => {
+  const nameless: SellerLike = { id: 'usr_9', username: '', name: null, avatar: null };
+
+  it('labels a person with neither name nor username in the UI language', () => {
+    const [vi] = buildSuggestions({ ...empty, query: 'usr', sellers: [nameless] });
+    const [en] = buildSuggestions({ ...empty, query: 'usr', sellers: [nameless], lang: 'en' });
+    expect(vi.label).toBe('Người dùng');
+    expect(en.label).toBe('User');
+  });
+});

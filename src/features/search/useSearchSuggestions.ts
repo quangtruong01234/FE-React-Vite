@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
 import { useRole } from '@/hooks/auth/useRole';
+import { useLanguage } from '@/context/useLanguage';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import {
   buildSuggestions,
@@ -30,6 +31,7 @@ interface SearchSuggestionsResult {
  * cache key and up to three requests.
  */
 export function useSearchSuggestions(query: string): SearchSuggestionsResult {
+  const { lang } = useLanguage();
   // Session read from the `auth.me` query, like every other gate in the app
   // (`ProtectedRoute`, `useRole`). This was once load-bearing: `loginSuccess`
   // used `queryClient.clear()`, which left the context reporting `null` until a
@@ -68,8 +70,9 @@ export function useSearchSuggestions(query: string): SearchSuggestionsResult {
         products: products.data?.data ?? [],
         posts: posts.data?.data ?? [],
         sellers: sellers.data ?? [],
+        lang,
       }),
-    [trimmed, products.data, posts.data, sellers.data],
+    [trimmed, products.data, posts.data, sellers.data, lang],
   );
 
   return {

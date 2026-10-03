@@ -1,6 +1,9 @@
 import truncate from 'lodash/truncate';
-import { userDisplayName } from '@/lib/format/user';
+import { userDisplayName, userFallback } from '@/lib/format/user';
+import type { Lang } from '@/lib/i18n/lang';
 import { productCoverImage } from '@/lib/domain/productImage';
+import type { MessageKey } from '@/lib/i18n/messages';
+import type { searchMessages } from './search.i18n';
 
 /**
  * Header search suggestions — the pure half.
@@ -77,6 +80,8 @@ export interface SuggestionInput {
   products: readonly ProductLike[];
   posts: readonly PostLike[];
   sellers: readonly SellerLike[];
+  /** Language of the nameless-person fallback; Vietnamese when omitted. */
+  lang?: Lang;
 }
 
 /**
@@ -84,7 +89,7 @@ export interface SuggestionInput {
  * the keyboard cursor is a single index; the dropdown starts a new group header
  * whenever `kind` changes.
  */
-export function buildSuggestions({ query, products, posts, sellers }: SuggestionInput): Suggestion[] {
+export function buildSuggestions({ query, products, posts, sellers, lang = 'vi' }: SuggestionInput): Suggestion[] {
   if (foldText(query).length < SEARCH_MIN_QUERY_LENGTH) return [];
 
   const productRows: Suggestion[] = products
@@ -106,7 +111,7 @@ export function buildSuggestions({ query, products, posts, sellers }: Suggestion
       to: `/profile/${seller.id}`,
       // `name` is nullable server-side, and an account that only ever had a
       // username must still read as something — not as an empty row.
-      label: userDisplayName(seller),
+      label: userDisplayName(seller, userFallback(lang)),
       avatar: seller.avatar,
       username: seller.username,
     }));
@@ -119,14 +124,15 @@ export function buildSuggestions({ query, products, posts, sellers }: Suggestion
       to: `/post/${post.id}`,
       label: truncate(post.content.replace(/\s+/g, ' ').trim(), { length: POST_SNIPPET_LENGTH }),
       avatar: post.author.avatar,
-      author: userDisplayName(post.author),
+      author: userDisplayName(post.author, userFallback(lang)),
     }));
 
   return [...productRows, ...sellerRows, ...postRows];
 }
 
-export const GROUP_LABELS: Record<SuggestionKind, string> = {
-  product: 'Sản phẩm',
-  seller: 'Seller',
-  post: 'Bài viết',
+/** Group heading per kind — `searchMessages` keys, translated by the dropdown. */
+export const GROUP_LABEL_KEYS: Record<SuggestionKind, MessageKey<typeof searchMessages>> = {
+  product: 'groupProduct',
+  seller: 'groupSeller',
+  post: 'groupPost',
 };

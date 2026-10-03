@@ -7,8 +7,10 @@ import { PriceText } from '@/components/shared/PriceText';
 import { ProductThumb } from '@/components/shared/ProductThumb';
 import { useDebouncedValue } from '@/hooks/ui/useDebouncedValue';
 import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
+import { useT } from '@/hooks/ui/useT';
 import { useSearchSuggestions } from './useSearchSuggestions';
-import { GROUP_LABELS, type Suggestion } from './searchSuggestions';
+import { GROUP_LABEL_KEYS, type Suggestion } from './searchSuggestions';
+import { searchMessages } from './search.i18n';
 
 const DEBOUNCE_MS = 300;
 const ROW = 'w-full flex items-center gap-3 px-2.5 py-2 rounded-tb-input text-left bg-transparent border-0 cursor-pointer transition-colors';
@@ -62,6 +64,7 @@ function SuggestionRow({ item }: { item: Suggestion }): ReactElement {
  */
 export function HeaderSearch(): ReactElement {
   const navigate = useNavigate();
+  const t = useT(searchMessages);
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get('search') ?? '');
   const [open, setOpen] = useState(false);
@@ -135,7 +138,7 @@ export function HeaderSearch(): ReactElement {
       <form onSubmit={handleSubmit}>
         <button
           type="submit"
-          aria-label="Tìm kiếm"
+          aria-label={t('submit')}
           className="absolute left-3.5 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 cursor-pointer z-10"
         >
           <Search size={18} className="text-ink-muted pointer-events-none shrink-0" />
@@ -154,7 +157,7 @@ export function HeaderSearch(): ReactElement {
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder="Tìm sản phẩm, bài viết, seller…"
+          placeholder={t('placeholder')}
           className="w-full bg-canvas-elevated border border-bdr rounded-tb-input py-3 pl-11 pr-4 text-ink-pri font-body text-[15px] placeholder:text-ink-muted outline-none focus:border-tb-amber/50 transition-colors"
         />
       </form>
@@ -163,24 +166,24 @@ export function HeaderSearch(): ReactElement {
         <div
           id="header-search-suggestions"
           role="listbox"
-          aria-label="Gợi ý tìm kiếm"
+          aria-label={t('suggestions')}
           className="absolute left-0 right-0 top-[calc(100%+8px)] bg-canvas-surface border border-bdr rounded-tb-card shadow-tb-card z-[120] p-1.5 max-h-[70vh] overflow-y-auto"
         >
           {isLoading && suggestions.length === 0 && (
-            <p className="px-2.5 py-3 text-xs text-ink-muted">Đang tìm…</p>
+            <p className="px-2.5 py-3 text-xs text-ink-muted">{t('searching')}</p>
           )}
           {!isLoading && isError && suggestions.length === 0 && (
-            <p className="px-2.5 py-3 text-xs text-accent-red">Không tải được gợi ý.</p>
+            <p className="px-2.5 py-3 text-xs text-accent-red">{t('loadFailed')}</p>
           )}
           {!isLoading && !isError && suggestions.length === 0 && (
-            <p className="px-2.5 py-3 text-xs text-ink-muted">Không có gợi ý nào khớp.</p>
+            <p className="px-2.5 py-3 text-xs text-ink-muted">{t('noMatch')}</p>
           )}
 
           {suggestions.map((item, i) => (
             <div key={`${item.kind}-${item.id}`} role="presentation">
               {(i === 0 || suggestions[i - 1].kind !== item.kind) && (
                 <div className="px-2.5 pt-2 pb-1 font-display font-bold text-[11px] uppercase tracking-wide text-ink-muted">
-                  {GROUP_LABELS[item.kind]}
+                  {t(GROUP_LABEL_KEYS[item.kind])}
                 </div>
               )}
               <button
@@ -204,7 +207,7 @@ export function HeaderSearch(): ReactElement {
             className={cn(ROW, 'hover:bg-canvas-elevated text-[13px] text-ink-sec')}
           >
             <ArrowRight size={15} className="shrink-0 text-accent-amber" />
-            <span className="truncate">Xem tất cả sản phẩm cho “{debouncedQuery}”</span>
+            <span className="truncate">{t('seeAll', { query: debouncedQuery })}</span>
           </button>
         </div>
       )}

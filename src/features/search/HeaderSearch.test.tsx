@@ -6,6 +6,8 @@ import { http, HttpResponse } from 'msw';
 import { server } from '@/test/msw/server';
 import { API_BASE } from '@/test/msw/handlers';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { LanguageProvider } from '@/context/LanguageContext';
+import { LANG_STORAGE_KEY } from '@/lib/i18n/lang';
 import type { User } from '@/types';
 import { HeaderSearch } from './HeaderSearch';
 
@@ -162,5 +164,27 @@ describe('HeaderSearch', () => {
     await waitFor(() =>
       expect(screen.getByTestId('location')).toHaveTextContent('/marketplace?search=iphone'),
     );
+  });
+});
+
+describe('HeaderSearch in English', () => {
+  it('translates the box, the group headings and the see-all row', async () => {
+    localStorage.setItem(LANG_STORAGE_KEY, 'en');
+    const user = userEvent.setup();
+    renderWithProviders(
+      <LanguageProvider>
+        <HeaderSearch />
+      </LanguageProvider>,
+    );
+
+    await user.type(screen.getByPlaceholderText('Search products, posts, sellers…'), 'iphone');
+
+    const list = await screen.findByRole('listbox', { name: 'Search suggestions' });
+    expect(await within(list).findByText('iPhone 15 Pro')).toBeInTheDocument();
+    expect(within(list).getByText('Products')).toBeInTheDocument();
+    expect(await within(list).findByText('Sellers')).toBeInTheDocument();
+    expect(within(list).getByText('Posts')).toBeInTheDocument();
+    expect(within(list).getByText('See all products for “iphone”')).toBeInTheDocument();
+    localStorage.removeItem(LANG_STORAGE_KEY);
   });
 });
