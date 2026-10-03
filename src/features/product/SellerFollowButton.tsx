@@ -4,6 +4,8 @@ import { useAuthContext } from '@/context/useAuthContext';
 import { useIsFollowing, useFollowUser, useUnfollowUser } from '@/features/social/useFollow';
 import { cn } from '@/lib/format/utils';
 import { sellerFollowState } from './sellerCard';
+import { useT } from '@/hooks/ui/useT';
+import { productMessages } from './product.i18n';
 
 interface Props {
   sellerId: string;
@@ -14,6 +16,7 @@ interface Props {
 /** "Theo dõi" on the product page's seller card, backed by the social follow graph. */
 export function SellerFollowButton({ sellerId, sellerExists, className }: Props): ReactElement | null {
   const navigate = useNavigate();
+  const t = useT(productMessages);
   const { currentUser } = useAuthContext();
   const viewerId = currentUser?.id ?? '';
 
@@ -42,7 +45,7 @@ export function SellerFollowButton({ sellerId, sellerExists, className }: Props)
       aria-pressed={state === 'following'}
       className={cn(className, 'disabled:opacity-50 disabled:cursor-default')}
     >
-      {state === 'following' ? 'Đang theo dõi' : 'Theo dõi'}
+      {state === 'following' ? t('following') : t('follow')}
     </button>
   );
 }

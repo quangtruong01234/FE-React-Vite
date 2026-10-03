@@ -58,3 +58,26 @@ describe('productSubmitError', () => {
     expect(productSubmitError(new TypeError('Failed to fetch'), 'edit').message).toMatch(/lưu thay đổi/i);
   });
 });
+
+describe('productSubmitError (EN)', () => {
+  it('names the colliding SKU in English', () => {
+    const result = productSubmitError(apiError(409, 'Inventory with sku PROD-97 already exists'), 'create', 'en');
+    expect(result).toEqual({
+      field: 'sku',
+      message: 'SKU "PROD-97" is already used by another product. Pick a different code.',
+    });
+  });
+
+  it('translates the conflict, stale and per-mode fallbacks', () => {
+    expect(productSubmitError(apiError(409, 'Product was modified by someone else'), 'edit', 'en').message)
+      .toMatch(/^This product was just updated elsewhere/);
+    expect(productSubmitError(apiError(409, 'Inventory for product ID 4 already exists'), 'create', 'en').message)
+      .toBe('The data changed or is a duplicate. Reload the page and try again.');
+    expect(productSubmitError(apiError(500, 'boom'), 'create', 'en').message).toMatch(/^Couldn't save stock/);
+    expect(productSubmitError(apiError(500, 'boom'), 'edit', 'en').message).toMatch(/^Couldn't save your changes/);
+  });
+
+  it('keeps the backend 400 message verbatim', () => {
+    expect(productSubmitError(apiError(400, 'name must be shorter'), 'edit', 'en').message).toBe('name must be shorter');
+  });
+});

@@ -44,3 +44,12 @@ describe('duplicateWarningView', () => {
     expect(duplicateWarningView(flagged, null, [checkedUrl], false)).toBeNull();
   });
 });
+
+describe('duplicateWarningView (EN)', () => {
+  it('builds the warning in English, naming the matched product', () => {
+    const view = duplicateWarningView(flagged, checkedUrl, [checkedUrl], false, 'en');
+    expect(view?.message).toBe(
+      'The image you uploaded closely matches "Tai nghe XYZ", already listed on the marketplace. If that listing is yours, you can still publish.',
+    );
+  });
+});

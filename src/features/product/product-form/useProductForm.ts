@@ -4,6 +4,9 @@ import { uploadProductImage, deleteMedia } from '@/lib/http/cloudinary';
 import { uploadFilesSequential } from '@/lib/http/uploadSequential';
 import { firstUploadError, capImageBatch, MAX_IMAGE_BYTES, MAX_PRODUCT_IMAGES } from '@/lib/http/uploadValidation';
 import { skuForPayload } from './productSku';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import { productFormMessages } from './productForm.i18n';
 
 export interface VarGroup {
   /** Stable identity for React keys — survives add/remove so a row's local
@@ -167,6 +170,8 @@ export function useProductForm(
   initial?: Partial<FormFields>,
   initialImages?: ImageItem[],
 ): UseProductFormReturn {
+  const t = useT(productFormMessages);
+  const { lang } = useLanguage();
   const [fields, setFields] = useState<FormFields>({ ...DEFAULT_FIELDS, ...initial });
   const [errors, setErrors] = useState<FormErrors>({});
   const initializedRef = useRef(false);
@@ -278,13 +283,13 @@ export function useProductForm(
     // Cap the batch so total images never exceed the backend's 10-image limit
     // (over-limit would 400). Use imagesRef for the freshest count. UP-07: the
     // notice tells the user what was dropped instead of slicing silently.
-    const { accepted, notice } = capImageBatch(imagesRef.current.length, files, MAX_PRODUCT_IMAGES);
+    const { accepted, notice } = capImageBatch(imagesRef.current.length, files, MAX_PRODUCT_IMAGES, lang);
     if (!accepted.length) {
       setUploadState({ active: false, percent: 0, error: notice });
       return [];
     }
     // UP-04: reject bad files before wasting an upload round-trip.
-    const invalid = firstUploadError(accepted, { kind: 'image', maxBytes: MAX_IMAGE_BYTES });
+    const invalid = firstUploadError(accepted, { kind: 'image', maxBytes: MAX_IMAGE_BYTES }, lang);
     if (invalid) {
       setUploadState({ active: false, percent: 0, error: invalid });
       return [];
@@ -298,7 +303,7 @@ export function useProductForm(
       // already-uploaded images in state (and in imagesRef), so removeImage/
       // clearImages can still delete them instead of orphaning them on Cloudinary.
       await uploadFilesSequential(accepted, {
-        upload: (file, _i, onProgress) => uploadProductImage(file, userId, onProgress),
+        upload: (file, _i, onProgress) => uploadProductImage(file, userId, onProgress, lang),
         onItem: ({ url, publicId }) => {
           uploadedBatch.push({ url, publicId });
           setImages(prev => {
@@ -312,7 +317,7 @@ export function useProductForm(
     } catch (err: unknown) {
       setUploadState(prev => ({
         ...prev,
-        error: err instanceof Error ? err.message : 'Upload ảnh thất bại',
+        error: err instanceof Error ? err.message : t('uploadFailed'),
       }));
     } finally {
       // Preserves the error slot: a real upload error from the catch above, or
@@ -347,28 +352,28 @@ export function useProductForm(
   function validate(draftMode = false): FormErrors {
     const errs: FormErrors = {};
 
-    if (!fields.name.trim()) errs.name = 'Tên sản phẩm không được để trống';
-    if (fields.categoryIds.length === 0) errs.categoryIds = 'Chọn ít nhất một danh mục';
+    if (!fields.name.trim()) errs.name = t('errName');
+    if (fields.categoryIds.length === 0) errs.categoryIds = t('errCategory');
     // SKU is optional — backend auto-provisions `PROD-<id>` when omitted.
 
     if (!draftMode) {
       if (fields.hasVariations) {
         if (validGroups.length === 0) {
-          errs.variations = 'Thêm ít nhất một nhóm phân loại có tên và options';
+          errs.variations = t('errVariations');
         } else {
           for (const g of validGroups) {
             if (new Set(g.options).size !== g.options.length) {
-              errs.variations = `Nhóm "${g.name}" có options trùng nhau`;
+              errs.variations = t('errDuplicateOptions', { name: g.name });
             }
           }
           const hasMissingPrice = combos.some(c => {
             const row = fields.rows[c.tierIdx];
             return !row || Number(row.price) <= 0;
           });
-          if (hasMissingPrice) errs.skuMatrix = 'Tất cả tổ hợp phải có giá > 0';
+          if (hasMissingPrice) errs.skuMatrix = t('errSkuPrice');
         }
       } else if (!fields.singlePrice || Number(fields.singlePrice) <= 0) {
-        errs.singlePrice = 'Giá phải lớn hơn 0';
+        errs.singlePrice = t('errPrice');
       }
     }
 

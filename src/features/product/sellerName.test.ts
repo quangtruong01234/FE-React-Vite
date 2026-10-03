@@ -24,3 +24,10 @@ describe('sellerName', () => {
     expect(sellerName({})).not.toBe('Shop Official');
   });
 });
+
+describe('sellerName — EN (I18N-03)', () => {
+  it('translates only the fallback; real names pass through', () => {
+    expect(sellerName({}, 'en')).toBe('This seller no longer exists');
+    expect(sellerName({ user: { id: 'usr_1', name: 'TechStore' } }, 'en')).toBe('TechStore');
+  });
+});

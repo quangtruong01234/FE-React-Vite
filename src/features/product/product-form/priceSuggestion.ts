@@ -1,5 +1,6 @@
 import type { PriceSuggestion, PriceSuggestionParams, ProductCondition } from '@/types';
 import { formatVnd } from '@/lib/format/utils';
+import type { Lang } from '@/lib/i18n/lang';
 
 /**
  * Build the price-suggestion query params from the form's current selection
@@ -38,13 +39,14 @@ export interface PriceSuggestionView {
  */
 export function priceSuggestionView(
   data: PriceSuggestion | undefined,
+  lang: Lang = 'vi',
 ): PriceSuggestionView | null {
   if (!data || !data.sufficientData) return null;
   const { median, p25, p75 } = data;
   if (median == null || p25 == null || p75 == null) return null;
   return {
-    rangeLabel: `${formatVnd(p25)} – ${formatVnd(p75)}`,
-    medianLabel: formatVnd(median),
+    rangeLabel: `${formatVnd(p25, lang)} – ${formatVnd(p75, lang)}`,
+    medianLabel: formatVnd(median, lang),
     median,
     sampleSize: data.sampleSize,
   };

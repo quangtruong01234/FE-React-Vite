@@ -1,4 +1,7 @@
 import type { DuplicateCheckResult } from '@/types';
+import type { Lang } from '@/lib/i18n/lang';
+import { bindTranslator } from '@/lib/i18n/messages';
+import { productFormMessages } from './productForm.i18n';
 
 /**
  * Seller pre-publish duplicate advisory (AI-02F3).
@@ -25,11 +28,12 @@ export function duplicateWarningView(
   checkedUrl: string | null,
   currentUrls: string[],
   dismissed: boolean,
+  lang: Lang = 'vi',
 ): DuplicateWarningView | null {
   if (dismissed || !result?.duplicateLikely || !result.match) return null;
   if (!checkedUrl || !currentUrls.includes(checkedUrl)) return null;
   return {
-    message: `Ảnh vừa tải lên gần trùng với sản phẩm "${result.match.name}" đang có trên sàn. Nếu đây là sản phẩm của bạn, bạn vẫn có thể tiếp tục đăng.`,
+    message: bindTranslator(productFormMessages, lang)('duplicateWarning', { name: result.match.name }),
     matchedProductId: result.match.productId,
     matchedName: result.match.name,
   };

@@ -29,3 +29,13 @@ describe('proposalErrorMessage', () => {
       .toBe('Không thể tạo danh mục. Thử lại sau.');
   });
 });
+
+describe('proposalErrorMessage (EN)', () => {
+  it('translates the 409 and fallback messages per kind', () => {
+    const conflict = { statusCode: 409, status: 409, message: 'exists' };
+    expect(proposalErrorMessage('brand', conflict, 'en')).toBe('This brand already exists or is pending review.');
+    expect(proposalErrorMessage('category', conflict, 'en')).toBe('This category already exists or is pending review.');
+    expect(proposalErrorMessage('brand', new Error('x'), 'en')).toBe("Couldn't create the brand. Try again later.");
+    expect(proposalErrorMessage('category', undefined, 'en')).toBe("Couldn't create the category. Try again later.");
+  });
+});

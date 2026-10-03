@@ -2,6 +2,8 @@ import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { CopyX, ExternalLink } from 'lucide-react';
 import type { DuplicateWarningView } from './duplicateCheck';
+import { useT } from '@/hooks/ui/useT';
+import { productFormMessages } from './productForm.i18n';
 
 interface Props {
   warning: DuplicateWarningView | null;
@@ -14,6 +16,7 @@ interface Props {
  * Renders nothing until a duplicate-check flags the uploaded cover image.
  */
 export function DuplicateWarningHint({ warning, onDismiss }: Props): ReactElement | null {
+  const t = useT(productFormMessages);
   if (!warning) return null;
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-4 py-3 bg-tb-amber/5 border border-tb-amber/20 rounded-tb-card">
@@ -26,14 +29,14 @@ export function DuplicateWarningHint({ warning, onDismiss }: Props): ReactElemen
         className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-tb-pill text-xs font-body font-semibold text-ink-sec hover:text-ink-pri transition-colors"
       >
         <ExternalLink size={12} className="shrink-0" />
-        Xem sản phẩm trùng
+        {t('viewDuplicate')}
       </Link>
       <button
         type="button"
         onClick={onDismiss}
         className="shrink-0 px-2 py-1 rounded-tb-pill bg-tb-amber/15 text-accent-amber text-xs font-body font-semibold hover:bg-tb-amber/25 transition-colors"
       >
-        Tiếp tục đăng
+        {t('continuePublish')}
       </button>
     </div>
   );

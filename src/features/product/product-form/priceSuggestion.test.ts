@@ -69,3 +69,11 @@ describe('priceSuggestionView', () => {
     expect(hi).toBe('1800000');
   });
 });
+
+describe('priceSuggestionView in English (I18N-07)', () => {
+  it('groups the labels the en-US way behind ₫', () => {
+    const view = priceSuggestionView(fullData, 'en');
+    expect(view?.medianLabel).toBe('1,500,000 ₫');
+    expect(view?.rangeLabel).toBe('1,200,000 ₫ – 1,800,000 ₫');
+  });
+});

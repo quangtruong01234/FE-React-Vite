@@ -1,4 +1,7 @@
 import type { FormFields } from './useProductForm';
+import type { Lang } from '@/lib/i18n/lang';
+import { bindTranslator } from '@/lib/i18n/messages';
+import { productFormMessages } from './productForm.i18n';
 
 /**
  * The subset of form fields that gate submission. SKU is deliberately excluded:
@@ -14,15 +17,16 @@ type ReadinessFields = Pick<
  * Human-readable list of still-missing required fields, in display order.
  * Empty when the form is ready to submit.
  */
-export function missingFields(fields: ReadinessFields): string[] {
+export function missingFields(fields: ReadinessFields, lang: Lang = 'vi'): string[] {
+  const t = bindTranslator(productFormMessages, lang);
   const priceMissing =
     !fields.hasVariations &&
     (!fields.singlePrice || Number(fields.singlePrice) <= 0);
 
   return [
-    !fields.name.trim() && 'tên',
-    fields.categoryIds.length === 0 && 'danh mục',
-    priceMissing && 'giá',
+    !fields.name.trim() && t('missingName'),
+    fields.categoryIds.length === 0 && t('missingCategory'),
+    priceMissing && t('missingPrice'),
   ].filter((x): x is string => typeof x === 'string');
 }
 

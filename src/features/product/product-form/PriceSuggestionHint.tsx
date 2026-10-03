@@ -1,6 +1,8 @@
 import type { ReactElement } from 'react';
 import { TrendingUp } from 'lucide-react';
 import type { PriceSuggestionView } from './priceSuggestion';
+import { useT } from '@/hooks/ui/useT';
+import { productFormMessages } from './productForm.i18n';
 
 interface Props {
   suggestion: PriceSuggestionView | null;
@@ -13,21 +15,22 @@ interface Props {
  * enough samples for the selected category/brand/condition.
  */
 export function PriceSuggestionHint({ suggestion, onApply }: Props): ReactElement | null {
+  const t = useT(productFormMessages);
   if (!suggestion) return null;
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-4 py-3 bg-tb-amber/5 border border-tb-amber/20 rounded-tb-card">
       <TrendingUp size={14} className="shrink-0 text-accent-amber" />
       <span className="text-xs font-body text-ink-sec">
-        Giá phổ biến cùng danh mục:{' '}
+        {t('priceHint')}{' '}
         <span className="text-ink-pri font-medium">{suggestion.rangeLabel}</span>{' '}
-        (dựa trên {suggestion.sampleSize} sản phẩm)
+        {t('priceSample', { count: suggestion.sampleSize })}
       </span>
       <button
         type="button"
         onClick={() => onApply(suggestion.median)}
         className="shrink-0 px-2 py-1 rounded-tb-pill bg-tb-amber/15 text-accent-amber text-xs font-body font-semibold hover:bg-tb-amber/25 transition-colors"
       >
-        Dùng {suggestion.medianLabel}
+        {t('useMedian', { price: suggestion.medianLabel })}
       </button>
     </div>
   );

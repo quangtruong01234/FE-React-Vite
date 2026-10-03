@@ -3,6 +3,8 @@ import { Plus, X } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
 import { IconButton } from '@/components/shared/IconButton';
 import type { VarGroup, FormErrors } from './useProductForm';
+import { useT } from '@/hooks/ui/useT';
+import { productFormMessages } from './productForm.i18n';
 
 const inputCls = cn(
   'bg-canvas-elevated border border-bdr rounded-tb-input',
@@ -28,12 +30,13 @@ function OptionChip({
   label: string;
   onRemove: () => void;
 }): ReactElement {
+  const t = useT(productFormMessages);
   return (
     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-tb-amber/10 text-accent-amber rounded-tb-pill text-xs font-body font-medium shrink-0">
       {label}
       <IconButton
         onClick={onRemove}
-        aria-label={`Xóa option ${label}`}
+        aria-label={t('removeOption', { label })}
         className="size-3.5 rounded-full hover:bg-tb-amber/20 transition-colors"
       >
         <X size={9} className="shrink-0" />
@@ -59,6 +62,7 @@ function GroupRow({
   onRemoveOption: (optIdx: number) => void;
   onRemoveGroup: () => void;
 }): ReactElement {
+  const t = useT(productFormMessages);
   const [draft, setDraft] = useState('');
 
   function commit(): void {
@@ -81,13 +85,13 @@ function GroupRow({
           type="text"
           value={group.name}
           onChange={e => onSetName(e.target.value)}
-          placeholder={`Nhóm ${index + 1} (VD: Màu sắc)`}
+          placeholder={t('groupPlaceholder', { n: index + 1 })}
           className={cn(inputCls, 'flex-1 min-w-0')}
         />
         {canRemove && (
           <IconButton
             onClick={onRemoveGroup}
-            aria-label={`Xóa nhóm ${group.name || index + 1}`}
+            aria-label={t('removeGroup', { name: group.name || index + 1 })}
             className="size-8 rounded-full hover:bg-canvas-surface text-ink-muted hover:text-accent-red transition-colors shrink-0"
           >
             <X size={15} className="shrink-0" />
@@ -116,13 +120,13 @@ function GroupRow({
           onChange={e => setDraft(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={commit}
-          placeholder="Thêm option, nhấn Enter hoặc rời khỏi"
+          placeholder={t('optionPlaceholder')}
           className={cn(inputCls, 'flex-1 text-xs')}
         />
         <IconButton
           onClick={commit}
           disabled={!draft.trim()}
-          aria-label="Thêm option"
+          aria-label={t('addOption')}
           className={cn(
             'size-8 rounded-tb-input shrink-0',
             'bg-tb-amber/10 text-accent-amber border border-tb-amber/20',
@@ -146,6 +150,7 @@ export function VariationBuilder({
   onAddGroup,
   onRemoveGroup,
 }: Props): ReactElement {
+  const t = useT(productFormMessages);
   return (
     <div className="flex flex-col gap-3">
       {groups.map((group, i) => (
@@ -168,7 +173,7 @@ export function VariationBuilder({
           className="flex items-center gap-2 self-start text-sm font-body font-medium text-accent-amber hover:opacity-80 transition-opacity"
         >
           <Plus size={14} className="shrink-0" />
-          Thêm nhóm phân loại
+          {t('addGroup')}
         </button>
       )}
 

@@ -13,13 +13,17 @@ import { mergeLocalOptions } from './localOptions';
 import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
 import { uploadProductImage } from '@/lib/http/cloudinary';
 import { cldImage } from '@/lib/http/cloudinaryUrl';
+import { useLanguage } from '@/context/useLanguage';
+import { useT } from '@/hooks/ui/useT';
+import type { MessageKey } from '@/lib/i18n/messages';
+import { productFormMessages } from './productForm.i18n';
 
 const MAX_IMAGES = 6;
 
-const CONDITION_OPTIONS: { value: ProductCondition; label: string }[] = [
-  { value: 'new', label: 'Mới' },
-  { value: 'used', label: 'Đã dùng' },
-  { value: 'refurbished', label: 'Tân trang' },
+const CONDITION_OPTIONS: { value: ProductCondition; label: MessageKey<typeof productFormMessages> }[] = [
+  { value: 'new', label: 'condNew' },
+  { value: 'used', label: 'condUsed' },
+  { value: 'refurbished', label: 'condRefurbished' },
 ];
 
 const inputCls = (hasError?: boolean) =>
@@ -84,6 +88,8 @@ export function BasicInfoSection({
   onCategoryToggle,
   onConditionChange,
 }: Props): ReactElement {
+  const { lang } = useLanguage();
+  const t = useT(productFormMessages);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   // --- Brand combobox state ---
@@ -138,7 +144,7 @@ export function BasicInfoSection({
       setBrandQuery('');
       setBrandOpen(false);
     } catch (error: unknown) {
-      setBrandError(proposalErrorMessage('brand', error));
+      setBrandError(proposalErrorMessage('brand', error, lang));
     } finally {
       setBrandCreating(false);
     }
@@ -182,7 +188,7 @@ export function BasicInfoSection({
       onCategoryToggle(id);
       setNewCatInput('');
     } catch (error: unknown) {
-      setCatError(proposalErrorMessage('category', error));
+      setCatError(proposalErrorMessage('category', error, lang));
     } finally {
       setCatCreating(false);
     }
@@ -217,7 +223,7 @@ export function BasicInfoSection({
             <span className="font-display font-bold text-xs text-accent-amber">01</span>
           </span>
           <h2 className="font-display font-semibold text-sm uppercase tracking-wider text-ink-pri">
-            Hình ảnh sản phẩm
+            {t('sectionImages')}
           </h2>
           <span className="ml-auto text-xs text-ink-muted font-body">
             {images.length}/{MAX_IMAGES}
@@ -237,12 +243,12 @@ export function BasicInfoSection({
                 <img src={cldImage(img.url, 400)} alt="" className="w-full h-full object-cover" />
                 {i === 0 && (
                   <span className="absolute bottom-1 left-1 text-[9px] font-display font-bold uppercase tracking-wider bg-accent-amber text-canvas-base px-1.5 py-0.5 rounded-tb-pill">
-                    Bìa
+                    {t('cover')}
                   </span>
                 )}
                 <IconButton
                   onClick={() => onRemoveImage(i)}
-                  aria-label={`Xóa ảnh ${i + 1}`}
+                  aria-label={t('removeImage', { n: i + 1 })}
                   className="absolute top-1 right-1 size-5 rounded-full bg-scrim/60 opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <X size={10} className="shrink-0 text-ink-on-accent" />
@@ -254,7 +260,7 @@ export function BasicInfoSection({
               <button
                 type="button"
                 disabled={uploadState.active}
-                aria-label={uploadState.active ? 'Đang tải ảnh lên' : 'Thêm ảnh sản phẩm'}
+                aria-label={uploadState.active ? t('uploading') : t('addImages')}
                 onClick={() => imageInputRef.current?.click()}
                 className={cn(
                   'aspect-square rounded-tb-card border-2 border-dashed border-bdr',
@@ -280,7 +286,7 @@ export function BasicInfoSection({
                   className="h-full bg-accent-amber rounded-full transition-all duration-200 [width:var(--p)]"
                 />
               </div>
-              <p className="text-xs text-ink-muted font-body">{uploadState.percent}% đã tải lên</p>
+              <p className="text-xs text-ink-muted font-body">{t('uploadedPercent', { percent: uploadState.percent })}</p>
             </div>
           )}
           {uploadState.error && (
@@ -305,18 +311,18 @@ export function BasicInfoSection({
             <span className="font-display font-bold text-xs text-accent-amber">02</span>
           </span>
           <h2 className="font-display font-semibold text-sm uppercase tracking-wider text-ink-pri">
-            Thông tin cơ bản
+            {t('sectionBasic')}
           </h2>
         </div>
 
         <div className="p-6 flex flex-col gap-5">
           {/* Name */}
           <div className="flex flex-col gap-1.5">
-            <Label className="text-ink-pri font-body text-sm">Tên sản phẩm *</Label>
+            <Label className="text-ink-pri font-body text-sm">{t('name')}</Label>
             <Input
               value={name}
               onChange={e => onNameChange(e.target.value)}
-              placeholder="VD: iPhone 14 Pro Max 256GB"
+              placeholder={t('eg', { value: 'iPhone 14 Pro Max 256GB' })}
               className={inputCls(!!errors.name)}
             />
             {errors.name && <p className="text-xs text-accent-red font-body">{errors.name}</p>}
@@ -324,18 +330,18 @@ export function BasicInfoSection({
 
           {/* Description */}
           <div className="flex flex-col gap-1.5">
-            <Label className="text-ink-pri font-body text-sm">Mô tả sản phẩm</Label>
+            <Label className="text-ink-pri font-body text-sm">{t('description')}</Label>
             <RichTextEditor
               value={description}
               onChange={onDescriptionChange}
               userId={userId}
-              onUploadImage={uploadProductImage}
+              onUploadImage={(file, userId) => uploadProductImage(file, userId, undefined, lang)}
             />
           </div>
 
           {/* Categories */}
           <div className="flex flex-col gap-1.5">
-            <Label className="text-ink-pri font-body text-sm">Danh mục *</Label>
+            <Label className="text-ink-pri font-body text-sm">{t('category')}</Label>
             <div
               className={cn(
                 'border rounded-tb-input bg-canvas-elevated p-2 max-h-44 overflow-y-auto',
@@ -343,9 +349,9 @@ export function BasicInfoSection({
               )}
             >
               {categoriesLoading ? (
-                <p className="text-sm text-ink-sec px-1.5 py-1 font-body">Đang tải danh mục...</p>
+                <p className="text-sm text-ink-sec px-1.5 py-1 font-body">{t('categoriesLoading')}</p>
               ) : localCategories.length === 0 ? (
-                <p className="text-sm text-ink-muted px-1.5 py-1 font-body">Không có danh mục</p>
+                <p className="text-sm text-ink-muted px-1.5 py-1 font-body">{t('noCategories')}</p>
               ) : (
                 localCategories.map(cat => {
                   const catId = Number(cat.id);
@@ -365,7 +371,7 @@ export function BasicInfoSection({
                       <span className="text-sm text-ink-pri font-body">{cat.name}</span>
                       {isPending && (
                         <span className="text-[10px] font-body px-1.5 py-0.5 rounded-tb-pill bg-tb-amber/15 text-accent-amber shrink-0">
-                          chờ duyệt
+                          {t('pending')}
                         </span>
                       )}
                     </label>
@@ -380,7 +386,7 @@ export function BasicInfoSection({
                   value={newCatInput}
                   onChange={e => { setNewCatInput(e.target.value); setCatError(null); }}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void handleCreateCategory(); } }}
-                  placeholder="Thêm danh mục mới..."
+                  placeholder={t('newCategory')}
                   disabled={catCreating}
                   className="flex-1 bg-transparent text-sm font-body text-ink-pri placeholder:text-ink-muted outline-none disabled:opacity-50"
                 />
@@ -395,7 +401,7 @@ export function BasicInfoSection({
                   ) : (
                     <Plus size={11} className="shrink-0" />
                   )}
-                  Thêm
+                  {t('add')}
                 </button>
               </div>
               {catError && (
@@ -410,7 +416,7 @@ export function BasicInfoSection({
           <div className="grid sm:grid-cols-2 gap-5">
             {/* Brand combobox */}
             <div className="flex flex-col gap-1.5">
-              <Label className="text-ink-pri font-body text-sm">Thương hiệu</Label>
+              <Label className="text-ink-pri font-body text-sm">{t('brand')}</Label>
 
               {/* Selected brand chip — shown whenever a brand is selected */}
               {selectedBrand && (
@@ -418,12 +424,12 @@ export function BasicInfoSection({
                   <span className="flex-1 text-sm font-body text-ink-pri truncate">{selectedBrand.name}</span>
                   {pendingBrandIds.has(selectedBrand.id) && (
                     <span className="text-[10px] font-body px-1.5 py-0.5 rounded-tb-pill bg-tb-amber/15 text-accent-amber shrink-0">
-                      chờ duyệt
+                      {t('pending')}
                     </span>
                   )}
                   <IconButton
                     onClick={handleClearBrand}
-                    aria-label="Bỏ chọn thương hiệu"
+                    aria-label={t('clearBrand')}
                     className="size-5 rounded-full text-ink-muted hover:text-ink-pri transition-colors shrink-0"
                   >
                     <X size={12} className="shrink-0" />
@@ -440,14 +446,14 @@ export function BasicInfoSection({
                     disabled={brandsLoading}
                     onChange={e => { setBrandQuery(e.target.value); setBrandOpen(true); setBrandError(null); }}
                     onFocus={() => setBrandOpen(true)}
-                    placeholder={brandsLoading ? 'Đang tải...' : 'Tìm hoặc thêm thương hiệu...'}
+                    placeholder={brandsLoading ? t('loading') : t('brandSearch')}
                     className={inputCls()}
                   />
 
                   {brandOpen && (
                     <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-canvas-surface border border-bdr rounded-tb-input shadow-lg overflow-hidden max-h-48 overflow-y-auto">
                       {filteredBrands.length === 0 && !showAddBrand && (
-                        <p className="px-3 py-2.5 text-sm text-ink-muted font-body">Không tìm thấy thương hiệu.</p>
+                        <p className="px-3 py-2.5 text-sm text-ink-muted font-body">{t('brandNotFound')}</p>
                       )}
                       {filteredBrands.map(b => (
                         <button
@@ -459,7 +465,7 @@ export function BasicInfoSection({
                           <span className="flex-1 truncate">{b.name}</span>
                           {pendingBrandIds.has(b.id) && (
                             <span className="text-[10px] font-body px-1.5 py-0.5 rounded-tb-pill bg-tb-amber/15 text-accent-amber shrink-0">
-                              chờ duyệt
+                              {t('pending')}
                             </span>
                           )}
                         </button>
@@ -476,7 +482,7 @@ export function BasicInfoSection({
                           ) : (
                             <Plus size={13} className="shrink-0" />
                           )}
-                          <span>Thêm &ldquo;{brandQuery.trim()}&rdquo; làm thương hiệu mới</span>
+                          <span>{t('addBrand', { name: brandQuery.trim() })}</span>
                         </button>
                       )}
                     </div>
@@ -489,7 +495,7 @@ export function BasicInfoSection({
 
             {/* Condition segmented control */}
             <div className="flex flex-col gap-1.5">
-              <Label className="text-ink-pri font-body text-sm">Tình trạng</Label>
+              <Label className="text-ink-pri font-body text-sm">{t('condition')}</Label>
               <div className="flex gap-1 p-1 bg-canvas-elevated border border-bdr rounded-tb-input">
                 {CONDITION_OPTIONS.map(opt => (
                   <button
@@ -503,7 +509,7 @@ export function BasicInfoSection({
                         : 'text-ink-sec hover:text-ink-pri',
                     )}
                   >
-                    {opt.label}
+                    {t(opt.label)}
                   </button>
                 ))}
               </div>
@@ -512,17 +518,17 @@ export function BasicInfoSection({
 
           {/* SKU */}
           <div className="flex flex-col gap-1.5">
-            <Label className="text-ink-pri font-body text-sm">Mã SKU</Label>
+            <Label className="text-ink-pri font-body text-sm">{t('sku')}</Label>
             <div className="flex gap-2">
               <Input
                 value={sku}
                 onChange={e => onSkuChange(e.target.value.toUpperCase())}
-                placeholder="VD: IPHONE14PM-256-BLK"
+                placeholder={t('eg', { value: 'IPHONE14PM-256-BLK' })}
                 className={cn(inputCls(!!errors.sku), 'flex-1 font-mono text-sm tracking-wide')}
               />
               <IconButton
                 onClick={generateSku}
-                title="Tự động tạo SKU"
+                title={t('autoSku')}
                 className={cn(
                   'size-[42px] rounded-tb-input shrink-0',
                   'bg-canvas-elevated border border-bdr text-ink-sec',
@@ -534,7 +540,7 @@ export function BasicInfoSection({
             </div>
             {errors.sku
               ? <p className="text-xs text-accent-red font-body">{errors.sku}</p>
-              : <p className="text-xs text-ink-muted font-body">Bỏ trống để hệ thống tự tạo mã.</p>}
+              : <p className="text-xs text-ink-muted font-body">{t('skuHint')}</p>}
           </div>
         </div>
       </div>

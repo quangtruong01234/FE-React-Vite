@@ -8,6 +8,10 @@ import { cldImage } from '@/lib/http/cloudinaryUrl';
 import { productCoverImage } from '@/lib/domain/productImage';
 import { WishlistButton } from '@/components/shared/WishlistButton';
 import type { ProductWithInventory } from '@/types';
+import { useLanguage } from '@/context/useLanguage';
+import { useT } from '@/hooks/ui/useT';
+import { LANG_LOCALE } from '@/lib/i18n/lang';
+import { productMessages } from './product.i18n';
 
 interface ProductCardProps {
   product: ProductWithInventory;
@@ -20,6 +24,8 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product, priority = false }: ProductCardProps): ReactElement {
+  const { lang } = useLanguage();
+  const t = useT(productMessages);
   const stock = product.inventory?.availableStock ?? 0;
   const outOfStock = stock === 0;
   const coverImage = productCoverImage(product) ?? '';
@@ -53,7 +59,7 @@ export default function ProductCard({ product, priority = false }: ProductCardPr
           )}
           {product.condition !== 'new' && (
             <span className="inline-flex px-2 py-1 bg-scrim/70 text-ink-on-accent text-[10px] font-semibold rounded-tb-pill backdrop-blur-sm uppercase">
-              {product.condition === 'used' ? 'Đã dùng' : 'Refurb'}
+              {product.condition === 'used' ? t('conditionUsed') : t('conditionRefurb')}
             </span>
           )}
           {product.brand && (
@@ -65,7 +71,7 @@ export default function ProductCard({ product, priority = false }: ProductCardPr
         {outOfStock && (
           <div className="absolute inset-0 bg-scrim/60 flex items-center justify-center">
             <span className="font-display font-black uppercase text-ink-on-accent text-sm tracking-wide border border-ink-on-accent/40 rounded-tb-ghost px-3 py-1.5">
-              Hết hàng
+              {t('outOfStock')}
             </span>
           </div>
         )}
@@ -89,16 +95,16 @@ export default function ProductCard({ product, priority = false }: ProductCardPr
             <span className="flex items-center gap-0.5">
               <Star size={11} className="text-accent-amber shrink-0" fill="currentColor" />
               <span className="text-ink-sec font-medium">{product.rating.toFixed(1)}</span>
-              <span>({product.ratingCount.toLocaleString('vi-VN')})</span>
+              <span>({product.ratingCount.toLocaleString(LANG_LOCALE[lang])})</span>
             </span>
           ) : (
             <span className="flex items-center gap-0.5">
               <Star size={11} className="text-ink-muted shrink-0" />
-              <span>Chưa có đánh giá</span>
+              <span>{t('noReviews')}</span>
             </span>
           )}
           {product.viewCount > 0 && (
-            <span className="text-ink-muted">· {product.viewCount.toLocaleString('vi-VN')} lượt xem</span>
+            <span className="text-ink-muted">{t('viewCount', { count: product.viewCount, n: product.viewCount.toLocaleString(LANG_LOCALE[lang]) })}</span>
           )}
         </div>
 
@@ -113,7 +119,7 @@ export default function ProductCard({ product, priority = false }: ProductCardPr
             selection (and the correct SKU price/stock) lives on the detail page. */}
         <div className="mt-auto flex items-center">
           <span className="font-mono text-accent-amber font-semibold text-base leading-none">
-            {formatPrice(product.price)}
+            {formatPrice(product.price, lang)}
           </span>
         </div>
       </div>

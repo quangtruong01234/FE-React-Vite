@@ -22,12 +22,16 @@ import {
 } from './marketplaceUrl';
 import ProductCard from './ProductCard';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import type { MessageKey } from '@/lib/i18n/messages';
+import { productMessages } from './product.i18n';
 
-const SORT_OPTS: { id: SortKey; label: string }[] = [
-  { id: 'newest', label: 'Mới nhất' },
-  { id: 'price_asc', label: 'Giá ↑' },
-  { id: 'price_desc', label: 'Giá ↓' },
-  { id: 'popular', label: 'Phổ biến' },
+const SORT_OPTS: { id: SortKey; label: MessageKey<typeof productMessages> }[] = [
+  { id: 'newest', label: 'sortNewest' },
+  { id: 'price_asc', label: 'sortPriceAsc' },
+  { id: 'price_desc', label: 'sortPriceDesc' },
+  { id: 'popular', label: 'sortPopular' },
 ];
 
 function CardSkeleton(): ReactElement {
@@ -54,6 +58,7 @@ interface SelectFilterProps {
 }
 
 function SelectFilter({ label, items, selected, onChange }: SelectFilterProps): ReactElement {
+  const t = useT(productMessages);
   const [search, setSearch] = useState('');
 
   const filtered = useMemo(() => {
@@ -86,7 +91,7 @@ function SelectFilter({ label, items, selected, onChange }: SelectFilterProps): 
             onClick={() => onChange([])}
             className="text-[10px] text-accent-amber hover:text-tb-amber/70 transition-colors cursor-pointer font-body"
           >
-            Bỏ chọn
+            {t('clearSelection')}
           </button>
         )}
       </div>
@@ -97,7 +102,7 @@ function SelectFilter({ label, items, selected, onChange }: SelectFilterProps): 
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder={`Tìm ${label.toLowerCase()}…`}
+          placeholder={t('searchIn', { label: label.toLowerCase() })}
           className="w-full bg-canvas-base border border-bdr rounded-tb-input py-1.5 pl-7 pr-7 text-ink-pri text-xs font-body placeholder:text-ink-muted outline-none focus:border-tb-amber/50 transition-colors"
         />
         {search && (
@@ -114,7 +119,7 @@ function SelectFilter({ label, items, selected, onChange }: SelectFilterProps): 
       {/* List */}
       <div className="flex flex-col gap-0.5 max-h-40 overflow-y-auto pr-0.5">
         {filtered.length === 0 && (
-          <p className="text-xs text-ink-muted font-body px-2.5 py-1.5">Không tìm thấy</p>
+          <p className="text-xs text-ink-muted font-body px-2.5 py-1.5">{t('noMatch')}</p>
         )}
         {filtered.map(item => {
           const active = selected.includes(item.id);
@@ -139,6 +144,8 @@ function SelectFilter({ label, items, selected, onChange }: SelectFilterProps): 
 }
 
 export default function MarketplacePage(): ReactElement {
+  const t = useT(productMessages);
+  const { lang } = useLanguage();
   // The URL query string is the single source of truth for every filter —
   // reload, share, and back/forward all restore the exact same result set.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -261,12 +268,12 @@ export default function MarketplacePage(): ReactElement {
         <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
           <div>
             <h1 className="font-display font-black text-3xl uppercase tracking-tight text-ink-pri m-0">
-              Chợ sản phẩm
+              {t('marketTitle')}
             </h1>
             <p className="text-sm text-ink-sec m-0">
-              {data ? `${data.total} sản phẩm` : ''}
+              {data ? t('productCount', { count: data.total }) : ''}
               {search && (
-                <> · kết quả cho &quot;<span className="text-accent-amber">{search}</span>&quot;</>
+                <>{t('resultsFor')}&quot;<span className="text-accent-amber">{search}</span>&quot;</>
               )}
             </p>
           </div>
@@ -285,7 +292,7 @@ export default function MarketplacePage(): ReactElement {
                     : 'bg-canvas-elevated border-bdr text-ink-sec hover:border-ink-muted',
                 )}
               >
-                {opt.label}
+                {t(opt.label)}
               </button>
             ))}
           </div>
@@ -296,7 +303,7 @@ export default function MarketplacePage(): ReactElement {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Tìm sản phẩm…"
+            placeholder={t('searchProducts')}
             className="w-full bg-canvas-elevated border border-bdr rounded-tb-input py-2.5 px-3.5 text-ink-pri text-[13px] font-body placeholder:text-ink-muted outline-none focus:border-tb-amber/50 transition-colors"
           />
         </form>
@@ -313,7 +320,7 @@ export default function MarketplacePage(): ReactElement {
               >
                 <span className="font-display font-bold uppercase tracking-wide text-sm text-ink-pri flex items-center gap-2">
                   <SlidersHorizontal size={15} className="text-accent-amber shrink-0" />
-                  Bộ lọc
+                  {t('filters')}
                   {hasActiveFilters && (
                     <span className="size-4 rounded-full bg-tb-gradient text-ink-on-accent text-[9px] font-black grid place-items-center">
                       {categoryIds.length + brandIds.length + provinceIds.length + (minPrice > 0 || maxPrice < DEFAULT_MAX_PRICE ? 1 : 0) + (search ? 1 : 0)}
@@ -334,7 +341,7 @@ export default function MarketplacePage(): ReactElement {
                     <input
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Tìm sản phẩm…"
+                      placeholder={t('searchProducts')}
                       className="w-full bg-canvas-elevated border border-bdr rounded-tb-input py-2 pl-9 pr-3 text-ink-pri text-xs font-body placeholder:text-ink-muted outline-none focus:border-tb-amber/50 transition-colors"
                     />
                   </form>
@@ -344,7 +351,7 @@ export default function MarketplacePage(): ReactElement {
 
                   {/* Category select */}
                   <SelectFilter
-                    label="Danh mục"
+                    label={t('category')}
                     items={categories}
                     selected={categoryIds}
                     onChange={handleCategoryChange}
@@ -354,7 +361,7 @@ export default function MarketplacePage(): ReactElement {
 
                   {/* Brand select */}
                   <SelectFilter
-                    label="Thương hiệu"
+                    label={t('brand')}
                     items={brands}
                     selected={brandIds}
                     onChange={handleBrandChange}
@@ -364,7 +371,7 @@ export default function MarketplacePage(): ReactElement {
 
                   {/* Seller province select (GHN provinces; matches seller default address) */}
                   <SelectFilter
-                    label="Tỉnh/Thành"
+                    label={t('province')}
                     items={provinces}
                     selected={provinceIds}
                     onChange={handleProvinceChange}
@@ -375,7 +382,7 @@ export default function MarketplacePage(): ReactElement {
                   {/* Price range */}
                   <div>
                     <div className="text-xs font-body font-semibold text-ink-sec uppercase tracking-wide mb-2">
-                      Khoảng giá
+                      {t('priceRange')}
                     </div>
                     <div className="flex items-center gap-2 mb-2">
                       <input
@@ -385,7 +392,7 @@ export default function MarketplacePage(): ReactElement {
                         step={100_000}
                         value={minPrice > 0 ? minPrice : ''}
                         onChange={(e) => handleMinPriceChange(e.target.value === '' ? 0 : Math.min(Number(e.target.value), maxPrice))}
-                        placeholder="Từ"
+                        placeholder={t('priceFrom')}
                         className="w-full bg-canvas-elevated border border-bdr rounded-tb-input py-1.5 px-2 text-ink-pri text-xs font-mono placeholder:text-ink-muted outline-none focus:border-tb-amber/50 transition-colors"
                       />
                       <span className="text-ink-muted text-xs flex-none">—</span>
@@ -396,7 +403,7 @@ export default function MarketplacePage(): ReactElement {
                         step={100_000}
                         value={maxPrice < DEFAULT_MAX_PRICE ? maxPrice : ''}
                         onChange={(e) => handleMaxPriceChange(e.target.value === '' ? DEFAULT_MAX_PRICE : Math.max(Number(e.target.value), minPrice))}
-                        placeholder="Đến"
+                        placeholder={t('priceTo')}
                         className="w-full bg-canvas-elevated border border-bdr rounded-tb-input py-1.5 px-2 text-ink-pri text-xs font-mono placeholder:text-ink-muted outline-none focus:border-tb-amber/50 transition-colors"
                       />
                     </div>
@@ -410,8 +417,8 @@ export default function MarketplacePage(): ReactElement {
                       className="w-full accent-tb-amber"
                     />
                     <div className="flex justify-between text-[10px] text-ink-muted font-mono mt-1">
-                      <span>{formatVnd(minPrice)}</span>
-                      <span>{maxPrice < DEFAULT_MAX_PRICE ? formatVnd(maxPrice) : 'Không giới hạn'}</span>
+                      <span>{formatVnd(minPrice, lang)}</span>
+                      <span>{maxPrice < DEFAULT_MAX_PRICE ? formatVnd(maxPrice, lang) : t('noLimit')}</span>
                     </div>
                   </div>
 
@@ -422,7 +429,7 @@ export default function MarketplacePage(): ReactElement {
                       onClick={clearFilters}
                       className="mt-4 w-full py-2 rounded-tb-ghost border border-bdr text-ink-sec text-xs font-body hover:bg-canvas-elevated hover:text-ink-pri transition-colors cursor-pointer bg-transparent"
                     >
-                      Xoá tất cả bộ lọc
+                      {t('clearAllFilters')}
                     </button>
                   )}
                 </div>
@@ -434,7 +441,7 @@ export default function MarketplacePage(): ReactElement {
           <div>
             {error && (
               <div className="mb-4 px-4 py-3 rounded-tb-ghost bg-tb-red/10 border border-tb-red/30 text-accent-red text-sm font-body">
-                {(error as { message?: string }).message ?? 'Không thể tải sản phẩm. Vui lòng thử lại.'}
+                {(error as { message?: string }).message ?? t('loadFailed')}
               </div>
             )}
 
@@ -447,10 +454,10 @@ export default function MarketplacePage(): ReactElement {
                 <PackageX size={48} className="text-ink-muted" />
                 <div>
                   <p className="font-display font-bold text-lg text-ink-pri m-0">
-                    Không tìm thấy sản phẩm
+                    {t('emptyTitle')}
                   </p>
                   <p className="text-sm text-ink-muted mt-1 m-0">
-                    Thử bỏ bớt bộ lọc hoặc từ khoá khác.
+                    {t('emptyHint')}
                   </p>
                 </div>
                 <button
@@ -458,7 +465,7 @@ export default function MarketplacePage(): ReactElement {
                   onClick={clearFilters}
                   className="px-4 py-2 rounded-tb-ghost border border-bdr text-ink-sec text-sm font-body hover:bg-canvas-elevated hover:text-ink-pri transition-colors cursor-pointer bg-transparent"
                 >
-                  Xoá bộ lọc
+                  {t('clearFilters')}
                 </button>
               </div>
             ) : (

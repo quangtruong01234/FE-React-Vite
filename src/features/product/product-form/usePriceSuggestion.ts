@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { useDebouncedValue } from '@/hooks/ui/useDebouncedValue';
+import { useLanguage } from '@/context/useLanguage';
 import type { ProductCondition } from '@/types';
 import { buildPriceSuggestionParams, priceSuggestionView, type PriceSuggestionView } from './priceSuggestion';
 
@@ -20,6 +21,7 @@ export function usePriceSuggestion(
 ): PriceSuggestionView | null {
   // Memoized on primitives so the debounce timer only resets on a real change,
   // not on every render (a fresh object identity would re-arm it each render).
+  const { lang } = useLanguage();
   const firstCategoryId = categoryIds[0] ?? null;
   const params = useMemo(
     () => buildPriceSuggestionParams(firstCategoryId != null ? [firstCategoryId] : [], brandId, condition),
@@ -34,5 +36,5 @@ export function usePriceSuggestion(
     staleTime: 1000 * 60 * 5,
   });
 
-  return priceSuggestionView(data);
+  return priceSuggestionView(data, lang);
 }

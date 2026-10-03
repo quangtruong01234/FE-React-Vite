@@ -1,6 +1,8 @@
 import { type ReactElement } from 'react';
 import { cn } from '@/lib/format/utils';
 import type { FormErrors } from './useProductForm';
+import { useT } from '@/hooks/ui/useT';
+import { productFormMessages } from './productForm.i18n';
 
 const inputCls = (hasError?: boolean) =>
   cn(
@@ -26,6 +28,7 @@ export function ShippingMiscSection({
   onWeightChange,
   onSellerNotesChange,
 }: Props): ReactElement {
+  const t = useT(productFormMessages);
   return (
     <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
       <div className="flex items-center gap-3 px-6 py-4 border-b border-bdr">
@@ -33,7 +36,7 @@ export function ShippingMiscSection({
           <span className="font-display font-bold text-xs text-accent-amber">04</span>
         </span>
         <h2 className="font-display font-semibold text-sm uppercase tracking-wider text-ink-pri">
-          Vận chuyển &amp; khác
+          {t('sectionShipping')}
         </h2>
       </div>
 
@@ -41,17 +44,17 @@ export function ShippingMiscSection({
         {/* Weight */}
         <div className="flex flex-col gap-1.5">
           <label className="text-ink-pri font-body text-sm">
-            Cân nặng (gram)
+            {t('weight')}
             {!weight && (
               <span className="ml-2 text-xs text-accent-amber font-body">
-                Ảnh hưởng phí ship
+                {t('weightHint')}
               </span>
             )}
           </label>
           <input
             type="number"
             min="0"
-            placeholder="VD: 500"
+            placeholder={t('eg', { value: 500 })}
             value={weight}
             onChange={e => onWeightChange(e.target.value)}
             className={inputCls(!!errors.weight)}
@@ -63,11 +66,11 @@ export function ShippingMiscSection({
 
         {/* Seller notes */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-ink-pri font-body text-sm">Ghi chú người bán</label>
+          <label className="text-ink-pri font-body text-sm">{t('sellerNotes')}</label>
           <textarea
             value={sellerNotes}
             onChange={e => onSellerNotesChange(e.target.value)}
-            placeholder="Thông tin bảo hành, khuyến mãi, điều kiện bán..."
+            placeholder={t('sellerNotesPlaceholder')}
             rows={3}
             className={cn(inputCls(), 'resize-y min-h-[72px]')}
           />

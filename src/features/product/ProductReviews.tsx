@@ -1,7 +1,13 @@
 import { useState } from 'react';
+import { BadgeCheck } from 'lucide-react';
 import { useAuthContext } from '@/context/useAuthContext';
 import { useProductReviews, useDeleteReview } from '@/hooks/data/useProductReviews';
 import { StarRating } from '@/components/shared/StarRating';
+import { showsVerifiedBadge } from './productReview';
+import { useLanguage } from '@/context/useLanguage';
+import { useT } from '@/hooks/ui/useT';
+import { LANG_LOCALE } from '@/lib/i18n/lang';
+import { productMessages } from './product.i18n';
 
 interface ProductReviewsProps {
   productId: string;
@@ -9,6 +15,8 @@ interface ProductReviewsProps {
 
 export function ProductReviews({ productId }: ProductReviewsProps) {
   const { currentUser } = useAuthContext();
+  const { lang } = useLanguage();
+  const t = useT(productMessages);
   const [page, setPage] = useState(1);
 
   const { data, isLoading } = useProductReviews(productId, page);
@@ -19,25 +27,33 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
   return (
     <section className="mt-12 pt-8 border-t border-bdr">
       <h2 className="font-display font-black text-2xl tracking-[-0.01em] text-ink-pri m-0 mb-6">
-        Đánh giá sản phẩm ({total})
+        {t('reviewsTitle', { count: total })}
       </h2>
 
       {isLoading && (
-        <p className="font-body text-sm text-ink-sec">Đang tải đánh giá…</p>
+        <p className="font-body text-sm text-ink-sec">{t('reviewsLoading')}</p>
       )}
 
       {!isLoading && data && (
         <>
           {data.data.length === 0 ? (
-            <p className="font-body text-sm text-ink-sec">Chưa có đánh giá nào</p>
+            <p className="font-body text-sm text-ink-sec">{t('reviewsEmpty')}</p>
           ) : (
             <div className="flex flex-col gap-4">
               {data.data.map((review) => (
                 <div key={review.id} className="p-4 bg-canvas-surface border border-bdr rounded-tb-card flex flex-col gap-2">
                   <div className="flex items-center justify-between gap-3">
-                    <StarRating rating={review.rating} />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StarRating rating={review.rating} />
+                      {showsVerifiedBadge(review) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-tb-pill border border-tb-green/20 bg-tb-green/10 font-body text-xs font-medium text-accent-green">
+                          <BadgeCheck size={12} className="shrink-0" />
+                          {t('verifiedPurchase')}
+                        </span>
+                      )}
+                    </div>
                     <span className="font-body text-xs text-ink-muted">
-                      {new Date(review.createdAt).toLocaleDateString('vi-VN')}
+                      {new Date(review.createdAt).toLocaleDateString(LANG_LOCALE[lang])}
                     </span>
                   </div>
 
@@ -53,7 +69,7 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
                         onClick={() => deleteReview.mutate(review.id)}
                         className="font-body text-xs text-accent-red hover:opacity-70 transition-opacity disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                       >
-                        Xóa
+                        {t('deleteReview')}
                       </button>
                     </div>
                   )}
@@ -70,7 +86,7 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
                 onClick={() => setPage((p) => p - 1)}
                 className="px-4 py-1.5 rounded-tb-input border border-bdr bg-canvas-elevated font-body text-sm text-ink-sec hover:border-accent-amber transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
-                Trước
+                {t('prevPage')}
               </button>
               <span className="font-body text-sm text-ink-muted">
                 {page} / {data.totalPages}
@@ -81,7 +97,7 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
                 onClick={() => setPage((p) => p + 1)}
                 className="px-4 py-1.5 rounded-tb-input border border-bdr bg-canvas-elevated font-body text-sm text-ink-sec hover:border-accent-amber transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
-                Sau
+                {t('nextPage')}
               </button>
             </div>
           )}

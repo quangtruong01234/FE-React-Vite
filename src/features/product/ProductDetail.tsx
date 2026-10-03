@@ -22,12 +22,16 @@ import { ProductReviews } from './ProductReviews';
 import { sellerName } from './sellerName';
 import { sellerProfilePath } from './sellerCard';
 import { SellerFollowButton } from './SellerFollowButton';
+import { useLanguage } from '@/context/useLanguage';
+import { useT } from '@/hooks/ui/useT';
+import { LANG_LOCALE } from '@/lib/i18n/lang';
+import { productMessages } from './product.i18n';
 
 const trustItems = [
-  { Icon: Truck,     label: 'Giao 24h',          sub: 'Toàn quốc'  },
-  { Icon: Shield,    label: 'Bảo hành 12 tháng', sub: 'Chính hãng' },
-  { Icon: RotateCcw, label: 'Đổi trả 7 ngày',    sub: 'Miễn phí'   },
-];
+  { Icon: Truck,     label: 'perkDelivery', sub: 'perkDeliverySub' },
+  { Icon: Shield,    label: 'perkWarranty', sub: 'perkWarrantySub' },
+  { Icon: RotateCcw, label: 'perkReturns',  sub: 'perkReturnsSub'  },
+] as const;
 
 const SELLER_IDENTITY_CLS = 'flex flex-1 min-w-0 items-center gap-3.5';
 const SELLER_ACTION_CLS =
@@ -36,6 +40,8 @@ const SELLER_ACTION_CLS =
 export default function ProductDetail(): ReactElement {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { lang } = useLanguage();
+  const t = useT(productMessages);
   const { data: cart } = useCart();
   const addToCart = useAddToCart();
 
@@ -92,14 +98,14 @@ export default function ProductDetail(): ReactElement {
   if (error || !detail) {
     const msg = error && typeof error === 'object' && 'message' in error
       ? String((error as { message: unknown }).message)
-      : 'Không tìm thấy sản phẩm.';
+      : t('notFound');
     return (
       <div className="min-h-screen bg-canvas-base flex flex-col items-center justify-center gap-3">
         <p className="text-ink-sec m-0">{msg}</p>
         <button
           onClick={() => navigate(-1)}
           className="px-4 py-2 rounded-lg border border-bdr bg-canvas-elevated text-ink-pri cursor-pointer text-sm hover:border-accent-amber transition-colors">
-          Quay lại
+          {t('back')}
         </button>
       </div>
     );
@@ -123,7 +129,7 @@ export default function ProductDetail(): ReactElement {
   const isLowStock = hasVariants ? false : (inventory?.isLowStock ?? false);
   const maxQty = available != null ? Math.min(available, 99) : 99;
   const inCart     = cart?.items.find(i => i.productId === detail.id);
-  const sellerLabel = sellerName(detail);
+  const sellerLabel = sellerName(detail, lang);
   const sellerPath = sellerProfilePath(detail);
   const gallery: string[] = detail.imageUrls ?? [];
 
@@ -140,11 +146,11 @@ export default function ProductDetail(): ReactElement {
     if (!detail) return;
     if (hasVariants) {
       if (!allTiersSelected) {
-        setVariantError('Vui lòng chọn đầy đủ phân loại sản phẩm');
+        setVariantError(t('pickAllVariants'));
         return;
       }
       if (!matchedSku) {
-        setVariantError('Phân loại này hiện không có hàng');
+        setVariantError(t('variantUnavailable'));
         return;
       }
       addToCart.mutate({ productId: detail.id, quantity, skuId: Number(matchedSku.id) });
@@ -160,7 +166,7 @@ export default function ProductDetail(): ReactElement {
         <button
           onClick={() => navigate(-1)}
           className="bg-canvas-elevated border border-bdr rounded-lg px-3 py-2 text-ink-pri cursor-pointer text-sm hover:border-accent-amber transition-colors inline-flex items-center gap-1.5">
-          <ArrowLeft size={16} /> Quay lại
+          <ArrowLeft size={16} /> {t('back')}
         </button>
       </div>
 
@@ -170,7 +176,7 @@ export default function ProductDetail(): ReactElement {
           <button
             onClick={() => navigate('/')}
             className="text-tb-secondary hover:text-ink-pri transition-colors bg-transparent border-0 cursor-pointer p-0">
-            Khám phá
+            {t('explore')}
           </button>
           <ChevronRight size={12} />
           {detail.brand?.name && (
@@ -197,7 +203,7 @@ export default function ProductDetail(): ReactElement {
                 />
               ) : (
                 <div className="w-full h-full grid place-items-center text-ink-muted text-sm font-body">
-                  Chưa có ảnh
+                  {t('noImage')}
                 </div>
               )}
             </div>
@@ -245,11 +251,11 @@ export default function ProductDetail(): ReactElement {
                 {detail.rating > 0 && (
                   <span>
                     <span className="text-tb-amber font-bold">★ {Number(detail.rating).toFixed(1)}</span>
-                    {detail.ratingCount > 0 && ` · ${Number(detail.ratingCount).toLocaleString('vi-VN')} đánh giá`}
+                    {detail.ratingCount > 0 && t('ratingCount', { count: detail.ratingCount, n: Number(detail.ratingCount).toLocaleString(LANG_LOCALE[lang]) })}
                   </span>
                 )}
                 {detail.rating > 0 && detail.likesCount > 0 && <span className="text-tb-muted">·</span>}
-                {detail.likesCount > 0 && <span>🔥 {Number(detail.likesCount).toLocaleString('vi-VN')} lượt thích</span>}
+                {detail.likesCount > 0 && <span>{t('likeCount', { count: detail.likesCount, n: Number(detail.likesCount).toLocaleString(LANG_LOCALE[lang]) })}</span>}
               </div>
             )}
 
@@ -291,7 +297,7 @@ export default function ProductDetail(): ReactElement {
                         <span>{opt}</span>
                         {stock !== null && (
                           <span className="font-body text-[10px] mt-0.5 text-ink-muted leading-none">
-                            {stock === 0 ? 'Hết' : `còn ${stock}`}
+                            {stock === 0 ? t('optionSoldOut') : t('optionLeft', { count: stock })}
                           </span>
                         )}
                       </button>
@@ -304,7 +310,7 @@ export default function ProductDetail(): ReactElement {
             {/* Malformed variation data — no valid SKU to add */}
             {hasVariants && !hasUsableVariants && (
               <p className="m-0 rounded-lg px-3.5 py-2.5 text-sm font-medium bg-tb-amber/10 border border-accent-amber text-accent-amber">
-                Phân loại sản phẩm đang được cập nhật. Vui lòng quay lại sau.
+                {t('variantsUpdating')}
               </p>
             )}
 
@@ -317,15 +323,15 @@ export default function ProductDetail(): ReactElement {
                   : 'bg-tb-green/10 border border-accent-green text-accent-green',
               )}>
                 {available > 0
-                  ? `Còn ${available} sản phẩm${isLowStock ? ' (sắp hết)' : ''}`
-                  : 'Hết hàng'}
+                  ? `${t('inStock', { count: available })}${isLowStock ? t('lowStock') : ''}`
+                  : t('outOfStock')}
               </div>
             )}
 
             {/* Qty row */}
             {available !== 0 && (
               <div className="flex items-center justify-between py-4 border-y border-bdr">
-                <span className="font-body font-semibold text-sm text-ink-pri">Số lượng</span>
+                <span className="font-body font-semibold text-sm text-ink-pri">{t('quantity')}</span>
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
@@ -370,7 +376,7 @@ export default function ProductDetail(): ReactElement {
               <div className="flex gap-3">
               {available === 0 || skuOutOfStock ? (
                 <button disabled className="flex-1 h-14 text-base font-semibold text-ink-muted bg-canvas-elevated border border-bdr rounded-xl cursor-not-allowed opacity-60">
-                  Hết hàng
+                  {t('outOfStock')}
                 </button>
               ) : (
                 <DemoModeGate className="flex-1">
@@ -379,7 +385,7 @@ export default function ProductDetail(): ReactElement {
                     disabled={addToCart.isPending || !allTiersSelected || (hasVariants && !matchedSku)}
                     className={cn('flex-1 h-14 text-base', inCart && 'opacity-90')}>
                     <ShoppingCart size={16} />
-                    {addToCart.isPending ? 'Đang thêm…' : !allTiersSelected ? 'Chọn phân loại' : inCart ? `THÊM VÀO GIỎ (+${quantity})` : 'THÊM VÀO GIỎ HÀNG'}
+                    {addToCart.isPending ? t('adding') : !allTiersSelected ? t('pickVariant') : inCart ? t('addMore', { count: quantity }) : t('addToCart')}
                   </GradientButton>
                 </DemoModeGate>
               )}
@@ -390,7 +396,7 @@ export default function ProductDetail(): ReactElement {
               />
             </div>
             {hasVariants && !allTiersSelected && (
-              <p className="m-0 text-sm text-ink-sec">Vui lòng chọn đầy đủ phân loại</p>
+              <p className="m-0 text-sm text-ink-sec">{t('pickAllVariantsHint')}</p>
             )}
             </div>
 
@@ -403,7 +409,7 @@ export default function ProductDetail(): ReactElement {
                       <Avatar src={detail.user?.avatar} alt={sellerLabel} size={48} />
                       <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                         <span className="font-body font-semibold text-sm text-ink-pri truncate group-hover:text-accent-amber transition-colors">{sellerLabel}</span>
-                        <span className="font-body text-xs text-tb-muted">Xem shop</span>
+                        <span className="font-body text-xs text-tb-muted">{t('viewShop')}</span>
                       </div>
                     </Link>
                   ) : (
@@ -411,7 +417,7 @@ export default function ProductDetail(): ReactElement {
                       <Avatar alt={sellerLabel} size={48} />
                       <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                         <span className="font-body font-semibold text-sm text-ink-pri truncate">{sellerLabel}</span>
-                        <span className="font-body text-xs text-tb-muted">Người bán</span>
+                        <span className="font-body text-xs text-tb-muted">{t('seller')}</span>
                       </div>
                     </div>
                   )}
@@ -439,8 +445,8 @@ export default function ProductDetail(): ReactElement {
                         <Icon size={18} />
                       </span>
                       <div className="flex flex-col">
-                        <span className="font-body font-semibold text-[13px] text-ink-pri leading-tight">{label}</span>
-                        <span className="font-body text-[11px] text-tb-muted">{sub}</span>
+                        <span className="font-body font-semibold text-[13px] text-ink-pri leading-tight">{t(label)}</span>
+                        <span className="font-body text-[11px] text-tb-muted">{t(sub)}</span>
                       </div>
                     </div>
                   ))}
@@ -454,7 +460,7 @@ export default function ProductDetail(): ReactElement {
         {detail.description?.trim() && (
           <section className="mt-12 pt-8 border-t border-bdr">
             <h2 className="font-display font-black text-2xl tracking-[-0.01em] text-ink-pri m-0 mb-[18px]">
-              Mô tả sản phẩm
+              {t('description')}
             </h2>
             <div
               className="font-body text-[15px] leading-[1.7] text-tb-secondary max-w-[880px] prose-tb"

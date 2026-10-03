@@ -1,4 +1,7 @@
 import type { ApiError } from '@/types';
+import type { Lang } from '@/lib/i18n/lang';
+import { bindTranslator } from '@/lib/i18n/messages';
+import { productFormMessages } from './productForm.i18n';
 
 export interface ProductSubmitError {
   /** Form field the message belongs to; `null` → the form-level banner. */
@@ -15,8 +18,8 @@ export interface ProductSubmitError {
 const NAMED_SKU = /\bsku\s+([A-Za-z0-9][\w.-]*)\s+already exists/i;
 
 const FALLBACK = {
-  create: 'Không thể lưu tồn kho cho sản phẩm. Vui lòng thử lại hoặc cập nhật số lượng kho sau.',
-  edit: 'Không thể lưu thay đổi cho sản phẩm. Vui lòng thử lại.',
+  create: 'submitCreateFailed',
+  edit: 'submitEditFailed',
 } as const;
 
 /**
@@ -34,7 +37,12 @@ const FALLBACK = {
  *  - `"Inventory for product ID <n> already exists"` → the product already owns
  *    an inventory row; nothing on the form to point at.
  */
-export function productSubmitError(error: unknown, mode: 'create' | 'edit'): ProductSubmitError {
+export function productSubmitError(
+  error: unknown,
+  mode: 'create' | 'edit',
+  lang: Lang = 'vi',
+): ProductSubmitError {
+  const t = bindTranslator(productFormMessages, lang);
   const err = error as ApiError | undefined;
   const status = err?.statusCode ?? err?.status;
   const raw = typeof err?.message === 'string' ? err.message.trim() : '';
@@ -43,19 +51,17 @@ export function productSubmitError(error: unknown, mode: 'create' | 'edit'): Pro
     if (/modified by someone else|\bversion\b/i.test(raw)) {
       return {
         field: null,
-        message: 'Sản phẩm vừa được cập nhật ở nơi khác. Hãy tải lại trang và áp dụng thay đổi của bạn lần nữa.',
+        message: t('submitConflict'),
       };
     }
     if (/\bsku\b/i.test(raw)) {
       const named = NAMED_SKU.exec(raw)?.[1];
       return {
         field: 'sku',
-        message: named
-          ? `SKU "${named}" đã được dùng cho sản phẩm khác. Hãy đổi sang mã khác.`
-          : 'SKU này đã được dùng cho sản phẩm khác. Hãy đổi sang mã khác.',
+        message: named ? t('skuTakenNamed', { sku: named }) : t('skuTaken'),
       };
     }
-    return { field: null, message: 'Dữ liệu đã thay đổi hoặc bị trùng. Tải lại trang rồi thử lại.' };
+    return { field: null, message: t('submitStale') };
   }
 
   // 400 validation / 404 unknown brand-category-product: the backend message
@@ -64,5 +70,5 @@ export function productSubmitError(error: unknown, mode: 'create' | 'edit'): Pro
     return { field: null, message: raw };
   }
 
-  return { field: null, message: FALLBACK[mode] };
+  return { field: null, message: t(FALLBACK[mode]) };
 }

@@ -26,6 +26,9 @@ import { skuForField } from './product-form/productSku';
 import { VariationBuilder } from './product-form/VariationBuilder';
 import { SkuMatrix } from './product-form/SkuMatrix';
 import { ShippingMiscSection } from './product-form/ShippingMiscSection';
+import { productFormMessages } from './product-form/productForm.i18n';
+import { useLanguage } from '@/context/useLanguage';
+import { useT } from '@/hooks/ui/useT';
 
 const inputCls = cn(
   'w-full bg-canvas-elevated border border-bdr rounded-tb-input',
@@ -66,6 +69,8 @@ export default function CreateProductPage(): ReactElement {
   const { id } = useParams<{ id?: string }>();
   const productId = id || undefined;
   const navigate = useNavigate();
+  const { lang } = useLanguage();
+  const t = useT(productFormMessages);
   const { currentUser } = useAuthContext();
   const roleState = useRole();
   const queryClient = useQueryClient();
@@ -245,7 +250,7 @@ export default function CreateProductPage(): ReactElement {
       }
       // A duplicate-SKU 409 belongs on the SKU field in BOTH modes — edit mode
       // used to fall through to the stock message, which named the wrong field.
-      const { field, message } = productSubmitError(e, isEditMode ? 'edit' : 'create');
+      const { field, message } = productSubmitError(e, isEditMode ? 'edit' : 'create', lang);
       if (field === 'sku') {
         form.setFieldError('sku', message);
         return;
@@ -268,7 +273,7 @@ export default function CreateProductPage(): ReactElement {
       const nextTierIdx = new Set(
         form.fields.hasVariations ? form.combos.map(c => c.tierIdx) : [],
       );
-      const removed = [...originalTierIdx].filter(t => !nextTierIdx.has(t));
+      const removed = [...originalTierIdx].filter(tier => !nextTierIdx.has(tier));
       if (removed.length > 0) {
         setPendingSkuRemoval({ count: removed.length, draftMode });
         return;
@@ -298,7 +303,7 @@ export default function CreateProductPage(): ReactElement {
     await mutateAsync({ kind: 'create', dto: payload });
   }
 
-  const missingItems = missingFields(form.fields);
+  const missingItems = missingFields(form.fields, lang);
   const isReady = missingItems.length === 0;
 
   if (isEditMode && (productLoading || !existingProduct)) {
@@ -324,13 +329,13 @@ export default function CreateProductPage(): ReactElement {
       <div className="flex items-center gap-3 mb-6">
         <IconButton
           onClick={() => navigate(-1)}
-          aria-label="Quay lại"
+          aria-label={t('back')}
           className="size-8 rounded-full hover:bg-canvas-elevated text-ink-sec transition-colors shrink-0"
         >
           <ChevronLeft size={18} className="shrink-0" />
         </IconButton>
         <h1 className="font-display font-bold text-xl uppercase tracking-wide text-ink-pri">
-          {isEditMode ? 'Sửa sản phẩm' : 'Đăng sản phẩm mới'}
+          {isEditMode ? t('titleEdit') : t('titleCreate')}
         </h1>
       </div>
 
@@ -375,6 +380,7 @@ export default function CreateProductPage(): ReactElement {
               dupCheckedUrl,
               form.images.map(img => img.url),
               dupDismissed,
+              lang,
             )}
             onDismiss={() => setDupDismissed(true)}
           />
@@ -383,13 +389,13 @@ export default function CreateProductPage(): ReactElement {
           <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
             <SectionHeader
               num="03"
-              title="Thông tin bán hàng"
+              title={t('sectionSales')}
               right={
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-ink-muted font-body">Nhiều phân loại</span>
+                  <span className="text-xs text-ink-muted font-body">{t('multiVariant')}</span>
                   <ToggleSwitch
                     size="sm"
-                    label="Nhiều phân loại"
+                    label={t('multiVariant')}
                     checked={form.fields.hasVariations}
                     onChange={v => form.setField('hasVariations', v)}
                   />
@@ -409,11 +415,11 @@ export default function CreateProductPage(): ReactElement {
               {!form.fields.hasVariations ? (
                 <div className="grid sm:grid-cols-2 gap-5">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-ink-pri font-body text-sm">Giá (VND) *</label>
+                    <label className="text-ink-pri font-body text-sm">{t('price')}</label>
                     <input
                       type="number"
                       min="0"
-                      placeholder="VD: 1299000"
+                      placeholder={t('eg', { value: 1299000 })}
                       value={form.fields.singlePrice}
                       onChange={e => form.setField('singlePrice', e.target.value)}
                       className={cn(
@@ -429,11 +435,11 @@ export default function CreateProductPage(): ReactElement {
                     )}
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-ink-pri font-body text-sm">Số lượng kho</label>
+                    <label className="text-ink-pri font-body text-sm">{t('stock')}</label>
                     <input
                       type="number"
                       min="0"
-                      placeholder="VD: 100"
+                      placeholder={t('eg', { value: 100 })}
                       value={form.fields.singleStock}
                       onChange={e => form.setField('singleStock', e.target.value)}
                       className={inputCls}
@@ -444,8 +450,7 @@ export default function CreateProductPage(): ReactElement {
                 <div className="flex flex-col gap-5">
                   {isEditMode && (
                     <p className="text-sm text-accent-amber font-body px-4 py-3 bg-tb-amber/5 border border-tb-amber/20 rounded-tb-card">
-                      Sửa phân loại sẽ cập nhật lại SKU. Giá/kho hiện tại đã được nạp sẵn —
-                      chỉ thay đổi phần cần sửa. Xóa phân loại đã tồn tại sẽ cần xác nhận.
+                      {t('editVariantsNote')}
                     </p>
                   )}
                   <VariationBuilder
@@ -460,7 +465,7 @@ export default function CreateProductPage(): ReactElement {
                   {form.combos.length > 0 && (
                     <div className="flex flex-col gap-2">
                       <p className="text-xs text-ink-sec font-body">
-                        {form.combos.length} tổ hợp được tạo tự động
+                        {t('combosGenerated', { count: form.combos.length })}
                       </p>
                       <SkuMatrix
                         combos={form.combos}
@@ -498,13 +503,13 @@ export default function CreateProductPage(): ReactElement {
             ) : isReady ? (
               <>
                 <CheckCircle2 size={14} className="shrink-0 text-accent-green" />
-                <span className="text-xs font-body text-accent-green">Sẵn sàng để đăng</span>
+                <span className="text-xs font-body text-accent-green">{t('ready')}</span>
               </>
             ) : missingItems.length > 0 ? (
               <>
                 <AlertCircle size={14} className="shrink-0 text-accent-red" />
                 <span className="text-xs font-body text-accent-red">
-                  Còn thiếu: {missingItems.join(', ')}
+                  {t('missing', { items: missingItems.join(', ') })}
                 </span>
               </>
             ) : null}
@@ -516,7 +521,7 @@ export default function CreateProductPage(): ReactElement {
               onClick={() => navigate(-1)}
               className="px-4 py-2 rounded-tb-cta text-sm font-body font-medium text-ink-sec bg-canvas-elevated border border-bdr hover:text-ink-pri hover:border-tb-amber/30 transition-colors"
             >
-              Hủy
+              {t('cancel')}
             </button>
             {!isEditMode && (
               <button
@@ -525,7 +530,7 @@ export default function CreateProductPage(): ReactElement {
                 disabled={isPending || submitSuccess || !form.fields.name.trim()}
                 className="px-4 py-2 rounded-tb-cta text-sm font-body font-medium text-ink-sec bg-canvas-elevated border border-bdr hover:text-ink-pri hover:border-tb-amber/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isPending ? 'Đang xử lý...' : 'Lưu nháp'}
+                {isPending ? t('processing') : t('saveDraft')}
               </button>
             )}
             <button
@@ -541,13 +546,13 @@ export default function CreateProductPage(): ReactElement {
             >
               {submitSuccess
                 ? isEditMode
-                  ? '✓ Đã lưu!'
-                  : '✓ Đã đăng!'
+                  ? t('saved')
+                  : t('published')
                 : isPending
-                  ? 'Đang xử lý...'
+                  ? t('processing')
                   : isEditMode
-                    ? 'Lưu thay đổi'
-                    : 'Đăng bán'}
+                    ? t('saveChanges')
+                    : t('publish')}
             </button>
           </div>
         </div>
@@ -556,14 +561,11 @@ export default function CreateProductPage(): ReactElement {
       <ConfirmDialog
         open={pendingSkuRemoval !== null}
         tone="danger"
-        title="Xóa phân loại đã tồn tại?"
+        title={t('removeSkuTitle')}
         description={
-          pendingSkuRemoval
-            ? `Bạn sắp xóa ${pendingSkuRemoval.count} phân loại (SKU) đã tồn tại trên sản phẩm. ` +
-              'Đơn hàng hoặc giỏ hàng đang tham chiếu các SKU này có thể bị ảnh hưởng.'
-            : ''
+          pendingSkuRemoval ? t('removeSkuBody', { count: pendingSkuRemoval.count }) : ''
         }
-        confirmLabel="Tiếp tục lưu"
+        confirmLabel={t('continueSave')}
         isPending={isPending}
         onConfirm={() => {
           const draftMode = pendingSkuRemoval?.draftMode ?? false;

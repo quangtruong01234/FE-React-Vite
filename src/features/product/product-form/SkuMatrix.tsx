@@ -3,6 +3,8 @@ import { CopyCheck } from 'lucide-react';
 import { IconButton } from '@/components/shared/IconButton';
 import { cn } from '@/lib/format/utils';
 import type { ComboItem, VarGroup, FormErrors, SkuRowState } from './useProductForm';
+import { useT } from '@/hooks/ui/useT';
+import { productFormMessages } from './productForm.i18n';
 
 const cellInput = cn(
   'w-full bg-canvas-base border border-bdr rounded-tb-input',
@@ -28,6 +30,7 @@ export function SkuMatrix({
   onSetRow,
   onApplyAll,
 }: Props): ReactElement {
+  const t = useT(productFormMessages);
   const [applyPrice, setApplyPrice] = useState('');
   const [applyStock, setApplyStock] = useState('');
 
@@ -53,10 +56,10 @@ export function SkuMatrix({
                 </th>
               ))}
               <th className="text-left px-3 py-2.5 font-body font-semibold text-xs text-ink-sec uppercase tracking-wide whitespace-nowrap">
-                Giá (VND) *
+                {t('price')}
               </th>
               <th className="text-left px-3 py-2.5 font-body font-semibold text-xs text-ink-sec uppercase tracking-wide whitespace-nowrap">
-                Kho
+                {t('stockShort')}
               </th>
               <th className="text-left px-3 py-2.5 font-body font-semibold text-xs text-ink-muted uppercase tracking-wide whitespace-nowrap">
                 TierIdx
@@ -68,7 +71,7 @@ export function SkuMatrix({
               {validGroups.map((_, gi) => (
                 <td key={gi} className="px-3 py-2">
                   {gi === 0 && (
-                    <span className="text-xs text-ink-muted font-body italic">Áp dụng tất cả</span>
+                    <span className="text-xs text-ink-muted font-body italic">{t('applyAllLabel')}</span>
                   )}
                 </td>
               ))}
@@ -76,7 +79,7 @@ export function SkuMatrix({
                 <input
                   type="number"
                   min="0"
-                  placeholder="Giá chung"
+                  placeholder={t('commonPrice')}
                   value={applyPrice}
                   onChange={e => setApplyPrice(e.target.value)}
                   className={cellInput}
@@ -86,7 +89,7 @@ export function SkuMatrix({
                 <input
                   type="number"
                   min="0"
-                  placeholder="Kho chung"
+                  placeholder={t('commonStock')}
                   value={applyStock}
                   onChange={e => setApplyStock(e.target.value)}
                   className={cellInput}
@@ -102,7 +105,7 @@ export function SkuMatrix({
                     'hover:bg-tb-amber/20 transition-colors',
                     'disabled:opacity-40 disabled:cursor-not-allowed',
                   )}
-                  title="Áp dụng cho tất cả"
+                  title={t('applyAllTitle')}
                 >
                   <CopyCheck size={13} className="shrink-0" />
                 </IconButton>
@@ -134,7 +137,7 @@ export function SkuMatrix({
                       <input
                         type="number"
                         min="0"
-                        placeholder="Nhập giá"
+                        placeholder={t('enterPrice')}
                         value={row.price}
                         onChange={e => onSetRow(combo.tierIdx, 'price', e.target.value)}
                         className={cn(cellInput, hasPriceError && 'border-accent-red')}
@@ -172,7 +175,7 @@ export function SkuMatrix({
                     <input
                       type="number"
                       min="0"
-                      placeholder="Nhập giá"
+                      placeholder={t('enterPrice')}
                       value={row.price}
                       onChange={e => onSetRow(combo.tierIdx, 'price', e.target.value)}
                       className={cn(cellInput, hasPriceError && 'border-accent-red')}

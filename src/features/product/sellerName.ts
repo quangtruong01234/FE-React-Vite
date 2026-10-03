@@ -1,5 +1,8 @@
 import { nonBlank } from '@/lib/format/user';
 import type { Product } from '@/types';
+import type { Lang } from '@/lib/i18n/lang';
+import { translate } from '@/lib/i18n/messages';
+import { productMessages } from './product.i18n';
 
 /**
  * Shown when a product has no resolvable seller.
@@ -11,7 +14,7 @@ import type { Product } from '@/types';
  * and now does the opposite of its job — it invents a plausible shop name over
  * a real data state, so a deleted seller reads as an ordinary listing.
  */
-export const SELLER_FALLBACK = 'Người bán không còn tồn tại';
+export const SELLER_FALLBACK = translate(productMessages, 'vi', 'sellerGone');
 
 /**
  * Display name for a product's seller.
@@ -26,8 +29,10 @@ export const SELLER_FALLBACK = 'Người bán không còn tồn tại';
  * never null), the opposite of the social embed where `name` is a real, nullable
  * display name. Same key, two meanings — one helper for both would be a bug.
  */
-export function sellerName(product: Pick<Product, 'user' | 'brand'>): string {
+export function sellerName(product: Pick<Product, 'user' | 'brand'>, lang: Lang = 'vi'): string {
   return (
-    nonBlank(product.user?.name) ?? nonBlank(product.brand?.name) ?? SELLER_FALLBACK
+    nonBlank(product.user?.name) ??
+    nonBlank(product.brand?.name) ??
+    translate(productMessages, lang, 'sellerGone')
   );
 }

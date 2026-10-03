@@ -63,3 +63,11 @@ describe('isFormReady', () => {
     expect(isFormReady({ ...base, name: '' })).toBe(false);
   });
 });
+
+describe('missingFields (EN)', () => {
+  it('lists the missing fields in English, in display order', () => {
+    expect(
+      missingFields({ name: ' ', categoryIds: [], hasVariations: false, singlePrice: '' }, 'en'),
+    ).toEqual(['name', 'category', 'price']);
+  });
+});
