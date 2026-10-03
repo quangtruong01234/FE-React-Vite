@@ -11,6 +11,8 @@ import { resolvePaymentVerdict } from './paymentResultVerdict';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { cn } from '@/lib/format/utils';
 import { queryKeys } from '@/hooks/query/queryKeys';
+import { useT } from '@/hooks/ui/useT';
+import { paymentMessages } from './payment.i18n';
 
 const SECONDARY_LINK = cn(
   'w-full px-4 py-2.5 rounded-tb-input border border-bdr bg-canvas-elevated',
@@ -19,6 +21,7 @@ const SECONDARY_LINK = cn(
 
 export default function PaymentResultPage(): ReactElement {
   const [searchParams] = useSearchParams();
+  const t = useT(paymentMessages);
 
   const params = Object.fromEntries(searchParams.entries());
   // `orderId` is only set when `order` is a routable public id. Today the gateway
@@ -27,7 +30,7 @@ export default function PaymentResultPage(): ReactElement {
   // `order` entirely, which lands in the same branch.
   const orderId = resolveResultOrderId(searchParams.get('order'));
   const method = searchParams.get('method') ?? (searchParams.has('vnp_TxnRef') ? 'vnpay' : 'zalopay');
-  const gwLabel = method === 'vnpay' ? 'VNPay' : 'ZaloPay';
+  const gateway = method === 'vnpay' ? 'VNPay' : 'ZaloPay';
 
   // `retry: false` stays: a verify call is not idempotent-safe to hammer, and a
   // silent retry loop only delays the panel. The cost of not retrying is handled
@@ -74,9 +77,9 @@ export default function PaymentResultPage(): ReactElement {
           </div>
           <div>
             <h2 className="font-display font-black text-2xl text-ink-pri m-0 mb-1">
-              Đang xác nhận thanh toán…
+              {t('verifying')}
             </h2>
-            <p className="text-sm text-ink-sec m-0">Đang chờ phản hồi từ cổng {gwLabel}</p>
+            <p className="text-sm text-ink-sec m-0">{t('waitingGateway', { gateway })}</p>
           </div>
         </div>
       </div>
@@ -93,27 +96,27 @@ export default function PaymentResultPage(): ReactElement {
             </div>
             <div>
               <h2 className="font-display font-black text-2xl text-ink-pri m-0 mb-1">
-                Thanh toán thành công!
+                {t('successTitle')}
               </h2>
               <p className="text-sm text-ink-sec m-0">
                 {orderId ? (
                   <>
-                    Đơn hàng <span className="font-mono text-accent-amber">#{orderId}</span> đã
-                    được thanh toán qua {gwLabel}.
+                    {t('orderPaidBefore')} <span className="font-mono text-accent-amber">#{orderId}</span>{' '}
+                    {t('orderPaidAfter', { gateway })}
                   </>
                 ) : (
-                  <>Đơn hàng của bạn đã được thanh toán qua {gwLabel}.</>
+                  t('yourOrderPaid', { gateway })
                 )}
               </p>
             </div>
             <div className="w-full flex flex-col gap-2.5">
               <Link to={orderId ? `/order/${orderId}` : '/orders'}>
                 <GradientButton className="w-full">
-                  {orderId ? 'Xem chi tiết đơn hàng →' : 'Xem đơn hàng của tôi →'}
+                  {t(orderId ? 'viewOrder' : 'viewMyOrders')}
                 </GradientButton>
               </Link>
               <Link to="/" className={SECONDARY_LINK}>
-                Về trang chủ
+                {t('home')}
               </Link>
             </div>
           </>
@@ -126,22 +129,22 @@ export default function PaymentResultPage(): ReactElement {
             </div>
             <div>
               <h2 className="font-display font-black text-2xl text-ink-pri m-0 mb-1">
-                Thanh toán thất bại
+                {t('failedTitle')}
               </h2>
               <p className="text-sm text-ink-sec m-0">
-                Giao dịch qua {gwLabel} không thành công. Vui lòng thử lại.
+                {t('failedBody', { gateway })}
               </p>
             </div>
             <div className="w-full flex flex-col gap-2.5">
               {orderId && (
                 <Link to={`/order/${orderId}`}>
                   <GradientButton className="w-full">
-                    Quay lại đơn hàng
+                    {t('backToOrder')}
                   </GradientButton>
                 </Link>
               )}
               <Link to="/orders" className={SECONDARY_LINK}>
-                Xem tất cả đơn hàng
+                {t('allOrders')}
               </Link>
             </div>
           </>
@@ -154,21 +157,20 @@ export default function PaymentResultPage(): ReactElement {
             </div>
             <div>
               <h2 className="font-display font-black text-2xl text-ink-pri m-0 mb-1">
-                Chưa xác nhận được thanh toán
+                {t('unverifiedTitle')}
               </h2>
               <p className="text-sm text-ink-sec m-0">
-                Không nhận được phản hồi từ cổng {gwLabel}. Giao dịch của bạn có thể đã thành
-                công — hãy kiểm tra đơn hàng trước khi thanh toán lại.
+                {t('unverifiedBody', { gateway })}
               </p>
             </div>
             <div className="w-full flex flex-col gap-2.5">
               <Link to={orderId ? `/order/${orderId}` : '/orders'} className="w-full">
                 <GradientButton className="w-full">
-                  {orderId ? 'Kiểm tra đơn hàng →' : 'Xem đơn hàng của tôi →'}
+                  {t(orderId ? 'checkOrder' : 'viewMyOrders')}
                 </GradientButton>
               </Link>
               <Link to="/" className={SECONDARY_LINK}>
-                Về trang chủ
+                {t('home')}
               </Link>
             </div>
           </>
