@@ -46,3 +46,16 @@ describe('sellerOrderActionErrorMessage', () => {
     });
   });
 });
+
+describe('sellerOrderActionErrorMessage in English', () => {
+  it('translates the client-side copy and passes backend text through', () => {
+    expect(sellerOrderActionErrorMessage({ statusCode: 500 }, 'ready-to-ship', 'en')).toContain('GHN');
+    expect(sellerOrderActionErrorMessage({ statusCode: 400 }, 'ready-to-ship', 'en')).toContain(
+      'shipping address is invalid',
+    );
+    expect(sellerOrderActionErrorMessage(undefined, 'confirm', 'en')).toBe(
+      "Couldn't confirm the order. Please try again.",
+    );
+    expect(sellerOrderActionErrorMessage({ statusCode: 409, message: 'Busy' }, 'confirm', 'en')).toBe('Busy');
+  });
+});

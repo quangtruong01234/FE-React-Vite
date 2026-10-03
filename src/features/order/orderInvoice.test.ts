@@ -41,3 +41,13 @@ describe('invoiceErrorMessage', () => {
     );
   });
 });
+
+describe('invoiceErrorMessage in English', () => {
+  it('maps each status to English copy', () => {
+    expect(invoiceErrorMessage({ statusCode: 403 }, 'en')).toBe(
+      "You don't have permission to download this order's invoice.",
+    );
+    expect(invoiceErrorMessage({ statusCode: 404 }, 'en')).toBe('Order not found.');
+    expect(invoiceErrorMessage(undefined, 'en')).toBe("Couldn't download the invoice. Please try again.");
+  });
+});

@@ -1,8 +1,11 @@
 import type { SellerActionKind } from './sellerOrderActions';
+import type { Lang } from '@/lib/i18n/lang';
+import { bindTranslator } from '@/lib/i18n/messages';
+import { orderMessages } from './order.i18n';
 
 /**
  * Maps a failed seller order-action (`confirm` / `ready-to-ship`) to a
- * user-facing Vietnamese message. Kept pure so it can be unit-tested without a
+ * user-facing message. Kept pure so it can be unit-tested without a
  * network.
  *
  * Ready-to-ship contract (backend 2026-06-28): the transition now creates the
@@ -12,7 +15,12 @@ import type { SellerActionKind } from './sellerOrderActions';
  *          the seller must fix the address.
  *  - 500 → GHN unreachable / upstream error; the order stays `confirmed`, retry.
  */
-export function sellerOrderActionErrorMessage(error: unknown, kind: SellerActionKind): string {
+export function sellerOrderActionErrorMessage(
+  error: unknown,
+  kind: SellerActionKind,
+  lang: Lang = 'vi',
+): string {
+  const t = bindTranslator(orderMessages, lang);
   const status =
     error && typeof error === 'object' && 'statusCode' in error
       ? (error as { statusCode?: number }).statusCode
@@ -21,9 +29,9 @@ export function sellerOrderActionErrorMessage(error: unknown, kind: SellerAction
   if (kind === 'ready-to-ship') {
     switch (status) {
       case 400:
-        return 'Không thể tạo vận đơn: địa chỉ giao hàng không hợp lệ. Vui lòng kiểm tra lại địa chỉ giao hàng của đơn.';
+        return t('shipBadAddress');
       case 500:
-        return 'Không thể kết nối đơn vị vận chuyển (GHN). Đơn vẫn ở trạng thái đã xác nhận — vui lòng thử lại sau.';
+        return t('shipGhnDown');
     }
   }
 
@@ -32,7 +40,5 @@ export function sellerOrderActionErrorMessage(error: unknown, kind: SellerAction
     if (typeof message === 'string' && message.length > 0) return message;
   }
 
-  return kind === 'ready-to-ship'
-    ? 'Không thể chuyển đơn sang trạng thái giao hàng. Vui lòng thử lại.'
-    : 'Không thể xác nhận đơn. Vui lòng thử lại.';
+  return kind === 'ready-to-ship' ? t('shipFailed') : t('confirmFailed');
 }

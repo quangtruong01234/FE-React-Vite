@@ -4,6 +4,9 @@ import { useOrderInvoice } from './useOrderInvoice';
 import { invoiceErrorMessage } from './orderInvoice';
 import { IconButton } from '@/components/shared/IconButton';
 import { cn } from '@/lib/format/utils';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import { orderMessages } from './order.i18n';
 
 interface InvoiceDownloadButtonProps {
   orderId: string;
@@ -11,6 +14,7 @@ interface InvoiceDownloadButtonProps {
   iconOnly?: boolean;
   /** Override the default button classes (full variant only). */
   className?: string;
+  /** Defaults to the translated "download PDF invoice". */
   label?: string;
 }
 
@@ -19,16 +23,19 @@ interface InvoiceDownloadButtonProps {
  * seller order queue, and the admin orders table — the backend now allows the
  * order's buyer, its seller, OR an admin to pull it (2026-07-15). Owns its own
  * mutation so each button tracks its own pending/error state, and surfaces a
- * Vietnamese error (403/404/…) instead of failing silently.
+ * translated error (403/404/…) instead of failing silently.
  */
 export function InvoiceDownloadButton({
   orderId,
   iconOnly = false,
   className,
-  label = 'Tải hóa đơn PDF',
+  label: labelProp,
 }: InvoiceDownloadButtonProps): ReactElement {
   const download = useOrderInvoice();
-  const errorMsg = download.isError ? invoiceErrorMessage(download.error) : null;
+  const t = useT(orderMessages);
+  const { lang } = useLanguage();
+  const label = labelProp ?? t('downloadInvoice');
+  const errorMsg = download.isError ? invoiceErrorMessage(download.error, lang) : null;
 
   if (iconOnly) {
     return (
@@ -60,7 +67,7 @@ export function InvoiceDownloadButton({
         )}
       >
         <FileDown size={15} className="shrink-0" />
-        {download.isPending ? 'Đang tải...' : label}
+        {download.isPending ? t('downloading') : label}
       </button>
       {errorMsg && <span className="font-body text-xs text-accent-red">{errorMsg}</span>}
     </div>

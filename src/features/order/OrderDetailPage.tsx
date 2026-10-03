@@ -11,13 +11,17 @@ import { useOrderPaymentUrl } from './useOrderPaymentUrl';
 import { useMyReturnRequests, useRequestReturn } from './useReturnRequests';
 import {
   canRequestReturn, hasReturnActivity, findReturnRequestForOrder,
-  returnStatusMeta, refundStatusLabel, returnRequestErrorMessage,
+  returnStatusMeta, refundStatusLabel, returnRequestErrorMessage, returnRequestPayload,
 } from './returnRequest';
+import { useReturnPhotos } from './useReturnPhotos';
+import { ReturnPhotoPicker } from './ReturnPhotoPicker';
+import { ReturnPhotoStrip } from './ReturnPhotoStrip';
 import { useRole } from '@/hooks/auth/useRole';
 import { ShippingAddressBlock } from './ShippingAddressBlock';
-import { orderPriceBreakdown } from './orderSummary';
+import { orderPriceBreakdown, orderVoucherLabel } from './orderSummary';
 import { isAwaitingPayment } from './orderPayment';
 import { expectedDeliveryLabel } from './expectedDelivery';
+import { OrderHistoryCard } from './OrderHistoryCard';
 import { ApiErrorState } from '@/components/shared/ApiErrorState';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ProductThumb } from '@/components/shared/ProductThumb';
@@ -28,7 +32,11 @@ import { paymentUrlErrorMessage } from '@/lib/domain/paymentUrl';
 import { cn, formatVnd } from '@/lib/format/utils';
 import { formatDateTime } from '@/lib/format/time';
 import type { OrderStatus } from '@/types';
-import { PAYMENT_LABEL } from './orderConstants';
+import { paymentLabel } from './orderConstants';
+import { orderMessages } from './order.i18n';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import type { MessageKey } from '@/lib/i18n/messages';
 import { useCreateReview } from '@/hooks/data/useProductReviews';
 import { reviewErrorMessage, REVIEW_COMMENT_MAX } from '@/features/product/productReview';
 
@@ -42,9 +50,11 @@ function OrderItemReviewForm({ productId }: { productId: string }) {
   const [comment, setComment] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const createReview = useCreateReview(productId);
+  const t = useT(orderMessages);
+  const { lang } = useLanguage();
 
   if (submitted) {
-    return <span className="font-body text-xs text-accent-amber">✓ Đã đánh giá</span>;
+    return <span className="font-body text-xs text-accent-amber">{t('reviewed')}</span>;
   }
 
   return (
@@ -53,14 +63,14 @@ function OrderItemReviewForm({ productId }: { productId: string }) {
       <textarea
         value={comment}
         onChange={(e) => setComment(e.target.value)}
-        placeholder="Nhận xét (không bắt buộc)"
+        placeholder={t('reviewPlaceholder')}
         maxLength={REVIEW_COMMENT_MAX}
         rows={2}
         className="w-full resize-none rounded-tb-input border border-bdr bg-canvas-base text-ink-pri font-body text-xs px-3 py-2 placeholder:text-ink-muted focus:outline-none focus:border-accent-amber transition-colors"
       />
       {createReview.error && (
         <p className="m-0 font-body text-xs text-accent-red">
-          {reviewErrorMessage(createReview.error)}
+          {reviewErrorMessage(createReview.error, lang)}
         </p>
       )}
       <div>
@@ -73,27 +83,28 @@ function OrderItemReviewForm({ productId }: { productId: string }) {
           )}
           className="px-4 py-1.5 rounded-tb-cta bg-accent-amber text-canvas-base font-body font-semibold text-xs transition-opacity disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed hover:opacity-90"
         >
-          {createReview.isPending ? 'Đang gửi...' : 'Gửi đánh giá'}
+          {createReview.isPending ? t('sending') : t('submitReview')}
         </button>
       </div>
     </div>
   );
 }
 
-const TIMELINE: OrderStatus[] = ['pending', 'confirmed', 'processing', 'shipped', 'delivering', 'completed'];
-const TL_LABEL: Record<string, string> = {
-  pending:    'Đã đặt',
-  confirmed:  'Đã xác nhận',
-  processing: 'Đang chuẩn bị',
-  shipped:    'Đã gửi GHN',
-  delivering: 'Đang giao',
-  completed:  'Hoàn thành',
-};
+const TIMELINE: { status: OrderStatus; labelKey: MessageKey<typeof orderMessages> }[] = [
+  { status: 'pending',    labelKey: 'tlPending' },
+  { status: 'confirmed',  labelKey: 'tlConfirmed' },
+  { status: 'processing', labelKey: 'tlProcessing' },
+  { status: 'shipped',    labelKey: 'tlShipped' },
+  { status: 'delivering', labelKey: 'tlDelivering' },
+  { status: 'completed',  labelKey: 'tlCompleted' },
+];
 
 
 export default function OrderDetailPage(): ReactElement {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const t = useT(orderMessages);
+  const { lang } = useLanguage();
   const orderId = id ?? '';
 
   const { data: order, isLoading, error: orderError, refetch: refetchOrder } = useOrder(orderId);
@@ -112,6 +123,7 @@ export default function OrderDetailPage(): ReactElement {
   const requestReturn = useRequestReturn(orderId, meId);
   const [returnFormOpen, setReturnFormOpen] = useState(false);
   const [returnReason, setReturnReason] = useState('');
+  const returnPhotos = useReturnPhotos(meId);
 
   if (isLoading) {
     return (
@@ -139,16 +151,16 @@ export default function OrderDetailPage(): ReactElement {
     }
     return (
       <div className="max-w-[820px] mx-auto text-center py-20">
-        <p className="font-body text-ink-sec mb-4">Không tìm thấy đơn hàng.</p>
+        <p className="font-body text-ink-sec mb-4">{t('orderNotFound')}</p>
         <Link to="/orders" className="text-accent-amber text-sm hover:underline">
-          Về danh sách đơn hàng
+          {t('backToList')}
         </Link>
       </div>
     );
   }
 
   const isCanceled = order.status === 'canceled';
-  const curStep = TIMELINE.indexOf(order.status);
+  const curStep = TIMELINE.findIndex((step) => step.status === order.status);
   const canCancel = order.status === 'pending' || order.status === 'confirmed' || order.status === 'processing';
   // `paidAt` is the authoritative unpaid signal now (ORD-GUARD-01) — the status
   // heuristic only survives as a fallback for responses that predate the field.
@@ -158,12 +170,13 @@ export default function OrderDetailPage(): ReactElement {
   // is history, and GHN-ETA-01 does not refresh it when GHN reschedules, so a
   // post-delivery order would restate a quote that may never have held.
   const etaLabel = ORDER_IN_FLIGHT.has(order.status)
-    ? expectedDeliveryLabel(order.expectedDeliveryTime)
+    ? expectedDeliveryLabel(order.expectedDeliveryTime, lang)
     : null;
   const returnRequest = findReturnRequestForOrder(myReturns?.data ?? [], order.id);
   // A rejected request restores the order to delivering/completed — the buyer may re-request.
   const canSubmitReturn = returnEligible && returnRequest?.status !== 'pending_review';
   const breakdown = orderPriceBreakdown(order);
+  const voucherLabel = orderVoucherLabel(order);
 
   return (
     <div className="max-w-[820px] mx-auto">
@@ -172,14 +185,14 @@ export default function OrderDetailPage(): ReactElement {
         onClick={() => navigate('/orders')}
         className="inline-flex items-center gap-1.5 mb-4 bg-canvas-elevated border border-bdr rounded-lg px-3 py-2 text-ink-pri text-sm cursor-pointer hover:border-accent-amber transition-colors"
       >
-        <ArrowLeft size={16} /> Đơn hàng
+        <ArrowLeft size={16} /> {t('ordersNav')}
       </button>
 
       {/* Heading */}
       <div className="flex items-start justify-between gap-3 mb-6 flex-wrap">
         <div>
-          <h1 className="font-display font-black text-3xl text-ink-pri m-0">Đơn hàng #{order.id}</h1>
-          <p className="text-sm text-ink-sec m-0 mt-1">Đặt lúc {formatDateTime(order.createdAt)}</p>
+          <h1 className="font-display font-black text-3xl text-ink-pri m-0">{t('orderTitle', { id: order.id })}</h1>
+          <p className="text-sm text-ink-sec m-0 mt-1">{t('placedAt', { time: formatDateTime(order.createdAt, lang) })}</p>
         </div>
         <StatusBadge status={order.status} />
       </div>
@@ -188,7 +201,7 @@ export default function OrderDetailPage(): ReactElement {
       {!isCanceled && !returnActivity ? (
         <div className="bg-canvas-surface border border-bdr rounded-xl p-5 mb-4">
           <div className="flex items-start justify-between relative">
-            {TIMELINE.map((s, i) => {
+            {TIMELINE.map(({ status: s, labelKey }, i) => {
               const done = curStep >= 0 && i <= curStep;
               return (
                 <div key={s} className="flex flex-col items-center gap-2 flex-1 relative z-[1]">
@@ -204,7 +217,7 @@ export default function OrderDetailPage(): ReactElement {
                     'text-[11px] text-center font-medium',
                     done ? 'text-ink-pri' : 'text-ink-muted',
                   )}>
-                    {TL_LABEL[s]}
+                    {t(labelKey)}
                   </span>
                 </div>
               );
@@ -221,7 +234,7 @@ export default function OrderDetailPage(): ReactElement {
               {order.ghnOrderCode && (
                 <div className="flex items-center gap-2">
                   <Truck size={15} className="shrink-0 text-accent-amber" />
-                  Mã vận đơn GHN: <span className="font-mono text-ink-pri">{order.ghnOrderCode}</span>
+                  {t('ghnWaybillColon')} <span className="font-mono text-ink-pri">{order.ghnOrderCode}</span>
                 </div>
               )}
               {etaLabel && (
@@ -236,7 +249,7 @@ export default function OrderDetailPage(): ReactElement {
       ) : isCanceled ? (
         <div className="bg-canvas-surface border border-tb-red/30 rounded-xl p-4 mb-4 flex items-center gap-3">
           <XCircle size={20} className="text-accent-red shrink-0" />
-          <span className="text-sm text-accent-red">Đơn hàng đã được hủy.</span>
+          <span className="text-sm text-accent-red">{t('canceledBanner')}</span>
         </div>
       ) : null}
 
@@ -245,37 +258,38 @@ export default function OrderDetailPage(): ReactElement {
         <div className="bg-canvas-surface border border-bdr rounded-xl p-4 mb-4">
           <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
             <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted flex items-center gap-1.5">
-              <RotateCcw size={13} className="shrink-0" /> Trả hàng / Hoàn tiền
+              <RotateCcw size={13} className="shrink-0" /> {t('returnPanel')}
             </span>
             {returnRequest && (
               <span className={cn(
                 'inline-flex items-center px-2 py-0.5 text-xs font-body font-medium rounded-tb-pill border',
-                returnStatusMeta(returnRequest.status).className,
+                returnStatusMeta(returnRequest.status, lang).className,
               )}>
-                {returnStatusMeta(returnRequest.status).label}
+                {returnStatusMeta(returnRequest.status, lang).label}
               </span>
             )}
           </div>
           {returnRequest ? (
             <div className="flex flex-col gap-1.5">
-              <p className="m-0 text-sm text-ink-pri">Lý do: {returnRequest.reason}</p>
+              <p className="m-0 text-sm text-ink-pri">{t('reason', { reason: returnRequest.reason })}</p>
+              <ReturnPhotoStrip urls={returnRequest.imageUrls} />
               {returnRequest.status === 'rejected' && returnRequest.rejectReason && (
                 <p className="m-0 text-sm text-accent-red">
-                  Người bán từ chối: {returnRequest.rejectReason}
+                  {t('sellerRejected', { reason: returnRequest.rejectReason })}
                 </p>
               )}
-              {refundStatusLabel(returnRequest) && (
+              {refundStatusLabel(returnRequest, lang) && (
                 <p className="m-0 text-sm text-accent-green">
-                  {refundStatusLabel(returnRequest)}
-                  {returnRequest.refundAmount != null && ` · ${formatVnd(returnRequest.refundAmount)}`}
+                  {refundStatusLabel(returnRequest, lang)}
+                  {returnRequest.refundAmount != null && ` · ${formatVnd(returnRequest.refundAmount, lang)}`}
                 </p>
               )}
             </div>
           ) : (
             <p className="m-0 text-sm text-ink-sec">
               {order.status === 'refunded'
-                ? 'Đơn hàng đã được hoàn tiền.'
-                : 'Đơn hàng đang có yêu cầu trả hàng chờ người bán duyệt.'}
+                ? t('orderRefunded')
+                : t('returnAwaiting')}
             </p>
           )}
         </div>
@@ -285,31 +299,33 @@ export default function OrderDetailPage(): ReactElement {
       <div className="grid sm:grid-cols-2 gap-4 mb-4">
         <div className="bg-canvas-surface border border-bdr rounded-xl p-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-ink-muted mb-2 flex items-center gap-1.5">
-            <MapPin size={13} /> Giao đến
+            <MapPin size={13} /> {t('shipTo')}
           </div>
           <ShippingAddressBlock raw={order.shippingAddress} />
         </div>
         <div className="bg-canvas-surface border border-bdr rounded-xl p-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-ink-muted mb-2 flex items-center gap-1.5">
-            <Wallet size={13} /> Thanh toán
+            <Wallet size={13} /> {t('payment')}
           </div>
           <div className="text-sm text-ink-pri font-semibold">
-            {PAYMENT_LABEL[order.paymentMethod] ?? order.paymentMethod}
+            {paymentLabel(order.paymentMethod, lang)}
           </div>
           <div className="text-xs text-ink-sec mt-1">
             {needsPayment
-              ? 'Chưa thanh toán'
+              ? t('unpaid')
               : order.paymentMethod === 'cod'
-                ? 'Thu khi nhận hàng'
-                : 'Đã thanh toán'}
+                ? t('collectOnDelivery')
+                : t('paid')}
           </div>
         </div>
       </div>
 
+      <OrderHistoryCard orderId={order.id} />
+
       {/* Items */}
       <div className="bg-canvas-surface border border-bdr rounded-xl overflow-hidden mb-4">
         <div className="px-4 py-3 border-b border-bdr font-display font-bold uppercase text-sm tracking-wide text-ink-sec">
-          Sản phẩm ({order.items.length})
+          {t('itemsHeading', { count: order.items.length })}
         </div>
         {order.items.map((item) => {
           // Items are server-enriched with productName/image/skuLabel — no hydration.
@@ -327,13 +343,13 @@ export default function OrderDetailPage(): ReactElement {
                   to={`/product/${item.productId}`}
                   className="text-sm font-medium text-ink-pri truncate block hover:text-accent-amber transition-colors"
                 >
-                  {item.productName ?? `Sản phẩm #${item.productId}`}
+                  {item.productName ?? t('productFallback', { id: String(item.productId) })}
                 </Link>
                 {item.skuLabel && <div className="text-xs text-ink-sec truncate">{item.skuLabel}</div>}
-                <div className="text-xs text-ink-muted font-mono">SL: {item.quantity}</div>
+                <div className="text-xs text-ink-muted font-mono">{t('qty', { count: item.quantity })}</div>
               </div>
               <span className="font-mono font-bold text-sm text-ink-pri whitespace-nowrap">
-                {formatVnd(item.price * item.quantity)}
+                {formatVnd(item.price * item.quantity, lang)}
               </span>
             </div>
             {order.status === 'completed' && item.productId && (
@@ -344,34 +360,34 @@ export default function OrderDetailPage(): ReactElement {
         })}
         <div className="px-4 py-3 flex flex-col gap-2 bg-tb-elevated/40 border-t border-bdr">
           <div className="flex justify-between items-center text-sm text-ink-sec">
-            <span>Tạm tính</span>
-            <span className="font-mono">{formatVnd(breakdown.subtotal)}</span>
+            <span>{t('subtotal')}</span>
+            <span className="font-mono">{formatVnd(breakdown.subtotal, lang)}</span>
           </div>
           <div className="flex justify-between items-center text-sm text-ink-sec">
-            <span>Phí vận chuyển</span>
+            <span>{t('shippingFee')}</span>
             {breakdown.shippingFee === 0 ? (
-              <span className="text-accent-green font-medium">Miễn phí</span>
+              <span className="text-accent-green font-medium">{t('free')}</span>
             ) : (
-              <span className="font-mono">{formatVnd(breakdown.shippingFee)}</span>
+              <span className="font-mono">{formatVnd(breakdown.shippingFee, lang)}</span>
             )}
           </div>
           {breakdown.discount > 0 && (
             <div className="flex justify-between items-center text-sm text-ink-sec">
               <span>
-                Giảm giá
-                {order.voucherCode && (
-                  <span className="font-mono text-xs text-accent-amber"> ({order.voucherCode})</span>
+                {t('discount')}
+                {voucherLabel && (
+                  <span className="font-mono text-xs text-accent-amber"> ({voucherLabel})</span>
                 )}
               </span>
               <span className="font-mono text-accent-green">
-                −{formatVnd(breakdown.discount)}
+                −{formatVnd(breakdown.discount, lang)}
               </span>
             </div>
           )}
           <div className="flex justify-between items-center pt-2 border-t border-bdr">
-            <span className="font-semibold text-ink-pri">Tổng cộng</span>
+            <span className="font-semibold text-ink-pri">{t('total')}</span>
             <span className="font-mono font-black text-xl text-accent-amber">
-              {formatVnd(breakdown.total)}
+              {formatVnd(breakdown.total, lang)}
             </span>
           </div>
         </div>
@@ -385,7 +401,7 @@ export default function OrderDetailPage(): ReactElement {
             disabled={getPaymentUrl.isPending}
           >
             <CreditCard size={16} />
-            {getPaymentUrl.isPending ? 'Đang xử lý...' : 'Thanh toán ngay'}
+            {getPaymentUrl.isPending ? t('processing') : t('payNow')}
           </GradientButton>
         )}
         <InvoiceDownloadButton orderId={order.id} />
@@ -396,7 +412,7 @@ export default function OrderDetailPage(): ReactElement {
             className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-tb-input border border-tb-red/30 bg-tb-red/5 text-accent-red font-semibold text-sm cursor-pointer hover:bg-tb-red/10 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <XCircle size={15} />
-            {cancelOrder.isPending ? 'Đang hủy...' : 'Hủy đơn'}
+            {cancelOrder.isPending ? t('canceling') : t('cancelOrder')}
           </button>
         )}
         {canSubmitReturn && !returnFormOpen && (
@@ -405,7 +421,7 @@ export default function OrderDetailPage(): ReactElement {
             className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-tb-input border border-tb-amber/30 bg-tb-amber/5 text-accent-amber font-semibold text-sm cursor-pointer hover:bg-tb-amber/10 transition-colors"
           >
             <RotateCcw size={15} />
-            Yêu cầu trả hàng
+            {t('requestReturn')}
           </button>
         )}
       </div>
@@ -414,50 +430,59 @@ export default function OrderDetailPage(): ReactElement {
       {canSubmitReturn && returnFormOpen && (
         <div className="mt-4 bg-canvas-surface border border-bdr rounded-xl p-4 flex flex-col gap-3">
           <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted flex items-center gap-1.5">
-            <RotateCcw size={13} className="shrink-0" /> Yêu cầu trả hàng / hoàn tiền
+            <RotateCcw size={13} className="shrink-0" /> {t('returnFormTitle')}
           </span>
           <textarea
             value={returnReason}
             onChange={(e) => setReturnReason(e.target.value)}
-            placeholder="Lý do trả hàng (bắt buộc)"
+            placeholder={t('returnReasonPlaceholder')}
             maxLength={1000}
             rows={3}
             className="w-full resize-none rounded-tb-input border border-bdr bg-canvas-base text-ink-pri font-body text-sm px-3 py-2 placeholder:text-ink-muted focus:outline-none focus:border-accent-amber transition-colors"
           />
+          <ReturnPhotoPicker state={returnPhotos} disabled={requestReturn.isPending} />
           {requestReturn.isError && (
             <p className="m-0 font-body text-sm text-accent-red">
-              {returnRequestErrorMessage(requestReturn.error)}
+              {returnRequestErrorMessage(requestReturn.error, lang)}
             </p>
           )}
           <div className="flex gap-3">
             <button
               type="button"
-              disabled={requestReturn.isPending || !returnReason.trim()}
-              onClick={() => requestReturn.mutate(returnReason.trim(), {
-                onSuccess: () => { setReturnFormOpen(false); setReturnReason(''); },
-              })}
+              disabled={requestReturn.isPending || returnPhotos.uploading || !returnReason.trim()}
+              onClick={() => requestReturn.mutate(
+                returnRequestPayload(returnReason, returnPhotos.photos.map((photo) => photo.url)),
+                {
+                  onSuccess: () => {
+                    setReturnFormOpen(false);
+                    setReturnReason('');
+                    returnPhotos.reset();
+                  },
+                },
+              )}
               className="px-4 py-2 rounded-tb-cta bg-accent-amber text-canvas-base font-body font-semibold text-sm transition-opacity disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed hover:opacity-90"
             >
-              {requestReturn.isPending ? 'Đang gửi...' : 'Gửi yêu cầu'}
+              {requestReturn.isPending ? t('sending') : t('submitRequest')}
             </button>
             <button
               type="button"
-              onClick={() => setReturnFormOpen(false)}
-              className="px-4 py-2 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-pri font-body font-semibold text-sm cursor-pointer hover:border-accent-amber transition-colors"
+              disabled={requestReturn.isPending}
+              onClick={() => { setReturnFormOpen(false); returnPhotos.discard(); }}
+              className="px-4 py-2 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-pri font-body font-semibold text-sm cursor-pointer hover:border-accent-amber transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Đóng
+              {t('close')}
             </button>
           </div>
         </div>
       )}
       {getPaymentUrl.isError && (
         <p className="mt-3 mb-0 font-body text-sm text-accent-red">
-          {paymentUrlErrorMessage(getPaymentUrl.error)}
+          {paymentUrlErrorMessage(getPaymentUrl.error, lang)}
         </p>
       )}
       {cancelOrder.isError && (
         <p className="mt-3 mb-0 font-body text-sm text-accent-red">
-          Không thể hủy đơn hàng. Vui lòng thử lại.
+          {t('cancelFailed')}
         </p>
       )}
     </div>

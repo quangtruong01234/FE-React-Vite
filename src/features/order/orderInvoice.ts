@@ -9,13 +9,18 @@
  *    404 order not found.
  */
 
+import type { Lang } from '@/lib/i18n/lang';
+import { bindTranslator } from '@/lib/i18n/messages';
+import { orderMessages } from './order.i18n';
+
 /** Download filename, mirroring the backend `Content-Disposition` value. */
 export function invoiceFileName(orderId: string): string {
   return `invoice-${orderId}.pdf`;
 }
 
-/** Maps a failed invoice download to a user-facing Vietnamese message. */
-export function invoiceErrorMessage(error: unknown): string {
+/** Maps a failed invoice download to a user-facing message. */
+export function invoiceErrorMessage(error: unknown, lang: Lang = 'vi'): string {
+  const t = bindTranslator(orderMessages, lang);
   const status =
     error && typeof error === 'object' && 'statusCode' in error
       ? (error as { statusCode?: number }).statusCode
@@ -23,14 +28,14 @@ export function invoiceErrorMessage(error: unknown): string {
 
   switch (status) {
     case 400:
-      return 'Mã đơn hàng không hợp lệ.';
+      return t('invoiceBadId');
     case 401:
-      return 'Vui lòng đăng nhập để tải hóa đơn.';
+      return t('invoiceLogin');
     case 403:
-      return 'Bạn không có quyền tải hóa đơn của đơn hàng này.';
+      return t('invoiceForbidden');
     case 404:
-      return 'Không tìm thấy đơn hàng.';
+      return t('orderNotFound');
     default:
-      return 'Không tải được hóa đơn. Vui lòng thử lại.';
+      return t('invoiceFailed');
   }
 }

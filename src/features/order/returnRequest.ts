@@ -1,12 +1,18 @@
+import uniq from 'lodash/uniq';
 import type {
   ApiError,
+  CreateReturnRequestDto,
   OrderStatus,
   ReturnRequest,
   ReturnRequestStatus,
 } from '@/types';
-import { PAYMENT_LABEL } from './orderConstants';
+import { paymentLabel } from './orderConstants';
+import type { Lang } from '@/lib/i18n/lang';
+import { bindTranslator, type MessageKey } from '@/lib/i18n/messages';
+import { orderMessages } from './order.i18n';
 import { isReturnStatus } from '@/lib/domain/orderStatus';
 import { userSummaryLabel } from '@/lib/format/user';
+import { MAX_IMAGE_BYTES, validateUploadFile, type FileLike } from '@/lib/http/uploadValidation';
 
 /**
  * Pure helpers for the buyer return/refund flow (F2).
@@ -42,21 +48,26 @@ export interface ReturnStatusMeta {
   className: string;
 }
 
-const RETURN_STATUS_META: Record<ReturnRequestStatus, ReturnStatusMeta> = {
-  pending_review: { label: 'Chờ duyệt', className: 'bg-tb-amber/10 text-accent-amber border-tb-amber/20' },
-  approved:       { label: 'Đã duyệt',  className: 'bg-tb-green/10 text-accent-green border-tb-green/20' },
-  rejected:       { label: 'Từ chối',   className: 'bg-tb-red/10 text-accent-red border-tb-red/20' },
+const RETURN_STATUS_META: Record<
+  ReturnRequestStatus,
+  { labelKey: MessageKey<typeof orderMessages>; className: string }
+> = {
+  pending_review: { labelKey: 'returnPending', className: 'bg-tb-amber/10 text-accent-amber border-tb-amber/20' },
+  approved:       { labelKey: 'returnApproved', className: 'bg-tb-green/10 text-accent-green border-tb-green/20' },
+  rejected:       { labelKey: 'returnRejected', className: 'bg-tb-red/10 text-accent-red border-tb-red/20' },
 };
 
-export function returnStatusMeta(status: ReturnRequestStatus): ReturnStatusMeta {
-  return RETURN_STATUS_META[status] ?? RETURN_STATUS_META.pending_review;
+export function returnStatusMeta(status: ReturnRequestStatus, lang: Lang = 'vi'): ReturnStatusMeta {
+  const { labelKey, className } = RETURN_STATUS_META[status] ?? RETURN_STATUS_META.pending_review;
+  return { label: bindTranslator(orderMessages, lang)(labelKey), className };
 }
 
 /** Human line for the recorded refund: online methods settle instantly, COD is manual. */
-export function refundStatusLabel(request: ReturnRequest): string | null {
+export function refundStatusLabel(request: ReturnRequest, lang: Lang = 'vi'): string | null {
   if (request.status !== 'approved' || !request.refundStatus) return null;
-  const method = request.refundMethod ? PAYMENT_LABEL[request.refundMethod] : null;
-  const base = request.refundStatus === 'refunded' ? 'Đã hoàn tiền' : 'Chờ hoàn tiền thủ công';
+  const t = bindTranslator(orderMessages, lang);
+  const method = request.refundMethod ? paymentLabel(request.refundMethod, lang) : null;
+  const base = request.refundStatus === 'refunded' ? t('refundDone') : t('refundManual');
   return method ? `${base} · ${method}` : base;
 }
 
@@ -71,12 +82,51 @@ export function reviewerLabel(request: ReturnRequest): string | null {
   return userSummaryLabel(request.reviewer, request.reviewedBy);
 }
 
-/** Friendly message for a failed return-request submit (400 = ineligible order). */
-export function returnRequestErrorMessage(error: unknown): string {
+/**
+ * Friendly message for a failed return-request submit. A 400 is normally an
+ * ineligible order, but RETURN-PHOTO-01 adds photo validation to the same
+ * status — a message naming `imageUrls` is about the photos, not the order.
+ */
+export function returnRequestErrorMessage(error: unknown, lang: Lang = 'vi'): string {
+  const t = bindTranslator(orderMessages, lang);
   const err = error as ApiError | undefined;
   if (err?.statusCode === 400) {
-    return 'Đơn hàng không đủ điều kiện trả hàng (chỉ đơn đang giao/hoàn thành, chưa có yêu cầu đang chờ).';
+    const message = typeof err.message === 'string' ? err.message : '';
+    return /imageUrls/i.test(message) ? t('returnPhotoRejected') : t('returnIneligible');
   }
   if (typeof err?.message === 'string' && err.message.trim()) return err.message;
-  return 'Không thể gửi yêu cầu trả hàng. Vui lòng thử lại.';
+  return t('returnFailed');
+}
+
+// RETURN-PHOTO-01: the backend caps `imageUrls` at 5 unique Cloudinary URLs from
+// `trybuy/returns`, and that folder only takes jpg/png/webp.
+export const MAX_RETURN_PHOTOS = 5;
+export const RETURN_PHOTO_ACCEPT = 'image/jpeg,image/png,image/webp';
+const RETURN_PHOTO_MIME: ReadonlySet<string> = new Set(RETURN_PHOTO_ACCEPT.split(','));
+const RETURN_PHOTO_EXT: ReadonlySet<string> = new Set(['jpg', 'jpeg', 'png', 'webp']);
+
+/**
+ * Pre-upload guard for one return photo. The shared upload validator accepts
+ * any `image/*`, which would let a GIF or HEIC through to a signature the
+ * returns folder then refuses — so the format is narrowed here first.
+ */
+export function returnPhotoError(file: FileLike, lang: Lang = 'vi'): string | null {
+  const mime = (file.type ?? '').toLowerCase();
+  const ext = file.name?.split('.').pop()?.toLowerCase() ?? '';
+  const formatOk = mime ? RETURN_PHOTO_MIME.has(mime) : RETURN_PHOTO_EXT.has(ext);
+  if (!formatOk) return bindTranslator(orderMessages, lang)('returnPhotoFormat');
+  return validateUploadFile(file, { kind: 'image', maxBytes: MAX_IMAGE_BYTES }, lang);
+}
+
+/**
+ * Body for `POST /order/:id/return-request`. `imageUrls` is left out entirely
+ * when there are no photos: a gateway that predates RETURN-PHOTO-01 rejects
+ * unknown body keys (`forbidNonWhitelisted`), so a text-only request must keep
+ * the old shape to stay valid on either backend.
+ */
+export function returnRequestPayload(reason: string, imageUrls: readonly string[] = []): CreateReturnRequestDto {
+  const urls = uniq(imageUrls.filter((url) => url.length > 0)).slice(0, MAX_RETURN_PHOTOS);
+  const body: CreateReturnRequestDto = { reason: reason.trim() };
+  if (urls.length > 0) body.imageUrls = urls;
+  return body;
 }

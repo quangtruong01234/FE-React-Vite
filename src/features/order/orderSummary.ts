@@ -1,4 +1,7 @@
 import type { OrderItem } from '@/types';
+import type { Lang } from '@/lib/i18n/lang';
+import { bindTranslator } from '@/lib/i18n/messages';
+import { orderMessages } from './order.i18n';
 
 /**
  * One-line product summary for an order row. Order items are server-enriched
@@ -6,13 +9,16 @@ import type { OrderItem } from '@/types';
  * to a count when the name is missing, and to a generic label for an empty order
  * so the row never renders blank.
  */
-export function orderItemsSummary(items: OrderItem[]): string {
+export function orderItemsSummary(items: OrderItem[], lang: Lang = 'vi'): string {
+  const t = bindTranslator(orderMessages, lang);
   const first = items[0];
   const firstName = first?.productName;
   if (firstName) {
-    return items.length > 1 ? `${firstName} +${items.length - 1} sản phẩm khác` : firstName;
+    return items.length > 1
+      ? t('itemsMore', { name: firstName, count: items.length - 1 })
+      : firstName;
   }
-  return items.length > 0 ? `${items.length} sản phẩm` : 'Đơn hàng';
+  return items.length > 0 ? t('itemsCount', { count: items.length }) : t('orderFallback');
 }
 
 /**
@@ -56,4 +62,20 @@ export function orderPriceBreakdown(order: {
       ? Number(order.shippingFee)
       : Math.max(0, total - subtotal + discount);
   return { subtotal, shippingFee, discount, total };
+}
+
+/**
+ * The codes an order redeemed, as the invoice prints them. VOUCHER-SHOP-01
+ * phase 2: an order holding both a shop and a platform code carries the shop
+ * one in `voucherCode` and the platform one in `platformVoucherCode`, so a
+ * platform-only order still reads `voucherCode` alone. `null` when none.
+ */
+export function orderVoucherLabel(order: {
+  voucherCode?: string | null;
+  platformVoucherCode?: string | null;
+}): string | null {
+  const codes = [order.voucherCode, order.platformVoucherCode].filter(
+    (code): code is string => Boolean(code),
+  );
+  return codes.length > 0 ? codes.join(' + ') : null;
 }

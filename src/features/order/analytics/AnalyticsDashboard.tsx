@@ -12,14 +12,17 @@ import { orderStatusSlices, sliceTotal, type ChartSlice } from '@/lib/chart/char
 import { rangePresetDates } from './analyticsRange';
 import { revenueTrend, topProductSeries } from './analyticsChartData';
 import type { AnalyticsFilters } from './useAnalyticsFilters';
+import { analyticsMessages } from './analytics.i18n';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
 import type { OrderAnalytics } from '@/types';
 
 type RangePreset = '7d' | '30d' | '90d';
 
-const RANGE_PRESETS: { key: RangePreset; label: string; days: number }[] = [
-  { key: '7d', label: '7 ngày', days: 7 },
-  { key: '30d', label: '30 ngày', days: 30 },
-  { key: '90d', label: '90 ngày', days: 90 },
+const RANGE_PRESETS: { key: RangePreset; days: number }[] = [
+  { key: '7d', days: 7 },
+  { key: '30d', days: 30 },
+  { key: '90d', days: 90 },
 ];
 
 interface AnalyticsDashboardProps {
@@ -66,6 +69,8 @@ export function AnalyticsDashboard({
   // retry; only the charts are replaced. Without this the page rendered nothing
   // at all below the heading — indistinguishable from "chưa có dữ liệu".
   const loadError = toApiError(error);
+  const t = useT(analyticsMessages);
+  const { lang } = useLanguage();
 
   function applyRangePreset(days: number): void {
     onFiltersChange({ ...filters, ...rangePresetDates(days) });
@@ -76,8 +81,8 @@ export function AnalyticsDashboard({
   }
 
   const statusSlices = useMemo(
-    () => orderStatusSlices(data?.statusDistribution),
-    [data?.statusDistribution],
+    () => orderStatusSlices(data?.statusDistribution, lang),
+    [data?.statusDistribution, lang],
   );
 
   const trend = useMemo(
@@ -94,14 +99,14 @@ export function AnalyticsDashboard({
     () => [
       {
         id: 'revenue',
-        label: 'Doanh thu',
+        label: t('revenue'),
         color: 'amber',
         values: trend.revenue,
-        formatter: formatPrice,
+        formatter: (n: number) => formatPrice(n, lang),
       },
       {
         id: 'orderCount',
-        label: 'Số đơn',
+        label: t('orderCount'),
         color: 'cyan',
         values: trend.orderCount,
         fill: false,
@@ -109,7 +114,7 @@ export function AnalyticsDashboard({
         formatter: (value) => String(value),
       },
     ],
-    [trend],
+    [trend, t, lang],
   );
 
   const statusTotal = sliceTotal(statusSlices);
@@ -117,8 +122,8 @@ export function AnalyticsDashboard({
   // Names the two lines of the trend chart; the numbers live on its axes, so the
   // legend renders keys only.
   const trendLegend: ChartSlice[] = [
-    { key: 'revenue', label: 'Doanh thu', value: 0, color: 'amber' },
-    { key: 'orders', label: 'Số đơn', value: 0, color: 'cyan' },
+    { key: 'revenue', label: t('revenue'), value: 0, color: 'amber' },
+    { key: 'orders', label: t('orderCount'), value: 0, color: 'cyan' },
   ];
 
   return (
@@ -134,7 +139,7 @@ export function AnalyticsDashboard({
               : 'border-bdr bg-canvas-elevated text-ink-sec hover:border-tb-amber/40',
           )}
         >
-          30 ngày (mặc định)
+          {t('defaultRange')}
         </button>
         {RANGE_PRESETS.map(preset => (
           <button
@@ -142,7 +147,7 @@ export function AnalyticsDashboard({
             onClick={() => applyRangePreset(preset.days)}
             className="px-3 py-1.5 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec font-body text-xs hover:border-tb-amber/40 transition-colors"
           >
-            {preset.label}
+            {t('daysPreset', { n: preset.days })}
           </button>
         ))}
         <div className="w-px h-5 bg-bdr mx-1" />
@@ -157,7 +162,7 @@ export function AnalyticsDashboard({
                 : 'border-bdr bg-canvas-elevated text-ink-sec hover:border-tb-amber/40',
             )}
           >
-            {interval === 'day' ? 'Theo ngày' : 'Theo tháng'}
+            {interval === 'day' ? t('byDay') : t('byMonth')}
           </button>
         ))}
       </div>
@@ -169,35 +174,35 @@ export function AnalyticsDashboard({
           {/* Summary cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <StatCard
-              label="Doanh thu"
-              value={isLoading || !data ? '—' : formatVnd(data.summary.totalRevenue)}
+              label={t('revenue')}
+              value={isLoading || !data ? '—' : formatVnd(data.summary.totalRevenue, lang)}
               icon={DollarSign}
             />
             <StatCard
-              label="Đơn hoàn thành"
+              label={t('completedOrders')}
               value={isLoading || !data ? '—' : String(data.summary.completedOrders)}
               icon={Package}
             />
             <StatCard
-              label="Tổng đơn"
+              label={t('totalOrders')}
               value={isLoading || !data ? '—' : String(data.summary.totalOrders)}
               icon={Receipt}
             />
             <StatCard
-              label="Giá trị đơn TB"
-              value={isLoading || !data ? '—' : formatVnd(data.summary.averageOrderValue)}
+              label={t('avgOrderValue')}
+              value={isLoading || !data ? '—' : formatVnd(data.summary.averageOrderValue, lang)}
               icon={TrendingUp}
             />
           </div>
 
           {/* Revenue over time */}
           <ChartFrame
-            title="Doanh thu theo thời gian"
-            subtitle={data?.interval === 'month' ? 'Theo tháng' : 'Theo ngày'}
+            title={t('revenueOverTime')}
+            subtitle={data?.interval === 'month' ? t('byMonth') : t('byDay')}
             height={260}
             isLoading={isLoading}
             isEmpty={trend.labels.length === 0}
-            emptyLabel="Chưa có dữ liệu trong khoảng thời gian này."
+            emptyLabel={t('noDataRange')}
             footer={
               <ChartLegend layout="inline" className="mt-4" slices={trendLegend} showValues={false} />
             }
@@ -205,26 +210,26 @@ export function AnalyticsDashboard({
             <TrendAreaChart
               labels={trend.labels}
               series={trendSeries}
-              ariaLabel="Biểu đồ doanh thu và số đơn theo thời gian"
+              ariaLabel={t('trendAria')}
             />
           </ChartFrame>
 
           <div className="grid md:grid-cols-2 gap-6">
             {/* Status distribution */}
             <ChartFrame
-              title="Phân bố trạng thái đơn"
+              title={t('statusDistribution')}
               height={200}
               isLoading={isLoading}
               isEmpty={statusSlices.length === 0}
-              emptyLabel="Chưa có đơn hàng nào."
+              emptyLabel={t('noOrders')}
             >
               <div className="flex items-center gap-6 size-full">
                 <div className="w-1/2 h-full shrink-0">
                   <DoughnutChart
                     slices={statusSlices}
-                    ariaLabel="Biểu đồ phân bố trạng thái đơn hàng"
+                    ariaLabel={t('statusAria')}
                     centerValue={String(statusTotal)}
-                    centerLabel="đơn"
+                    centerLabel={t('ordersUnit')}
                   />
                 </div>
                 <ChartLegend slices={statusSlices} showPercent className="flex-1 min-w-0" />
@@ -233,20 +238,20 @@ export function AnalyticsDashboard({
 
             {/* Top products */}
             <ChartFrame
-              title="Sản phẩm bán chạy"
+              title={t('topProducts')}
               height={200}
               isLoading={isLoading}
               isEmpty={topProducts.slices.length === 0}
-              emptyLabel="Chưa có sản phẩm nào được bán."
+              emptyLabel={t('noSales')}
             >
               <RankedBarChart
                 slices={topProducts.slices}
-                valueLabel="Đã bán"
-                ariaLabel="Biểu đồ sản phẩm bán chạy theo số lượng"
+                valueLabel={t('sold')}
+                ariaLabel={t('topAria')}
                 labelWidth={110}
                 tooltipExtra={(index) => {
                   const revenue = topProducts.revenues[index];
-                  return revenue == null ? undefined : `Doanh thu: ${formatVnd(revenue)}`;
+                  return revenue == null ? undefined : t('revenueTooltip', { amount: formatVnd(revenue, lang) });
                 }}
               />
             </ChartFrame>

@@ -23,4 +23,11 @@ describe('expectedDeliveryLabel', () => {
   it('shows nothing for an unparseable value', () => {
     expect(expectedDeliveryLabel('not-a-date')).toBeNull();
   });
+
+  it('labels the date in English when asked', () => {
+    expect(expectedDeliveryLabel('2026-09-13T16:59:59.000Z', 'en')).toBe(
+      'Estimated delivery: 09/13/2026',
+    );
+    expect(expectedDeliveryLabel(null, 'en')).toBeNull();
+  });
 });

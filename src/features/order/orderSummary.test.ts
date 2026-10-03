@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import type { OrderItem } from '@/types';
-import { orderItemsSummary, orderCoverImage, orderPriceBreakdown } from './orderSummary';
+import {
+  orderItemsSummary,
+  orderCoverImage,
+  orderPriceBreakdown,
+  orderVoucherLabel,
+} from './orderSummary';
 
 function item(productId: number, partial: Partial<OrderItem> = {}): OrderItem {
   return { id: productId, productId: `prod_${productId}`, quantity: 1, price: 1000, ...partial };
@@ -22,6 +27,15 @@ describe('orderItemsSummary', () => {
 
   it('uses a generic label for an empty order', () => {
     expect(orderItemsSummary([])).toBe('Đơn hàng');
+  });
+
+  it('speaks English with singular/plural item counts', () => {
+    const named = item(1, { productName: 'Bottle' });
+    expect(orderItemsSummary([named, item(2)], 'en')).toBe('Bottle +1 more item');
+    expect(orderItemsSummary([named, item(2), item(3)], 'en')).toBe('Bottle +2 more items');
+    expect(orderItemsSummary([item(1)], 'en')).toBe('1 item');
+    expect(orderItemsSummary([item(1), item(2)], 'en')).toBe('2 items');
+    expect(orderItemsSummary([], 'en')).toBe('Order');
   });
 });
 
@@ -106,5 +120,23 @@ describe('orderPriceBreakdown', () => {
       total: 500,
     });
     expect(b.shippingFee).toBe(0);
+  });
+});
+
+describe('orderVoucherLabel', () => {
+  it('joins the shop and platform codes like the invoice does', () => {
+    expect(orderVoucherLabel({ voucherCode: 'SHOPA10', platformVoucherCode: 'SALE50' })).toBe(
+      'SHOPA10 + SALE50',
+    );
+  });
+
+  it('shows a lone code (platform-only orders keep it in voucherCode)', () => {
+    expect(orderVoucherLabel({ voucherCode: 'SALE50', platformVoucherCode: null })).toBe('SALE50');
+    expect(orderVoucherLabel({ voucherCode: 'SALE50' })).toBe('SALE50');
+  });
+
+  it('is null when the order redeemed no code', () => {
+    expect(orderVoucherLabel({ voucherCode: null, platformVoucherCode: null })).toBeNull();
+    expect(orderVoucherLabel({})).toBeNull();
   });
 });

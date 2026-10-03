@@ -4,6 +4,8 @@ import { ArrowLeft, BadgeCheck, Ban, RotateCcw } from 'lucide-react';
 import { useReturnRequestQueue, useReviewReturnRequest } from './useReturnRequests';
 import { usePageParam } from '@/hooks/ui/usePageParam';
 import { useFilterParam } from '@/hooks/ui/useFilterParam';
+import { useListSearch, listSearchEmptyText } from '@/hooks/ui/useListSearch';
+import { SearchField } from '@/components/shared/SearchField';
 import { returnStatusMeta, refundStatusLabel } from './returnRequest';
 import { Pagination } from '@/components/shared/Pagination';
 import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
@@ -11,14 +13,23 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatVnd } from '@/lib/format/utils';
 import { formatDateTime } from '@/lib/format/time';
 import type { ReturnRequest, ReturnRequestStatus } from '@/types';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import type { MessageKey } from '@/lib/i18n/messages';
+import { orderMessages } from './order.i18n';
+import { ReturnPhotoStrip } from './ReturnPhotoStrip';
 
 type FilterKey = 'all' | ReturnRequestStatus;
 
-const FILTER_OPTS: { id: FilterKey; label: string; status?: ReturnRequestStatus }[] = [
-  { id: 'all',            label: 'Tất cả' },
-  { id: 'pending_review', label: 'Chờ duyệt', status: 'pending_review' },
-  { id: 'approved',       label: 'Đã duyệt',  status: 'approved' },
-  { id: 'rejected',       label: 'Từ chối',   status: 'rejected' },
+const FILTER_OPTS: {
+  id: FilterKey;
+  labelKey: MessageKey<typeof orderMessages>;
+  status?: ReturnRequestStatus;
+}[] = [
+  { id: 'all',            labelKey: 'filterAll' },
+  { id: 'pending_review', labelKey: 'returnPending',  status: 'pending_review' },
+  { id: 'approved',       labelKey: 'returnApproved', status: 'approved' },
+  { id: 'rejected',       labelKey: 'returnRejected', status: 'rejected' },
 ];
 
 const FILTER_KEYS: readonly FilterKey[] = FILTER_OPTS.map(o => o.id);
@@ -38,12 +49,14 @@ function RequestCard({
 }): ReactElement {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
-  const meta = returnStatusMeta(request.status);
-  const refundLine = refundStatusLabel(request);
+  const t = useT(orderMessages);
+  const { lang } = useLanguage();
+  const meta = returnStatusMeta(request.status, lang);
+  const refundLine = refundStatusLabel(request, lang);
   const busy = pendingAction !== null;
 
   return (
-    <div className="bg-canvas-surface border border-bdr rounded-xl p-5">
+    <div data-testid={`seller-return-${request.id}`} className="bg-canvas-surface border border-bdr rounded-xl p-5">
       <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
         <div className="flex items-center gap-2.5 flex-wrap">
           <RotateCcw size={15} className="text-accent-amber shrink-0" />
@@ -51,9 +64,9 @@ function RequestCard({
             to={`/order/${request.orderId}`}
             className="font-mono font-bold text-[13px] text-ink-pri hover:text-accent-amber transition-colors"
           >
-            Đơn #{request.orderId}
+            {t('orderRef', { id: request.orderId })}
           </Link>
-          <span className="font-body text-xs text-ink-sec">{formatDateTime(request.createdAt)}</span>
+          <span className="font-body text-xs text-ink-sec">{formatDateTime(request.createdAt, lang)}</span>
         </div>
         <span className={cn(
           'inline-flex items-center px-2 py-0.5 text-xs font-body font-medium rounded-tb-pill border',
@@ -63,14 +76,15 @@ function RequestCard({
         </span>
       </div>
 
-      <p className="m-0 font-body text-sm text-ink-pri">Lý do người mua: {request.reason}</p>
+      <p className="m-0 font-body text-sm text-ink-pri">{t('buyerReason', { reason: request.reason })}</p>
+      <ReturnPhotoStrip urls={request.imageUrls} className="mt-2" />
       {request.status === 'rejected' && request.rejectReason && (
-        <p className="m-0 mt-1.5 font-body text-sm text-accent-red">Đã từ chối: {request.rejectReason}</p>
+        <p className="m-0 mt-1.5 font-body text-sm text-accent-red">{t('rejectedReason', { reason: request.rejectReason })}</p>
       )}
       {refundLine && (
         <p className="m-0 mt-1.5 font-body text-sm text-accent-green">
           {refundLine}
-          {request.refundAmount != null && ` · ${formatVnd(request.refundAmount)}`}
+          {request.refundAmount != null && ` · ${formatVnd(request.refundAmount, lang)}`}
         </p>
       )}
 
@@ -85,7 +99,7 @@ function RequestCard({
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-tb-cta bg-tb-green/90 text-canvas-base font-body font-semibold text-sm transition-opacity disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed hover:opacity-90"
               >
                 <BadgeCheck size={15} className="shrink-0" />
-                {pendingAction === 'approve' ? 'Đang duyệt...' : 'Duyệt & hoàn tiền'}
+                {pendingAction === 'approve' ? t('approving') : t('approveRefund')}
               </button>
               <button
                 type="button"
@@ -94,7 +108,7 @@ function RequestCard({
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-tb-input border border-tb-red/30 bg-tb-red/5 text-accent-red font-body font-semibold text-sm cursor-pointer hover:bg-tb-red/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Ban size={15} className="shrink-0" />
-                Từ chối
+                {t('reject')}
               </button>
             </div>
           ) : (
@@ -102,7 +116,7 @@ function RequestCard({
               <textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Lý do từ chối (bắt buộc)"
+                placeholder={t('rejectReasonPlaceholder')}
                 maxLength={1000}
                 rows={2}
                 className="w-full resize-none rounded-tb-input border border-bdr bg-canvas-base text-ink-pri font-body text-sm px-3 py-2 placeholder:text-ink-muted focus:outline-none focus:border-accent-amber transition-colors"
@@ -114,7 +128,7 @@ function RequestCard({
                   onClick={() => onReject(request.id, rejectReason.trim())}
                   className="px-4 py-2 rounded-tb-input border border-tb-red/30 bg-tb-red/5 text-accent-red font-body font-semibold text-sm cursor-pointer hover:bg-tb-red/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {pendingAction === 'reject' ? 'Đang từ chối...' : 'Xác nhận từ chối'}
+                  {pendingAction === 'reject' ? t('rejecting') : t('confirmReject')}
                 </button>
                 <button
                   type="button"
@@ -122,7 +136,7 @@ function RequestCard({
                   onClick={() => setRejectOpen(false)}
                   className="px-4 py-2 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-pri font-body font-semibold text-sm cursor-pointer hover:border-accent-amber transition-colors"
                 >
-                  Đóng
+                  {t('close')}
                 </button>
               </div>
             </>
@@ -135,11 +149,14 @@ function RequestCard({
 
 export default function SellerReturnRequestsPage(): ReactElement {
   const navigate = useNavigate();
+  const t = useT(orderMessages);
+  const { lang } = useLanguage();
   const [filterTab, setFilterTab] = useFilterParam<FilterKey>('status', FILTER_KEYS, 'pending_review');
   const [page, setPage] = usePageParam();
+  const search = useListSearch(() => { if (page !== 1) setPage(1); });
 
   const activeStatus = FILTER_OPTS.find(o => o.id === filterTab)?.status;
-  const { data, isLoading, isFetching, error } = useReturnRequestQueue(page, LIMIT, activeStatus);
+  const { data, isLoading, isFetching, error } = useReturnRequestQueue(page, LIMIT, activeStatus, search.term);
   const review = useReviewReturnRequest();
 
   const requests = data?.data ?? [];
@@ -148,13 +165,13 @@ export default function SellerReturnRequestsPage(): ReactElement {
   const errorMsg = error
     ? (typeof error === 'object' && 'message' in error
         ? String((error as { message: unknown }).message)
-        : 'Lỗi tải yêu cầu trả hàng')
+        : t('returnLoadFailed'))
     : null;
 
   const reviewErrorMsg = review.isError
     ? (typeof review.error === 'object' && review.error !== null && 'message' in review.error
         ? String((review.error as { message: unknown }).message)
-        : 'Không thể xử lý yêu cầu. Vui lòng thử lại.')
+        : t('reviewFailed'))
     : null;
 
   // setFilterTab also drops ?page= in the same URL update (useFilterParam).
@@ -173,18 +190,18 @@ export default function SellerReturnRequestsPage(): ReactElement {
         <button
           type="button"
           onClick={() => navigate('/sell/orders')}
-          aria-label="Quay lại"
+          aria-label={t('back')}
           className="bg-canvas-elevated border border-bdr rounded-lg px-3 py-2 text-ink-pri cursor-pointer text-sm hover:border-accent-amber transition-colors inline-flex items-center gap-1.5"
         >
-          <ArrowLeft size={16} className="shrink-0" /> Đơn hàng
+          <ArrowLeft size={16} className="shrink-0" /> {t('ordersNav')}
         </button>
       </div>
 
       <h1 className="font-display font-black text-4xl leading-[1.05] tracking-[-0.02em] text-ink-pri m-0 mb-1">
-        Yêu cầu trả hàng
+        {t('returnRequests')}
       </h1>
       <p className="font-body text-sm text-ink-sec mt-1 mb-7">
-        Duyệt hoặc từ chối yêu cầu trả hàng / hoàn tiền từ người mua
+        {t('sellerReturnsSub')}
       </p>
 
       {errorMsg && (
@@ -199,7 +216,7 @@ export default function SellerReturnRequestsPage(): ReactElement {
       )}
 
       {/* Filter tabs */}
-      <div className="flex gap-2.5 overflow-x-auto pb-0.5 mb-6">
+      <div className="flex gap-2.5 overflow-x-auto pb-0.5 mb-4">
         {FILTER_OPTS.map(opt => {
           const active = opt.id === filterTab;
           return (
@@ -212,11 +229,18 @@ export default function SellerReturnRequestsPage(): ReactElement {
                 active ? 'bg-tb-gradient border-transparent text-ink-on-accent' : 'bg-tb-elevated border-tb-border',
               )}
             >
-              {opt.label}
+              {t(opt.labelKey)}
             </button>
           );
         })}
       </div>
+
+      <SearchField
+        value={search.input}
+        onChange={search.setInput}
+        placeholder={t('returnSearchPlaceholder')}
+        className="max-w-md mb-6"
+      />
 
       {isLoading && (
         <div className="flex flex-col gap-3">
@@ -229,7 +253,8 @@ export default function SellerReturnRequestsPage(): ReactElement {
       {!isLoading && !errorMsg && requests.length === 0 && (
         <div className="bg-canvas-surface border border-bdr rounded-xl py-[60px] px-6 text-center">
           <p className="font-body text-sm text-ink-sec m-0">
-            {filterTab === 'pending_review' ? 'Không có yêu cầu nào chờ duyệt' : 'Không có yêu cầu nào trong mục này'}
+            {listSearchEmptyText(search, t('nounRequests'), lang)
+              ?? (filterTab === 'pending_review' ? t('noPendingReturns') : t('noReturnsInTab'))}
           </p>
         </div>
       )}

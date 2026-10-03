@@ -3,16 +3,17 @@ import { api } from '@/api';
 import { invalidateOrderViews } from '@/lib/query/orderInvalidation';
 import { queryClient } from '@/lib/query/queryClient';
 import { queryKeys } from '@/hooks/query/queryKeys';
-import type { PaginatedResponse, ReturnRequest, ReturnRequestStatus } from '@/types';
+import type { CreateReturnRequestDto, PaginatedResponse, ReturnRequest, ReturnRequestStatus } from '@/types';
 
 export function useMyReturnRequests(
   page = 1,
   limit = 10,
   enabled = true,
+  q = '',
 ): UseQueryResult<PaginatedResponse<ReturnRequest>> {
   return useQuery({
-    queryKey: queryKeys.orders.returnMine(page, limit),
-    queryFn: () => api.orders.getMyReturnRequests(page, limit),
+    queryKey: queryKeys.orders.returnMine(page, limit, q),
+    queryFn: () => api.orders.getMyReturnRequests(page, limit, q),
     enabled,
     // Keep the previous page rendered while the next one loads (no empty flash).
     placeholderData: keepPreviousData,
@@ -24,10 +25,11 @@ export function useReturnRequestQueue(
   page = 1,
   limit = 10,
   status?: ReturnRequestStatus,
+  q = '',
 ): UseQueryResult<PaginatedResponse<ReturnRequest>> {
   return useQuery({
-    queryKey: queryKeys.orders.returnQueue(page, limit, status),
-    queryFn: () => api.orders.getReturnRequests(page, limit, status),
+    queryKey: queryKeys.orders.returnQueue(page, limit, status, q),
+    queryFn: () => api.orders.getReturnRequests(page, limit, status, q),
     placeholderData: keepPreviousData,
   });
 }
@@ -35,9 +37,10 @@ export function useReturnRequestQueue(
 export function useRequestReturn(
   orderId: string,
   meId: string,
-): UseMutationResult<ReturnRequest, unknown, string> {
+): UseMutationResult<ReturnRequest, unknown, CreateReturnRequestDto> {
   return useMutation({
-    mutationFn: (reason: string) => api.orders.requestReturn(orderId, reason),
+    // Build the body with `returnRequestPayload` — it drops an empty `imageUrls`.
+    mutationFn: (body: CreateReturnRequestDto) => api.orders.requestReturn(orderId, body),
     onSuccess: () => {
       // The order flips to `return_requested` — refresh its detail, the buyer's
       // history/badges and every request list.

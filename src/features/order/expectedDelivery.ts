@@ -1,4 +1,7 @@
 import { formatDate } from '@/lib/format/time';
+import type { Lang } from '@/lib/i18n/lang';
+import { translate } from '@/lib/i18n/messages';
+import { orderMessages } from './order.i18n';
 
 /**
  * Buyer-facing label for `Order.expectedDeliveryTime` (GHN-ETA-01), or `null`
@@ -12,8 +15,11 @@ import { formatDate } from '@/lib/format/time';
  * `...T16:59:59.000Z` (23:59:59 Vietnam time), so printing the time would show
  * a made-up "23:59" precision the carrier never promised.
  */
-export function expectedDeliveryLabel(iso: string | null | undefined): string | null {
+export function expectedDeliveryLabel(
+  iso: string | null | undefined,
+  lang: Lang = 'vi',
+): string | null {
   if (!iso) return null;
-  const formatted = formatDate(iso);
-  return formatted ? `Dự kiến giao: ${formatted}` : null;
+  const formatted = formatDate(iso, lang);
+  return formatted ? translate(orderMessages, lang, 'eta', { date: formatted }) : null;
 }

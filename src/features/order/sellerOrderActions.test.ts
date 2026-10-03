@@ -80,3 +80,15 @@ describe('getSellerOrderActionState', () => {
     expect(state).toEqual({ action: null, blockedReason: null });
   });
 });
+
+describe('seller actions in English', () => {
+  it('labels the actions and the unpaid block in English', () => {
+    expect(getSellerOrderAction('pending', 'en')?.label).toBe('Confirm order');
+    expect(getSellerOrderAction('confirmed', 'en')?.label).toBe('Ready to ship');
+    const state = getSellerOrderActionState(
+      { status: 'pending', paymentMethod: 'vnpay', paidAt: null },
+      'en',
+    );
+    expect(state.blockedReason).toBe("Buyer hasn't paid — the order can't be processed yet");
+  });
+});

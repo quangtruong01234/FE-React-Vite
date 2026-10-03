@@ -8,6 +8,9 @@ import {
   refundStatusLabel,
   reviewerLabel,
   returnRequestErrorMessage,
+  returnPhotoError,
+  returnRequestPayload,
+  MAX_RETURN_PHOTOS,
 } from './returnRequest';
 
 function makeRequest(overrides: Partial<ReturnRequest> = {}): ReturnRequest {
@@ -122,5 +125,61 @@ describe('returnRequestErrorMessage', () => {
     expect(returnRequestErrorMessage({ statusCode: 404, status: 404, message: 'Order 5 not found' }))
       .toBe('Order 5 not found');
     expect(returnRequestErrorMessage(undefined)).toBe('Không thể gửi yêu cầu trả hàng. Vui lòng thử lại.');
+  });
+});
+
+describe('return helpers in English', () => {
+  it('labels review states, refunds and errors in English', () => {
+    expect(returnStatusMeta('pending_review', 'en').label).toBe('Pending review');
+    expect(returnStatusMeta('approved', 'en').label).toBe('Approved');
+    expect(returnStatusMeta('rejected', 'en').label).toBe('Rejected');
+    const cod = makeRequest({ status: 'approved', refundStatus: 'manual_pending', refundMethod: 'cod' });
+    expect(refundStatusLabel(cod, 'en')).toBe('Awaiting manual refund · Cash on delivery (COD)');
+    expect(returnRequestErrorMessage({ statusCode: 400, status: 400, message: 'x' }, 'en')).toContain(
+      'not eligible',
+    );
+    expect(returnRequestErrorMessage(undefined, 'en')).toBe(
+      "Couldn't submit the return request. Please try again.",
+    );
+  });
+});
+
+describe('RETURN-PHOTO-01 helpers', () => {
+  const url = (n: number): string => `https://res.cloudinary.com/demo/image/upload/v1/trybuy/returns/usr_1/p${n}.jpg`;
+
+  it('omits imageUrls when there are no photos, so an old gateway still accepts the body', () => {
+    expect(returnRequestPayload('  Hỏng  ')).toEqual({ reason: 'Hỏng' });
+    expect(returnRequestPayload('Hỏng', [])).toEqual({ reason: 'Hỏng' });
+    expect('imageUrls' in returnRequestPayload('Hỏng', [''])).toBe(false);
+  });
+
+  it('sends unique photo urls, capped at the backend limit', () => {
+    const urls = [url(1), url(1), url(2), url(3), url(4), url(5), url(6)];
+    expect(returnRequestPayload('Hỏng', urls)).toEqual({
+      reason: 'Hỏng',
+      imageUrls: [url(1), url(2), url(3), url(4), url(5)],
+    });
+    expect(MAX_RETURN_PHOTOS).toBe(5);
+  });
+
+  it('accepts only jpg, png and webp photos up to 10 MB', () => {
+    expect(returnPhotoError({ type: 'image/jpeg', size: 1024, name: 'a.jpg' })).toBeNull();
+    expect(returnPhotoError({ type: 'image/png', size: 1024 })).toBeNull();
+    expect(returnPhotoError({ type: '', size: 1024, name: 'a.WEBP' })).toBeNull();
+    expect(returnPhotoError({ type: 'image/gif', size: 1024, name: 'a.gif' }, 'en'))
+      .toBe('Only JPG, PNG or WEBP photos are accepted');
+    expect(returnPhotoError({ type: 'image/heic', size: 1024 }, 'en'))
+      .toBe('Only JPG, PNG or WEBP photos are accepted');
+    expect(returnPhotoError({ type: 'image/png', size: 11 * 1024 * 1024 }, 'en'))
+      .toBe('Image is larger than 10MB');
+  });
+
+  it('tells a photo rejection apart from an ineligible order', () => {
+    expect(returnRequestErrorMessage(
+      { statusCode: 400, status: 400, message: 'each value in imageUrls must be a Cloudinary URL' },
+      'en',
+    )).toBe('A photo was not accepted. Remove it and upload it again.');
+    expect(returnRequestErrorMessage({ statusCode: 400, status: 400, message: 'Order is not eligible' }, 'en'))
+      .not.toBe('A photo was not accepted. Remove it and upload it again.');
   });
 });

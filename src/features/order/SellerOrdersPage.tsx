@@ -4,6 +4,8 @@ import { ArrowLeft, ChevronDown, MapPin, Package, Truck, User, Wallet } from 'lu
 import { useSellerOrders } from './useSellerOrders';
 import { usePageParam } from '@/hooks/ui/usePageParam';
 import { useFilterParam } from '@/hooks/ui/useFilterParam';
+import { useListSearch, listSearchEmptyText } from '@/hooks/ui/useListSearch';
+import { SearchField } from '@/components/shared/SearchField';
 import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
 import { useConfirmOrder } from './useConfirmOrder';
 import { useReadyToShip } from './useReadyToShip';
@@ -12,8 +14,11 @@ import { getSellerOrderActionState, type SellerActionKind } from './sellerOrderA
 import { sellerOrderActionErrorMessage } from './sellerOrderActionError';
 import { ShippingAddressBlock } from './ShippingAddressBlock';
 import { InvoiceDownloadButton } from './InvoiceDownloadButton';
-import { SellerOrderExportPanel } from './SellerOrderExportPanel';
-import { PAYMENT_LABEL } from './orderConstants';
+import { OrderExportPanel } from './OrderExportPanel';
+import { paymentLabel } from './orderConstants';
+import { orderMessages } from './order.i18n';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { IconButton } from '@/components/shared/IconButton';
 import { ProductThumb } from '@/components/shared/ProductThumb';
@@ -21,14 +26,14 @@ import { Pagination } from '@/components/shared/Pagination';
 import type { OrderStatus, SellerOrderListRow, SellerOrderItemDetail } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatPrice } from '@/lib/format/utils';
-import { ORDER_STATUS_META } from '@/lib/domain/orderStatus';
+import { orderStatusLabel } from '@/lib/domain/orderStatus';
 import { formatDateTime } from '@/lib/format/time';
 
 type FilterKey = 'all' | OrderStatus;
 
+/** No `status` = the "all" tab; the label is rendered per language. */
 interface FilterOpt {
   id: FilterKey;
-  label: string;
   status?: OrderStatus;
 }
 
@@ -38,8 +43,8 @@ const FILTER_STATUSES: OrderStatus[] = [
 ];
 
 const FILTER_OPTS: FilterOpt[] = [
-  { id: 'all', label: 'Tất cả' },
-  ...FILTER_STATUSES.map((s) => ({ id: s, label: ORDER_STATUS_META[s].label, status: s })),
+  { id: 'all' },
+  ...FILTER_STATUSES.map((s) => ({ id: s, status: s })),
 ];
 
 const FILTER_KEYS: readonly FilterKey[] = FILTER_OPTS.map(o => o.id);
@@ -56,7 +61,9 @@ function OrderCard({
   actionPendingKind: SellerActionKind | null;
 }): ReactElement {
   const [expanded, setExpanded] = useState(false);
-  const { action, blockedReason } = getSellerOrderActionState(order);
+  const t = useT(orderMessages);
+  const { lang } = useLanguage();
+  const { action, blockedReason } = getSellerOrderActionState(order, lang);
   const actionPending = actionPendingKind !== null;
   const buyerLabel = order.buyer?.name?.trim() || order.buyer?.username || `#${order.userId}`;
   // The list now ships decorated items (ORDER-SHAPE-01) — image and skuLabel
@@ -81,17 +88,17 @@ function OrderCard({
         <div className="min-w-0">
           <div className="flex items-center gap-2.5 mb-1 flex-wrap">
             <span className="font-mono font-bold text-[13px] text-ink-pri">#{order.id}</span>
-            <span className="font-body text-xs text-ink-sec">{formatDateTime(order.createdAt)}</span>
+            <span className="font-body text-xs text-ink-sec">{formatDateTime(order.createdAt, lang)}</span>
             {order.buyer?.username && (
               <span className="font-body text-xs text-ink-muted">@{order.buyer.username}</span>
             )}
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <span className="font-body text-sm text-ink-sec">
-              {items.length > 0 ? `${items.length} sản phẩm` : 'Đơn hàng'}
+              {items.length > 0 ? t('itemsCount', { count: items.length }) : t('orderFallback')}
             </span>
             {order.ghnOrderCode && (
-              <span className="font-mono text-[11px] text-ink-muted">Mã GHN: {order.ghnOrderCode}</span>
+              <span className="font-mono text-[11px] text-ink-muted">{t('ghnShort', { code: order.ghnOrderCode })}</span>
             )}
           </div>
         </div>
@@ -100,7 +107,7 @@ function OrderCard({
         <div className="flex flex-col items-end gap-2">
           <StatusBadge status={order.status} />
           <span className="font-mono font-bold text-accent-amber whitespace-nowrap text-sm">
-            {formatPrice(order.total)}
+            {formatPrice(order.total, lang)}
           </span>
         </div>
 
@@ -125,13 +132,13 @@ function OrderCard({
                   : 'bg-tb-gradient text-ink-on-accent hover:opacity-90 cursor-pointer',
               )}
             >
-              {actionPending ? 'Đang xử lý…' : action.label}
+              {actionPending ? t('processing') : action.label}
             </button>
           )}
           <IconButton
             onClick={() => setExpanded(v => !v)}
             aria-expanded={expanded}
-            aria-label={expanded ? 'Thu gọn chi tiết' : 'Xem chi tiết'}
+            aria-label={expanded ? t('hideDetails') : t('showDetails')}
             className="size-9 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec hover:border-accent-amber transition-colors cursor-pointer"
           >
             <ChevronDown size={16} className={cn('shrink-0 transition-transform', expanded && 'rotate-180')} />
@@ -145,7 +152,7 @@ function OrderCard({
           {/* Buyer */}
           <div className="flex flex-col gap-1.5">
             <span className="font-body text-[11px] font-semibold uppercase tracking-wide text-ink-muted inline-flex items-center gap-1.5">
-              <User size={12} className="shrink-0" /> Người mua
+              <User size={12} className="shrink-0" /> {t('buyer')}
             </span>
             <span className="font-body text-sm text-ink-pri">{buyerLabel}</span>
             {order.buyer?.email && (
@@ -156,14 +163,14 @@ function OrderCard({
           {/* Payment */}
           <div className="flex flex-col gap-1.5">
             <span className="font-body text-[11px] font-semibold uppercase tracking-wide text-ink-muted inline-flex items-center gap-1.5">
-              <Wallet size={12} className="shrink-0" /> Thanh toán
+              <Wallet size={12} className="shrink-0" /> {t('payment')}
             </span>
             <span className="font-body text-sm text-ink-pri">
-              {PAYMENT_LABEL[order.paymentMethod] ?? order.paymentMethod}
+              {paymentLabel(order.paymentMethod, lang)}
             </span>
             {order.codAmount != null && (
               <span className="font-body text-xs text-ink-sec">
-                Thu hộ COD: {formatPrice(order.codAmount)}
+                {t('codAmount', { amount: formatPrice(order.codAmount, lang) })}
               </span>
             )}
           </div>
@@ -171,7 +178,7 @@ function OrderCard({
           {/* Shipping address */}
           <div className="flex flex-col gap-1.5 md:col-span-2">
             <span className="font-body text-[11px] font-semibold uppercase tracking-wide text-ink-muted inline-flex items-center gap-1.5">
-              <MapPin size={12} className="shrink-0" /> Giao đến
+              <MapPin size={12} className="shrink-0" /> {t('shipTo')}
             </span>
             <ShippingAddressBlock raw={order.shippingAddress} className="font-body" />
           </div>
@@ -180,7 +187,7 @@ function OrderCard({
           {order.ghnOrderCode && (
             <div className="flex flex-col gap-1.5 md:col-span-2">
               <span className="font-body text-[11px] font-semibold uppercase tracking-wide text-ink-muted inline-flex items-center gap-1.5">
-                <Truck size={12} className="shrink-0" /> Mã vận đơn GHN
+                <Truck size={12} className="shrink-0" /> {t('ghnWaybill')}
               </span>
               <span className="font-mono text-sm text-ink-pri">{order.ghnOrderCode}</span>
             </div>
@@ -189,7 +196,7 @@ function OrderCard({
           {/* Items */}
           <div className="md:col-span-2 rounded-tb-input border border-bdr overflow-hidden">
             <div className="px-3 py-2 border-b border-bdr font-body text-[11px] font-semibold uppercase tracking-wide text-ink-muted bg-tb-elevated/40">
-              Sản phẩm ({items.length})
+              {t('itemsHeading', { count: items.length })}
             </div>
             {detailLoading && !detail ? (
               <div className="px-3 py-2.5 flex flex-col gap-2">
@@ -201,13 +208,13 @@ function OrderCard({
                 <div key={item.id} className="px-3 py-2.5 border-b border-bdr last:border-0 flex items-center gap-3">
                   <ProductThumb
                     src={item.image ?? ''}
-                    alt={item.productName ?? `Sản phẩm #${item.productId}`}
+                    alt={item.productName ?? t('productFallback', { id: String(item.productId) })}
                     className="size-10 rounded-lg shrink-0"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
                       <span className="font-body text-sm text-ink-pri truncate">
-                        {item.productName?.trim() || `Sản phẩm #${item.productId}`}
+                        {item.productName?.trim() || t('productFallback', { id: String(item.productId) })}
                       </span>
                       <span className="font-mono text-xs text-ink-muted shrink-0">×{item.quantity}</span>
                     </div>
@@ -216,7 +223,7 @@ function OrderCard({
                     )}
                   </div>
                   <span className="font-mono font-semibold text-sm text-ink-pri whitespace-nowrap">
-                    {formatPrice(Number(item.price) * item.quantity)}
+                    {formatPrice(Number(item.price) * item.quantity, lang)}
                   </span>
                 </div>
               ))
@@ -235,12 +242,16 @@ function OrderCard({
 
 export default function SellerOrdersPage(): ReactElement {
   const navigate = useNavigate();
+  const t = useT(orderMessages);
+  const { lang } = useLanguage();
   const [filterTab, setFilterTab] = useFilterParam<FilterKey>('status', FILTER_KEYS, 'all');
   const [page, setPage] = usePageParam();
+  const search = useListSearch(() => { if (page !== 1) setPage(1); });
 
   const activeStatus = FILTER_OPTS.find(o => o.id === filterTab)?.status;
 
-  const { data, isLoading, isFetching, error } = useSellerOrders(page, LIMIT, activeStatus);
+  // The search is ANDed with the status tab server-side (LIST-SEARCH-01).
+  const { data, isLoading, isFetching, error } = useSellerOrders(page, LIMIT, activeStatus, search.term);
   const confirmMutation = useConfirmOrder();
   const shipMutation = useReadyToShip();
 
@@ -250,16 +261,16 @@ export default function SellerOrdersPage(): ReactElement {
   const errorMsg = error
     ? (typeof error === 'object' && 'message' in error
         ? String((error as { message: unknown }).message)
-        : 'Lỗi tải đơn hàng')
+        : t('loadFailed'))
     : null;
 
   // A seller action can now legitimately fail (e.g. ready-to-ship 400 when GHN
   // cannot resolve the shipping address — order stays `confirmed`). Surface the
   // failed order id + a friendly reason instead of silently swallowing it.
   const actionError: { id: string; message: string } | null = shipMutation.isError
-    ? { id: shipMutation.variables, message: sellerOrderActionErrorMessage(shipMutation.error, 'ready-to-ship') }
+    ? { id: shipMutation.variables, message: sellerOrderActionErrorMessage(shipMutation.error, 'ready-to-ship', lang) }
     : confirmMutation.isError
-      ? { id: confirmMutation.variables, message: sellerOrderActionErrorMessage(confirmMutation.error, 'confirm') }
+      ? { id: confirmMutation.variables, message: sellerOrderActionErrorMessage(confirmMutation.error, 'confirm', lang) }
       : null;
 
   // setFilterTab also drops ?page= in the same URL update (useFilterParam).
@@ -285,22 +296,22 @@ export default function SellerOrdersPage(): ReactElement {
         <button
           type="button"
           onClick={() => navigate(-1)}
-          aria-label="Quay lại"
+          aria-label={t('back')}
           className="bg-canvas-elevated border border-bdr rounded-lg px-3 py-2 text-ink-pri cursor-pointer text-sm hover:border-accent-amber transition-colors inline-flex items-center gap-1.5"
         >
-          <ArrowLeft size={16} className="shrink-0" /> Quay lại
+          <ArrowLeft size={16} className="shrink-0" /> {t('back')}
         </button>
       </div>
 
       <div>
         {/* Page title */}
         <h1 className="font-display font-black text-4xl leading-[1.05] tracking-[-0.02em] text-ink-pri m-0 mb-1">
-          Đơn hàng cần xử lý
+          {t('sellerTitle')}
         </h1>
         <p className="font-body text-sm text-ink-sec mt-1 mb-7">
-          Quản lý và xử lý đơn hàng từ người mua ·{' '}
+          {t('sellerSub')}{' '}
           <Link to="/sell/returns" className="text-accent-amber hover:underline">
-            Yêu cầu trả hàng
+            {t('returnRequests')}
           </Link>
         </p>
 
@@ -317,7 +328,7 @@ export default function SellerOrdersPage(): ReactElement {
         )}
 
         {/* Filter tabs */}
-        <div className="flex gap-2.5 overflow-x-auto pb-0.5 mb-6">
+        <div className="flex gap-2.5 overflow-x-auto pb-0.5 mb-4">
           {FILTER_OPTS.map(opt => {
             const active = opt.id === filterTab;
             return (
@@ -330,14 +341,22 @@ export default function SellerOrdersPage(): ReactElement {
                   active ? 'bg-tb-gradient border-transparent text-ink-on-accent' : 'bg-tb-elevated border-tb-border',
                 )}
               >
-                {opt.label}
+                {opt.status ? orderStatusLabel(opt.status, lang) : t('filterAll')}
               </button>
             );
           })}
         </div>
 
+        <SearchField
+          value={search.input}
+          onChange={search.setInput}
+          placeholder={t('sellerSearchPlaceholder')}
+          label={t('sellerSearchLabel')}
+          className="max-w-md mb-6"
+        />
+
         {/* CSV export — carries whichever status tab is active */}
-        <SellerOrderExportPanel status={activeStatus} />
+        <OrderExportPanel scope="seller" status={activeStatus} />
 
         {/* Skeleton */}
         {isLoading && (
@@ -360,7 +379,8 @@ export default function SellerOrdersPage(): ReactElement {
         {!isLoading && !errorMsg && orders.length === 0 && (
           <div className="bg-canvas-surface border border-bdr rounded-xl py-[60px] px-6 text-center">
             <p className="font-body text-sm text-ink-sec m-0">
-              {filterTab === 'all' ? 'Bạn chưa có đơn hàng nào' : 'Không có đơn hàng nào trong mục này'}
+              {listSearchEmptyText(search, t('nounOrders'), lang)
+                ?? (filterTab === 'all' ? t('noOrders') : t('noOrdersInTab'))}
             </p>
           </div>
         )}
