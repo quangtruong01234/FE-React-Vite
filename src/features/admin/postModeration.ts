@@ -3,6 +3,9 @@ import type {
   PostReportStatus,
   ReportedPostGroup,
 } from '@/types';
+import type { Lang } from '@/lib/i18n/lang';
+import { bindTranslator } from '@/lib/i18n/messages';
+import { postModerationMessages, type PostModerationMessageKey } from './postModeration.i18n';
 
 /**
  * Pure helpers for the admin post-moderation queue (F5).
@@ -20,14 +23,27 @@ export interface ReportStatusMeta {
   className: string;
 }
 
-const REPORT_STATUS_META: Record<PostReportStatus, ReportStatusMeta> = {
-  pending:   { label: 'Chờ xử lý',  className: 'bg-tb-amber/10 text-accent-amber border-tb-amber/20' },
-  resolved:  { label: 'Đã xử lý',   className: 'bg-tb-green/10 text-accent-green border-tb-green/20' },
-  dismissed: { label: 'Đã bỏ qua',  className: 'bg-canvas-elevated text-ink-sec border-bdr' },
+/** Label keys per status — also the filter-tab labels on the queue page. */
+export const REPORT_STATUS_LABEL: Record<PostReportStatus, PostModerationMessageKey> = {
+  pending:   'statusPending',
+  resolved:  'statusResolved',
+  dismissed: 'statusDismissed',
 };
 
-export function reportStatusMeta(status: PostReportStatus): ReportStatusMeta {
-  return REPORT_STATUS_META[status] ?? REPORT_STATUS_META.pending;
+const REPORT_STATUS_CLASS: Record<PostReportStatus, string> = {
+  pending:   'bg-tb-amber/10 text-accent-amber border-tb-amber/20',
+  resolved:  'bg-tb-green/10 text-accent-green border-tb-green/20',
+  dismissed: 'bg-canvas-elevated text-ink-sec border-bdr',
+};
+
+export function reportStatusMeta(status: PostReportStatus, lang: Lang = 'vi'): ReportStatusMeta {
+  const known: PostReportStatus = Object.prototype.hasOwnProperty.call(REPORT_STATUS_CLASS, status)
+    ? status
+    : 'pending';
+  return {
+    label: bindTranslator(postModerationMessages, lang)(REPORT_STATUS_LABEL[known]),
+    className: REPORT_STATUS_CLASS[known],
+  };
 }
 
 /**
@@ -43,34 +59,34 @@ export function moderationActionsFor(group: ReportedPostGroup): ModerationAction
   return actions;
 }
 
-const ACTION_DONE_LABEL: Record<ModerationAction, string> = {
-  hide:    'Đã ẩn bài viết',
-  unhide:  'Đã hiện lại bài viết',
-  dismiss: 'Đã bỏ qua báo cáo của bài viết',
-  delete:  'Đã xoá vĩnh viễn bài viết',
+const ACTION_DONE: Record<ModerationAction, PostModerationMessageKey> = {
+  hide:    'doneHide',
+  unhide:  'doneUnhide',
+  dismiss: 'doneDismiss',
+  delete:  'doneDelete',
 };
 
-export function moderationSuccessMessage(action: ModerationAction, postId: string): string {
-  return `${ACTION_DONE_LABEL[action]} #${postId}.`;
+export function moderationSuccessMessage(action: ModerationAction, postId: string, lang: Lang = 'vi'): string {
+  return bindTranslator(postModerationMessages, lang)(ACTION_DONE[action], { id: postId });
 }
 
-const ACTION_FAIL_LABEL: Record<ModerationAction, string> = {
-  hide:    'Không thể ẩn bài viết',
-  unhide:  'Không thể hiện lại bài viết',
-  dismiss: 'Không thể bỏ qua báo cáo',
-  delete:  'Không thể xoá bài viết',
+const ACTION_FAIL: Record<ModerationAction, PostModerationMessageKey> = {
+  hide:    'failHide',
+  unhide:  'failUnhide',
+  dismiss: 'failDismiss',
+  delete:  'failDelete',
 };
 
-/** Friendly message for a failed moderation action (404 = post already gone). */
-export function moderationErrorMessage(error: unknown, action: ModerationAction): string {
+/**
+ * Friendly message for a failed moderation action (404 = post already gone).
+ * A server message passes through untranslated — it is the backend's copy.
+ */
+export function moderationErrorMessage(error: unknown, action: ModerationAction, lang: Lang = 'vi'): string {
+  const t = bindTranslator(postModerationMessages, lang);
   const err = error as Partial<ApiError> | undefined;
   const status = err?.statusCode ?? err?.status;
-  if (status === 404) {
-    return 'Bài viết không còn tồn tại — có thể đã bị xoá. Hãy tải lại danh sách.';
-  }
-  if (status === 403) {
-    return 'Bạn không có quyền kiểm duyệt bài viết.';
-  }
+  if (status === 404) return t('errorGone');
+  if (status === 403) return t('errorForbidden');
   if (typeof err?.message === 'string' && err.message.trim()) return err.message;
-  return `${ACTION_FAIL_LABEL[action]}. Vui lòng thử lại.`;
+  return t(ACTION_FAIL[action]);
 }

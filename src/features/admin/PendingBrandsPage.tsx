@@ -7,14 +7,29 @@ import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { toApiError } from '@/lib/http/apiError';
 import { TableErrorRow } from '@/components/shared/TableErrorRow';
+import { useTimedToast } from '@/hooks/ui/useTimedToast';
+import { useLanguage } from '@/context/useLanguage';
 import { submitterLabel } from './submitterLabel';
+import { useT } from '@/hooks/ui/useT';
+import { adminMessages, type AdminMessageKey } from './admin.i18n';
 import type { ReviewDto } from '@/types';
+
+const COLUMNS: readonly AdminMessageKey[] = [
+  'colId',
+  'brandsColName',
+  'colDescription',
+  'colSubmitter',
+  'colCreatedAt',
+  'colActions',
+];
 
 export default function PendingBrandsPage(): ReactElement {
   const queryClient = useQueryClient();
+  const t = useT(adminMessages);
+  const { lang } = useLanguage();
   const [rejectId, setRejectId] = useState<number | null>(null);
   const [rejectNote, setRejectNote] = useState('');
-  const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
+  const { toast, showToast } = useTimedToast<{ id: number; msg: string }>();
 
   const { data: brands, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.brands.pending,
@@ -23,17 +38,12 @@ export default function PendingBrandsPage(): ReactElement {
 
   const loadError = toApiError(error);
 
-  function showToast(id: number, msg: string): void {
-    setToast({ id, msg });
-    setTimeout(() => setToast(null), 3000);
-  }
-
   const reviewMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: ReviewDto }) =>
       api.products.reviewBrand(id, data),
     onSuccess: (_, { id, data }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.brands.pending });
-      showToast(id, data.action === 'approve' ? 'Đã duyệt thương hiệu.' : 'Đã từ chối thương hiệu.');
+      showToast({ id, msg: t(data.action === 'approve' ? 'brandApproved' : 'brandRejected') });
       if (rejectId === id) {
         setRejectId(null);
         setRejectNote('');
@@ -52,7 +62,7 @@ export default function PendingBrandsPage(): ReactElement {
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-4 space-y-6">
-      <h1 className="font-display font-bold text-2xl text-ink-pri">Duyệt thương hiệu</h1>
+      <h1 className="font-display font-bold text-2xl text-ink-pri">{t('brandsTitle')}</h1>
 
       {toast && (
         <div className="bg-tb-green/15 text-accent-green border border-tb-green/30 rounded-tb-card px-4 py-3 font-body text-sm">
@@ -64,9 +74,9 @@ export default function PendingBrandsPage(): ReactElement {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-bdr">
-              {['ID', 'Tên thương hiệu', 'Mô tả', 'Người gửi', 'Ngày tạo', 'Hành động'].map(h => (
+              {COLUMNS.map(h => (
                 <th key={h} className="text-left px-4 py-3 font-body font-semibold text-ink-muted text-xs uppercase tracking-wide">
-                  {h}
+                  {t(h)}
                 </th>
               ))}
             </tr>
@@ -75,7 +85,7 @@ export default function PendingBrandsPage(): ReactElement {
             {isLoading && (
               <tr>
                 <td colSpan={6} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
-                  Đang tải...
+                  {t('loading')}
                 </td>
               </tr>
             )}
@@ -87,7 +97,7 @@ export default function PendingBrandsPage(): ReactElement {
                 <td colSpan={6} className="px-4 py-10 text-center font-body text-sm">
                   <span className="flex flex-col items-center gap-2 text-ink-muted">
                     <Tag size={32} className="shrink-0 opacity-40" />
-                    Không có thương hiệu chờ duyệt.
+                    {t('brandsEmpty')}
                   </span>
                 </td>
               </tr>
@@ -109,7 +119,7 @@ export default function PendingBrandsPage(): ReactElement {
                     {brand.description ?? '—'}
                   </td>
                   <td className="px-4 py-3 font-mono text-ink-sec text-xs">{submitterLabel(brand.submittedBy)}</td>
-                  <td className="px-4 py-3 font-body text-ink-sec text-sm">{formatDate(brand.createdAt)}</td>
+                  <td className="px-4 py-3 font-body text-ink-sec text-sm">{formatDate(brand.createdAt, lang)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <button
@@ -119,7 +129,7 @@ export default function PendingBrandsPage(): ReactElement {
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input bg-tb-green/15 text-accent-green text-xs font-body font-semibold hover:bg-tb-green/25 transition-colors disabled:opacity-50"
                       >
                         <CheckCircle size={13} className="shrink-0" />
-                        Duyệt
+                        {t('approve')}
                       </button>
                       <button
                         type="button"
@@ -136,7 +146,7 @@ export default function PendingBrandsPage(): ReactElement {
                         )}
                       >
                         <XCircle size={13} className="shrink-0" />
-                        Từ chối
+                        {t('reject')}
                       </button>
                     </div>
                   </td>
@@ -147,7 +157,7 @@ export default function PendingBrandsPage(): ReactElement {
                       <div className="flex items-center gap-3">
                         <input
                           type="text"
-                          placeholder="Lý do từ chối (tuỳ chọn)"
+                          placeholder={t('rejectNotePlaceholder')}
                           value={rejectNote}
                           onChange={e => setRejectNote(e.target.value)}
                           className="flex-1 bg-canvas-base border border-bdr rounded-tb-input px-3 py-1.5 text-sm font-body text-ink-pri placeholder:text-ink-muted focus:outline-none focus:border-tb-amber/60"
@@ -158,14 +168,14 @@ export default function PendingBrandsPage(): ReactElement {
                           onClick={handleRejectConfirm}
                           className="px-3 py-1.5 rounded-tb-input bg-accent-red text-ink-on-accent text-xs font-body font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
                         >
-                          Xác nhận từ chối
+                          {t('confirmReject')}
                         </button>
                         <button
                           type="button"
                           onClick={() => { setRejectId(null); setRejectNote(''); }}
                           className="px-3 py-1.5 rounded-tb-input bg-canvas-surface border border-bdr text-ink-sec text-xs font-body hover:bg-canvas-base transition-colors"
                         >
-                          Huỷ
+                          {t('cancel')}
                         </button>
                       </div>
                     </td>

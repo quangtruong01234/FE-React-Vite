@@ -1,6 +1,9 @@
 import type { ApiError, ProductRiskFlag, RiskBackfillResult, RiskProduct, RiskScoringStatus } from '@/types';
 import { formatVnd } from '@/lib/format/utils';
 import { formatDateTime } from '@/lib/format/time';
+import type { Lang } from '@/lib/i18n/lang';
+import { bindTranslator } from '@/lib/i18n/messages';
+import { productRiskMessages, type ProductRiskMessageKey } from './productRisk.i18n';
 
 /**
  * Pure helpers for the admin product-risk queue (AI-02).
@@ -17,28 +20,37 @@ export interface RiskScoreMeta {
 }
 
 /** Score tiers are advisory buckets for triage, not enforcement thresholds. */
-export function riskScoreMeta(score: number): RiskScoreMeta {
+export function riskScoreMeta(score: number, lang: Lang = 'vi'): RiskScoreMeta {
+  const t = bindTranslator(productRiskMessages, lang);
   if (score >= 70) {
-    return { label: 'Rủi ro cao', className: 'bg-tb-red/10 text-accent-red border-tb-red/20' };
+    return { label: t('scoreHigh'), className: 'bg-tb-red/10 text-accent-red border-tb-red/20' };
   }
   if (score >= 40) {
-    return { label: 'Rủi ro trung bình', className: 'bg-tb-amber/10 text-accent-amber border-tb-amber/20' };
+    return { label: t('scoreMedium'), className: 'bg-tb-amber/10 text-accent-amber border-tb-amber/20' };
   }
   if (score >= 1) {
-    return { label: 'Rủi ro thấp', className: 'bg-canvas-elevated text-ink-sec border-bdr' };
+    return { label: t('scoreLow'), className: 'bg-canvas-elevated text-ink-sec border-bdr' };
   }
-  return { label: 'Không có cờ', className: 'bg-tb-green/10 text-accent-green border-tb-green/20' };
+  return { label: t('scoreNone'), className: 'bg-tb-green/10 text-accent-green border-tb-green/20' };
 }
 
-/** Human-readable Vietnamese reason for one advisory flag. */
-export function riskFlagDescription(flag: ProductRiskFlag): string {
+/**
+ * Human-readable reason for one advisory flag. Money stays `formatVnd` in both
+ * languages until number formatting follows the language (I18N-07).
+ */
+export function riskFlagDescription(flag: ProductRiskFlag, lang: Lang = 'vi'): string {
+  const t = bindTranslator(productRiskMessages, lang);
   switch (flag.type) {
     case 'duplicate_image':
-      return `Ảnh gần trùng với sản phẩm #${flag.matchedProductId} của seller khác (khoảng cách hash ${flag.hammingDistance})`;
+      return t('flagDuplicateImage', { id: flag.matchedProductId, distance: flag.hammingDistance });
     case 'price_anomaly':
-      return `Giá ${formatVnd(flag.productPrice)} thấp bất thường so với trung vị danh mục ${formatVnd(flag.categoryMedian)} (bằng ${Math.round(flag.ratio * 100)}%)`;
+      return t('flagPriceAnomaly', {
+        price: formatVnd(flag.productPrice, lang),
+        median: formatVnd(flag.categoryMedian, lang),
+        percent: Math.round(flag.ratio * 100),
+      });
     case 'similar_name':
-      return `Tên gần trùng với sản phẩm #${flag.matchedProductId} (tương đồng ${Math.round(flag.similarity * 100)}%)`;
+      return t('flagSimilarName', { id: flag.matchedProductId, percent: Math.round(flag.similarity * 100) });
   }
 }
 
@@ -49,37 +61,35 @@ export function riskFlagMatchedProductId(flag: ProductRiskFlag): string | null {
 
 export type RiskAction = 'list' | 'rescore' | 'backfill' | 'feedback';
 
-const GENERIC_ACTION_MESSAGE: Record<RiskAction, string> = {
-  list: 'Không thể tải hàng đợi rủi ro. Vui lòng thử lại.',
-  rescore: 'Không thể chấm điểm lại sản phẩm. Vui lòng thử lại.',
-  backfill: 'Không thể xếp hàng chấm điểm sản phẩm cũ. Vui lòng thử lại.',
-  feedback: 'Không thể ghi nhận đánh giá kiểm duyệt. Vui lòng thử lại.',
+const GENERIC_ACTION_MESSAGE: Record<RiskAction, ProductRiskMessageKey> = {
+  list: 'failList',
+  rescore: 'failRescore',
+  backfill: 'failBackfill',
+  feedback: 'failFeedback',
 };
 
-/** Friendly message for a failed risk-queue action. */
-export function riskErrorMessage(error: unknown, action: RiskAction): string {
+/** Friendly message for a failed risk-queue action; a server message passes through untranslated. */
+export function riskErrorMessage(error: unknown, action: RiskAction, lang: Lang = 'vi'): string {
+  const t = bindTranslator(productRiskMessages, lang);
   const err = error as Partial<ApiError> | undefined;
   const status = err?.statusCode ?? err?.status;
-  if (status === 404) {
-    return 'Sản phẩm không còn tồn tại — có thể đã bị xoá. Hãy tải lại danh sách.';
-  }
-  if (status === 403) {
-    return 'Bạn không có quyền xem hàng đợi rủi ro sản phẩm.';
-  }
+  if (status === 404) return t('errorGone');
+  if (status === 403) return t('errorForbidden');
   if (typeof err?.message === 'string' && err.message.trim()) return err.message;
-  return GENERIC_ACTION_MESSAGE[action];
+  return t(GENERIC_ACTION_MESSAGE[action]);
 }
 
 // --- Durable scoring state (AI-02F1) ---
 
 /** Badge meta for a non-ready scoring state; `null` for `ready` (no badge noise
  *  on the normal case — the score pill already covers it). */
-export function riskStatusMeta(status: RiskScoringStatus): RiskScoreMeta | null {
+export function riskStatusMeta(status: RiskScoringStatus, lang: Lang = 'vi'): RiskScoreMeta | null {
+  const t = bindTranslator(productRiskMessages, lang);
   switch (status) {
     case 'pending':
-      return { label: 'Đang chờ chấm điểm', className: 'bg-tb-amber/10 text-accent-amber border-tb-amber/20' };
+      return { label: t('statusPending'), className: 'bg-tb-amber/10 text-accent-amber border-tb-amber/20' };
     case 'failed':
-      return { label: 'Chấm điểm lỗi', className: 'bg-tb-red/10 text-accent-red border-tb-red/20' };
+      return { label: t('statusFailed'), className: 'bg-tb-red/10 text-accent-red border-tb-red/20' };
     case 'ready':
       return null;
   }
@@ -92,16 +102,17 @@ type RiskRetryFields = Pick<
 
 /** One-line retry/error detail for a pending/failed row; `null` when scored or
  *  there is nothing informative to show. */
-export function riskRetryDetail(product: RiskRetryFields): string | null {
+export function riskRetryDetail(product: RiskRetryFields, lang: Lang = 'vi'): string | null {
   if (product.riskScoringStatus === 'ready') return null;
+  const t = bindTranslator(productRiskMessages, lang);
   const parts: string[] = [];
-  if (product.riskScoringAttempts > 0) parts.push(`đã thử ${product.riskScoringAttempts} lần`);
+  if (product.riskScoringAttempts > 0) parts.push(t('retryAttempts', { count: product.riskScoringAttempts }));
   if (product.riskNextRetryAt) {
-    const at = formatDateTime(product.riskNextRetryAt);
-    if (at) parts.push(`thử lại lúc ${at}`);
+    const at = formatDateTime(product.riskNextRetryAt, lang);
+    if (at) parts.push(t('retryAt', { at }));
   }
   if (product.riskScoringStatus === 'failed' && product.riskLastError) {
-    parts.push(`lỗi: ${product.riskLastError}`);
+    parts.push(t('retryError', { error: product.riskLastError }));
   }
   return parts.length > 0 ? parts.join(' · ') : null;
 }
@@ -140,9 +151,10 @@ export function applyBackfillResult(state: BackfillState, result: RiskBackfillRe
 }
 
 /** Label for the backfill action button across its idle/running/resumable/done states. */
-export function backfillButtonLabel(state: BackfillState, pending: boolean): string {
-  if (pending) return 'Đang xếp hàng...';
-  if (!state.started) return 'Chấm điểm sản phẩm cũ';
-  if (state.hasMore) return `Tiếp tục backfill (đã xếp ${state.enqueuedTotal})`;
-  return `Backfill hoàn tất — đã xếp ${state.enqueuedTotal}`;
+export function backfillButtonLabel(state: BackfillState, pending: boolean, lang: Lang = 'vi'): string {
+  const t = bindTranslator(productRiskMessages, lang);
+  if (pending) return t('backfillPending');
+  if (!state.started) return t('backfillIdle');
+  if (state.hasMore) return t('backfillResume', { count: state.enqueuedTotal });
+  return t('backfillDone', { count: state.enqueuedTotal });
 }

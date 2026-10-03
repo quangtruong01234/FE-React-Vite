@@ -3,7 +3,7 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Users, ShoppingBag } from 'lucide-react';
 import { cn, formatPrice, formatVnd } from '@/lib/format/utils';
 import { formatDate } from '@/lib/format/time';
-import { nonBlank, userDisplayName } from '@/lib/format/user';
+import { nonBlank, userDisplayName, userFallback } from '@/lib/format/user';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { toApiError } from '@/lib/http/apiError';
@@ -18,17 +18,22 @@ import { orderStatusSlices, sliceTotal } from '@/lib/chart/chartSeries';
 import { revenueTrend } from '@/features/order/analytics/analyticsChartData';
 import { SelectField } from '@/components/shared/SelectField';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { SearchField } from '@/components/shared/SearchField';
+import { useListSearch, listSearchEmptyText } from '@/hooks/ui/useListSearch';
 import { useRole } from '@/hooks/auth/useRole';
 import { useUpdateUserRole } from './useUpdateUserRole';
 import {
-  ASSIGNABLE_ROLE_OPTIONS,
-  ROLE_CHANGE_CONFIRM_BODY,
+  assignableRoleOptions,
   isAssignableRole,
+  roleChangeConfirmBody,
   roleChangeConfirmTitle,
   roleChangeSuccessText,
   roleEditability,
 } from './userRole';
 import { roleLabel } from '@/lib/auth/roleLabels';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import { adminMessages, type AdminMessageKey } from './admin.i18n';
 import type { AnalyticsQueryParams, RoleName, User } from '@/types';
 
 const USERS_PER_PAGE = 20;
@@ -41,8 +46,21 @@ const USERS_PER_PAGE = 20;
  */
 const OVERVIEW_RANGE: AnalyticsQueryParams = { interval: 'day' };
 
+const ORDER_COLUMNS: readonly AdminMessageKey[] = [
+  'colOrderId',
+  'colBuyer',
+  'colTotal',
+  'colStatus',
+  'colCreatedAt',
+  'colInvoice',
+];
+const USER_COLUMNS: readonly AdminMessageKey[] = ['colId', 'colUsername', 'colEmail', 'colRole', 'colCreatedAt'];
+
 export default function AdminPage(): ReactElement {
+  const t = useT(adminMessages);
+  const { lang } = useLanguage();
   const [usersPage, setUsersPage] = useState(1);
+  const userSearch = useListSearch(() => setUsersPage(1));
   const [roleNotice, setRoleNotice] = useState<string | null>(null);
   /** The pick waiting on the confirm modal — set by the select, cleared by both buttons. */
   const [pendingRole, setPendingRole] = useState<{ user: User; nextRole: RoleName } | null>(null);
@@ -68,8 +86,8 @@ export default function AdminPage(): ReactElement {
     error: usersRawError,
     refetch: refetchUsers,
   } = useQuery({
-    queryKey: queryKeys.users.list(usersPage, USERS_PER_PAGE),
-    queryFn: () => api.users.getPaginated(usersPage, USERS_PER_PAGE),
+    queryKey: queryKeys.users.list(usersPage, USERS_PER_PAGE, userSearch.term),
+    queryFn: () => api.users.getPaginated(usersPage, USERS_PER_PAGE, userSearch.term),
     // Keep the previous page rendered while the next one loads (no empty flash).
     placeholderData: keepPreviousData,
   });
@@ -93,22 +111,23 @@ export default function AdminPage(): ReactElement {
   );
 
   const statusSlices = useMemo(
-    () => orderStatusSlices(analytics?.statusDistribution),
-    [analytics?.statusDistribution],
+    () => orderStatusSlices(analytics?.statusDistribution, lang),
+    [analytics?.statusDistribution, lang],
   );
 
   const trendSeries = useMemo<TrendSeries[]>(
     () => [
       {
         id: 'revenue',
-        label: 'Doanh thu',
+        label: t('revenueSeries'),
         color: 'amber',
         values: trend.revenue,
-        formatter: formatPrice,
+        formatter: (n: number) => formatPrice(n, lang),
       },
     ],
-    [trend],
+    [trend, t, lang],
   );
+  const roleOptions = useMemo(() => assignableRoleOptions(lang), [lang]);
 
   const users = usersData?.data ?? [];
   const userTotal = usersData?.total ?? 0;
@@ -126,7 +145,7 @@ export default function AdminPage(): ReactElement {
   function confirmRoleChange(): void {
     if (!pendingRole) return;
     const { user, nextRole } = pendingRole;
-    const displayName = userDisplayName(user);
+    const displayName = userDisplayName(user, userFallback(lang));
 
     setRoleNotice(null);
     roleMutation.mutate(
@@ -135,7 +154,8 @@ export default function AdminPage(): ReactElement {
         // Read the role back off the response rather than echoing `nextRole` —
         // the server's answer is what the row now holds.
         onSuccess: (updated) => {
-          setRoleNotice(roleChangeSuccessText(displayName, updated.role.name));
+          // Worded in the language active when the change lands.
+          setRoleNotice(roleChangeSuccessText(displayName, updated.role.name, lang));
         },
         // Closes on failure too: the refusal is already rendered above the
         // table, and leaving the dialog up would print it twice.
@@ -146,7 +166,7 @@ export default function AdminPage(): ReactElement {
 
   return (
     <div className="max-w-5xl mx-auto py-8 px-4 space-y-8">
-      <h1 className="font-display font-bold text-2xl text-ink-pri">Quản trị sàn</h1>
+      <h1 className="font-display font-bold text-2xl text-ink-pri">{t('title')}</h1>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4">
@@ -155,7 +175,7 @@ export default function AdminPage(): ReactElement {
             <ShoppingBag size={22} className="shrink-0" />
           </span>
           <div>
-            <div className="text-ink-muted font-body text-xs mb-0.5">Tổng đơn hàng</div>
+            <div className="text-ink-muted font-body text-xs mb-0.5">{t('statOrders')}</div>
             <div className="font-display font-bold text-2xl text-ink-pri">
               {ordersLoading || ordersError ? '—' : (ordersData?.total ?? 0)}
             </div>
@@ -167,7 +187,7 @@ export default function AdminPage(): ReactElement {
             <Users size={22} className="shrink-0" />
           </span>
           <div>
-            <div className="text-ink-muted font-body text-xs mb-0.5">Tổng người dùng</div>
+            <div className="text-ink-muted font-body text-xs mb-0.5">{t('statUsers')}</div>
             <div className="font-display font-bold text-2xl text-ink-pri">
               {usersLoading || usersError ? '—' : userTotal}
             </div>
@@ -178,39 +198,39 @@ export default function AdminPage(): ReactElement {
       {/* Overview charts */}
       <div className="grid md:grid-cols-2 gap-4">
         <ChartFrame
-          title="Doanh thu 30 ngày"
+          title={t('revenueTitle')}
           subtitle={
-            analytics ? `Tổng ${formatVnd(analytics.summary.totalRevenue)}` : undefined
+            analytics ? t('revenueSubtitle', { total: formatVnd(analytics.summary.totalRevenue, lang) }) : undefined
           }
           height={180}
           isLoading={analyticsLoading}
           isEmpty={trend.labels.length === 0}
-          emptyLabel="Chưa có doanh thu trong 30 ngày qua."
+          emptyLabel={t('revenueEmpty')}
         >
           <TrendAreaChart
             labels={trend.labels}
             series={trendSeries}
-            ariaLabel="Biểu đồ doanh thu toàn sàn 30 ngày gần nhất"
+            ariaLabel={t('revenueAria')}
           />
         </ChartFrame>
 
         <ChartFrame
-          title="Trạng thái đơn toàn sàn"
+          title={t('statusTitle')}
           // Cùng cửa sổ với chart doanh thu bên cạnh, KHÔNG phải toàn bộ lịch sử —
           // thẻ "Tổng đơn hàng" phía trên là số all-time, hai con số sẽ lệch nhau.
-          subtitle="30 ngày gần nhất"
+          subtitle={t('statusSubtitle')}
           height={180}
           isLoading={analyticsLoading}
           isEmpty={statusSlices.length === 0}
-          emptyLabel="Chưa có đơn hàng nào."
+          emptyLabel={t('statusEmpty')}
         >
           <div className="flex items-center gap-5 size-full">
             <div className="w-1/2 h-full shrink-0">
               <DoughnutChart
                 slices={statusSlices}
-                ariaLabel="Biểu đồ phân bố trạng thái đơn hàng toàn sàn trong 30 ngày gần nhất"
+                ariaLabel={t('statusAria')}
                 centerValue={String(sliceTotal(statusSlices))}
-                centerLabel="đơn"
+                centerLabel={t('statusCenter')}
               />
             </div>
             <ChartLegend slices={statusSlices} showPercent className="flex-1 min-w-0" />
@@ -220,14 +240,14 @@ export default function AdminPage(): ReactElement {
 
       {/* Recent orders table */}
       <section className="space-y-3">
-        <h2 className="font-display font-semibold text-base text-ink-pri">Đơn hàng gần đây</h2>
+        <h2 className="font-display font-semibold text-base text-ink-pri">{t('ordersTitle')}</h2>
         <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-bdr">
-                {['Mã đơn', 'Người mua', 'Tổng tiền', 'Trạng thái', 'Ngày tạo', 'Hóa đơn'].map(h => (
+                {ORDER_COLUMNS.map(h => (
                   <th key={h} className="text-left px-4 py-3 font-body font-semibold text-ink-muted text-xs uppercase tracking-wide">
-                    {h}
+                    {t(h)}
                   </th>
                 ))}
               </tr>
@@ -236,7 +256,7 @@ export default function AdminPage(): ReactElement {
               {ordersLoading && (
                 <tr>
                   <td colSpan={6} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
-                    Đang tải...
+                    {t('loading')}
                   </td>
                 </tr>
               )}
@@ -246,7 +266,7 @@ export default function AdminPage(): ReactElement {
               {!ordersLoading && !ordersError && !ordersData?.data.length && (
                 <tr>
                   <td colSpan={6} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
-                    Không có đơn hàng nào.
+                    {t('ordersEmpty')}
                   </td>
                 </tr>
               )}
@@ -260,16 +280,16 @@ export default function AdminPage(): ReactElement {
                 >
                   <td className="px-4 py-3 font-mono text-ink-sec text-xs">#{order.id}</td>
                   <td className="px-4 py-3 font-body text-ink-pri text-sm">
-                    {userDisplayName(order.buyer)}
+                    {userDisplayName(order.buyer, userFallback(lang))}
                   </td>
                   <td className="px-4 py-3 font-body font-semibold text-accent-amber text-sm">
-                    {formatVnd(order.total)}
+                    {formatVnd(order.total, lang)}
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={order.status} />
                   </td>
                   <td className="px-4 py-3 font-body text-ink-sec text-sm">
-                    {formatDate(order.createdAt)}
+                    {formatDate(order.createdAt, lang)}
                   </td>
                   <td className="px-4 py-3">
                     <InvoiceDownloadButton orderId={order.id} iconOnly />
@@ -283,11 +303,18 @@ export default function AdminPage(): ReactElement {
 
       {/* Users table */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <h2 className="font-display font-semibold text-base text-ink-pri">
-            Tất cả người dùng
+            {t('usersTitle')}
             {!usersLoading && <span className="ml-2 font-normal text-ink-muted text-sm">({userTotal})</span>}
           </h2>
+          <SearchField
+            value={userSearch.input}
+            onChange={userSearch.setInput}
+            placeholder={t('usersSearchPlaceholder')}
+            label={t('usersSearchLabel')}
+            className="w-full sm:w-72"
+          />
         </div>
 
         {/* Role-change outcome. The success copy names the re-login requirement:
@@ -308,9 +335,9 @@ export default function AdminPage(): ReactElement {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-bdr">
-                {['ID', 'Username', 'Email', 'Vai trò', 'Ngày tạo'].map(h => (
+                {USER_COLUMNS.map(h => (
                   <th key={h} className="text-left px-4 py-3 font-body font-semibold text-ink-muted text-xs uppercase tracking-wide">
-                    {h}
+                    {t(h)}
                   </th>
                 ))}
               </tr>
@@ -319,7 +346,7 @@ export default function AdminPage(): ReactElement {
               {usersLoading && (
                 <tr>
                   <td colSpan={5} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
-                    Đang tải...
+                    {t('loading')}
                   </td>
                 </tr>
               )}
@@ -329,7 +356,7 @@ export default function AdminPage(): ReactElement {
               {!usersLoading && !usersError && !users.length && (
                 <tr>
                   <td colSpan={5} className="px-4 py-6 text-center text-ink-muted font-body text-sm">
-                    Không có người dùng nào.
+                    {listSearchEmptyText(userSearch, t('usersSearchNoun'), lang) ?? t('usersEmpty')}
                   </td>
                 </tr>
               )}
@@ -337,6 +364,7 @@ export default function AdminPage(): ReactElement {
                 const editability = roleEditability(
                   { id: user.id, roleName: user.role.name },
                   currentUserId,
+                  lang,
                 );
                 return (
                   <tr
@@ -364,13 +392,13 @@ export default function AdminPage(): ReactElement {
                         <SelectField
                           size="sm"
                           value={user.role.name}
-                          options={ASSIGNABLE_ROLE_OPTIONS}
+                          options={roleOptions}
                           // Rows written before NAME-TRIM-01 can carry a
                           // whitespace `username`, which left this control
                           // announced as "Vai trò của " with no subject. The
                           // public id is what the row's first column shows, so
                           // it ties the announcement back to the visible row.
-                          ariaLabel={`Vai trò của ${nonBlank(user.username) ?? user.id}`}
+                          ariaLabel={t('roleAria', { name: nonBlank(user.username) ?? user.id })}
                           // Every row locks during the request: the list is
                           // refetched on success, so a second pick mid-flight
                           // would race a row that is about to be replaced.
@@ -390,12 +418,12 @@ export default function AdminPage(): ReactElement {
                             user.role.name !== 'admin' && user.role.name !== 'shop' && 'bg-canvas-elevated text-ink-sec',
                           )}
                         >
-                          {roleLabel(user.role.name)}
+                          {roleLabel(user.role.name, lang)}
                         </span>
                       )}
                     </td>
                     <td className="px-4 py-3 font-body text-ink-sec text-sm">
-                      {user.createdAt ? formatDate(user.createdAt) : '—'}
+                      {user.createdAt ? formatDate(user.createdAt, lang) : '—'}
                     </td>
                   </tr>
                 );
@@ -405,7 +433,7 @@ export default function AdminPage(): ReactElement {
           {!usersLoading && userTotalPages > 1 && (
             <div className="flex items-center justify-between px-4 py-3 border-t border-bdr">
               <span className="font-body text-xs text-ink-muted">
-                Trang {usersPage} / {userTotalPages}
+                {t('pageOf', { page: usersPage, total: userTotalPages })}
               </span>
               <div className="flex gap-2">
                 <button
@@ -413,14 +441,14 @@ export default function AdminPage(): ReactElement {
                   disabled={usersPage === 1}
                   className="px-3 py-1 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec font-body text-xs hover:border-tb-amber/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
-                  Trước
+                  {t('prev')}
                 </button>
                 <button
                   onClick={() => setUsersPage(p => Math.min(userTotalPages, p + 1))}
                   disabled={usersPage === userTotalPages}
                   className="px-3 py-1 rounded-tb-input border border-bdr bg-canvas-elevated text-ink-sec font-body text-xs hover:border-tb-amber/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
-                  Tiếp
+                  {t('next')}
                 </button>
               </div>
             </div>
@@ -432,11 +460,11 @@ export default function AdminPage(): ReactElement {
         open={pendingRole !== null}
         title={
           pendingRole
-            ? roleChangeConfirmTitle(userDisplayName(pendingRole.user), pendingRole.nextRole)
+            ? roleChangeConfirmTitle(userDisplayName(pendingRole.user, userFallback(lang)), pendingRole.nextRole, lang)
             : ''
         }
-        description={ROLE_CHANGE_CONFIRM_BODY}
-        confirmLabel="Đổi vai trò"
+        description={roleChangeConfirmBody(lang)}
+        confirmLabel={t('roleConfirm')}
         isPending={roleMutation.isPending}
         onConfirm={confirmRoleChange}
         onCancel={() => { setPendingRole(null); }}

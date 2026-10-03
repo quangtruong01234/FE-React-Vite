@@ -12,6 +12,9 @@ import { Pagination } from '@/components/shared/Pagination';
 import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
 import { usePageParam } from '@/hooks/ui/usePageParam';
 import { useFilterParam } from '@/hooks/ui/useFilterParam';
+import { useListSearch, listSearchEmptyText } from '@/hooks/ui/useListSearch';
+import { useTimedToast } from '@/hooks/ui/useTimedToast';
+import { SearchField } from '@/components/shared/SearchField';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   riskScoreMeta,
@@ -25,14 +28,17 @@ import {
   backfillButtonLabel,
   INITIAL_BACKFILL_STATE,
 } from './productRisk';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import { productRiskMessages, type ProductRiskMessageKey } from './productRisk.i18n';
 import type { RiskProduct, RiskFeedbackDecision } from '@/types';
 
 // Backend default is minScore=1 (any flag); 0 includes clean/unscored products.
-const FILTER_OPTS: { minScore: number; label: string }[] = [
-  { minScore: 1,  label: 'Có cờ' },
-  { minScore: 40, label: 'Từ trung bình' },
-  { minScore: 70, label: 'Rủi ro cao' },
-  { minScore: 0,  label: 'Tất cả sản phẩm' },
+const FILTER_OPTS: { minScore: number; label: ProductRiskMessageKey }[] = [
+  { minScore: 1,  label: 'filterFlagged' },
+  { minScore: 40, label: 'filterMedium' },
+  { minScore: 70, label: 'filterHigh' },
+  { minScore: 0,  label: 'filterAll' },
 ];
 
 // minScore lives in the URL (?minScore=40); keys are the FILTER_OPTS scores as strings.
@@ -54,15 +60,17 @@ function RiskProductCard({
   feedbackPending: boolean;
   onFeedback: (id: string, decision: RiskFeedbackDecision) => void;
 }): ReactElement {
+  const t = useT(productRiskMessages);
+  const { lang } = useLanguage();
   const { riskScore, riskFlags } = product;
-  const scoreMeta = riskScoreMeta(riskScore);
-  const statusMeta = riskStatusMeta(product.riskScoringStatus);
-  const retryDetail = riskRetryDetail(product);
+  const scoreMeta = riskScoreMeta(riskScore, lang);
+  const statusMeta = riskStatusMeta(product.riskScoringStatus, lang);
+  const retryDetail = riskRetryDetail(product, lang);
   const canGiveFeedback = hasDuplicateImageFlag(riskFlags);
   const image = productCoverImage(product);
 
   return (
-    <div className="bg-canvas-surface border border-bdr rounded-tb-card p-5">
+    <div data-testid={`risk-product-${product.id}`} className="bg-canvas-surface border border-bdr rounded-tb-card p-5">
       {/* Product summary + score */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3 min-w-0">
@@ -80,10 +88,10 @@ function RiskProductCard({
               {product.name}
             </Link>
             <div className="flex items-center gap-3 flex-wrap font-body text-xs text-ink-muted mt-0.5">
-              <span className="font-mono">SP #{product.id}</span>
-              <span>Seller #{product.userId}{product.user?.name ? ` · ${product.user.name}` : ''}</span>
-              <span className="text-accent-amber font-semibold">{formatPrice(product.price)}</span>
-              {product.isActive === false && <span className="text-accent-red">Đang ẩn khỏi sàn</span>}
+              <span className="font-mono">{t('productId', { id: product.id })}</span>
+              <span>{t('sellerId', { id: product.userId })}{product.user?.name ? ` · ${product.user.name}` : ''}</span>
+              <span className="text-accent-amber font-semibold">{formatPrice(product.price, lang)}</span>
+              {product.isActive === false && <span className="text-accent-red">{t('hiddenFromStore')}</span>}
             </div>
           </div>
         </div>
@@ -119,7 +127,7 @@ function RiskProductCard({
               <div key={`${flag.type}-${idx}`} className="flex items-center justify-between gap-3 flex-wrap">
                 <span className="inline-flex items-center gap-1.5 font-body text-sm text-ink-sec min-w-0">
                   <Flag size={12} className="shrink-0 text-accent-amber" />
-                  {riskFlagDescription(flag)}
+                  {riskFlagDescription(flag, lang)}
                 </span>
                 {matchedId !== null && (
                   <Link
@@ -127,7 +135,7 @@ function RiskProductCard({
                     className="inline-flex items-center gap-1 font-body text-xs text-ink-muted hover:text-accent-amber transition-colors shrink-0"
                   >
                     <ExternalLink size={12} className="shrink-0" />
-                    Xem SP #{matchedId}
+                    {t('viewMatched', { id: matchedId })}
                   </Link>
                 )}
               </div>
@@ -143,7 +151,7 @@ function RiskProductCard({
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr text-ink-sec hover:border-tb-amber/50 hover:text-ink-pri transition-colors"
         >
           <ExternalLink size={14} className="shrink-0" />
-          Xem sản phẩm
+          {t('viewProduct')}
         </Link>
         <button
           type="button"
@@ -152,7 +160,7 @@ function RiskProductCard({
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr text-ink-sec hover:border-tb-amber/50 hover:text-ink-pri transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <RefreshCw size={14} className={cn('shrink-0', rescorePending && 'animate-spin')} />
-          {rescorePending ? 'Đang chấm điểm...' : 'Chấm điểm lại'}
+          {rescorePending ? t('rescorePending') : t('rescore')}
         </button>
         {/* Duplicate-review feedback (AI-02F4) — audit-only, never unlists */}
         {canGiveFeedback && (
@@ -164,7 +172,7 @@ function RiskProductCard({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr text-accent-red hover:border-tb-red/50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <CheckCircle2 size={14} className="shrink-0" />
-              Xác nhận trùng
+              {t('confirmDuplicate')}
             </button>
             <button
               type="button"
@@ -173,7 +181,7 @@ function RiskProductCard({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr text-ink-sec hover:border-tb-amber/50 hover:text-ink-pri transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <XCircle size={14} className="shrink-0" />
-              Bỏ qua cảnh báo
+              {t('dismissWarning')}
             </button>
           </>
         )}
@@ -184,27 +192,25 @@ function RiskProductCard({
 
 export default function ProductRiskPage(): ReactElement {
   const queryClient = useQueryClient();
+  const t = useT(productRiskMessages);
+  const { lang } = useLanguage();
   const [minScoreKey, setMinScoreKey] = useFilterParam<MinScoreKey>('minScore', MIN_SCORE_KEYS, '1');
   const minScore = Number(minScoreKey);
   const [page, setPage] = usePageParam();
-  const [toast, setToast] = useState<string | null>(null);
+  const { toast, showToast } = useTimedToast<string>();
+  const search = useListSearch(() => { if (page !== 1) setPage(1); });
 
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: queryKeys.products.adminRiskList(minScore, page),
-    queryFn: () => api.products.getAdminRisk({ minScore, page, limit: LIMIT }),
+    queryKey: queryKeys.products.adminRiskList(minScore, page, search.term),
+    queryFn: () => api.products.getAdminRisk({ minScore, page, limit: LIMIT, q: search.term }),
     placeholderData: keepPreviousData,
   });
-
-  function showToast(msg: string): void {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  }
 
   const rescore = useMutation({
     mutationFn: (id: string) => api.products.rescoreRisk(id),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.products.adminRisk });
-      showToast(`Đã chấm điểm lại sản phẩm #${result.productId} — điểm rủi ro mới: ${result.riskScore}/100.`);
+      showToast(t('rescored', { id: result.productId, score: result.riskScore }));
     },
   });
 
@@ -227,19 +233,17 @@ export default function ProductRiskPage(): ReactElement {
       api.products.sendRiskFeedback(id, { decision }),
     onSuccess: (_result, vars) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.products.adminRisk });
-      showToast(vars.decision === 'confirmed_duplicate'
-        ? `Đã ghi nhận xác nhận trùng lặp cho sản phẩm #${vars.id}.`
-        : `Đã bỏ qua cảnh báo trùng lặp cho sản phẩm #${vars.id}.`);
+      showToast(t(vars.decision === 'confirmed_duplicate' ? 'duplicateConfirmed' : 'duplicateDismissed', { id: vars.id }));
     },
   });
 
   const products = data?.data ?? [];
   const totalPages = data?.totalPages ?? 1;
 
-  const errorMsg = error ? riskErrorMessage(error, 'list') : null;
-  const rescoreErrorMsg = rescore.isError ? riskErrorMessage(rescore.error, 'rescore') : null;
-  const backfillErrorMsg = backfill.isError ? riskErrorMessage(backfill.error, 'backfill') : null;
-  const feedbackErrorMsg = feedback.isError ? riskErrorMessage(feedback.error, 'feedback') : null;
+  const errorMsg = error ? riskErrorMessage(error, 'list', lang) : null;
+  const rescoreErrorMsg = rescore.isError ? riskErrorMessage(rescore.error, 'rescore', lang) : null;
+  const backfillErrorMsg = backfill.isError ? riskErrorMessage(backfill.error, 'backfill', lang) : null;
+  const feedbackErrorMsg = feedback.isError ? riskErrorMessage(feedback.error, 'feedback', lang) : null;
 
   // setMinScoreKey also drops ?page= in the same URL update (useFilterParam).
   const handleFilterChange = (score: number): void => {
@@ -250,11 +254,8 @@ export default function ProductRiskPage(): ReactElement {
     <div className="max-w-4xl mx-auto py-8 px-4 space-y-6">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="font-display font-bold text-2xl text-ink-pri">Rủi ro sản phẩm</h1>
-          <p className="font-body text-sm text-ink-sec mt-1 m-0">
-            Hàng đợi cảnh báo tự động — ảnh trùng giữa các seller, giá thấp bất thường, tên gần trùng.
-            Điểm chỉ mang tính tham khảo, không tự động gỡ sản phẩm.
-          </p>
+          <h1 className="font-display font-bold text-2xl text-ink-pri">{t('title')}</h1>
+          <p className="font-body text-sm text-ink-sec mt-1 m-0">{t('intro')}</p>
         </div>
         <button
           type="button"
@@ -263,7 +264,7 @@ export default function ProductRiskPage(): ReactElement {
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-tb-input text-xs font-body font-semibold bg-canvas-elevated border border-bdr text-ink-sec hover:border-tb-amber/50 hover:text-ink-pri transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
         >
           <ListPlus size={14} className="shrink-0" />
-          {backfillButtonLabel(backfillState, backfill.isPending)}
+          {backfillButtonLabel(backfillState, backfill.isPending, lang)}
         </button>
       </div>
 
@@ -309,11 +310,18 @@ export default function ProductRiskPage(): ReactElement {
                   : 'bg-canvas-elevated border-bdr text-ink-sec hover:text-ink-pri',
               )}
             >
-              {opt.label}
+              {t(opt.label)}
             </button>
           );
         })}
       </div>
+
+      <SearchField
+        value={search.input}
+        onChange={search.setInput}
+        placeholder={t('searchPlaceholder')}
+        className="max-w-md"
+      />
 
       {isLoading && (
         <div className="flex flex-col gap-3">
@@ -327,7 +335,8 @@ export default function ProductRiskPage(): ReactElement {
         <div className="bg-canvas-surface border border-bdr rounded-tb-card py-14 px-6 text-center">
           <span className="flex flex-col items-center gap-2 font-body text-sm text-ink-muted">
             <ShieldCheck size={32} className="shrink-0 opacity-40" />
-            {minScore > 0 ? 'Không có sản phẩm nào bị gắn cờ ở mức này.' : 'Chưa có sản phẩm nào.'}
+            {listSearchEmptyText(search, t('searchNoun'), lang)
+              ?? (minScore > 0 ? t('emptyFlagged') : t('emptyAll'))}
           </span>
         </div>
       )}

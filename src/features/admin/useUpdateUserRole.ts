@@ -26,7 +26,7 @@ export function useUpdateUserRole(): UseMutationResult<User, unknown, UpdateUser
       void queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
     },
     onError: (error: unknown) => {
-      console.error('Đổi vai trò người dùng thất bại', error);
+      console.error('Changing the user role failed', error);
     },
   });
 }

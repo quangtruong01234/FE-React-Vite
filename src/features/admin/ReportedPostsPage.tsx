@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { Eye, EyeOff, FlagOff, Trash2, ShieldCheck, ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/format/utils';
 import { formatDateTime } from '@/lib/format/time';
-import { userDisplayName, userSummaryLabel } from '@/lib/format/user';
+import { userDisplayName, userFallback, userSummaryLabel } from '@/lib/format/user';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { Avatar } from '@/components/shared/Avatar';
@@ -12,31 +12,32 @@ import { Pagination } from '@/components/shared/Pagination';
 import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
 import { usePageParam } from '@/hooks/ui/usePageParam';
 import { useFilterParam } from '@/hooks/ui/useFilterParam';
+import { useListSearch, listSearchEmptyText } from '@/hooks/ui/useListSearch';
+import { useTimedToast } from '@/hooks/ui/useTimedToast';
+import { SearchField } from '@/components/shared/SearchField';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   moderationActionsFor,
   moderationErrorMessage,
   moderationSuccessMessage,
   reportStatusMeta,
+  REPORT_STATUS_LABEL,
   type ModerationAction,
 } from './postModeration';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import { postModerationMessages, type PostModerationMessageKey } from './postModeration.i18n';
 import type { PostReportStatus, ReportedPostGroup } from '@/types';
 
-const FILTER_OPTS: { id: PostReportStatus; label: string }[] = [
-  { id: 'pending',   label: 'Chờ xử lý' },
-  { id: 'resolved',  label: 'Đã xử lý' },
-  { id: 'dismissed', label: 'Đã bỏ qua' },
-];
-
-const FILTER_KEYS: readonly PostReportStatus[] = FILTER_OPTS.map(o => o.id);
+const FILTER_KEYS: readonly PostReportStatus[] = ['pending', 'resolved', 'dismissed'];
 
 const LIMIT = 20;
 
-const ACTION_META: Record<ModerationAction, { label: string; pendingLabel: string }> = {
-  hide:    { label: 'Ẩn bài viết',    pendingLabel: 'Đang ẩn...' },
-  unhide:  { label: 'Hiện lại',       pendingLabel: 'Đang hiện...' },
-  dismiss: { label: 'Bỏ qua báo cáo', pendingLabel: 'Đang bỏ qua...' },
-  delete:  { label: 'Xoá vĩnh viễn',  pendingLabel: 'Đang xoá...' },
+const ACTION_META: Record<ModerationAction, { label: PostModerationMessageKey; pendingLabel: PostModerationMessageKey }> = {
+  hide:    { label: 'actionHide',    pendingLabel: 'actionHidePending' },
+  unhide:  { label: 'actionUnhide',  pendingLabel: 'actionUnhidePending' },
+  dismiss: { label: 'actionDismiss', pendingLabel: 'actionDismissPending' },
+  delete:  { label: 'actionDelete',  pendingLabel: 'actionDeletePending' },
 };
 
 function ActionIcon({ action }: { action: ModerationAction }): ReactElement {
@@ -57,6 +58,8 @@ function ReportedPostCard({
   pendingAction: ModerationAction | null;
   onAction: (id: string, action: ModerationAction) => void;
 }): ReactElement {
+  const t = useT(postModerationMessages);
+  const { lang } = useLanguage();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { post } = group;
   const busy = pendingAction !== null;
@@ -64,7 +67,7 @@ function ReportedPostCard({
   const imageCount = post.imageUrls?.length ?? 0;
 
   return (
-    <div className="bg-canvas-surface border border-bdr rounded-tb-card p-5">
+    <div data-testid={`reported-post-${post.id}`} className="bg-canvas-surface border border-bdr rounded-tb-card p-5">
       {/* Author + moderation state */}
       <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -74,7 +77,7 @@ function ReportedPostCard({
               to={`/profile/${post.author.id}`}
               className="font-body font-semibold text-sm text-ink-pri hover:text-accent-amber transition-colors truncate block"
             >
-              {userDisplayName(post.author)}
+              {userDisplayName(post.author, userFallback(lang))}
             </Link>
             <span className="font-body text-xs text-ink-muted">@{post.author.username}</span>
           </div>
@@ -83,12 +86,12 @@ function ReportedPostCard({
           {post.isHidden && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-body font-medium rounded-tb-pill border bg-tb-red/10 text-accent-red border-tb-red/20">
               <EyeOff size={11} className="shrink-0" />
-              Đang ẩn khỏi feed
+              {t('hiddenFromFeed')}
             </span>
           )}
           {group.pendingCount > 0 && (
             <span className="inline-flex items-center px-2 py-0.5 text-xs font-body font-medium rounded-tb-pill border bg-tb-amber/10 text-accent-amber border-tb-amber/20">
-              {group.pendingCount} chờ xử lý
+              {t('pendingCount', { count: group.pendingCount })}
             </span>
           )}
         </div>
@@ -103,21 +106,21 @@ function ReportedPostCard({
         </Link>
       )}
       <div className="flex items-center gap-3 flex-wrap mt-2 font-body text-xs text-ink-muted">
-        <span className="font-mono">Bài #{post.id}</span>
-        <span>{group.reportCount} báo cáo</span>
+        <span className="font-mono">{t('postId', { id: post.id })}</span>
+        <span>{t('reportCount', { count: group.reportCount })}</span>
         {imageCount > 0 && (
           <span className="inline-flex items-center gap-1">
             <ImageIcon size={12} className="shrink-0" />
-            {imageCount} ảnh
+            {t('imageCount', { count: imageCount })}
           </span>
         )}
-        <span>Báo cáo gần nhất: {formatDateTime(group.latestReportedAt)}</span>
+        <span>{t('latestReport', { at: formatDateTime(group.latestReportedAt, lang) })}</span>
       </div>
 
       {/* Report reasons */}
       <div className="mt-3 pt-3 border-t border-bdr flex flex-col gap-1.5">
         {group.reports.map(report => {
-          const meta = reportStatusMeta(report.status);
+          const meta = reportStatusMeta(report.status, lang);
           return (
             <div key={report.id} className="flex items-center justify-between gap-3 flex-wrap">
               <span className="font-body text-sm text-ink-sec min-w-0 truncate">
@@ -126,7 +129,7 @@ function ReportedPostCard({
                 </span> · {report.reason}
               </span>
               <span className="flex items-center gap-2 shrink-0">
-                <span className="font-body text-xs text-ink-muted">{formatDateTime(report.createdAt)}</span>
+                <span className="font-body text-xs text-ink-muted">{formatDateTime(report.createdAt, lang)}</span>
                 <span className={cn(
                   'inline-flex items-center px-2 py-0.5 text-xs font-body font-medium rounded-tb-pill border',
                   meta.className,
@@ -159,7 +162,7 @@ function ReportedPostCard({
                   )}
                 >
                   <ActionIcon action={action} />
-                  {pendingAction === action ? ACTION_META[action].pendingLabel : ACTION_META[action].label}
+                  {t(pendingAction === action ? ACTION_META[action].pendingLabel : ACTION_META[action].label)}
                 </button>
               );
             })}
@@ -167,7 +170,7 @@ function ReportedPostCard({
         ) : (
           <div className="flex items-center gap-3 flex-wrap">
             <span className="font-body text-sm text-accent-red">
-              Xoá vĩnh viễn bài viết và toàn bộ báo cáo? Hành động này không thể hoàn tác.
+              {t('deleteConfirmText')}
             </span>
             <button
               type="button"
@@ -175,7 +178,7 @@ function ReportedPostCard({
               onClick={() => onAction(post.id, 'delete')}
               className="px-3 py-1.5 rounded-tb-input bg-accent-red text-ink-on-accent text-xs font-body font-semibold hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
             >
-              {pendingAction === 'delete' ? 'Đang xoá...' : 'Xác nhận xoá'}
+              {pendingAction === 'delete' ? t('actionDeletePending') : t('deleteConfirm')}
             </button>
             <button
               type="button"
@@ -183,7 +186,7 @@ function ReportedPostCard({
               onClick={() => setConfirmDelete(false)}
               className="px-3 py-1.5 rounded-tb-input bg-canvas-elevated border border-bdr text-ink-sec text-xs font-body hover:bg-canvas-base transition-colors cursor-pointer"
             >
-              Huỷ
+              {t('cancel')}
             </button>
           </div>
         )}
@@ -194,21 +197,19 @@ function ReportedPostCard({
 
 export default function ReportedPostsPage(): ReactElement {
   const queryClient = useQueryClient();
+  const t = useT(postModerationMessages);
+  const { lang } = useLanguage();
   const [filterTab, setFilterTab] = useFilterParam<PostReportStatus>('status', FILTER_KEYS, 'pending');
   const [page, setPage] = usePageParam();
-  const [toast, setToast] = useState<string | null>(null);
+  const { toast, showToast } = useTimedToast<string>();
+  const search = useListSearch(() => { if (page !== 1) setPage(1); });
 
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: queryKeys.social.adminReportsList(filterTab, page),
-    queryFn: () => api.social.getReportedPosts(filterTab, page, LIMIT),
+    queryKey: queryKeys.social.adminReportsList(filterTab, page, search.term),
+    queryFn: () => api.social.getReportedPosts(filterTab, page, LIMIT, search.term),
     // Keep the previous page rendered while the next one loads (no empty flash).
     placeholderData: keepPreviousData,
   });
-
-  function showToast(msg: string): void {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  }
 
   const moderate = useMutation<unknown, unknown, { id: string; action: ModerationAction }>({
     mutationFn: ({ id, action }: { id: string; action: ModerationAction }) => {
@@ -221,16 +222,16 @@ export default function ReportedPostsPage(): ReactElement {
     },
     onSuccess: (_, { id, action }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.social.adminReports });
-      showToast(moderationSuccessMessage(action, id));
+      showToast(moderationSuccessMessage(action, id, lang));
     },
   });
 
   const groups = data?.data ?? [];
   const totalPages = data?.totalPages ?? 1;
 
-  const errorMsg = error ? moderationErrorMessage(error, 'hide') : null;
+  const errorMsg = error ? moderationErrorMessage(error, 'hide', lang) : null;
   const actionErrorMsg = moderate.isError && moderate.variables
-    ? moderationErrorMessage(moderate.error, moderate.variables.action)
+    ? moderationErrorMessage(moderate.error, moderate.variables.action, lang)
     : null;
 
   // setFilterTab also drops ?page= in the same URL update (useFilterParam).
@@ -246,9 +247,9 @@ export default function ReportedPostsPage(): ReactElement {
   return (
     <div className="max-w-4xl mx-auto py-8 px-4 space-y-6">
       <div>
-        <h1 className="font-display font-bold text-2xl text-ink-pri">Kiểm duyệt bài viết</h1>
+        <h1 className="font-display font-bold text-2xl text-ink-pri">{t('title')}</h1>
         <p className="font-body text-sm text-ink-sec mt-1 m-0">
-          Xử lý bài viết bị báo cáo — ẩn, hiện lại, bỏ qua báo cáo hoặc xoá vĩnh viễn
+          {t('subtitle')}
         </p>
       </div>
 
@@ -270,13 +271,13 @@ export default function ReportedPostsPage(): ReactElement {
 
       {/* Status filter tabs */}
       <div className="flex gap-2.5 overflow-x-auto pb-0.5">
-        {FILTER_OPTS.map(opt => {
-          const active = opt.id === filterTab;
+        {FILTER_KEYS.map(status => {
+          const active = status === filterTab;
           return (
             <button
-              key={opt.id}
+              key={status}
               type="button"
-              onClick={() => handleTabChange(opt.id)}
+              onClick={() => handleTabChange(status)}
               className={cn(
                 'flex-none px-4 py-2 rounded-full font-body font-semibold text-[13px] cursor-pointer whitespace-nowrap border transition-colors',
                 active
@@ -284,11 +285,18 @@ export default function ReportedPostsPage(): ReactElement {
                   : 'bg-canvas-elevated border-bdr text-ink-sec hover:text-ink-pri',
               )}
             >
-              {opt.label}
+              {t(REPORT_STATUS_LABEL[status])}
             </button>
           );
         })}
       </div>
+
+      <SearchField
+        value={search.input}
+        onChange={search.setInput}
+        placeholder={t('searchPlaceholder')}
+        className="max-w-md"
+      />
 
       {isLoading && (
         <div className="flex flex-col gap-3">
@@ -302,7 +310,8 @@ export default function ReportedPostsPage(): ReactElement {
         <div className="bg-canvas-surface border border-bdr rounded-tb-card py-14 px-6 text-center">
           <span className="flex flex-col items-center gap-2 font-body text-sm text-ink-muted">
             <ShieldCheck size={32} className="shrink-0 opacity-40" />
-            {filterTab === 'pending' ? 'Không có bài viết nào chờ xử lý.' : 'Không có báo cáo nào trong mục này.'}
+            {listSearchEmptyText(search, t('searchNoun'), lang)
+              ?? (filterTab === 'pending' ? t('emptyPending') : t('emptyOther'))}
           </span>
         </div>
       )}

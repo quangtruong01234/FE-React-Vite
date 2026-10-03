@@ -96,3 +96,24 @@ describe('moderationErrorMessage', () => {
     expect(moderationErrorMessage({}, 'delete')).toBe('Không thể xoá bài viết. Vui lòng thử lại.');
   });
 });
+
+describe('post-moderation copy in English (I18N-06)', () => {
+  it('labels report statuses, falling back to pending for an unknown one', () => {
+    expect(reportStatusMeta('resolved', 'en').label).toBe('Resolved');
+    expect(reportStatusMeta('weird' as never, 'en')).toEqual(reportStatusMeta('pending', 'en'));
+    expect(reportStatusMeta('pending', 'en').label).toBe('Pending');
+  });
+
+  it('words the success toast around the post id', () => {
+    expect(moderationSuccessMessage('hide', 'post_0000000000000007', 'en')).toBe('Post #post_0000000000000007 hidden.');
+    expect(moderationSuccessMessage('dismiss', 'post_0000000000000009', 'en'))
+      .toBe('Reports on post #post_0000000000000009 dismissed.');
+  });
+
+  it('translates its own fallbacks but passes a server message through', () => {
+    expect(moderationErrorMessage({ statusCode: 404, status: 404 }, 'hide', 'en')).toContain('no longer exists');
+    expect(moderationErrorMessage({ statusCode: 403, status: 403 }, 'hide', 'en')).toContain('permission');
+    expect(moderationErrorMessage({ statusCode: 500, status: 500, message: 'boom' }, 'hide', 'en')).toBe('boom');
+    expect(moderationErrorMessage(undefined, 'delete', 'en')).toBe('Could not delete the post. Please try again.');
+  });
+});
