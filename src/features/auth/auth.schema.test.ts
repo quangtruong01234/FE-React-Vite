@@ -21,7 +21,8 @@ describe('registerSchema — username whitespace', () => {
     expect(result.success).toBe(false);
     const issue = result.success ? undefined : result.error.issues[0];
     expect(issue?.path).toEqual(['username']);
-    expect(issue?.message).toBe('Username là bắt buộc');
+    // The schema stores a book key; the form renders it in the current language.
+    expect(issue?.message).toBe('usernameRequired');
   });
 
   it('trims the padded username it passes on, not just for validation', () => {

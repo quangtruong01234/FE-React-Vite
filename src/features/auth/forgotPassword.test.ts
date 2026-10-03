@@ -101,3 +101,13 @@ describe('resendCooldownRemaining', () => {
   });
 });
 
+
+describe('error messages in English (I18N-02)', () => {
+  it('speaks the requested language for every branch', () => {
+    expect(forgotPasswordErrorMessage(apiError(429), 'en')).toMatch(/too fast/);
+    expect(forgotPasswordErrorMessage(apiError(400), 'en')).toBe('Invalid email.');
+    expect(forgotPasswordErrorMessage(undefined, 'en')).toMatch(/Cannot reach the server/);
+    expect(resetPasswordErrorMessage(exhausted(), 'en')).toMatch(/Resend code/);
+    expect(resetPasswordErrorMessage(apiError(400), 'en')).toMatch(/wrong or has expired/);
+  });
+});

@@ -2,6 +2,10 @@ import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/api';
 import type { LoginDto, User } from '@/types';
+import type { MessageKey } from '@/lib/i18n/messages';
+import type { authMessages } from './auth.i18n';
+
+type AuthKey = MessageKey<typeof authMessages>;
 
 interface LoginForm {
   username: string;
@@ -10,8 +14,10 @@ interface LoginForm {
 
 interface UseLoginReturn {
   form: LoginForm;
-  errors: Partial<LoginForm>;
+  /** `authMessages` keys — the page translates them. */
+  errors: Partial<Record<keyof LoginForm, AuthKey>>;
   isPending: boolean;
+  /** The server's own message (shown as-is), or the `connectionError` key when there is none. */
   apiError: string;
   showPassword: boolean;
   rememberMe: boolean;
@@ -23,7 +29,7 @@ interface UseLoginReturn {
 
 export function useLogin(onLoginSuccess: (user: User) => void): UseLoginReturn {
   const [form, setForm] = useState<LoginForm>({ username: '', password: '' });
-  const [errors, setErrors] = useState<Partial<LoginForm>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof LoginForm, AuthKey>>>({});
   const [apiError, setApiError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
@@ -33,22 +39,22 @@ export function useLogin(onLoginSuccess: (user: User) => void): UseLoginReturn {
     onError: (err: unknown) => {
       const msg = err && typeof err === 'object' && 'message' in err
         ? String((err as { message: unknown }).message)
-        : 'Không thể kết nối đến máy chủ. Vui lòng thử lại.';
+        : 'connectionError';
       setApiError(msg);
     },
   });
 
-  function validate(): Partial<LoginForm> {
-    const errs: Partial<LoginForm> = {};
-    if (!form.username.trim()) errs.username = 'Vui lòng nhập tên đăng nhập';
-    if (!form.password) errs.password = 'Vui lòng nhập mật khẩu';
+  function validate(): Partial<Record<keyof LoginForm, AuthKey>> {
+    const errs: Partial<Record<keyof LoginForm, AuthKey>> = {};
+    if (!form.username.trim()) errs.username = 'loginUsernameRequired';
+    if (!form.password) errs.password = 'loginPasswordRequired';
     return errs;
   }
 
   function handleChange(e: ChangeEvent<HTMLInputElement>): void {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
-    if (errors[name as keyof LoginForm]) setErrors((prev) => ({ ...prev, [name]: '' }));
+    if (errors[name as keyof LoginForm]) setErrors((prev) => ({ ...prev, [name]: undefined }));
     if (apiError) setApiError('');
   }
 

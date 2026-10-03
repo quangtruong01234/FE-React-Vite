@@ -8,6 +8,7 @@ import { useLogin } from './useLogin';
 import { registerSchema, type RegisterFormData } from './auth.schema';
 import { ForgotPasswordForm } from './ForgotPasswordForm';
 import { ThemeToggleButton } from './ThemeToggleButton';
+import { LanguageSwitch } from '@/components/shared/LanguageSwitch';
 import { PasswordField } from '@/components/shared/PasswordField';
 import { api } from '@/api';
 import { useAuthContext } from '@/context/useAuthContext';
@@ -16,6 +17,11 @@ import { cn } from '@/lib/format/utils';
 import { credentialConflictError } from '@/lib/domain/credentialConflict';
 import { GradientButton } from '@/components/shared/GradientButton';
 import { TextField } from '@/components/shared/TextField';
+import { useLanguage } from '@/context/useLanguage';
+import { useT } from '@/hooks/ui/useT';
+import { translateIfKey } from '@/lib/i18n/messages';
+import { sharedMessages } from '@/components/shared/shared.i18n';
+import { authMessages } from './auth.i18n';
 // ─── Ghost button (social login) ──────────────────────────────────────────────
 const ghostBtn =
   'inline-flex items-center justify-center gap-1.5 ' +
@@ -27,10 +33,6 @@ const ghostBtn =
 // ─── Naked link-style button (overrides global button CSS in index.css) ───────
 const linkBtn =
   'bg-transparent !border-none p-0 rounded-none text-tb-amber font-semibold text-[13px] cursor-pointer';
-
-// Social login has no backend endpoint — disabled with a "sắp ra mắt" label
-// per P2-03 rather than shipping dead controls.
-const COMING_SOON_TITLE = 'Tính năng sắp ra mắt';
 
 interface RegisterFormProps {
   onBack: () => void;
@@ -54,10 +56,11 @@ function Spinner(): ReactElement {
 }
 
 function LeftPanel(): ReactElement {
+  const t = useT(authMessages);
   const statTiles = [
-    { k: '12k+', v: 'Sellers' },
-    { k: '1.4M', v: 'Sản phẩm' },
-    { k: '24/7', v: 'Livestream' },
+    { k: '12k+', v: t('statSellers') },
+    { k: '1.4M', v: t('statProducts') },
+    { k: '24/7', v: t('statLive') },
   ];
 
   return (
@@ -66,12 +69,11 @@ function LeftPanel(): ReactElement {
 
       <div className="flex flex-col gap-[22px] max-w-[480px]">
         <h1 className="m-0 font-display font-black text-[64px] tracking-[-0.02em] text-ink-pri leading-none">
-          Săn deal LIVE<br />mỗi giây.
+          {t('heroLine1')}<br />{t('heroLine2')}
         </h1>
 
         <p className="m-0 font-body text-base text-tb-secondary leading-[1.55]">
-          Social commerce Việt Nam — Mua trực tiếp từ seller được xác minh.
-          Livestream 24/7, giá tốt nhất.
+          {t('heroTagline')}
         </p>
 
         <div className="grid grid-cols-3 gap-3 mt-3.5">
@@ -92,7 +94,7 @@ function LeftPanel(): ReactElement {
       </div>
 
       <div className="font-body text-xs text-tb-muted">
-        © 2026 TryBuy Việt Nam · Made in Vietnam
+        {t('footer')}
       </div>
     </aside>
   );
@@ -106,6 +108,10 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
     setError,
     formState: { errors, isSubmitting },
   } = useForm<RegisterFormData>({ resolver: zodResolver(registerSchema) });
+  const { lang } = useLanguage();
+  const t = useT(authMessages);
+  const fieldError = (text: string | undefined): string | undefined =>
+    translateIfKey(authMessages, lang, text);
 
   const { mutateAsync: registerMutate, isPending: registerPending } = useMutation({
     // confirmPassword is client-side only — never sent to the backend
@@ -128,7 +134,7 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
     } catch (err: unknown) {
       // A duplicate username/email is a 409 that names the field (backend
       // 2026-08-06) — put it on that input instead of the generic banner.
-      const { field, message } = credentialConflictError(err, 'Đăng ký thất bại. Vui lòng thử lại.');
+      const { field, message } = credentialConflictError(err, t('registerFailed'), lang);
       setError(field ?? 'root', { message });
     }
   }
@@ -138,10 +144,10 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
       <div className="max-w-[420px] w-full mx-auto flex flex-col gap-[22px]">
         <div>
           <h2 className="m-0 font-display font-black text-[36px] tracking-[-0.02em] text-ink-pri">
-            Tạo tài khoản
+            {t('registerTitle')}
           </h2>
           <p className="mt-1.5 mb-0 font-body text-[14px] text-tb-secondary">
-            Đăng ký để bắt đầu mua sắm với TryBuy.
+            {t('registerSub')}
           </p>
         </div>
 
@@ -155,11 +161,11 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
           <form className="flex flex-col gap-3.5" onSubmit={(e) => void handleSubmit(onSubmit)(e)} noValidate>
             <div className="flex flex-col gap-1">
               <label htmlFor="reg-username" className="font-body font-[500] text-[11px] leading-[1.4] text-tb-secondary tracking-[0.04em] uppercase">
-                Tên đăng nhập
+                {t('usernameLabel')}
               </label>
               <input
                 id="reg-username"
-                placeholder="Nhập tên đăng nhập"
+                placeholder={t('usernamePlaceholder')}
                 autoFocus
                 className={cn(
                   'h-11 bg-tb-elevated border rounded-tb-input px-3.5 text-ink-pri font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
@@ -168,17 +174,17 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
                 )}
                 {...register('username')}
               />
-              {errors.username && <span className="text-xs text-tb-red">{errors.username.message}</span>}
+              {errors.username && <span className="text-xs text-tb-red">{fieldError(errors.username.message)}</span>}
             </div>
 
             <div className="flex flex-col gap-1">
               <label htmlFor="reg-email" className="font-body font-[500] text-[11px] leading-[1.4] text-tb-secondary tracking-[0.04em] uppercase">
-                Email
+                {t('emailLabel')}
               </label>
               <input
                 id="reg-email"
                 type="email"
-                placeholder="Nhập địa chỉ email"
+                placeholder={t('emailPlaceholder')}
                 className={cn(
                   'h-11 bg-tb-elevated border rounded-tb-input px-3.5 text-ink-pri font-body text-[14px] outline-none placeholder:text-tb-muted transition-[border-color,box-shadow] duration-[120ms]',
                   'focus:border-accent-amber/50 focus:ring-4 focus:ring-accent-amber/10',
@@ -186,34 +192,34 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
                 )}
                 {...register('email')}
               />
-              {errors.email && <span className="text-xs text-tb-red">{errors.email.message}</span>}
+              {errors.email && <span className="text-xs text-tb-red">{fieldError(errors.email.message)}</span>}
             </div>
 
             <PasswordField
               id="reg-password"
-              label="Mật khẩu"
-              placeholder="Tối thiểu 8 ký tự"
-              error={errors.password?.message}
+              label={t('passwordLabel')}
+              placeholder={t('min8')}
+              error={fieldError(errors.password?.message)}
               inputProps={register('password')}
             />
 
             <PasswordField
               id="reg-confirm-password"
-              label="Nhập lại mật khẩu"
-              placeholder="Nhập lại mật khẩu"
-              error={errors.confirmPassword?.message}
+              label={t('confirmLabel')}
+              placeholder={t('confirmLabel')}
+              error={fieldError(errors.confirmPassword?.message)}
               inputProps={register('confirmPassword')}
             />
 
             <GradientButton type="submit" disabled={loading} size="lg" className="w-full">
-              {loading ? <Spinner /> : 'Đăng ký ngay →'}
+              {loading ? <Spinner /> : t('registerSubmit')}
             </GradientButton>
           </form>
 
           <p className="text-center mt-2 mb-0 font-body text-[13px] text-tb-secondary">
-            Đã có tài khoản?{' '}
+            {t('haveAccount')}{' '}
             <button type="button" onClick={onBack} className={linkBtn}>
-              Đăng nhập
+              {t('signIn')}
             </button>
           </p>
         </div>
@@ -229,6 +235,9 @@ export default function LoginPage(): ReactElement {
   const { loginSuccess } = useAuthContext();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { lang } = useLanguage();
+  const t = useT(authMessages);
+  const tShared = useT(sharedMessages);
 
   function handleAuthSuccess(user: User): void {
     loginSuccess(user);
@@ -247,6 +256,7 @@ export default function LoginPage(): ReactElement {
 
   return (
     <main className="tb-enter relative min-h-screen grid grid-cols-1 md:grid-cols-[1.1fr_1fr]">
+      <LanguageSwitch className="absolute top-4 right-16 z-10" />
       <ThemeToggleButton />
       <LeftPanel />
 
@@ -259,22 +269,22 @@ export default function LoginPage(): ReactElement {
           <div className="max-w-[420px] w-full mx-auto flex flex-col gap-[22px]">
             <div>
               <h2 className="m-0 font-display font-black text-[36px] tracking-[-0.02em] text-ink-pri">
-                Chào mừng trở lại
+                {t('loginTitle')}
               </h2>
               <p className="mt-1.5 mb-0 font-body text-[14px] text-tb-secondary">
-                Đăng nhập để tiếp tục mua sắm với TryBuy.
+                {t('loginSub')}
               </p>
             </div>
 
             <div className="tb-enter tb-stagger flex flex-col gap-3.5">
               {resetNotice && !apiError && (
                 <div className="bg-tb-green/15 border border-tb-green/30 rounded-tb-input text-accent-green text-[13px] px-3.5 py-2.5 text-center">
-                  Đặt lại mật khẩu thành công. Hãy đăng nhập với mật khẩu mới.
+                  {t('resetDone')}
                 </div>
               )}
               {apiError && (
                 <div className="bg-tb-red/10 border border-tb-red/40 rounded-tb-input text-tb-red text-[13px] px-3.5 py-2.5 text-center">
-                  {apiError}
+                  {translateIfKey(authMessages, lang, apiError)}
                 </div>
               )}
 
@@ -282,21 +292,21 @@ export default function LoginPage(): ReactElement {
                 <div className="flex flex-col gap-1">
                   <TextField
                     id="username" name="username"
-                    label="Tài khoản"
+                    label={t('accountLabel')}
                     placeholder="098 *** ***"
                     value={form.username} onChange={handleChange}
                     leftIcon={<UserIcon size={18} />}
                     hasError={!!errors.username}
                     autoComplete="username" autoFocus
                   />
-                  {errors.username && <span className="text-xs text-tb-red">{errors.username}</span>}
+                  {errors.username && <span className="text-xs text-tb-red">{t(errors.username)}</span>}
                 </div>
 
                 <div className="flex flex-col gap-1">
                   <TextField
                     id="password" name="password"
                     type={showPassword ? 'text' : 'password'}
-                    label="Mật khẩu"
+                    label={t('passwordLabel')}
                     placeholder="••••••••"
                     value={form.password} onChange={handleChange}
                     leftIcon={<Lock size={18} />}
@@ -304,7 +314,7 @@ export default function LoginPage(): ReactElement {
                       <button
                         type="button"
                         onClick={togglePassword}
-                        aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                        aria-label={tShared(showPassword ? 'hidePassword' : 'showPassword')}
                         className="bg-transparent !border-none p-1 flex items-center cursor-pointer text-tb-secondary hover:text-ink-pri transition-colors"
                       >
                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -313,7 +323,7 @@ export default function LoginPage(): ReactElement {
                     hasError={!!errors.password}
                     autoComplete="current-password"
                   />
-                  {errors.password && <span className="text-xs text-tb-red">{errors.password}</span>}
+                  {errors.password && <span className="text-xs text-tb-red">{t(errors.password)}</span>}
                 </div>
 
                 <div className="flex justify-between items-center">
@@ -324,48 +334,50 @@ export default function LoginPage(): ReactElement {
                       onChange={toggleRememberMe}
                       className="accent-tb-amber cursor-pointer"
                     />
-                    Ghi nhớ đăng nhập
+                    {t('rememberMe')}
                   </label>
                   <button
                     type="button"
                     onClick={() => { setResetNotice(false); setView('forgot'); }}
                     className={linkBtn}
                   >
-                    Quên mật khẩu?
+                    {t('forgotLink')}
                   </button>
                 </div>
 
                 <GradientButton type="submit" disabled={loading} size="lg" className="w-full">
-                  {loading ? <Spinner /> : 'Đăng nhập →'}
+                  {loading ? <Spinner /> : t('loginSubmit')}
                 </GradientButton>
               </form>
 
               <div className="flex items-center gap-3 my-2 font-body text-[11px] text-tb-muted uppercase tracking-[0.08em]">
                 <span className="flex-1 h-px bg-tb-border" />
-                hoặc tiếp tục với
+                {t('orContinue')}
                 <span className="flex-1 h-px bg-tb-border" />
               </div>
 
+              {/* Social login has no backend endpoint — disabled with a "coming soon" label
+                  per P2-03 rather than shipping dead controls. */}
               <div className="grid grid-cols-2 gap-2.5">
-                <button type="button" disabled aria-disabled title={COMING_SOON_TITLE} className={cn(ghostBtn, 'cursor-not-allowed opacity-50 hover:text-tb-secondary hover:border-tb-border')}>
+                <button type="button" disabled aria-disabled title={t('comingSoon')} className={cn(ghostBtn, 'cursor-not-allowed opacity-50 hover:text-tb-secondary hover:border-tb-border')}>
                   <Globe size={16} /> Google
                 </button>
-                <button type="button" disabled aria-disabled title={COMING_SOON_TITLE} className={cn(ghostBtn, 'cursor-not-allowed opacity-50 hover:text-tb-secondary hover:border-tb-border')}>
+                <button type="button" disabled aria-disabled title={t('comingSoon')} className={cn(ghostBtn, 'cursor-not-allowed opacity-50 hover:text-tb-secondary hover:border-tb-border')}>
                   <Users size={16} /> Facebook
                 </button>
               </div>
               <p className="text-center -mt-0.5 mb-0 font-body text-[11px] text-tb-muted">
-                Đăng nhập mạng xã hội sắp ra mắt
+                {t('socialSoon')}
               </p>
 
               <p className="text-center mt-2 mb-0 font-body text-[13px] text-tb-secondary">
-                Chưa có tài khoản?{' '}
+                {t('noAccount')}{' '}
                 <button
                   type="button"
                   onClick={() => setView('register')}
                   className={linkBtn}
                 >
-                  Đăng ký ngay
+                  {t('registerLink')}
                 </button>
               </p>
             </div>

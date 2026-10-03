@@ -1,4 +1,7 @@
 import type { ApiError } from '@/types';
+import type { Lang } from '@/lib/i18n/lang';
+import { translate } from '@/lib/i18n/messages';
+import { authMessages } from './auth.i18n';
 
 /**
  * Pure helpers for the forgot-password flow.
@@ -30,15 +33,12 @@ function statusOf(error: unknown): number | undefined {
   return err?.statusCode ?? err?.status;
 }
 
-const RATE_LIMIT_MESSAGE = 'Bạn thao tác quá nhanh. Vui lòng thử lại sau ít phút.';
-const CONNECTION_MESSAGE = 'Không thể kết nối đến máy chủ. Vui lòng thử lại.';
-
 /** Friendly message for a failed forgot-password (send code) request. */
-export function forgotPasswordErrorMessage(error: unknown): string {
+export function forgotPasswordErrorMessage(error: unknown, lang: Lang = 'vi'): string {
   const status = statusOf(error);
-  if (status === 429) return RATE_LIMIT_MESSAGE;
-  if (status === 400) return 'Email không hợp lệ.';
-  return CONNECTION_MESSAGE;
+  if (status === 429) return translate(authMessages, lang, 'rateLimited');
+  if (status === 400) return translate(authMessages, lang, 'emailInvalidServer');
+  return translate(authMessages, lang, 'connectionError');
 }
 
 /** The server destroyed the code after too many wrong attempts (MAIL-UI-01). */
@@ -62,16 +62,12 @@ export function isResetCodeExhausted(error: unknown): boolean {
  * the backend deliberately does not say which of the four it was. Client-side
  * zod prevents the DTO-shaped 400s from ever being sent.
  */
-export function resetPasswordErrorMessage(error: unknown): string {
+export function resetPasswordErrorMessage(error: unknown, lang: Lang = 'vi'): string {
   const status = statusOf(error);
-  if (status === 429) return RATE_LIMIT_MESSAGE;
-  if (isResetCodeExhausted(error)) {
-    return 'Bạn đã nhập sai quá nhiều lần — mã này không còn dùng được. Hãy bấm "Gửi lại mã" để nhận mã mới.';
-  }
-  if (status === 400) {
-    return 'Mã xác nhận không đúng hoặc đã hết hạn. Vui lòng kiểm tra lại hoặc gửi lại mã.';
-  }
-  return CONNECTION_MESSAGE;
+  if (status === 429) return translate(authMessages, lang, 'rateLimited');
+  if (isResetCodeExhausted(error)) return translate(authMessages, lang, 'codeExhausted');
+  if (status === 400) return translate(authMessages, lang, 'codeInvalid');
+  return translate(authMessages, lang, 'connectionError');
 }
 
 /**

@@ -18,6 +18,10 @@ import {
   resendCooldownRemaining,
 } from './forgotPassword';
 import { PasswordField } from '@/components/shared/PasswordField';
+import { useLanguage } from '@/context/useLanguage';
+import { useT } from '@/hooks/ui/useT';
+import { translateIfKey } from '@/lib/i18n/messages';
+import { authMessages } from './auth.i18n';
 
 interface ForgotPasswordFormProps {
   onBack: () => void;
@@ -49,6 +53,10 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
   const [now, setNow] = useState(() => Date.now());
 
   const remaining = resendCooldownRemaining(cooldownUntil, now);
+  const { lang } = useLanguage();
+  const t = useT(authMessages);
+  const fieldError = (text: string | undefined): string | undefined =>
+    translateIfKey(authMessages, lang, text);
 
   useEffect(() => {
     if (cooldownUntil === null) return;
@@ -85,7 +93,7 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
       startCooldown();
       setStep('reset');
     } catch (error: unknown) {
-      setApiError(forgotPasswordErrorMessage(error));
+      setApiError(forgotPasswordErrorMessage(error, lang));
     }
   }
 
@@ -97,7 +105,7 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
       startCooldown();
       setResendNotice(true);
     } catch (error: unknown) {
-      setApiError(forgotPasswordErrorMessage(error));
+      setApiError(forgotPasswordErrorMessage(error, lang));
     }
   }
 
@@ -107,7 +115,7 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
       await resetPassword(data);
       onResetSuccess();
     } catch (error: unknown) {
-      setApiError(resetPasswordErrorMessage(error));
+      setApiError(resetPasswordErrorMessage(error, lang));
     }
   }
 
@@ -116,12 +124,12 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
       <div className="max-w-[420px] w-full mx-auto flex flex-col gap-[22px]">
         <div>
           <h2 className="m-0 font-display font-black text-[36px] tracking-[-0.02em] text-ink-pri">
-            Quên mật khẩu
+            {t('forgotTitle')}
           </h2>
           <p className="mt-1.5 mb-0 font-body text-[14px] text-tb-secondary">
             {step === 'email'
-              ? 'Nhập email đã đăng ký để nhận mã xác nhận 6 chữ số.'
-              : `Nếu email tồn tại, mã xác nhận đã được gửi tới ${email}. Mã hết hiệu lực rất nhanh — hãy nhập ngay, thời hạn cụ thể ghi trong email.`}
+              ? t('forgotSubEmail')
+              : t('forgotSubReset', { email })}
           </p>
         </div>
 
@@ -133,7 +141,7 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
           )}
           {resendNotice && !apiError && (
             <div className="bg-tb-green/15 border border-tb-green/30 rounded-tb-input text-accent-green text-[13px] px-3.5 py-2.5 text-center">
-              Đã gửi lại mã (nếu email tồn tại). Hãy dùng mã trong email mới nhất — mã cũ không còn dùng được.
+              {t('resendNotice')}
             </div>
           )}
           {step === 'email' ? (
@@ -148,24 +156,24 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
             >
               <div className="flex flex-col gap-1">
                 <label htmlFor="forgot-email" className="font-body font-[500] text-[11px] leading-[1.4] text-tb-secondary tracking-[0.04em] uppercase">
-                  Email
+                  {t('emailLabel')}
                 </label>
                 <input
                   id="forgot-email"
                   type="email"
-                  placeholder="Nhập địa chỉ email"
+                  placeholder={t('emailPlaceholder')}
                   autoFocus
                   autoComplete="email"
                   className={fieldInput(!!emailForm.formState.errors.email)}
                   {...emailForm.register('email')}
                 />
                 {emailForm.formState.errors.email && (
-                  <span className="text-xs text-tb-red">{emailForm.formState.errors.email.message}</span>
+                  <span className="text-xs text-tb-red">{fieldError(emailForm.formState.errors.email.message)}</span>
                 )}
               </div>
 
               <GradientButton type="submit" disabled={sendPending} size="lg" className="w-full">
-                Gửi mã xác nhận →
+                {t('sendCode')}
               </GradientButton>
             </form>
           ) : (
@@ -177,61 +185,61 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
             >
               <div className="flex flex-col gap-1">
                 <label htmlFor="reset-code" className="font-body font-[500] text-[11px] leading-[1.4] text-tb-secondary tracking-[0.04em] uppercase">
-                  Mã xác nhận
+                  {t('codeLabel')}
                 </label>
                 <input
                   id="reset-code"
                   inputMode="numeric"
                   maxLength={6}
-                  placeholder="6 chữ số"
+                  placeholder={t('codePlaceholder')}
                   autoFocus
                   autoComplete="one-time-code"
                   className={cn(fieldInput(!!resetForm.formState.errors.code), 'font-mono tracking-[0.3em]')}
                   {...resetForm.register('code')}
                 />
                 {resetForm.formState.errors.code && (
-                  <span className="text-xs text-tb-red">{resetForm.formState.errors.code.message}</span>
+                  <span className="text-xs text-tb-red">{fieldError(resetForm.formState.errors.code.message)}</span>
                 )}
               </div>
 
               <PasswordField
                 id="reset-password"
-                label="Mật khẩu mới"
-                placeholder="Tối thiểu 6 ký tự"
-                error={resetForm.formState.errors.newPassword?.message}
+                label={t('newPasswordLabel')}
+                placeholder={t('min6')}
+                error={fieldError(resetForm.formState.errors.newPassword?.message)}
                 inputProps={resetForm.register('newPassword')}
               />
 
               <PasswordField
                 id="reset-confirm-password"
-                label="Nhập lại mật khẩu mới"
-                placeholder="Nhập lại mật khẩu mới"
-                error={resetForm.formState.errors.confirmPassword?.message}
+                label={t('confirmNewLabel')}
+                placeholder={t('confirmNewLabel')}
+                error={fieldError(resetForm.formState.errors.confirmPassword?.message)}
                 inputProps={resetForm.register('confirmPassword')}
               />
 
               <GradientButton type="submit" disabled={resetPending} size="lg" className="w-full">
-                Đặt lại mật khẩu →
+                {t('resetSubmit')}
               </GradientButton>
 
               <p className="text-center m-0 font-body text-[13px] text-tb-secondary">
-                Chưa nhận được mã?{' '}
+                {t('noCode')}{' '}
                 <button
                   type="button"
                   onClick={() => void onResend()}
                   disabled={remaining > 0 || sendPending}
                   className={cn(linkBtn, (remaining > 0 || sendPending) && 'text-tb-muted cursor-not-allowed')}
                 >
-                  {remaining > 0 ? `Gửi lại mã (${remaining}s)` : 'Gửi lại mã'}
+                  {remaining > 0 ? t('resendIn', { seconds: remaining }) : t('resend')}
                 </button>
               </p>
             </form>
           )}
 
           <p className="text-center mt-2 mb-0 font-body text-[13px] text-tb-secondary">
-            Nhớ mật khẩu rồi?{' '}
+            {t('rememberPassword')}{' '}
             <button type="button" onClick={onBack} className={linkBtn}>
-              Đăng nhập
+              {t('signIn')}
             </button>
           </p>
         </div>
