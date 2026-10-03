@@ -5,6 +5,8 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { cn } from '@/lib/format/utils';
 import { useDeletePost } from './useFeed';
 import { ReportPostDialog } from './ReportPostDialog';
+import { useT } from '@/hooks/ui/useT';
+import { socialMessages } from './social.i18n';
 
 interface PostActionMenuProps {
   postId: string;
@@ -21,6 +23,7 @@ interface PostActionMenuProps {
 }
 
 export function PostActionMenu({ postId, isOwner, canReport = false, onCopyLink, onEdit, onDeleted }: PostActionMenuProps) {
+  const t = useT(socialMessages);
   const [open, setOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -73,7 +76,7 @@ export function PostActionMenu({ postId, isOwner, canReport = false, onCopyLink,
     <div className="relative" ref={ref}>
       <IconButton
         onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
-        aria-label="Tùy chọn bài viết"
+        aria-label={t('postOptions')}
         className="size-8 rounded-full text-ink-sec hover:bg-canvas-elevated transition-colors shrink-0"
       >
         <MoreHorizontal size={20} className="shrink-0" />
@@ -86,7 +89,7 @@ export function PostActionMenu({ postId, isOwner, canReport = false, onCopyLink,
             onClick={handleCopy}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-tb-input bg-transparent border-0 cursor-pointer hover:bg-canvas-elevated transition-colors text-left text-sm text-ink-pri"
           >
-            <Link2 size={15} className="shrink-0 text-ink-sec" /> Sao chép liên kết
+            <Link2 size={15} className="shrink-0 text-ink-sec" /> {t('copyLink')}
           </button>
 
           {isOwner && (
@@ -95,7 +98,7 @@ export function PostActionMenu({ postId, isOwner, canReport = false, onCopyLink,
               onClick={handleEdit}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-tb-input bg-transparent border-0 cursor-pointer hover:bg-canvas-elevated transition-colors text-left text-sm text-ink-pri"
             >
-              <Pencil size={15} className="shrink-0 text-ink-sec" /> Chỉnh sửa bài viết
+              <Pencil size={15} className="shrink-0 text-ink-sec" /> {t('editPost')}
             </button>
           )}
 
@@ -105,7 +108,7 @@ export function PostActionMenu({ postId, isOwner, canReport = false, onCopyLink,
               onClick={handleReport}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-tb-input bg-transparent border-0 cursor-pointer hover:bg-canvas-elevated transition-colors text-left text-sm text-ink-pri"
             >
-              <Flag size={15} className="shrink-0 text-ink-sec" /> Báo cáo bài viết
+              <Flag size={15} className="shrink-0 text-ink-sec" /> {t('reportPost')}
             </button>
           )}
 
@@ -124,7 +127,7 @@ export function PostActionMenu({ postId, isOwner, canReport = false, onCopyLink,
                 {isPending
                   ? <Loader2 size={15} className="shrink-0 animate-spin" />
                   : <Trash2 size={15} className="shrink-0" />}
-                Xóa bài viết
+                {t('deletePost')}
               </button>
             </>
           )}
@@ -136,11 +139,11 @@ export function PostActionMenu({ postId, isOwner, canReport = false, onCopyLink,
       <ConfirmDialog
         open={confirmOpen}
         tone="danger"
-        title="Xóa bài viết"
-        description="Hành động này không thể hoàn tác."
-        confirmLabel="Xóa bài viết"
+        title={t('deletePost')}
+        description={t('cannotUndo')}
+        confirmLabel={t('deletePost')}
         isPending={isPending}
-        error={deleteError ? 'Xóa bài viết thất bại. Vui lòng thử lại.' : null}
+        error={deleteError ? t('deletePostFailed') : null}
         onConfirm={confirmDelete}
         onCancel={() => { setConfirmOpen(false); }}
       />

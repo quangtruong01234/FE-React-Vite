@@ -12,6 +12,9 @@ import { useReplies, useCreateReply, useDeleteComment } from './useComments';
 import { commentAuthorView } from './commentAuthor';
 import { cn } from '@/lib/format/utils';
 import { relativeTimeShort } from '@/lib/format/time';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import { socialMessages } from './social.i18n';
 import type { Comment, CommentTree } from '@/types';
 
 const MAX_DEPTH = 3;
@@ -33,6 +36,8 @@ export function CommentNode({
   parentCommentId,
 }: CommentNodeProps): ReactElement {
   const role = useRole();
+  const t = useT(socialMessages);
+  const { lang } = useLanguage();
   const meId = role?.me?.id;
 
   const [replying, setReplying] = useState(false);
@@ -49,7 +54,7 @@ export function CommentNode({
 
   const replyCount = repliesData ? repliesData.children.length : (comment.replyCount ?? 0);
   const isOwn = meId !== undefined && meId === comment.userId;
-  const { displayName, avatarSrc } = commentAuthorView(comment.author);
+  const { displayName, avatarSrc } = commentAuthorView(comment.author, lang);
 
   async function onReplySubmit(data: ReplyFormData): Promise<void> {
     await createReply.mutateAsync({ commentId: comment.id, content: data.content, postId });
@@ -89,14 +94,14 @@ export function CommentNode({
 
           {/* Action row */}
           <div className="flex items-center gap-4 mt-1 ml-1 text-xs font-semibold text-ink-muted">
-            <span>{relativeTimeShort(comment.createdAt)}</span>
+            <span>{relativeTimeShort(comment.createdAt, lang)}</span>
             {depth < MAX_DEPTH && (
               <button
                 type="button"
                 onClick={() => setReplying((r) => !r)}
                 className="bg-transparent border-0 cursor-pointer p-0 hover:text-accent-amber transition-colors"
               >
-                Trả lời
+                {t('reply')}
               </button>
             )}
             {isOwn && (
@@ -106,7 +111,7 @@ export function CommentNode({
                 disabled={deleteComment.isPending}
                 className="bg-transparent border-0 cursor-pointer p-0 hover:text-accent-red transition-colors flex items-center gap-1"
               >
-                <Trash2 size={11} /> Xoá
+                <Trash2 size={11} /> {t('delete')}
               </button>
             )}
           </div>
@@ -121,7 +126,7 @@ export function CommentNode({
               <input
                 {...register('content')}
                 autoFocus
-                placeholder="Trả lời bình luận…"
+                placeholder={t('replyPlaceholder')}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') setReplying(false);
                 }}
@@ -146,7 +151,7 @@ export function CommentNode({
                   onClick={() => setShowReplies(true)}
                   className="text-xs font-semibold text-accent-amber bg-transparent border-0 cursor-pointer p-0 hover:underline"
                 >
-                  Xem tất cả {replyCount} phản hồi
+                  {t('showReplies', { count: replyCount })}
                 </button>
               )}
               {showReplies && repliesLoading && (
@@ -162,7 +167,7 @@ export function CommentNode({
                     onClick={() => setShowReplies(false)}
                     className="text-xs font-semibold text-ink-muted bg-transparent border-0 cursor-pointer p-0 hover:text-accent-amber transition-colors mb-1"
                   >
-                    Ẩn phản hồi
+                    {t('hideReplies')}
                   </button>
                   {replies.map((reply) => (
                     <CommentNode
@@ -183,11 +188,11 @@ export function CommentNode({
       <ConfirmDialog
         open={confirmingDelete}
         tone="danger"
-        title="Xoá bình luận"
-        description="Hành động này không thể hoàn tác."
-        confirmLabel="Xoá"
+        title={t('deleteCommentTitle')}
+        description={t('cannotUndo')}
+        confirmLabel={t('delete')}
         isPending={deleteComment.isPending}
-        error={deleteComment.error ? 'Xoá bình luận thất bại. Vui lòng thử lại.' : null}
+        error={deleteComment.error ? t('deleteCommentFailed') : null}
         onConfirm={confirmDelete}
         onCancel={() => { setConfirmingDelete(false); }}
       />

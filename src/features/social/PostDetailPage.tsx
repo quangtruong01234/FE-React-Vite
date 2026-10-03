@@ -19,9 +19,14 @@ import { PostActionMenu } from './PostActionMenu';
 import { AttachedProduct } from './AttachedProduct';
 import { PostImage } from './PostImage';
 import { openEditPost } from './composerEvents';
+import { shownLikeCount } from './postLike';
 import { cn } from '@/lib/format/utils';
 import { relativeTimeShort } from '@/lib/format/time';
-import { userDisplayName } from '@/lib/format/user';
+import { LANG_LOCALE } from '@/lib/i18n/lang';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import { socialMessages } from './social.i18n';
+import { userDisplayName, userFallback } from '@/lib/format/user';
 
 const commentSchema = z.object({ content: z.string().min(1) });
 type CommentFormData = z.infer<typeof commentSchema>;
@@ -31,8 +36,11 @@ export default function PostDetailPage(): ReactElement {
   const navigate = useNavigate();
   const postId = id ?? '';
   const { currentUser } = useAuthContext();
+  const t = useT(socialMessages);
+  const { lang } = useLanguage();
 
-  const [liked, setLiked] = useState(false);
+  /** The viewer's toggle on this page; `null` until they click, so the server's `isLiked` shows first. */
+  const [likeOverride, setLikeOverride] = useState<boolean | null>(null);
   const likePost = useLikePost();
   const unlikePost = useUnlikePost();
   const { toast, share, copy } = useSharePost();
@@ -51,12 +59,15 @@ export default function PostDetailPage(): ReactElement {
     resolver: zodResolver(commentSchema),
   });
 
+  const liked = likeOverride ?? post?.isLiked ?? false;
+
   function handleLike(): void {
+    if (likePost.isPending || unlikePost.isPending) return;
     if (liked) {
-      setLiked(false);
+      setLikeOverride(false);
       unlikePost.mutate(postId);
     } else {
-      setLiked(true);
+      setLikeOverride(true);
       likePost.mutate(postId);
     }
   }
@@ -91,14 +102,14 @@ export default function PostDetailPage(): ReactElement {
   if (postError || !post) {
     const errMsg = postError && typeof postError === 'object' && 'message' in postError
       ? String((postError as { message: unknown }).message)
-      : 'Không tìm thấy bài viết.';
+      : t('postNotFound');
     return (
       <div className="max-w-[640px] mx-auto">
         <button
           onClick={() => navigate('/')}
           className="inline-flex items-center gap-1.5 mb-4 bg-canvas-elevated border border-bdr rounded-lg px-3 py-2 text-ink-pri text-sm cursor-pointer hover:border-accent-amber transition-colors"
         >
-          <ArrowLeft size={16} /> Bảng tin
+          <ArrowLeft size={16} /> {t('backToFeed')}
         </button>
         <div className="bg-tb-red/10 border border-accent-red text-accent-red px-4 py-3 rounded-xl text-sm">
           {errMsg}
@@ -107,9 +118,9 @@ export default function PostDetailPage(): ReactElement {
     );
   }
 
-  const displayLikeCount = liked ? post.likeCount + 1 : post.likeCount;
+  const displayLikeCount = shownLikeCount(post.likeCount, post.isLiked, liked);
   const isOwner = currentUser?.id != null && currentUser.id === post.author.id;
-  const authorName = userDisplayName(post.author);
+  const authorName = userDisplayName(post.author, userFallback(lang));
 
   return (
     <div className="max-w-[640px] mx-auto">
@@ -118,7 +129,7 @@ export default function PostDetailPage(): ReactElement {
         onClick={() => navigate('/')}
         className="inline-flex items-center gap-1.5 mb-4 bg-canvas-elevated border border-bdr rounded-lg px-3 py-2 text-ink-pri text-sm cursor-pointer hover:border-accent-amber transition-colors"
       >
-        <ArrowLeft size={16} /> Bảng tin
+        <ArrowLeft size={16} /> {t('backToFeed')}
       </button>
 
       <article className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
@@ -135,7 +146,7 @@ export default function PostDetailPage(): ReactElement {
               {authorName}
             </Link>
             <div className="flex items-center gap-1.5 text-xs text-ink-muted">
-              <span>{relativeTimeShort(post.createdAt)}</span>
+              <span>{relativeTimeShort(post.createdAt, lang)}</span>
               <span>·</span>
               <Globe size={11} />
             </div>
@@ -192,15 +203,16 @@ export default function PostDetailPage(): ReactElement {
             <span className="size-4 rounded-full bg-tb-gradient grid place-items-center">
               <Heart size={9} className="text-ink-on-accent shrink-0" />
             </span>
-            {displayLikeCount.toLocaleString('vi-VN')}
+            {displayLikeCount.toLocaleString(LANG_LOCALE[lang])}
           </span>
-          <span>{post.commentCount.toLocaleString('vi-VN')} bình luận</span>
+          <span>{t('commentCount', { count: post.commentCount.toLocaleString(LANG_LOCALE[lang]), n: post.commentCount })}</span>
         </div>
 
         {/* Action row */}
         <div className="flex items-center px-2 py-1 border-t border-b border-bdr mx-2">
           <button
             onClick={handleLike}
+            aria-pressed={liked}
             className={cn(
               'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg',
               'bg-transparent border-0 cursor-pointer font-semibold text-sm transition-colors',
@@ -208,24 +220,24 @@ export default function PostDetailPage(): ReactElement {
             )}
           >
             <Heart size={17} className={cn(liked && 'fill-current')} />
-            Thích
+            {t('like')}
           </button>
           <button className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-transparent border-0 cursor-pointer font-semibold text-sm text-ink-sec hover:bg-canvas-elevated transition-colors">
             <MessageCircle size={17} />
-            Bình luận
+            {t('comment')}
           </button>
           <button
             onClick={() => void share(post.id)}
             className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-transparent border-0 cursor-pointer font-semibold text-sm text-ink-sec hover:bg-canvas-elevated transition-colors">
             <Share2 size={17} />
-            Chia sẻ
+            {t('share')}
           </button>
         </div>
 
         {/* Comments */}
         <div className="px-4 py-3">
           <div className="text-sm font-bold text-ink-pri mb-2">
-            Bình luận ({post.commentCount})
+            {t('commentsHeading', { count: post.commentCount })}
           </div>
           {commentsLoading && (
             <div className="flex flex-col gap-3 py-2">
@@ -239,7 +251,7 @@ export default function PostDetailPage(): ReactElement {
           )}
           {!commentsLoading && comments.length === 0 && (
             <p className="text-sm text-ink-muted py-4 text-center">
-              Chưa có bình luận. Hãy là người đầu tiên!
+              {t('noComments')}
             </p>
           )}
           {!commentsLoading && comments.map((comment) => (
@@ -261,11 +273,12 @@ export default function PostDetailPage(): ReactElement {
         >
           <input
             {...register('content')}
-            placeholder="Viết bình luận…"
+            placeholder={t('commentPlaceholder')}
             className="flex-1 bg-canvas-elevated border border-bdr rounded-full px-4 py-2.5 text-sm text-ink-pri placeholder:text-ink-muted outline-none focus:border-tb-amber/50"
           />
           <button
             type="submit"
+            aria-label={t('sendComment')}
             disabled={isSubmitting || createComment.isPending}
             className="p-2.5 rounded-full bg-tb-gradient text-ink-on-accent flex items-center justify-center cursor-pointer border-0 disabled:opacity-40 disabled:cursor-not-allowed overflow-visible"
           >

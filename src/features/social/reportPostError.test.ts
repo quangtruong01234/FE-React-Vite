@@ -23,3 +23,16 @@ describe('reportPostErrorMessage', () => {
     expect(reportPostErrorMessage({ statusCode: 503 })).toBe('Báo cáo thất bại. Vui lòng thử lại.');
   });
 });
+
+describe('reportPostErrorMessage in English (I18N-05)', () => {
+  it('translates the mapped statuses and the fallback', () => {
+    expect(reportPostErrorMessage({ statusCode: 409 }, 'en')).toBe('You have already reported this post.');
+    expect(reportPostErrorMessage({ statusCode: 400 }, 'en')).toBe("You can't report your own post.");
+    expect(reportPostErrorMessage({ statusCode: 429 }, 'en')).toBe("You're going too fast. Please try again later.");
+    expect(reportPostErrorMessage(null, 'en')).toBe('Report failed. Please try again.');
+  });
+
+  it('still passes a server message through untranslated', () => {
+    expect(reportPostErrorMessage({ statusCode: 500, message: 'Máy chủ lỗi' }, 'en')).toBe('Máy chủ lỗi');
+  });
+});

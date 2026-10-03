@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { copyPostLink, sharePost } from '@/lib/domain/sharePost';
+import { useT } from '@/hooks/ui/useT';
+import { socialMessages } from './social.i18n';
 
 interface UseSharePost {
   toast: string | null;
@@ -14,6 +16,7 @@ interface UseSharePost {
  * mirrors the local-state toast pattern used elsewhere (e.g. ShopPage).
  */
 export function useSharePost(): UseSharePost {
+  const t = useT(socialMessages);
   const [toast, setToast] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -26,20 +29,20 @@ export function useSharePost(): UseSharePost {
   const share = useCallback(async (postId: string) => {
     try {
       const result = await sharePost(postId);
-      if (result === 'copied') notify('Đã sao chép liên kết bài viết');
+      if (result === 'copied') notify(t('linkCopied'));
     } catch {
       // Native share was cancelled — treat as a no-op.
     }
-  }, [notify]);
+  }, [notify, t]);
 
   const copy = useCallback(async (postId: string) => {
     try {
       await copyPostLink(postId);
-      notify('Đã sao chép liên kết bài viết');
+      notify(t('linkCopied'));
     } catch {
-      notify('Không thể sao chép liên kết');
+      notify(t('copyFailed'));
     }
-  }, [notify]);
+  }, [notify, t]);
 
   useEffect(() => () => clearTimeout(timer.current), []);
 

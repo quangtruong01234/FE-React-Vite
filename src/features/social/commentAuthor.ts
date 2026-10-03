@@ -1,4 +1,5 @@
-import { userDisplayName, nonBlank } from '@/lib/format/user';
+import { userDisplayName, userFallback, nonBlank } from '@/lib/format/user';
+import type { Lang } from '@/lib/i18n/lang';
 import type { PostAuthor } from '@/types';
 
 export interface CommentAuthorView {
@@ -15,9 +16,12 @@ export interface CommentAuthorView {
  * the comment read still succeeds). The old `Người dùng #usr_xxx` fallback
  * leaked an opaque id into the UI, so the neutral case carries no id at all.
  */
-export function commentAuthorView(author: PostAuthor | null | undefined): CommentAuthorView {
+export function commentAuthorView(
+  author: PostAuthor | null | undefined,
+  lang: Lang = 'vi',
+): CommentAuthorView {
   return {
-    displayName: userDisplayName(author),
+    displayName: userDisplayName(author, userFallback(lang)),
     avatarSrc: nonBlank(author?.avatar) ?? undefined,
   };
 }

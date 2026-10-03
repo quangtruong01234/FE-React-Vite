@@ -47,3 +47,9 @@ describe('commentAuthorView', () => {
     expect(commentAuthorView(author({ username: '  test1  ' })).displayName).toBe('test1');
   });
 });
+
+describe('commentAuthorView in English (I18N-07)', () => {
+  it('names a missing author in English', () => {
+    expect(commentAuthorView(null, 'en').displayName).toBe('User');
+  });
+});

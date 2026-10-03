@@ -5,6 +5,8 @@ import { ProductThumb } from '@/components/shared/ProductThumb';
 import { PriceText } from '@/components/shared/PriceText';
 import { productCoverImage } from '@/lib/domain/productImage';
 import { useAddToCart } from '@/hooks/data/useCart';
+import { useT } from '@/hooks/ui/useT';
+import { socialMessages } from './social.i18n';
 import type { ProductWithInventory } from '@/types';
 
 interface ProductChipProps {
@@ -12,6 +14,7 @@ interface ProductChipProps {
 }
 
 export default function ProductChip({ product }: ProductChipProps) {
+  const t = useT(socialMessages);
   const addToCart = useAddToCart();
 
   function handleAddToCart() {
@@ -29,7 +32,7 @@ export default function ProductChip({ product }: ProductChipProps) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 text-[10px] font-display font-bold uppercase tracking-wider text-accent-amber">
           <Tag size={11} />
-          Sản phẩm gắn kèm
+          {t('attachedProduct')}
         </div>
         <Link
           to={`/product/${product.id}`}
@@ -42,7 +45,7 @@ export default function ProductChip({ product }: ProductChipProps) {
 
       <GradientButton size="sm" className="flex-none rounded-tb-input" onClick={handleAddToCart} disabled={addToCart.isPending}>
         <ShoppingCart size={14} />
-        Mua nhanh
+        {t('quickBuy')}
       </GradientButton>
     </div>
   );

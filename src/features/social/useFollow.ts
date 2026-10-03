@@ -19,10 +19,11 @@ export function useFollowing(userId: string) {
   });
 }
 
-export function useFollowingFeed(userId: string, active = false) {
+// `search` filters on post content server-side (LIST-SEARCH-01); `""` is unfiltered.
+export function useFollowingFeed(userId: string, active = false, search = '') {
   return useInfiniteQuery({
-    queryKey: queryKeys.social.followingFeed(userId),
-    queryFn: ({ pageParam }) => api.social.getFollowingFeed(userId, pageParam as number, 10),
+    queryKey: queryKeys.social.followingFeed(userId, search),
+    queryFn: ({ pageParam }) => api.social.getFollowingFeed(userId, pageParam as number, 10, search),
     initialPageParam: 1,
     getNextPageParam: (lastPage, _allPages, lastPageParam) =>
       lastPage.hasNext ? (lastPageParam as number) + 1 : undefined,
@@ -38,7 +39,7 @@ export function useFollowUser(targetId: string, viewerId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.social.following(viewerId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.social.followers(targetId) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.social.followingFeed(viewerId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.social.followingFeedAll });
     },
   });
 }
@@ -51,7 +52,7 @@ export function useUnfollowUser(targetId: string, viewerId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.social.following(viewerId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.social.followers(targetId) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.social.followingFeed(viewerId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.social.followingFeedAll });
     },
   });
 }

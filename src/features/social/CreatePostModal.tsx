@@ -31,6 +31,10 @@ import { cn } from '@/lib/format/utils';
 import { ProductPicker } from './ProductPicker';
 import { useUpdatePost } from './useFeed';
 import { createPostSchema, type CreatePostFormData } from './social.schema';
+import { translateIfKey } from '@/lib/i18n/messages';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import { socialMessages } from './social.i18n';
 import type { Post, ProductWithInventory } from '@/types';
 
 const MAX_IMAGES = 4;
@@ -66,6 +70,8 @@ function deriveInitialMedia(post?: Post): MediaItem[] {
 export default function CreatePostModal({ open, onClose, editPost }: CreatePostModalProps) {
   const queryClient = useQueryClient();
   const { currentUser } = useAuth();
+  const t = useT(socialMessages);
+  const { lang } = useLanguage();
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const isEdit = editPost != null;
@@ -103,7 +109,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
   function afterSuccess(): void {
     // Post saved — media is now referenced, don't delete
     setMediaItems([]);
-    void queryClient.invalidateQueries({ queryKey: queryKeys.social.feed(1) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.social.feedAll });
     reset();
     setUpload({ active: false, percent: 0, error: null });
     onClose();
@@ -123,7 +129,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
     if (!files.length) return;
     // UP-06: block the upload while unauthenticated instead of tagging media
     // with a wrong `0_...` owner prefix the real user can never clean up.
-    const owner = resolveUploadOwner(currentUser);
+    const owner = resolveUploadOwner(currentUser, lang);
     if ('error' in owner) {
       setUpload({ active: false, percent: 0, error: owner.error });
       if (imageInputRef.current) imageInputRef.current.value = '';
@@ -132,7 +138,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
     const currentImages = mediaItems.filter((m) => m.type === 'image').length;
     // UP-07: cap the batch and tell the user what was dropped instead of
     // slicing silently.
-    const { accepted, notice } = capImageBatch(currentImages, files, MAX_IMAGES);
+    const { accepted, notice } = capImageBatch(currentImages, files, MAX_IMAGES, lang);
     if (!accepted.length) {
       setUpload({ active: false, percent: 0, error: notice });
       if (imageInputRef.current) imageInputRef.current.value = '';
@@ -140,7 +146,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
     }
 
     // UP-04: reject bad files before wasting an upload round-trip.
-    const invalid = firstUploadError(accepted, { kind: 'image', maxBytes: MAX_IMAGE_BYTES });
+    const invalid = firstUploadError(accepted, { kind: 'image', maxBytes: MAX_IMAGE_BYTES }, lang);
     if (invalid) {
       setUpload({ active: false, percent: 0, error: invalid });
       if (imageInputRef.current) imageInputRef.current.value = '';
@@ -156,7 +162,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
       // the ones already uploaded stay in state — visible and cleanable via
       // handleClose/removeMedia — instead of being stranded as Cloudinary orphans.
       await uploadFilesSequential(accepted, {
-        upload: (file, _i, onProgress) => uploadImage(file, owner.ownerId, onProgress),
+        upload: (file, _i, onProgress) => uploadImage(file, owner.ownerId, onProgress, lang),
         onItem: ({ url, publicId }) =>
           setMediaItems((prev) => [...prev, { url, publicId, type: 'image' as const }]),
         onProgress: (percent) => setUpload((prev) => ({ ...prev, percent })),
@@ -164,7 +170,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
     } catch (err: unknown) {
       setUpload((prev) => ({
         ...prev,
-        error: err instanceof Error ? err.message : 'Upload ảnh thất bại',
+        error: err instanceof Error ? err.message : t('imageUploadFailed'),
       }));
     } finally {
       setUpload((prev) => ({ ...prev, active: false, percent: 0 }));
@@ -193,7 +199,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
     if (!file) return;
 
     // UP-06: block the upload while unauthenticated (see uploadImageFiles).
-    const owner = resolveUploadOwner(currentUser);
+    const owner = resolveUploadOwner(currentUser, lang);
     if ('error' in owner) {
       setUpload({ active: false, percent: 0, error: owner.error });
       if (videoInputRef.current) videoInputRef.current.value = '';
@@ -201,7 +207,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
     }
 
     // UP-04: reject bad files before wasting an upload round-trip.
-    const invalid = validateUploadFile(file, { kind: 'video', maxBytes: MAX_VIDEO_BYTES });
+    const invalid = validateUploadFile(file, { kind: 'video', maxBytes: MAX_VIDEO_BYTES }, lang);
     if (invalid) {
       setUpload({ active: false, percent: 0, error: invalid });
       if (videoInputRef.current) videoInputRef.current.value = '';
@@ -213,7 +219,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
     try {
       const result = await uploadVideo(file, owner.ownerId, (p) => {
         setUpload((prev) => ({ ...prev, percent: p }));
-      });
+      }, lang);
       // If replacing an existing video, delete the old one from Cloudinary
       // (skip persisted media, which carries an empty publicId).
       const oldVideo = mediaItems.find((m) => m.type === 'video');
@@ -225,7 +231,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
     } catch (err: unknown) {
       setUpload((prev) => ({
         ...prev,
-        error: err instanceof Error ? err.message : 'Upload video thất bại',
+        error: err instanceof Error ? err.message : t('videoUploadFailed'),
       }));
     } finally {
       setUpload((prev) => ({ ...prev, active: false, percent: 0 }));
@@ -263,7 +269,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
       }
       afterSuccess();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Đăng bài thất bại';
+      const message = err instanceof Error ? err.message : t('publishFailed');
       setError('root', { message });
     }
   }
@@ -278,10 +284,10 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
       <DialogContent className="w-[calc(100vw-2rem)] max-w-xl max-h-[90vh] flex flex-col bg-canvas-surface border-bdr text-ink-pri p-0 gap-0">
         <DialogHeader className="px-5 pt-5 pb-0">
           <DialogTitle className="font-display text-lg text-ink-pri">
-            {isEdit ? 'Chỉnh sửa bài viết' : 'Tạo bài viết'}
+            {isEdit ? t('editPost') : t('createPost')}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Nhập nội dung, đính kèm ảnh hoặc video và gắn sản phẩm cho bài viết.
+            {t('composerDescription')}
           </DialogDescription>
         </DialogHeader>
 
@@ -292,7 +298,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
             <textarea
               {...register('content')}
               rows={4}
-              placeholder="Chia sẻ điều gì đó về sản phẩm, review, deal hot…"
+              placeholder={t('composerPlaceholder')}
               onPaste={(e) => { void handlePaste(e); }}
               className={cn(
                 'w-full bg-transparent border-0 outline-none resize-none',
@@ -301,7 +307,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
               )}
             />
             {errors.content && (
-              <p className="text-sm text-accent-red -mt-2">{errors.content.message}</p>
+              <p className="text-sm text-accent-red -mt-2">{translateIfKey(socialMessages, lang, errors.content.message)}</p>
             )}
 
             {/* Media previews */}
@@ -327,7 +333,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
                     )}
                     <IconButton
                       onClick={() => removeMedia(i)}
-                      aria-label={`Xóa media ${i + 1}`}
+                      aria-label={t('removeMedia', { index: i + 1 })}
                       className="absolute top-2 right-2 size-7 rounded-full bg-scrim/60 text-ink-on-accent border-0 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <X size={13} className="shrink-0" />
@@ -349,7 +355,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
                     style={{ width: `${upload.percent}%` }}
                   />
                 </div>
-                <p className="text-xs text-ink-muted font-body">{upload.percent}% đã tải lên</p>
+                <p className="text-xs text-ink-muted font-body">{t('uploadedPercent', { percent: upload.percent })}</p>
               </div>
             )}
 
@@ -372,7 +378,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
                 type="button"
                 disabled={!canAddImage}
                 onClick={() => imageInputRef.current?.click()}
-                title={`Thêm ảnh (tối đa ${MAX_IMAGES})`}
+                title={t('addImages', { max: MAX_IMAGES })}
                 className={cn(
                   'p-2 rounded-full flex items-center justify-center',
                   'bg-transparent border-0 cursor-pointer overflow-visible',
@@ -400,7 +406,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
                 type="button"
                 disabled={!canAddVideo}
                 onClick={() => videoInputRef.current?.click()}
-                title="Thêm video"
+                title={t('addVideo')}
                 className={cn(
                   'p-2 rounded-full flex items-center justify-center',
                   'bg-transparent border-0 cursor-pointer overflow-visible',
@@ -421,7 +427,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
               {/* Image count badge */}
               {imageCount > 0 && (
                 <span className="text-xs text-ink-muted font-body ml-1">
-                  {imageCount}/{MAX_IMAGES} ảnh
+                  {t('imageCount', { count: imageCount, max: MAX_IMAGES })}
                 </span>
               )}
             </div>
@@ -432,7 +438,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
               size="sm"
             >
               {isSubmitting ? <Loader2 size={14} className="shrink-0 animate-spin" /> : null}
-              {isEdit ? 'Lưu' : 'Đăng bài'}
+              {isEdit ? t('save') : t('publish')}
             </GradientButton>
           </div>
         </form>

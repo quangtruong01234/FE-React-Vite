@@ -3,25 +3,37 @@ import { PenLine } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/format/utils';
 import { useAuthContext } from '@/context/useAuthContext';
+import { useListSearch, listSearchEmptyText } from '@/hooks/ui/useListSearch';
+import { SearchField } from '@/components/shared/SearchField';
 import { useFeed } from './useFeed';
 import { useFollowingFeed } from './useFollow';
 import PostCard from './PostCard';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import { socialMessages } from './social.i18n';
 import type { Post } from '@/types';
 
 const TABS = [
-  { id: 'for-you', label: 'Dành cho bạn' },
-  { id: 'following', label: 'Đang theo dõi' },
+  { id: 'for-you', labelKey: 'tabForYou' },
+  { id: 'following', labelKey: 'tabFollowing' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
 
 export default function FeedPage() {
   const { currentUser } = useAuthContext();
+  const t = useT(socialMessages);
+  const { lang } = useLanguage();
   const [activeTab, setActiveTab] = useState<TabId>('for-you');
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const forYouQuery = useFeed();
-  const followingQuery = useFollowingFeed(currentUser?.id ?? '', activeTab === 'following');
+  // Server-side content search (SEARCH-01 / LIST-SEARCH-01). One box serves
+  // both tabs — the following feed filters on `search` too. Infinite scroll
+  // has no page to reset: a new term is a new query key starting at page 1.
+  const search = useListSearch();
+  const forYouQuery = useFeed(search.term);
+  const followingQuery = useFollowingFeed(currentUser?.id ?? '', activeTab === 'following', search.term);
+  const searchEmptyText = listSearchEmptyText(search, t('postsNoun'), lang);
 
   const activeQuery = activeTab === 'following' ? followingQuery : forYouQuery;
   const { data, isLoading, isError, error, hasNextPage, fetchNextPage, isFetchingNextPage } = activeQuery;
@@ -64,10 +76,16 @@ export default function FeedPage() {
                     : 'bg-transparent text-ink-muted hover:text-ink-sec',
                 )}
               >
-                {tab.label}
+                {t(tab.labelKey)}
               </button>
             ))}
           </div>
+          <SearchField
+            value={search.input}
+            onChange={search.setInput}
+            placeholder={t('searchPlaceholder')}
+            className="mt-2"
+          />
         </div>
 
         {/* Loading — skeleton cards */}
@@ -92,7 +110,7 @@ export default function FeedPage() {
         {/* Error banner */}
         {isError && (
           <div className="rounded-tb-card border border-tb-red/30 bg-tb-red/10 px-4 py-3 text-sm font-body text-accent-red">
-            {error instanceof Error ? error.message : 'Đã có lỗi xảy ra. Vui lòng thử lại.'}
+            {error instanceof Error ? error.message : t('genericError')}
           </div>
         )}
 
@@ -102,15 +120,17 @@ export default function FeedPage() {
             <div className="w-14 h-14 rounded-full bg-canvas-elevated flex items-center justify-center">
               <PenLine size={24} className="text-ink-muted" />
             </div>
-            {activeTab === 'following' ? (
+            {searchEmptyText ? (
+              <p className="text-ink-pri font-semibold font-body">{searchEmptyText}</p>
+            ) : activeTab === 'following' ? (
               <>
-                <p className="text-ink-pri font-semibold font-body">Chưa có bài viết từ người theo dõi</p>
-                <p className="text-ink-muted text-sm font-body">Hãy theo dõi thêm người để xem bài viết của họ!</p>
+                <p className="text-ink-pri font-semibold font-body">{t('emptyFollowingTitle')}</p>
+                <p className="text-ink-muted text-sm font-body">{t('emptyFollowingHint')}</p>
               </>
             ) : (
               <>
-                <p className="text-ink-pri font-semibold font-body">Chưa có bài viết</p>
-                <p className="text-ink-muted text-sm font-body">Hãy là người đầu tiên chia sẻ điều gì đó!</p>
+                <p className="text-ink-pri font-semibold font-body">{t('emptyTitle')}</p>
+                <p className="text-ink-muted text-sm font-body">{t('emptyHint')}</p>
               </>
             )}
           </div>
@@ -139,7 +159,7 @@ export default function FeedPage() {
             <div className="size-10 rounded-full bg-canvas-elevated grid place-items-center">
               <PenLine size={18} className="shrink-0 text-ink-muted" />
             </div>
-            <p className="text-ink-muted text-sm font-body">Bạn đã xem hết bài viết rồi!</p>
+            <p className="text-ink-muted text-sm font-body">{t('endOfFeed')}</p>
           </div>
         )}
 

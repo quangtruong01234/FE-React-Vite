@@ -18,7 +18,11 @@ import { AttachedProduct } from './AttachedProduct';
 import { PostImage } from './PostImage';
 import { openEditPost } from './composerEvents';
 import { relativeTimeShort } from '@/lib/format/time';
-import { userDisplayName } from '@/lib/format/user';
+import { LANG_LOCALE } from '@/lib/i18n/lang';
+import { useT } from '@/hooks/ui/useT';
+import { useLanguage } from '@/context/useLanguage';
+import { socialMessages } from './social.i18n';
+import { userDisplayName, userFallback } from '@/lib/format/user';
 import type { Post } from '@/types';
 
 interface PostCardProps {
@@ -34,6 +38,8 @@ interface PostCardProps {
 export default function PostCard({ post, priority = false }: PostCardProps) {
   const navigate = useNavigate();
   const { currentUser } = useAuthContext();
+  const t = useT(socialMessages);
+  const { lang } = useLanguage();
   const viewerId = currentUser?.id ?? '';
   const isOwnPost = viewerId.length > 0 && viewerId === post.author.id;
 
@@ -105,8 +111,8 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
     }
   }
 
-  const time = relativeTimeShort(post.createdAt);
-  const authorName = userDisplayName(post.author);
+  const time = relativeTimeShort(post.createdAt, lang);
+  const authorName = userDisplayName(post.author, userFallback(lang));
 
   return (
     <article className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden transition-all duration-300 hover:border-tb-border/80">
@@ -144,9 +150,9 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
             )}
           >
             {isFollowing ? (
-              <><UserCheck size={12} className="shrink-0" /> Đang theo dõi</>
+              <><UserCheck size={12} className="shrink-0" /> {t('following')}</>
             ) : (
-              <><UserPlus size={12} className="shrink-0" /> Theo dõi</>
+              <><UserPlus size={12} className="shrink-0" /> {t('follow')}</>
             )}
           </button>
         )}
@@ -182,7 +188,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
             // The nested <img> carries alt="" (posts have no caption to borrow),
             // so the button itself has to name the action — otherwise a screen
             // reader announces a bare "button" on every image in the feed.
-            aria-label="Xem ảnh bài viết"
+            aria-label={t('viewImages')}
             className="w-full bg-scrim flex items-center justify-center aspect-[4/3] max-h-[520px] overflow-hidden border-0 p-0 cursor-pointer"
           >
             {/* Fixed aspect reserves the slot before the image loads → no feed CLS. */}
@@ -200,7 +206,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
               type="button"
               onClick={(e) => openLightbox(e, 0)}
               onMouseEnter={() => warmLightbox(0)}
-              aria-label={`Xem ảnh 1/${images.length}`}
+              aria-label={t('viewImage', { index: 1, total: images.length })}
               className="bg-scrim row-span-2 overflow-hidden border-0 p-0 cursor-pointer"
             >
               <PostImage
@@ -217,7 +223,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
                 type="button"
                 onClick={(e) => openLightbox(e, i + 1)}
                 onMouseEnter={() => warmLightbox(i + 1)}
-                aria-label={`Xem ảnh ${i + 2}/${images.length}`}
+                aria-label={t('viewImage', { index: i + 2, total: images.length })}
                 className="bg-scrim aspect-square overflow-hidden border-0 p-0 cursor-pointer"
               >
                 <PostImage src={url} width={600} className="w-full h-full object-cover" loading="lazy" />
@@ -232,7 +238,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
                 type="button"
                 onClick={(e) => openLightbox(e, i)}
                 onMouseEnter={() => warmLightbox(i)}
-                aria-label={`Xem ảnh ${i + 1}/${images.length}`}
+                aria-label={t('viewImage', { index: i + 1, total: images.length })}
                 className="bg-scrim aspect-square overflow-hidden border-0 p-0 cursor-pointer"
               >
                 <PostImage
@@ -264,7 +270,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
           {images.length > 1 && (
             <IconButton
               onClick={goPrev}
-              aria-label="Ảnh trước"
+              aria-label={t('prevImage')}
               className="absolute left-4 size-10 rounded-full bg-ink-on-accent/10 hover:bg-ink-on-accent/25 text-ink-on-accent border-0 cursor-pointer transition-colors z-10"
             >
               <ChevronLeft size={22} className="shrink-0" />
@@ -283,7 +289,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
           {images.length > 1 && (
             <IconButton
               onClick={goNext}
-              aria-label="Ảnh sau"
+              aria-label={t('nextImage')}
               className="absolute right-4 size-10 rounded-full bg-ink-on-accent/10 hover:bg-ink-on-accent/25 text-ink-on-accent border-0 cursor-pointer transition-colors z-10"
             >
               <ChevronRight size={22} className="shrink-0" />
@@ -306,10 +312,10 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
           <span className="size-5 rounded-full bg-tb-gradient grid place-items-center">
             <Heart size={11} className="shrink-0 text-ink-on-accent" />
           </span>
-          {post.likeCount.toLocaleString('vi-VN')}
+          {post.likeCount.toLocaleString(LANG_LOCALE[lang])}
         </span>
         {post.commentCount > 0 && (
-          <span>{post.commentCount.toLocaleString('vi-VN')} bình luận</span>
+          <span>{t('commentCount', { count: post.commentCount.toLocaleString(LANG_LOCALE[lang]), n: post.commentCount })}</span>
         )}
       </div>
 
@@ -317,6 +323,7 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
       <div className="flex items-center px-2 py-1 border-t border-bdr mx-2">
         <button
           onClick={handleLike}
+          aria-pressed={post.isLiked}
           className={cn(
             'flex-1 flex items-center justify-center gap-2 py-3 rounded-lg',
             'bg-transparent border-0 cursor-pointer font-semibold text-[16px] transition-colors overflow-visible',
@@ -327,21 +334,21 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
             size={19}
             className={cn('shrink-0', post.isLiked && 'fill-current')}
           />
-          Thích
+          {t('like')}
         </button>
 
         <button
           onClick={() => void navigate(`/post/${post.id}`)}
           className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg bg-transparent border-0 cursor-pointer font-semibold text-[16px] text-ink-sec hover:bg-canvas-elevated transition-colors overflow-visible">
           <MessageCircle size={19} className="shrink-0" />
-          Bình luận
+          {t('comment')}
         </button>
 
         <button
           onClick={(e) => { e.stopPropagation(); void share(post.id); }}
           className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg bg-transparent border-0 cursor-pointer font-semibold text-[16px] text-ink-sec hover:bg-canvas-elevated transition-colors overflow-visible">
           <Share2 size={19} className="shrink-0" />
-          Chia sẻ
+          {t('share')}
         </button>
       </div>
 

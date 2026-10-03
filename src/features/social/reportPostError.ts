@@ -1,9 +1,14 @@
+import { bindTranslator } from '@/lib/i18n/messages';
+import type { Lang } from '@/lib/i18n/lang';
+import { socialMessages } from './social.i18n';
+
 /**
- * Maps a failed `POST /social/posts/:id/report` error to a user-facing Vietnamese
- * message. Backend contract (P1-03): duplicate report → 409, self-report → 400,
+ * Maps a failed `POST /social/posts/:id/report` error to a user-facing message in
+ * the UI language. Backend contract (P1-03): duplicate report → 409, self-report → 400,
  * rate-limit (20/60s) → 429. Kept pure so it can be unit-tested without a network.
  */
-export function reportPostErrorMessage(error: unknown): string {
+export function reportPostErrorMessage(error: unknown, lang: Lang = 'vi'): string {
+  const t = bindTranslator(socialMessages, lang);
   const status =
     error && typeof error === 'object' && 'statusCode' in error
       ? (error as { statusCode?: number }).statusCode
@@ -11,16 +16,16 @@ export function reportPostErrorMessage(error: unknown): string {
 
   switch (status) {
     case 409:
-      return 'Bạn đã báo cáo bài viết này rồi.';
+      return t('reportDuplicate');
     case 400:
-      return 'Không thể báo cáo bài viết của chính bạn.';
+      return t('reportOwnPost');
     case 429:
-      return 'Bạn thao tác quá nhanh. Vui lòng thử lại sau.';
+      return t('reportRateLimited');
     default:
       if (error && typeof error === 'object' && 'message' in error) {
         const message = (error as { message?: unknown }).message;
         if (typeof message === 'string' && message.length > 0) return message;
       }
-      return 'Báo cáo thất bại. Vui lòng thử lại.';
+      return t('reportFailed');
   }
 }

@@ -6,6 +6,8 @@ import { PriceText } from '@/components/shared/PriceText';
 import { useDebouncedValue } from '@/hooks/ui/useDebouncedValue';
 import { productCoverImage } from '@/lib/domain/productImage';
 import { useProducts } from '../product/useProducts';
+import { useT } from '@/hooks/ui/useT';
+import { socialMessages } from './social.i18n';
 import type { ProductWithInventory } from '@/types';
 
 interface ProductPickerProps {
@@ -15,6 +17,7 @@ interface ProductPickerProps {
 
 /** Lets the composer attach a single product to a post (P1-03). */
 export function ProductPicker({ value, onChange }: ProductPickerProps) {
+  const t = useT(socialMessages);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const debounced = useDebouncedValue(search.trim(), 350);
@@ -37,14 +40,14 @@ export function ProductPicker({ value, onChange }: ProductPickerProps) {
         <ProductThumb src={productCoverImage(value)} alt={value.name} className="w-11 h-11 rounded-lg" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 text-[10px] font-display font-bold uppercase tracking-wider text-accent-amber">
-            <Tag size={11} className="shrink-0" /> Sản phẩm gắn kèm
+            <Tag size={11} className="shrink-0" /> {t('attachedProduct')}
           </div>
           <p className="text-sm font-semibold text-ink-pri truncate">{value.name}</p>
           <PriceText price={value.price} size="sm" />
         </div>
         <IconButton
           onClick={() => onChange(null)}
-          aria-label="Bỏ sản phẩm gắn kèm"
+          aria-label={t('removeAttachedProduct')}
           className="size-7 rounded-full text-ink-sec hover:bg-canvas-surface transition-colors shrink-0"
         >
           <X size={14} className="shrink-0" />
@@ -60,7 +63,7 @@ export function ProductPicker({ value, onChange }: ProductPickerProps) {
         onClick={() => setOpen(true)}
         className="flex items-center gap-2 px-3 py-2 rounded-tb-cta border border-dashed border-bdr text-sm font-body text-ink-sec hover:border-tb-amber/50 hover:text-accent-amber transition-colors w-fit"
       >
-        <Tag size={15} className="shrink-0" /> Gắn sản phẩm
+        <Tag size={15} className="shrink-0" /> {t('attachProduct')}
       </button>
     );
   }
@@ -78,13 +81,13 @@ export function ProductPicker({ value, onChange }: ProductPickerProps) {
             autoFocus
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Tìm sản phẩm theo tên…"
+            placeholder={t('productSearchPlaceholder')}
             className="w-full bg-canvas-surface border border-bdr rounded-tb-input pl-8 pr-3 py-1.5 text-sm font-body text-ink-pri placeholder:text-ink-muted outline-none focus:border-tb-amber/50"
           />
         </div>
         <IconButton
           onClick={() => { setOpen(false); setSearch(''); }}
-          aria-label="Đóng tìm kiếm sản phẩm"
+          aria-label={t('closeProductSearch')}
           className="size-7 rounded-full text-ink-sec hover:bg-canvas-surface transition-colors shrink-0"
         >
           <X size={14} className="shrink-0" />
@@ -95,12 +98,12 @@ export function ProductPicker({ value, onChange }: ProductPickerProps) {
         <div className="max-h-56 overflow-y-auto flex flex-col gap-1">
           {isFetching && (
             <div className="flex items-center justify-center gap-2 py-4 text-sm text-ink-muted">
-              <Loader2 size={15} className="shrink-0 animate-spin" /> Đang tìm…
+              <Loader2 size={15} className="shrink-0 animate-spin" /> {t('searching')}
             </div>
           )}
           {!isFetching && results.length === 0 && (
             <p className="py-4 text-center text-sm text-ink-muted font-body">
-              Không tìm thấy sản phẩm nào.
+              {t('noProductsFound')}
             </p>
           )}
           {!isFetching && results.map((product) => (
