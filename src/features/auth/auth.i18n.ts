@@ -9,7 +9,6 @@ export const authMessages = defineMessages({
   vi: {
     // zod messages
     usernameRequired: 'Username là bắt buộc',
-    passwordRequired: 'Password là bắt buộc',
     emailInvalid: 'Email không hợp lệ',
     min8: 'Tối thiểu 8 ký tự',
     min6: 'Tối thiểu 6 ký tự',
@@ -81,7 +80,6 @@ export const authMessages = defineMessages({
   },
   en: {
     usernameRequired: 'Username is required',
-    passwordRequired: 'Password is required',
     emailInvalid: 'Invalid email',
     min8: 'At least 8 characters',
     min6: 'At least 6 characters',

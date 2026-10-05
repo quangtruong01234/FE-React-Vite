@@ -5,12 +5,6 @@ import type { authMessages } from './auth.i18n';
 /** zod messages are `authMessages` keys — the form translates them at render (`translateIfKey`). */
 const msg = (key: MessageKey<typeof authMessages>): string => key;
 
-export const loginSchema = z.object({
-  username: z.string().min(1, msg('usernameRequired')),
-  password: z.string().min(1, msg('passwordRequired')),
-});
-export type LoginFormData = z.infer<typeof loginSchema>;
-
 export const registerSchema = z
   .object({
     // `.trim()` BEFORE `.min(1)` — the other order validates the raw string and
