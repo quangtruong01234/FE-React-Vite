@@ -140,7 +140,7 @@ function ProfilePage({ userId }: { userId: string }): ReactElement {
     );
   }
 
-  const displayName = userDisplayName(user, userFallback(lang));
+  const displayName = userDisplayName(user, userFallback(lang), lang);
 
   const withCount = (label: string, count: number): string =>
     count > 0 ? t('withCount', { label, count }) : label;

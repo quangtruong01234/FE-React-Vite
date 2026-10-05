@@ -145,7 +145,7 @@ export default function AdminPage(): ReactElement {
   function confirmRoleChange(): void {
     if (!pendingRole) return;
     const { user, nextRole } = pendingRole;
-    const displayName = userDisplayName(user, userFallback(lang));
+    const displayName = userDisplayName(user, userFallback(lang), lang);
 
     setRoleNotice(null);
     roleMutation.mutate(
@@ -280,7 +280,7 @@ export default function AdminPage(): ReactElement {
                 >
                   <td className="px-4 py-3 font-mono text-ink-sec text-xs">#{order.id}</td>
                   <td className="px-4 py-3 font-body text-ink-pri text-sm">
-                    {userDisplayName(order.buyer, userFallback(lang))}
+                    {userDisplayName(order.buyer, userFallback(lang), lang)}
                   </td>
                   <td className="px-4 py-3 font-body font-semibold text-accent-amber text-sm">
                     {formatVnd(order.total, lang)}
@@ -460,7 +460,7 @@ export default function AdminPage(): ReactElement {
         open={pendingRole !== null}
         title={
           pendingRole
-            ? roleChangeConfirmTitle(userDisplayName(pendingRole.user, userFallback(lang)), pendingRole.nextRole, lang)
+            ? roleChangeConfirmTitle(userDisplayName(pendingRole.user, userFallback(lang), lang), pendingRole.nextRole, lang)
             : ''
         }
         description={roleChangeConfirmBody(lang)}

@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { USER_FALLBACK, userDisplayName, userFallback, nonBlank, userSummaryLabel } from './user';
+import {
+  USER_FALLBACK,
+  deletedUserLabel,
+  isDeletedUser,
+  userDisplayName,
+  userFallback,
+  nonBlank,
+  userSummaryLabel,
+} from './user';
 
 describe('nonBlank', () => {
   it('trims and keeps a string with visible content', () => {
@@ -93,5 +101,32 @@ describe('userFallback (I18N-07)', () => {
     expect(userFallback('vi')).toBe(USER_FALLBACK);
     expect(userFallback('en')).toBe('User');
     expect(userDisplayName(null, userFallback('en'))).toBe('User');
+  });
+});
+
+describe('deleted accounts (ACCOUNT-DELETE-01)', () => {
+  const deleted = { name: null, username: 'deleted_usr_NumXIjeHvZjS2CKK' };
+
+  it('recognises the anonymised username prefix, in any case', () => {
+    expect(isDeletedUser(deleted)).toBe(true);
+    expect(isDeletedUser({ username: 'DELETED_usr_x' })).toBe(true);
+  });
+
+  it('does not flag a live account, a missing embed, or the word mid-name', () => {
+    expect(isDeletedUser({ username: 'bob' })).toBe(false);
+    expect(isDeletedUser({ username: 'not_deleted_' })).toBe(false);
+    expect(isDeletedUser({ username: null })).toBe(false);
+    expect(isDeletedUser(null)).toBe(false);
+    expect(isDeletedUser(undefined)).toBe(false);
+  });
+
+  it('labels a deleted account "Deleted user" in the given language, never its username', () => {
+    expect(userDisplayName(deleted)).toBe('Người dùng đã xóa');
+    expect(userDisplayName(deleted, userFallback('en'), 'en')).toBe('Deleted user');
+    expect(deletedUserLabel('en')).toBe('Deleted user');
+  });
+
+  it('ignores a leftover display name on a deleted account', () => {
+    expect(userDisplayName({ name: 'Bob', username: 'deleted_usr_1' }, '', 'en')).toBe('Deleted user');
   });
 });

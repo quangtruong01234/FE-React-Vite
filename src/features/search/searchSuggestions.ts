@@ -111,7 +111,7 @@ export function buildSuggestions({ query, products, posts, sellers, lang = 'vi' 
       to: `/profile/${seller.id}`,
       // `name` is nullable server-side, and an account that only ever had a
       // username must still read as something — not as an empty row.
-      label: userDisplayName(seller, userFallback(lang)),
+      label: userDisplayName(seller, userFallback(lang), lang),
       avatar: seller.avatar,
       username: seller.username,
     }));
@@ -124,7 +124,7 @@ export function buildSuggestions({ query, products, posts, sellers, lang = 'vi' 
       to: `/post/${post.id}`,
       label: truncate(post.content.replace(/\s+/g, ' ').trim(), { length: POST_SNIPPET_LENGTH }),
       avatar: post.author.avatar,
-      author: userDisplayName(post.author, userFallback(lang)),
+      author: userDisplayName(post.author, userFallback(lang), lang),
     }));
 
   return [...productRows, ...sellerRows, ...postRows];

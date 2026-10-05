@@ -77,7 +77,7 @@ function ReportedPostCard({
               to={`/profile/${post.author.id}`}
               className="font-body font-semibold text-sm text-ink-pri hover:text-accent-amber transition-colors truncate block"
             >
-              {userDisplayName(post.author, userFallback(lang))}
+              {userDisplayName(post.author, userFallback(lang), lang)}
             </Link>
             <span className="font-body text-xs text-ink-muted">@{post.author.username}</span>
           </div>

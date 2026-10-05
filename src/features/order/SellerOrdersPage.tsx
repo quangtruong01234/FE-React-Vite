@@ -28,6 +28,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatPrice } from '@/lib/format/utils';
 import { orderStatusLabel } from '@/lib/domain/orderStatus';
 import { formatDateTime } from '@/lib/format/time';
+import { isDeletedUser, userDisplayName } from '@/lib/format/user';
 
 type FilterKey = 'all' | OrderStatus;
 
@@ -65,7 +66,7 @@ function OrderCard({
   const { lang } = useLanguage();
   const { action, blockedReason } = getSellerOrderActionState(order, lang);
   const actionPending = actionPendingKind !== null;
-  const buyerLabel = order.buyer?.name?.trim() || order.buyer?.username || `#${order.userId}`;
+  const buyerLabel = userDisplayName(order.buyer, `#${order.userId}`, lang);
   // The list now ships decorated items (ORDER-SHAPE-01) — image and skuLabel
   // included — so the card renders from `order.items` directly. The detail call
   // still runs on expand for the fields only it carries (address, buyer notes).
@@ -89,7 +90,7 @@ function OrderCard({
           <div className="flex items-center gap-2.5 mb-1 flex-wrap">
             <span className="font-mono font-bold text-[13px] text-ink-pri">#{order.id}</span>
             <span className="font-body text-xs text-ink-sec">{formatDateTime(order.createdAt, lang)}</span>
-            {order.buyer?.username && (
+            {order.buyer?.username && !isDeletedUser(order.buyer) && (
               <span className="font-body text-xs text-ink-muted">@{order.buyer.username}</span>
             )}
           </div>

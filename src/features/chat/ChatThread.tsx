@@ -97,7 +97,7 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
 
   // Empty fallback on purpose: the peer embed is absent while its query is in
   // flight, and the header then falls back to the conversation id below.
-  const peerName = userDisplayName(otherUser, '');
+  const peerName = userDisplayName(otherUser, '', lang);
 
   function handleSend(): void {
     const trimmed = text.trim();

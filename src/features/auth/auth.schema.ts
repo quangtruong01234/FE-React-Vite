@@ -14,7 +14,13 @@ export const registerSchema = z
     // auto-login right after register working: the backend stores `"  john  "`
     // as `"john"`, and login is deliberately NOT trimmed server-side, so
     // submitting the padded value would register fine and then fail to log in.
-    username: z.string().trim().min(1, msg('usernameRequired')),
+    username: z
+      .string()
+      .trim()
+      .min(1, msg('usernameRequired'))
+      // ACCOUNT-DELETE-01: the backend reserves `deleted_` (any case) for
+      // anonymised accounts and 400s it; say so inline instead.
+      .refine((value) => !value.toLowerCase().startsWith('deleted_'), msg('usernameReserved')),
     email: z.string().email(msg('emailInvalid')),
     password: z.string().min(8, msg('min8')),
     confirmPassword: z.string().min(1, msg('confirmRequired')),

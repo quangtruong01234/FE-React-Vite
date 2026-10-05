@@ -1,12 +1,13 @@
 import { Globe, Heart, MessageCircle, Share2, UserPlus, UserCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 import { IconButton } from '@/components/shared/IconButton';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/format/utils';
 import { cldImage } from '@/lib/http/cloudinaryUrl';
 import { preloadImage } from '@/lib/http/preloadImage';
 import { Avatar } from '@/components/shared/Avatar';
+import { ProfileLink } from '@/components/shared/ProfileLink';
 import { ModalCloseButton } from '@/components/shared/ModalCloseButton';
 import { useAuthContext } from '@/context/useAuthContext';
 import { useLikePost, useUnlikePost } from './useFeed';
@@ -112,23 +113,24 @@ export default function PostCard({ post, priority = false }: PostCardProps) {
   }
 
   const time = relativeTimeShort(post.createdAt, lang);
-  const authorName = userDisplayName(post.author, userFallback(lang));
+  const authorName = userDisplayName(post.author, userFallback(lang), lang);
 
   return (
     <article className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden transition-all duration-300 hover:border-tb-border/80">
       {/* header */}
       <div className="flex items-center gap-3 p-4">
-        <Link to={`/profile/${post.author.id}`} onClick={(e) => e.stopPropagation()}>
+        <ProfileLink userId={post.author.id} user={post.author} onClick={(e) => e.stopPropagation()}>
           <Avatar src={post.author.avatar ?? undefined} alt={authorName} size={48} />
-        </Link>
+        </ProfileLink>
         <div className="flex-1 min-w-0">
-          <Link
-            to={`/profile/${post.author.id}`}
+          <ProfileLink
+            userId={post.author.id}
+            user={post.author}
             onClick={(e) => e.stopPropagation()}
             className="font-semibold text-[17px] text-ink-pri hover:underline no-underline"
           >
             {authorName}
-          </Link>
+          </ProfileLink>
           <div className="flex items-center gap-1.5 text-[13px] text-ink-muted">
             {time && <span>{time}</span>}
             {time && <span>·</span>}

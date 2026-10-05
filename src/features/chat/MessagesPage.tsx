@@ -90,7 +90,7 @@ export default function MessagesPage(): ReactElement {
     ? conversations.filter((c) => {
         const otherId = otherUserId(c);
         const u = userMap.get(otherId);
-        const label = userDisplayName(u, String(otherId));
+        const label = userDisplayName(u, String(otherId), lang);
         return label.toLowerCase().includes(search.trim().toLowerCase());
       })
     : conversations;
@@ -142,7 +142,7 @@ export default function MessagesPage(): ReactElement {
             const isActive = c.id === selectedId;
             const otherId = otherUserId(c);
             const otherUser = userMap.get(otherId);
-            const displayName = userDisplayName(otherUser, t('userFallback', { id: otherId }));
+            const displayName = userDisplayName(otherUser, t('userFallback', { id: otherId }), lang);
             const initials = displayName.charAt(0).toUpperCase();
             const hasUnread = c.unreadCount > 0;
             const preview = c.lastMessage

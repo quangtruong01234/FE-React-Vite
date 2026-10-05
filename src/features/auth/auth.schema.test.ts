@@ -54,3 +54,19 @@ describe('registerSchema — username whitespace', () => {
     expect(registerSchema.safeParse(validRegister).success).toBe(true);
   });
 });
+
+// ACCOUNT-DELETE-01 — `deleted_` (any case) is reserved for anonymised accounts.
+describe('registerSchema — reserved username prefix', () => {
+  it.each(['deleted_bob', 'DELETED_bob', '  Deleted_x  '])('rejects %j inline', (username) => {
+    const result = registerSchema.safeParse({ ...validRegister, username });
+
+    expect(result.success).toBe(false);
+    const issue = result.success ? undefined : result.error.issues[0];
+    expect(issue?.path).toEqual(['username']);
+    expect(issue?.message).toBe('usernameReserved');
+  });
+
+  it('allows the word anywhere but the start', () => {
+    expect(registerSchema.safeParse({ ...validRegister, username: 'not_deleted_' }).success).toBe(true);
+  });
+});

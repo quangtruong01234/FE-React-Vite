@@ -69,7 +69,7 @@ export function ProfileMenu(): ReactElement {
       {open && (
         <div className="absolute right-0 top-11 w-60 bg-canvas-surface border border-bdr rounded-tb-card shadow-tb-card z-[120] p-1.5 max-h-[calc(100vh-5rem)] overflow-y-auto">
           <div className="px-3 py-2.5 border-b border-bdr mb-1">
-            <div className="text-sm font-semibold text-ink-pri truncate">{userDisplayName(me, userFallback(lang))}</div>
+            <div className="text-sm font-semibold text-ink-pri truncate">{userDisplayName(me, userFallback(lang), lang)}</div>
             <div className="text-xs text-ink-muted truncate">{me.email}</div>
           </div>
 

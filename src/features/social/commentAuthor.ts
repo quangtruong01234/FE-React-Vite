@@ -21,7 +21,7 @@ export function commentAuthorView(
   lang: Lang = 'vi',
 ): CommentAuthorView {
   return {
-    displayName: userDisplayName(author, userFallback(lang)),
+    displayName: userDisplayName(author, userFallback(lang), lang),
     avatarSrc: nonBlank(author?.avatar) ?? undefined,
   };
 }

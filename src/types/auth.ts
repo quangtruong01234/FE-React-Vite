@@ -35,3 +35,15 @@ export interface ChangePasswordDto {
   currentPassword: string;
   newPassword: string; // min 6 chars, must differ from currentPassword
 }
+
+// ACCOUNT-DELETE-01 — `DELETE /user/me`. The password is the whole body.
+export interface DeleteAccountDto {
+  currentPassword: string;
+}
+
+// The response also clears the auth cookie and revokes every other session.
+export interface DeleteAccountResponse {
+  success: boolean;
+  /** Open orders (as buyer or seller) the deletion auto-canceled. */
+  canceledOrderCount: number;
+}

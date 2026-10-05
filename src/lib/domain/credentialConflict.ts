@@ -6,10 +6,12 @@ const conflictMessages = defineMessages({
   vi: {
     usernameTaken: 'Tên đăng nhập này đã có người dùng. Hãy chọn tên khác.',
     emailTaken: 'Email này đã được đăng ký. Hãy dùng email khác hoặc đăng nhập.',
+    usernameReserved: 'Tên đăng nhập không được bắt đầu bằng "deleted_". Hãy chọn tên khác.',
   },
   en: {
     usernameTaken: 'This username is already taken. Please choose another.',
     emailTaken: 'This email is already registered. Use another email or sign in.',
+    usernameReserved: 'A username cannot start with "deleted_". Please choose another.',
   },
 });
 
@@ -58,6 +60,12 @@ export function credentialConflictError(
         message: translate(conflictMessages, lang, 'emailTaken'),
       };
     }
+  }
+
+  // ACCOUNT-DELETE-01: `deleted_` is reserved for anonymised accounts —
+  // `username must not start with "deleted_" (reserved)`.
+  if (status === 400 && /deleted_.*reserved/i.test(raw)) {
+    return { field: 'username', message: translate(conflictMessages, lang, 'usernameReserved') };
   }
 
   // Anything else: the backend message names the problem better than we can.

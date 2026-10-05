@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Globe, Heart, MessageCircle, Share2, Send } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { Avatar } from '@/components/shared/Avatar';
+import { ProfileLink } from '@/components/shared/ProfileLink';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthContext } from '@/context/useAuthContext';
 import { CommentNode } from './CommentNode';
@@ -120,7 +121,7 @@ export default function PostDetailPage(): ReactElement {
 
   const displayLikeCount = shownLikeCount(post.likeCount, post.isLiked, liked);
   const isOwner = currentUser?.id != null && currentUser.id === post.author.id;
-  const authorName = userDisplayName(post.author, userFallback(lang));
+  const authorName = userDisplayName(post.author, userFallback(lang), lang);
 
   return (
     <div className="max-w-[640px] mx-auto">
@@ -135,16 +136,17 @@ export default function PostDetailPage(): ReactElement {
       <article className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
         {/* Author header */}
         <div className="flex items-center gap-3 p-4">
-          <Link to={`/profile/${post.author.id}`}>
+          <ProfileLink userId={post.author.id} user={post.author}>
             <Avatar src={post.author.avatar ?? undefined} alt={authorName} size={44} />
-          </Link>
+          </ProfileLink>
           <div className="flex-1 min-w-0">
-            <Link
-              to={`/profile/${post.author.id}`}
+            <ProfileLink
+              userId={post.author.id}
+              user={post.author}
               className="flex items-center gap-1 font-semibold text-[15px] text-ink-pri hover:text-accent-amber transition-colors"
             >
               {authorName}
-            </Link>
+            </ProfileLink>
             <div className="flex items-center gap-1.5 text-xs text-ink-muted">
               <span>{relativeTimeShort(post.createdAt, lang)}</span>
               <span>·</span>

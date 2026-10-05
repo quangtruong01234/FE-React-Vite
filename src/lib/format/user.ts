@@ -31,6 +31,27 @@ export function userFallback(lang: Lang = 'vi'): string {
 export const USER_FALLBACK = userFallback('vi');
 
 /**
+ * Username prefix the backend gives an account it anonymised on self-deletion
+ * (ACCOUNT-DELETE-01), e.g. `deleted_usr_NumXIjeHvZjS2CKK`. Registration rejects
+ * it case-insensitively, so no live account can carry it.
+ */
+const DELETED_USERNAME_PREFIX = 'deleted_';
+
+/**
+ * Was this person's account deleted? Their posts, comments, reviews and chat
+ * messages stay, but the embed is anonymised (`name: null`, `avatar: null`):
+ * show it as "Deleted user", with the default avatar and no profile link.
+ */
+export function isDeletedUser(user: { username?: string | null } | null | undefined): boolean {
+  return user?.username?.toLowerCase().startsWith(DELETED_USERNAME_PREFIX) ?? false;
+}
+
+/** Label for an account removed by ACCOUNT-DELETE-01. */
+export function deletedUserLabel(lang: Lang = 'vi'): string {
+  return translate(formatMessages, lang, 'deletedUser');
+}
+
+/**
  * Display label for a person: the display name they set, else their username.
  *
  * Covers every embed where `name` means *display name* — post/comment/reply
@@ -44,6 +65,9 @@ export const USER_FALLBACK = userFallback('vi');
  * flight, or the account is gone). Pass one that carries an id when the screen
  * needs to tell two unresolved rows apart; otherwise the neutral default.
  *
+ * A deleted account (`isDeletedUser`) reads as "Deleted user" in `lang`, never
+ * as its anonymised `deleted_…` username.
+ *
  * ⚠️ Do NOT reuse this for a **product** seller: in the product embed `name`
  * holds the *username* by design (ENRICH-BATCH-01), the opposite convention.
  * That side has its own helper, `features/product/sellerName.ts`.
@@ -51,7 +75,9 @@ export const USER_FALLBACK = userFallback('vi');
 export function userDisplayName(
   user: { name?: string | null; username?: string | null } | null | undefined,
   fallback: string = USER_FALLBACK,
+  lang: Lang = 'vi',
 ): string {
+  if (isDeletedUser(user)) return deletedUserLabel(lang);
   return nonBlank(user?.name) ?? nonBlank(user?.username) ?? fallback;
 }
 

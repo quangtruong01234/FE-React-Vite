@@ -62,7 +62,7 @@ export function ChatDialog({ otherUser, open, onClose }: ChatDialogProps): React
           )}
         >
           <DialogPrimitive.Title className="sr-only">
-            {t('dialogTitle', { name: userDisplayName(otherUser, userFallback(lang)) })}
+            {t('dialogTitle', { name: userDisplayName(otherUser, userFallback(lang), lang) })}
           </DialogPrimitive.Title>
           <DialogPrimitive.Description className="sr-only">
             {t('dialogDescription')}

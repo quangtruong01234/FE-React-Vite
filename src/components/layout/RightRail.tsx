@@ -72,7 +72,7 @@ export function RightRail(): ReactElement {
               <Avatar src={s.avatar ?? undefined} alt={s.username} size={36} />
               <div className="min-w-0 flex-1">
                 <div className={cn('text-sm font-semibold text-ink-pri truncate flex items-center gap-1')}>
-                  {userDisplayName(s, userFallback(lang))}
+                  {userDisplayName(s, userFallback(lang), lang)}
                   {hasSales(s.soldCount) && <BadgeCheck size={13} className="text-accent-amber flex-none" />}
                 </div>
                 <div className="text-[11px] text-ink-muted truncate">

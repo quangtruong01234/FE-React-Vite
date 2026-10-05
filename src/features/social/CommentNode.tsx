@@ -1,10 +1,10 @@
 import { useState, type ReactElement } from 'react';
-import { Link } from 'react-router-dom';
 import { Send, Trash2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Avatar } from '@/components/shared/Avatar';
+import { ProfileLink } from '@/components/shared/ProfileLink';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRole } from '@/hooks/auth/useRole';
@@ -75,18 +75,19 @@ export function CommentNode({
   return (
     <div className={cn(depth > 0 && 'ml-5 pl-4 border-l border-bdr')}>
       <div className="flex gap-2.5 py-2">
-        <Link to={`/profile/${comment.userId}`}>
+        <ProfileLink userId={comment.userId} user={comment.author}>
           <Avatar src={avatarSrc} alt={displayName} size={34} />
-        </Link>
+        </ProfileLink>
         <div className="flex-1 min-w-0">
           {/* Bubble */}
           <div className="inline-block bg-canvas-elevated rounded-2xl rounded-tl-md px-3.5 py-2 max-w-full">
-            <Link
-              to={`/profile/${comment.userId}`}
+            <ProfileLink
+              userId={comment.userId}
+              user={comment.author}
               className="font-semibold text-[13px] text-ink-pri block hover:text-accent-amber transition-colors"
             >
               {displayName}
-            </Link>
+            </ProfileLink>
             <p className="m-0 text-sm text-ink-pri leading-snug break-words">
               {comment.content}
             </p>

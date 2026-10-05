@@ -42,6 +42,25 @@ export const userMessages = defineMessages({
     logoutAllBody:
       'Mọi phiên đăng nhập của tài khoản sẽ kết thúc ngay, kể cả trên thiết bị này. Bạn sẽ cần đăng nhập lại.',
     logoutAllConfirm: 'Đăng xuất tất cả',
+    // delete account (ACCOUNT-DELETE-01)
+    deleteAccountHint: 'Xóa vĩnh viễn tài khoản của bạn. Không thể hoàn tác hay khôi phục.',
+    deleteAccountButton: 'Xóa tài khoản',
+    deleteAccountTitle: 'Xóa tài khoản vĩnh viễn?',
+    deleteAccountIntro: 'Tài khoản bị xóa ngay và không thể khôi phục. Khi xóa:',
+    deleteAccountWarnOrders:
+      'Các đơn đang mở (chờ xác nhận, đã xác nhận, đang xử lý) sẽ tự động bị hủy — cả đơn bạn mua lẫn đơn bạn bán.',
+    deleteAccountWarnShipped: 'Đơn đã giao cho vận chuyển và đơn đang trả hàng vẫn tiếp tục đến khi hoàn tất.',
+    deleteAccountWarnRefund: 'Đơn đã thanh toán bị hủy sẽ không được hoàn tiền tự động.',
+    deleteAccountWarnProducts: 'Sản phẩm của bạn bị ẩn khỏi cửa hàng.',
+    deleteAccountWarnData: 'Giỏ hàng, danh sách yêu thích, lượt theo dõi và thông báo bị xóa.',
+    deleteAccountWarnContent: 'Bài viết, bình luận, đánh giá và tin nhắn vẫn còn, hiển thị ẩn danh.',
+    deleteAccountPasswordHint: 'Nhập mật khẩu hiện tại để xác nhận.',
+    deleteAccountConfirm: 'Xóa vĩnh viễn',
+    deleteAccountCancel: 'Hủy',
+    deleteAccountAdmin: 'Tài khoản quản trị viên không thể tự xóa.',
+    deleteAccountRejected: 'Không thể xóa tài khoản này — có thể tài khoản đã bị xóa trước đó.',
+    deleteAccountRetry:
+      'Chưa xóa được tài khoản. Bạn có thể thử lại an toàn — một số đơn đang mở có thể đã bị hủy.',
     // edit-profile modal
     editTitle: 'Chỉnh sửa hồ sơ',
     editDescription: 'Cập nhật ảnh đại diện, thông tin cá nhân, hoặc đổi mật khẩu.',
@@ -111,6 +130,24 @@ export const userMessages = defineMessages({
     logoutAllBody:
       'Every session of this account ends right away, including on this device. You will need to sign in again.',
     logoutAllConfirm: 'Sign out everywhere',
+    deleteAccountHint: 'Permanently delete your account. This cannot be undone or restored.',
+    deleteAccountButton: 'Delete account',
+    deleteAccountTitle: 'Delete your account permanently?',
+    deleteAccountIntro: 'Your account is deleted right away and cannot be restored. When it is:',
+    deleteAccountWarnOrders:
+      'Open orders (pending, confirmed, processing) are canceled automatically — both orders you bought and orders you sold.',
+    deleteAccountWarnShipped: 'Orders already handed to the carrier, and orders being returned, run to completion.',
+    deleteAccountWarnRefund: 'A paid order that gets canceled is not refunded automatically.',
+    deleteAccountWarnProducts: 'Your products are hidden from the store.',
+    deleteAccountWarnData: 'Your cart, wishlist, follows and notifications are removed.',
+    deleteAccountWarnContent: 'Your posts, comments, reviews and messages stay, shown anonymously.',
+    deleteAccountPasswordHint: 'Enter your current password to confirm.',
+    deleteAccountConfirm: 'Delete permanently',
+    deleteAccountCancel: 'Cancel',
+    deleteAccountAdmin: 'An admin account cannot delete itself.',
+    deleteAccountRejected: 'This account cannot be deleted — it may already have been deleted.',
+    deleteAccountRetry:
+      'Your account was not deleted. It is safe to try again — some open orders may already be canceled.',
     editTitle: 'Edit profile',
     editDescription: 'Update your avatar and personal details, or change your password.',
     settingsTabs: 'Settings sections',

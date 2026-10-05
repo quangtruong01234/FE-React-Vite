@@ -34,6 +34,8 @@ import {
 } from './profileForm';
 import { ChangePasswordForm } from './ChangePasswordForm';
 import { LogoutAllDevices } from './LogoutAllDevices';
+import { DeleteAccountSection } from './DeleteAccountSection';
+import { canAdminister } from '@/lib/auth/roleAccess';
 import { userMessages } from './user.i18n';
 import type { User } from '@/types';
 
@@ -193,13 +195,14 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
           <>
             <ChangePasswordForm onCancel={handleClose} />
             <LogoutAllDevices />
+            {!canAdminister(user.role.name) && <DeleteAccountSection />}
           </>
         ) : (
         <form onSubmit={(e) => void handleSubmit(onSubmit)(e)} className="flex flex-col gap-4 p-5">
           {/* Avatar upload */}
           <div className="flex flex-col items-center gap-2">
             <div className="relative">
-              <Avatar src={displayAvatar} alt={userDisplayName(user, userFallback(lang))} size={84} />
+              <Avatar src={displayAvatar} alt={userDisplayName(user, userFallback(lang), lang)} size={84} />
               <button
                 type="button"
                 disabled={uploading}

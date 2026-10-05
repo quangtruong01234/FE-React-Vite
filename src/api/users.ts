@@ -2,6 +2,8 @@ import type {
   User,
   PublicUser,
   UpdateUserDto,
+  DeleteAccountDto,
+  DeleteAccountResponse,
   RoleName,
   PaginatedResponse,
   FeaturedSeller,
@@ -25,6 +27,17 @@ export const usersApi = {
       method: 'PATCH',
       body: JSON.stringify(data),
       skipUnauthorizedRedirect: data.currentPassword !== undefined,
+    }),
+
+  // ACCOUNT-DELETE-01: permanent, no restore. A 401 here is a wrong password
+  // (`INVALID_CURRENT_PASSWORD`) on a live session — the dialog shows it on the
+  // field, so skip the global redirect, same as `changePassword`. On 200 the
+  // backend has already cleared the cookie.
+  deleteMe: (data: DeleteAccountDto): Promise<DeleteAccountResponse> =>
+    request<DeleteAccountResponse>('/user/me', {
+      method: 'DELETE',
+      body: JSON.stringify(data),
+      skipUnauthorizedRedirect: true,
     }),
 
   // ROLE-ADMIN-01: the only write path for `role` — `update` above still 400s a

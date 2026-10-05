@@ -7,10 +7,12 @@ export const formatMessages = defineMessages({
     priceMillions: '{amount} triệu đ',
     currencySuffix: 'đ',
     userFallback: 'Người dùng',
+    deletedUser: 'Người dùng đã xóa',
   },
   en: {
     priceMillions: '{amount}M ₫',
     currencySuffix: '₫',
     userFallback: 'User',
+    deletedUser: 'Deleted user',
   },
 });

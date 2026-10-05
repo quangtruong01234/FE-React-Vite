@@ -68,3 +68,21 @@ describe('credentialConflictError — English (I18N-02)', () => {
     ).toMatch(/already registered/);
   });
 });
+
+describe('credentialConflictError — reserved username (ACCOUNT-DELETE-01)', () => {
+  const reserved = { statusCode: 400, message: 'username must not start with "deleted_" (reserved)' };
+
+  it('points the reserved-prefix 400 at the username field', () => {
+    expect(credentialConflictError(reserved, FALLBACK)).toEqual({
+      field: 'username',
+      message: 'Tên đăng nhập không được bắt đầu bằng "deleted_". Hãy chọn tên khác.',
+    });
+    expect(credentialConflictError(reserved, FALLBACK, 'en').message).toBe(
+      'A username cannot start with "deleted_". Please choose another.',
+    );
+  });
+
+  it('leaves other 400s at form level', () => {
+    expect(credentialConflictError({ statusCode: 400, message: 'username is too long' }, FALLBACK).field).toBeNull();
+  });
+});
