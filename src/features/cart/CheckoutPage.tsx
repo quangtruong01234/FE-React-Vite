@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   checkoutSchema,
   type CheckoutFormData,
@@ -41,6 +41,7 @@ import {
   voucherErrorMessage,
 } from "./voucher";
 import {
+  availableVouchersRequest,
   sortVoucherSuggestions,
   voucherIneligibleMessage,
   voucherScopeLabel,
@@ -250,19 +251,23 @@ export default function CheckoutPage(): ReactElement {
   // the list is a convenience layer over the manual input, not a gate. `retry:
   // false` keeps a missing route from costing three round-trips per basket
   // change, and an error simply renders no list.
+  //
+  // VOUCHER-AVAIL-STACK-01: the applied codes ride along, so the backend prices
+  // platform rows after the shop discounts and flags a shop row that would break
+  // the applied platform code. `keepPreviousData` keeps the list on screen while
+  // an apply/remove refetches it under the new key.
   const { data: voucherSuggestionData } = useQuery({
-    queryKey: queryKeys.orders.availableVouchers(basketSignature),
+    queryKey: queryKeys.orders.availableVouchers(basketSignature, appliedCodes),
     queryFn: () =>
-      api.orders.getAvailableVouchers({
-        items: buildOrderItems(items, productMap),
-      }),
+      api.orders.getAvailableVouchers(
+        availableVouchersRequest(buildOrderItems(items, productMap), appliedCodes),
+      ),
     enabled: items.length > 0 && productsReady,
     retry: false,
     staleTime: 60_000,
+    placeholderData: keepPreviousData,
   });
-  const voucherSuggestions = sortVoucherSuggestions(
-    voucherSuggestionData?.vouchers ?? [],
-  );
+  const voucherSuggestions = sortVoucherSuggestions(voucherSuggestionData?.vouchers ?? []);
 
   // Picking a row still goes through validate: the suggestion is a hint priced
   // a moment ago, and the last redemption can be taken in between (409). A

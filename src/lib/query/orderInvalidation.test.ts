@@ -36,8 +36,16 @@ describe('invalidateOrderViews', () => {
     const startsWith = (key: readonly string[]): boolean =>
       prefix.every((part, i) => key[i] === part);
     expect(startsWith(queryKeys.orders.availableVouchers('sig-a'))).toBe(true);
+    expect(startsWith(queryKeys.orders.availableVouchers('sig-a', ['SHOP10']))).toBe(true);
     expect(startsWith(queryKeys.orders.sellerVouchers)).toBe(false);
     expect(startsWith(queryKeys.orders.adminVouchers)).toBe(false);
+  });
+
+  it('keys the basket list by the applied codes, regardless of their order (VOUCHER-AVAIL-STACK-01)', () => {
+    const key = queryKeys.orders.availableVouchers;
+    expect(key('sig-a', ['SHOP10'])).not.toEqual(key('sig-a'));
+    expect(key('sig-a', ['SHOP10'])).not.toEqual(key('sig-a', ['SHOP30']));
+    expect(key('sig-a', ['PLAT', 'SHOP10'])).toEqual(key('sig-a', ['SHOP10', 'PLAT']));
   });
 
   it('return request: detail + byUser + return lists', () => {

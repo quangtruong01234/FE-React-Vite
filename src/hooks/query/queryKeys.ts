@@ -95,8 +95,10 @@ export const queryKeys = {
     // F3: vouchers priced against one exact basket. The signature keys the
     // cache — a different basket is a different answer, so quantities and SKU
     // choices must be part of the key or a stale discount would be shown.
-    availableVouchers: (basketSignature: string) =>
-      ["orders", "vouchers", "available", basketSignature] as const,
+    // VOUCHER-AVAIL-STACK-01: the rows are also rated next to the applied codes,
+    // so those codes (order-free) key the cache too.
+    availableVouchers: (basketSignature: string, appliedCodes: readonly string[] = []) =>
+      ["orders", "vouchers", "available", basketSignature, [...appliedCodes].sort().join(",")] as const,
     // Prefix over every basket's list — a cancel frees a redemption
     // (VOUCHER-CANCEL-01) regardless of which basket last priced it.
     availableVouchersAll: ["orders", "vouchers", "available"] as const,

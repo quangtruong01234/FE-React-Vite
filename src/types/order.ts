@@ -283,11 +283,18 @@ export type VoucherIneligibleReason =
   | "MIN_ORDER_NOT_MET"
   | "FULLY_REDEEMED"
   | "USER_LIMIT_REACHED"
-  | "NO_DISCOUNT";
+  | "NO_DISCOUNT"
+  /** Shop row only: swapping it in would push the applied platform code under its minimum. */
+  | "BREAKS_PLATFORM_VOUCHER";
 
 /** `POST /order/vouchers/available` — same item shape as `voucher/validate`. */
 export interface AvailableVouchersDto {
   items: CreateOrderItemDto[];
+  /**
+   * Codes already applied on the checkout (VOUCHER-AVAIL-STACK-01, ≤20). Omit when
+   * none — an older gateway rejects the unknown field with a 400.
+   */
+  voucherCodes?: string[];
 }
 
 /**

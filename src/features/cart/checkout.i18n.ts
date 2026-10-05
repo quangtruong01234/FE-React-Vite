@@ -36,6 +36,9 @@ export const checkoutMessages = defineMessages({
     ineligibleUserLimit: 'Bạn đã dùng hết lượt của mã này.',
     ineligibleNoDiscount: 'Mã không giảm thêm cho đơn này.',
     ineligibleBuyMore: 'Mua thêm {amount} để dùng mã này.',
+    ineligibleBreaksPlatform: 'Dùng mã này sẽ làm mã toàn sàn đang áp không còn đủ điều kiện.',
+    ineligibleBreaksPlatformBuyMore:
+      'Dùng mã này sẽ làm mã toàn sàn đang áp không còn đủ điều kiện — mua thêm {amount}.',
     ineligibleFallback: 'Chưa dùng được cho đơn này.',
     scopeShop: 'Của người bán',
     scopePlatform: 'Toàn sàn',
@@ -135,6 +138,9 @@ export const checkoutMessages = defineMessages({
     ineligibleUserLimit: 'You have used up all your uses of this voucher.',
     ineligibleNoDiscount: 'This voucher gives no extra discount on this order.',
     ineligibleBuyMore: 'Add {amount} more to use this voucher.',
+    ineligibleBreaksPlatform: 'Using this voucher would make your platform-wide voucher ineligible.',
+    ineligibleBreaksPlatformBuyMore:
+      'Using this voucher would make your platform-wide voucher ineligible — add {amount} more.',
     ineligibleFallback: 'Not usable on this order yet.',
     scopeShop: 'Seller',
     scopePlatform: 'Platform-wide',

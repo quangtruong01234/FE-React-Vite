@@ -4,6 +4,7 @@ import {
   voucherScopeLabel,
   voucherSuggestionDiscount,
   sortVoucherSuggestions,
+  availableVouchersRequest,
 } from './voucherSuggestions';
 import type { AvailableVoucher } from '@/types';
 
@@ -137,5 +138,64 @@ describe('voucherSuggestions — en (I18N-03)', () => {
   it('labels the scope in English', () => {
     expect(voucherScopeLabel({ scope: 'shop' }, 'en')).toBe('Seller');
     expect(voucherScopeLabel({ scope: 'platform' }, 'en')).toBe('Platform-wide');
+  });
+});
+
+describe('BREAKS_PLATFORM_VOUCHER (VOUCHER-AVAIL-STACK-01)', () => {
+  const breaks = makeVoucher({
+    code: 'SHOP30',
+    scope: 'shop',
+    sellerId: 'usr_1',
+    isEligible: false,
+    ineligibleReason: 'BREAKS_PLATFORM_VOUCHER',
+    discountAmount: 0,
+  });
+
+  it('names the platform shortfall the swap would cause', () => {
+    const row = { ...breaks, amountToAdd: '11000.00' };
+    expect(voucherIneligibleMessage(row, money)).toBe(
+      'Dùng mã này sẽ làm mã toàn sàn đang áp không còn đủ điều kiện — mua thêm 11000đ.',
+    );
+    expect(voucherIneligibleMessage(row, money, 'en')).toBe(
+      'Using this voucher would make your platform-wide voucher ineligible — add 11000đ more.',
+    );
+  });
+
+  it('keeps the warning without a gap when the shortfall is not priced', () => {
+    expect(voucherIneligibleMessage({ ...breaks, amountToAdd: 0 }, money)).toBe(
+      'Dùng mã này sẽ làm mã toàn sàn đang áp không còn đủ điều kiện.',
+    );
+  });
+
+  it('sorts below the eligible rows and the min-order near-misses', () => {
+    const sorted = sortVoucherSuggestions([
+      breaks,
+      makeVoucher({ code: 'NEAR', isEligible: false, ineligibleReason: 'MIN_ORDER_NOT_MET', amountToAdd: 5000 }),
+      makeVoucher({ code: 'OK' }),
+    ]);
+    expect(sorted.map((v) => v.code)).toEqual(['OK', 'NEAR', 'SHOP30']);
+  });
+});
+
+describe('availableVouchersRequest', () => {
+  const items = [{ productId: 'prod_a', productName: 'A', quantity: 1 }];
+
+  it('omits voucherCodes when nothing is applied, so an older gateway still accepts the body', () => {
+    const body = availableVouchersRequest(items, []);
+    expect(body).toEqual({ items });
+    expect('voucherCodes' in body).toBe(false);
+  });
+
+  it('sends the applied codes alongside the basket', () => {
+    expect(availableVouchersRequest(items, ['SHOP10', 'PLAT130'])).toEqual({
+      items,
+      voucherCodes: ['SHOP10', 'PLAT130'],
+    });
+  });
+
+  it('copies the codes instead of sharing the caller array', () => {
+    const applied = ['SHOP10'];
+    const body = availableVouchersRequest(items, applied);
+    expect(body.voucherCodes).not.toBe(applied);
   });
 });

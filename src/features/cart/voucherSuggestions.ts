@@ -1,4 +1,9 @@
-import type { AvailableVoucher, VoucherIneligibleReason } from '@/types';
+import type {
+  AvailableVoucher,
+  AvailableVouchersDto,
+  CreateOrderItemDto,
+  VoucherIneligibleReason,
+} from '@/types';
 import { toVoucherNumber } from '@/lib/domain/voucherMoney';
 import type { Lang } from '@/lib/i18n/lang';
 import { translate, type MessageKey } from '@/lib/i18n/messages';
@@ -27,12 +32,21 @@ const INELIGIBLE_COPY: Record<VoucherIneligibleReason, MessageKey<typeof checkou
   FULLY_REDEEMED: 'ineligibleFullyRedeemed',
   USER_LIMIT_REACHED: 'ineligibleUserLimit',
   NO_DISCOUNT: 'ineligibleNoDiscount',
+  BREAKS_PLATFORM_VOUCHER: 'ineligibleBreaksPlatform',
+};
+
+/** Reasons whose `amountToAdd` is a gap the buyer can close → the "buy N more" variant. */
+const BUY_MORE_COPY: Partial<Record<VoucherIneligibleReason, MessageKey<typeof checkoutMessages>>> = {
+  MIN_ORDER_NOT_MET: 'ineligibleBuyMore',
+  // `amountToAdd` here is the applied platform code's shortfall after the swap.
+  BREAKS_PLATFORM_VOUCHER: 'ineligibleBreaksPlatformBuyMore',
 };
 
 /**
- * Why this row is greyed out, in the buyer's language. `MIN_ORDER_NOT_MET` is the only
- * reason the buyer can act on right now, so it upgrades to the concrete
- * "buy N more" line whenever the backend priced the gap (`amountToAdd > 0`).
+ * Why this row is greyed out, in the buyer's language. `MIN_ORDER_NOT_MET` and
+ * `BREAKS_PLATFORM_VOUCHER` are the reasons the buyer can act on right now, so
+ * they upgrade to the concrete "buy N more" line whenever the backend priced the
+ * gap (`amountToAdd > 0`).
  *
  * An unknown reason string (a value the backend adds later) must not render as
  * a raw enum, so it collapses to the neutral fallback.
@@ -43,10 +57,11 @@ export function voucherIneligibleMessage(
   lang: Lang = 'vi',
 ): string {
   const reason = voucher.ineligibleReason;
-  if (reason === 'MIN_ORDER_NOT_MET') {
+  const buyMoreKey = reason != null ? BUY_MORE_COPY[reason as VoucherIneligibleReason] : undefined;
+  if (buyMoreKey) {
     const gap = toVoucherNumber(voucher.amountToAdd);
     if (gap > 0) {
-      return translate(checkoutMessages, lang, 'ineligibleBuyMore', { amount: formatMoney(gap) });
+      return translate(checkoutMessages, lang, buyMoreKey, { amount: formatMoney(gap) });
     }
   }
   if (reason != null && reason in INELIGIBLE_COPY) {
@@ -65,6 +80,21 @@ export function voucherScopeLabel(
   lang: Lang = 'vi',
 ): string {
   return translate(checkoutMessages, lang, voucher.scope === 'shop' ? 'scopeShop' : 'scopePlatform');
+}
+
+/**
+ * Codes to send as `voucherCodes` so the backend rates every row next to what is
+ * already applied (VOUCHER-AVAIL-STACK-01): platform rows priced after the shop
+ * discounts, shop rows rated as replacing that seller's code.
+ *
+ * Omitted (not `[]`) when nothing is applied: the gateway rejects unknown fields,
+ * so a bare basket keeps the old request body and still works on an older backend.
+ */
+export function availableVouchersRequest(
+  items: CreateOrderItemDto[],
+  appliedCodes: readonly string[],
+): AvailableVouchersDto {
+  return appliedCodes.length > 0 ? { items, voucherCodes: [...appliedCodes] } : { items };
 }
 
 /** Discount this row would give on the current basket, as a usable number. */
