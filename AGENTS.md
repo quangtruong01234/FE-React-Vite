@@ -86,6 +86,7 @@ not all loaded at once.
 | Something that looks right but does not work | `.ai/context/pitfalls.md` |
 | Deploy, Cloudflare Workers, prod env vars, CORS | `DEPLOYMENT.md` |
 | Codex filesystem, command, approval and MCP safety | `.ai/context/codex-safety.md` |
+| A feature with a BE spec or agreed contract | `../api/ai-docs/specs/<KEY>/` (read-only) + `.ai/context/core.md` §Sub-agents and contracts |
 
 The repeatable procedures — review, add a test, scaffold a feature, commit, sweep
 the backlog — are written once in `.ai/workflows/`, and the reviewer/debugger/

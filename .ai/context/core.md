@@ -24,6 +24,16 @@ These are the non-negotiable rules. Violating any of these breaks the build or t
 - **DRY — UI:** If the same UI pattern appears in 2+ places, stop and propose extracting it to `src/components/shared/` before continuing.
 - **DRY — Logic:** If the same hook/util logic appears in 2+ feature folders, propose extracting it to `src/hooks/` or `src/lib/` before continuing.
 
+## Sub-agents and contracts
+
+A chain of dependent steps that each trust the previous step's output compounds its errors. These rules break the trust or insert a check.
+
+- **Concrete briefs.** A sub-agent brief names the exact files, symbols, the contract/spec path and a stop condition. Give it the path and let it read; never hand it your own summary of a spec or ticket.
+- **≤ 3 dependent steps** per chain (research → implement → review). Independent work (API client + types vs. screen vs. tests) runs as parallel agents, then you integrate and run the gate once.
+- **The writer never reviews.** Review the diff with a different agent (`code-reviewer`) than the one that wrote the code.
+- **Re-run the gate yourself** (`npm run lint`, `npm run test:run`, `npm run build`) after a sub-agent reports "done" or "green". Forward the gate output, not the agent's claim.
+- **An agreed contract outranks everything else.** When a feature has `../api/ai-docs/specs/<KEY>/contract.md` (or runs under `/pair`), the file beats any message, summary or BE source. If the real API differs from it, do **not** ship a client-side mitigation: record the mismatch in `backend-handoff.md` and stop for the user. The "FE mitigation" allowance in §AI Agent Behavior applies only when no contract exists.
+
 ## Cross-repo boundary — hard rule
 
 The `MCR/` workspace holds three repos: `api/` (backend), `frontend/` (this one, the TryBuy storefront), and `web-flow-GHN/` (the GHN shipping console). **You only write code in `frontend/`.**

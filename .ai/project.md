@@ -43,6 +43,7 @@ Read `.ai/context/core.md` before repository work.
 | Deploy / CI-CD, Cloudflare Workers, env vars ở production, CORS + cookie cross-origin      | `DEPLOYMENT.md` (repo root)        |
 | **Sắp push code** — phân lớp A/B/C, chờ repo nào, mẫu báo user (BẮT BUỘC đọc trước mỗi lần push) | `../.agent-local/release-gate.md`  |
 | Bug nằm ở repo khác (`api/`, `web-flow-GHN/`) — ghi vào đâu, được sửa không                | `.ai/context/core.md` §Cross-repo boundary |
+| Feature có spec/contract của BE (`../api/ai-docs/specs/<KEY>/` — chỉ đọc), hoặc làm song song với một session BE | spec folder đó + `.ai/workflows/pair.md` |
 
 ## Slash Commands
 
@@ -62,6 +63,7 @@ Read `.ai/context/core.md` before repository work.
 | `/verify-ui`        | Verify UI render via Chrome DevTools MCP (alignment/layout, report-only) |
 | `/sync-context`     | Scan `.ai/` for doc↔code drift — dead paths/symbols, stale route table, script claims (report-only) |
 | `/e2e`              | Run or write a Playwright spec; `/e2e coverage` route table, `/e2e fill [n]` pay coverage debt (needs live backend + user-installed browser) |
+| `/pair`             | FE side of a feature built with a parallel BE session — review the contract, build on MSW, verify against the real API (`/pair <KEY> <BE_SESSION> <ticket>`) |
 
 ## Agents
 

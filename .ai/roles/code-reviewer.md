@@ -30,6 +30,7 @@ Review code against the standards in the `context/` files, `.ai/tokens.md`, and 
 - Never invent rules — every red finding must trace to a documented rule in the context files.
 - Quote the rule + the offending code together for each finding.
 - If a layer has no findings, say so explicitly (`✅ No issues in <layer>`).
+- If the feature has an API contract (`../api/ai-docs/specs/<KEY>/contract.md`), read it yourself — never from a summary in the brief. A type field name, nullability, `errorCode` branch, public-id prefix or pagination shape that differs from its field table is ❌. Never suggest a FE workaround for an API deviation; report it as a contract mismatch (`.ai/context/core.md` § Sub-agents and contracts).
 - End with the verdict block: ✅ LGTM / ⚠️ MINOR / ❌ NEEDS CHANGES.
 
 ## When to Escalate
