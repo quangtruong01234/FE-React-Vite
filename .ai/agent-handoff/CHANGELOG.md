@@ -15,6 +15,156 @@
 
 ## Maintenance
 
+### `/sweep 3` 2026-10-05 (lượt 2): INV-404-FYI · LOGIN-SCHEMA-DEAD · E2E-DEBT run debt
+
+- **INV-404-FYI (handoff Open → Done, class A).** BE's FYI: the prod 404s on
+  `GET /inventory/product/:productId` came from a BE measurement, and the route 404s **by design**
+  for every SKU/variant product (base row only, STOCK-SYNC-01). Removed the dead
+  `inventoryApi.getByProduct` (`src/api/inventory.ts`) — 0 callers — and left a comment saying why
+  not to revive it. `.ai/context/backend-api.md` entry corrected (Public, `prod_` string, 404 for
+  variant products). No test: dead-code removal, no logic changed.
+- **LOGIN-SCHEMA-DEAD (snapshot "Còn lại phía FE", class A).** `loginSchema` + `LoginFormData`
+  deleted from `features/auth/auth.schema.ts` — 0 importers (the `LoginFormData` import noted in
+  2026-09-15 is gone too; `useLogin` validates with its own `LoginForm` interface and the
+  `loginUsernameRequired`/`loginPasswordRequired` keys). The `passwordRequired` key (vi + en) in
+  `auth.i18n.ts` was used only by that schema ⇒ removed; `usernameRequired` stays (register).
+  MCP: empty submit on `/login` still shows both inline errors.
+- **E2E-DEBT run debt (🟢) — paid.** Full local stack (gateway :3000 uptime 403 → 540 s across
+  the runs, no restart). Deep `return-request.buyer` **1/1** + `seller-returns.shop` **1/1** (first
+  runs since RETURN-PHOTO-01); smoke buyer `/returns`, `/order/:id`, shop `/sell/returns`,
+  public `/login` all pass; deep `/login` (`theme-persist`, `lang-persist`) 4/4. MCP on
+  `/order/ord_Gb1S3URe7EylR3Un` (buyer `canceltest…`, form opened, **not** submitted): add-photo
+  tile is a square 150.8 px `button` with `aria-label="Thêm ảnh minh hoạ"`, icon offset (0, 0),
+  counter `0/5`, `accept` = jpeg/png/webp, `multiple`, submit disabled until a reason is typed, no
+  horizontal overflow, 0 console error/warn. Upload itself not exercised (picker only).
+- **Skipped — CAPTCHA-01 (handoff Open):** needs a user decision (Cloudflare Turnstile script is a
+  new third-party runtime dependency + no site key issued yet). Left Open, untouched.
+- Tip: in Git Bash, `-g "/login …"` is rewritten to a Windows path (MSYS) ⇒ "No tests found";
+  prefix `MSYS_NO_PATHCONV=1`.
+
+Gates: `build` ✓ · `check:bundle` 704,541 / 750,000 ✓ · `lint` 0 ✓ · `test:run` **1684 / 182 files** ✓.
+
+### NOTIF-INBOX-01 · Notification inbox: mark all read, delete one, server-side unread tab (2026-10-05, `/sweep 2`)
+
+- **API:** `notificationsApi.getList(page, limit, unreadOnly)` sends `unreadOnly=true` only for the unread tab (never `1`/`false`); new `markAllRead()` (`PATCH /notifications/read-all` → `{updatedCount}`) and `remove(id)` (`DELETE /notifications/:id` → 204, `undefined`).
+- **Cache:** `queryKeys.notifications.list(page, unreadOnly)` + `lists` prefix. Pure helpers `markAllReadInCache` / `removeFromCache` in `notificationCache.ts`. Read-all and delete update every cached list optimistically, then invalidate all of `notifications` (neither write emits a socket event). `markRead` success now invalidates `lists` (the other tab is stale otherwise). The socket also upserts an unread arrival into the unread tab's page 1.
+- **UI:** `/notifications` "Chưa đọc" is server-filtered (pagination counts unread rows only); each row is a `<div>` holding the row button plus a sibling `IconButton` "Xoá thông báo" (no nested buttons, no confirm — the spec allows optimistic delete). "Đánh dấu đã đọc" on page + bell is one `PATCH read-all` and is disabled while pending. No toast for `updatedCount` (no global toast system).
+- **Tests:** `notificationCache.test.ts` +5, new `src/api/notifications.test.ts` (MSW: query param, PATCH, 204, 404). e2e: `deleteNotification` helper; new deep test in `notifications.buyer.spec.ts`.
+- **Verify:** full local stack — smoke buyer 22/22, deep `notifications.buyer` 2/2; MCP: X button 32×32, icon centred (offset 0,0).
+- **Release:** FE side is class **C** — prod `api` (`26fc40c`) has `forbidNonWhitelisted` and no `unreadOnly` ⇒ the unread tab would 400. HOLD entry in `release-gate.md`; push `api` first.
+
+### RETURN-PHOTO-ERRCODE-01 · Return-photo errors keyed on `errorCode` (2026-10-05, `/sweep 2`)
+
+- `returnRequestErrorMessage` reads `errorCode`: `RETURN_PHOTO_INVALID` → photo copy, `MEDIA_NOT_OWNED` → its own copy; untagged 400 → ineligible order; unknown code on a 400 → ineligible.
+- `MEDIA_NOT_OWNED` + `mediaNotOwnedMessage(error, lang)` live in `lib/http/uploadOwner.ts` (copy in `upload.i18n.ts`) so product/post/avatar forms can reuse them — not wired there yet.
+- **Deviation from the handoff:** the `/imageUrls/i` regex was **kept** as a fallback for an untagged 400, because prod `api` still sends photo 400s without a code — dropping it now would show "order not eligible" for a bad photo. Same pattern as IDEM-HOLD-CODE-01. Drop it once RETURN-PHOTO-ERRCODE-01 is live on prod. FE is therefore class **B**.
+- **Tests:** `returnRequest.test.ts` +2, `uploadOwner.test.ts` +2. e2e local: smoke `/returns`, `/order/:id`; deep `return-request`, `order-detail` green (cancel + payment-retry skip: no pending order — data, not debt). The coded error paths were not provoked at runtime (unit-covered).
+
+Gates: `build` ✓ · `check:bundle` 704,515 / 750,000 ✓ · `lint` 0 ✓ · `test:run` **1684 / 182 files** ✓.
+
+### PAIR-CONTRACT-01 · `/pair` + sub-agent rules for the two-session trial (2026-10-05)
+
+- **Prompt (`../.agent-local/two-repo-session-handoff-prompt.md`) rewritten for the `MCR/` workspace.**
+  - Real paths and session names (`api-NN` / `frontend-NN`).
+  - The contract lives at `api/ai-docs/specs/<KEY>/contract.md`, with its own anchor `<!-- contract: … -->`, `draft` → `agreed` → `implemented` (BE accepted the convention the same day: `api/ai-docs/specs/_templates/contract.md`).
+  - Message counts are consistent: 4 in a clean run, at most 6.
+  - The BE flow gains `test-guard`.
+  - The release gate and the inboxes are wired in.
+  - The English-only rule is narrowed to `api/`.
+- **The FE side moved into the repo as `/pair`:** `.ai/workflows/pair.md` plus the `.claude/commands/pair.md` adapter.
+  - Contract review checklist and MSW-in-unit-test mocking. The app has no runtime mock layer.
+  - Gates, mismatch handling, and the release-gate cell.
+- **`core.md` §Sub-agents and contracts** (permanent, not trial-only):
+  - Concrete briefs, ≤ 3 dependent steps, the writer never reviews, and the session re-runs the gate itself.
+  - An agreed contract outranks messages. On a mismatch FE does not ship a client-side workaround, which overrides the "FE mitigation" allowance only while a contract exists.
+- **Context map:** `project.md` and `AGENTS.md` now point at `../api/ai-docs/specs/<KEY>/` (read-only).
+- **BE inbox:** `backend-handoff.md` → PAIR-CONTRACT-01 asks BE to accept the contract-only spec convention (a `_templates/contract.md` and one line in the README) or to name another path.
+- **Docs only, no `src/` change.** No test is needed.
+
+### Gates and e2e for the `/sweep 3` batch of 2026-10-04 (VOUCHER-AVAIL-STACK-01, IDEM-HOLD-CODE-01, ACCOUNT-DELETE-01)
+
+- **Unit and static gates:** build, `check:bundle` (703,666 / 750,000), lint and unit tests (**1670 / 181 files**) are all green.
+- **Stack:** e2e ran on the **full local stack**, with the gateway on :3000 and Vite on :5173.
+  - Smoke for buyer, shop, admin and public: **43/43**.
+  - Deep, 18/18:
+    - `/checkout`: `checkout-resilience` + `checkout-vouchers`
+    - `/profile/:id`: `profile`
+    - `/`: `feed`
+    - `/post/:id`: `post-detail`
+    - `/messages`: `messages`
+    - `/sell/orders`: `seller-orders`
+    - `/login`: `lang-persist`
+    - `/admin/reports`: `post-moderation`
+- **Run debt paid:** `messages.buyer` (CHAT-E2E-CLEANUP-01) and the ORDER-TIMELINE-01 test in `order-detail.buyer` had never run before. Both are green now.
+  - `order-detail.buyer` passed 5 and skipped 1, the cancel test, because the buyer has no pending order.
+- **Perf:** no new list, hook or hot path.
+- **Not checked with MCP:** the delete-account dialog. The test accounts are shared, so I did not delete one for real.
+
+### VOUCHER-AVAIL-STACK-01 · Gợi ý mã đi theo các mã đang áp (2026-10-04)
+
+FE class **C** → HOLD in `release-gate.md`; push `api` first.
+- When a code is applied, the FE sends `voucherCodes`.
+- On the old BE gateway (`forbidNonWhitelisted`), that request gets a 400 and the suggestions list disappears.
+- A checkout with no code applied sends exactly the old body.
+
+This answers the BE→FE entry of the same id. It replaces the client-side mitigation from 2026-10-03. That mitigation (`repriceAfterShopVouchers`) was never committed, so this is its only release.
+
+**Changes**
+- `voucherSuggestions.ts`:
+  - `availableVouchersRequest(items, appliedCodes)` adds `voucherCodes` only when it is non-empty.
+  - `repriceAfterShopVouchers()` and the `pricedAfterShop` field are deleted. BE now prices platform rows after the shop discounts.
+  - `BREAKS_PLATFORM_VOUCHER` has its own copy, with and without `{amountToAdd}`. An unknown reason still falls back to the generic message.
+- `checkout.i18n.ts`:
+  - Removed `ineligibleBuyMoreAfterShop`.
+  - Added `ineligibleBreaksPlatform` / `ineligibleBreaksPlatformBuyMore` (vi/en).
+- `types/order.ts`: added `voucherCodes?` to the available-vouchers request, and `BREAKS_PLATFORM_VOUCHER` to the reason union.
+- `queryKeys.orders.availableVouchers(signature, codes)`: the key uses the sorted codes, so applying the same set in a different order does not refetch.
+  - `availableVouchersAll` is still the prefix that `useCancelOrder` invalidates.
+- `CheckoutPage.tsx`: the query sends the applied codes, with `placeholderData: keepPreviousData`, so the list does not flash empty when a code is applied.
+
+**Tests:** `voucherSuggestions.test.ts` 11 → 17 (body with and without codes, the new reason, unknown reason) and `orderInvalidation.test.ts` +1 (the key with codes still sits under the prefix).
+
+### IDEM-HOLD-CODE-01 · 409 "đơn có thể đã tạo" nhận theo `errorCode` (2026-10-04)
+
+Class **B**: correct against both the old and the new BE, no hold. This answers the BE→FE entry of the same id.
+
+- `idempotency.ts` `isOrderOutcomeUnknown()`: a 409 with `errorCode === "ORDER_REQUEST_IN_PROGRESS"` ⇒ unknown, whatever the message.
+- The message regex **stays as a fallback**, because prod BE does not send the code yet. Remove it once `api` with this change is live on prod.
+- An `errorCode` outside a 409 is ignored. Stock and voucher 409s stay definite.
+
+**Tests:** `idempotency.test.ts` 9 → 11.
+
+### ACCOUNT-DELETE-01 · Tự xoá tài khoản + hiển thị tác giả đã xoá (2026-10-04)
+
+FE class **C** → HOLD in `release-gate.md`; push `api` first. On the old BE, `DELETE /user/me` returns 404, so the button shows "chưa khả dụng" and does nothing. This answers the BE→FE entry of the same id.
+
+**Changes**
+- `api.users.deleteMe({ currentPassword })` uses `skipUnauthorizedRedirect`, so a 401 means a wrong password and does not throw the user out to `/login`. Types are `DeleteAccountDto` / `DeleteAccountResponse`.
+- `features/user/deleteAccount.ts`: `deleteAccountSchema` plus `deleteAccountError()`.
+  - 403 → admin. This check runs before the shared mapper, because that mapper treats 403 as a wrong password.
+  - 401 → the password field, or `sessionExpired` when the code is `UNAUTHENTICATED`.
+  - 429, 400 (already deleted), 408/502/503 ("safe to retry"), 404 (old BE).
+- `DeleteAccountSection.tsx` (new): a danger zone in the "Bảo mật" tab of `EditProfileModal`, under `LogoutAllDevices`, hidden for admins (`canAdminister`).
+  - The dialog lists the 6 warnings from BE and a `PasswordField`.
+  - It cannot be closed while the request is pending.
+  - On 200: `replaceSessionCache(null)`, `postAuthEvent('logout')`, then `navigate('/')`.
+- Deleted authors:
+  - `lib/format/user.ts` adds `isDeletedUser()` (prefix `deleted_`, any case) and `deletedUserLabel(lang)`.
+  - `userDisplayName(user, fallback, lang)` returns "Người dùng đã xóa" / "Deleted user", ignoring any leftover display name. Every caller now passes `lang`.
+  - `components/shared/ProfileLink.tsx` (new) renders a `<Link>` to the profile, or a plain `<span>` with the same classes when the user is deleted. Used on `PostCard`, `PostDetailPage` and `CommentNode`, for both the avatar and the name.
+  - `SellerOrdersPage` hides the buyer's `@username` when the buyer is deleted.
+  - Reviews show no author, and the chat peer has no profile link, so neither needed a change.
+  - The admin columns keep the raw username, because admins identify accounts by it.
+- Register:
+  - zod rejects a `deleted_` prefix (`usernameReserved`, vi/en).
+  - `credentialConflict.ts` maps the BE 400 `…deleted_… reserved` to the username field.
+
+**Tests:** 8 + 2 new (`deleteAccount.test.ts`, `ProfileLink.test.tsx`); `user.test.ts` 16 → 20; `auth.schema.test.ts` +1; `credentialConflict.test.ts` +2.
+
+**Probe:** on local BE, `DELETE /api/user/me` with no cookie returns 401, not 404, so the route exists.
+
+**Pitfall:** `DeleteAccount.tsx` next to `deleteAccount.ts` broke tsc on Windows (TS1149/TS1261, a case-insensitive file system). The component was renamed `DeleteAccountSection.tsx`.
+
 ### CHAT-E2E-CLEANUP-01 · Deep e2e cho `/messages` — E2E-DEBT 0/30 (2026-10-03)
 
 Class **A** (e2e + 1 `data-testid`, không đổi hành vi app). Trả entry BE→FE `CHAT-E2E-CLEANUP-01`

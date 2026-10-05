@@ -1,6 +1,6 @@
 # Snapshot — TryBuy Frontend Current State
 
-> Cập nhật: 2026-10-03 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
+> Cập nhật: 2026-10-05 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
 > Keep this LEAN: chỉ giữ bức tranh sống (overview, việc còn mở/bị chặn, known issues).
 > Việc đã xong nằm ở `CHANGELOG.md` (cùng thư mục, không auto-load) — **đừng chép lại vào đây**.
 > Convention/rule nằm ở `.ai/context/` — cũng không duplicate vào đây.
@@ -15,10 +15,10 @@ kể cả P0-03: nhánh create atomic BE-side từ INV-CONTRACT-01 (prod 2026-08
 Public-ID migration (PUBID-01–07) đã
 xong — storefront id là opaque string end-to-end.
 
-**Gates (chạy lại 2026-10-03, sau `/sweep 3` ORDER-TIMELINE-01 + RETURN-PHOTO-01 + CHAT-E2E-CLEANUP-01):** `npm run build` ✓ · `npm run check:bundle` ✓ ·
-`npm run lint` 0 problem · `npm run test:run` **1641 test / 179 file**, all pass. Không đóng item
+**Gates (chạy lại 2026-10-05, sau `/sweep 3` INV-404-FYI + LOGIN-SCHEMA-DEAD + E2E-DEBT run debt; bundle 704,541 / 750,000):** `npm run build` ✓ · `npm run check:bundle` ✓ ·
+`npm run lint` 0 problem · `npm run test:run` **1684 test / 182 file**, all pass. Không đóng item
 nào khi 4 lệnh này chưa xanh. E2E smoke (không thuộc gate) **43/43 pass, 0 skip** trên stack local
-sau THEME-05 (2026-09-26), chạy trên dev server **mới khởi động** (pitfalls §18).
+2026-10-04 (dev server đang chạy sẵn — fail lạ thì khởi động lại trước, pitfalls §18).
 
 > ⚠️ `npm run build` **mới** thực sự typecheck từ 2026-08-04. Trước đó script chỉ là `vite build`
 > (esbuild vứt type) trong khi doc ghi là có `tsc` → 3 lỗi type nằm im 2 tuần. Chi tiết +
@@ -54,11 +54,11 @@ mới tới doc.)*
 
 | Ngày | Item |
 |---|---|
-| 2026-10-03 | **CHAT-E2E-CLEANUP-01 · deep e2e cho `/messages` ⇒ E2E-DEBT 0/30** (class **A** — e2e + 1 `data-testid`). `e2e/api.ts` thêm `conversationWith`/`chatMessageIdByContent`/`deleteChatMessage` (204/404 = sạch); spec mới `messages.buyer` (profile shop → "Nhắn tin" → gửi → "Đã gửi" → reload còn tin → `finally` xoá cứng bằng session buyer). `ChatThread` bong bóng có `data-testid="chat-message"`. **Chưa chạy lần nào** — backend local tắt. |
-| 2026-10-03 | **RETURN-PHOTO-01 · ảnh bằng chứng khi yêu cầu trả hàng** (FE class **C** cho phần ảnh — push `api` trước; trả hàng chỉ có lý do không đổi). `ReturnPhotoPicker` + `useReturnPhotos` (≤5, JPG/PNG/WEBP ≤10MB, xoá upload mồ côi khi bỏ/đóng form), `returnRequestPayload()` chỉ gửi `imageUrls` khi có ảnh, `ReturnPhotoStrip` trên `/order/:id`, `/returns`, `/sell/returns`. +8 unit test. Verify runtime còn nợ (backend tắt). |
-| 2026-10-03 | **ORDER-TIMELINE-01 · card "Lịch sử đơn hàng" trên `/order/:id` — đóng F12** (class **B** — BE cũ 404 ⇒ card ẩn). `useOrderHistory` (`retry: false`) + `orderTimelineRows()` (22 mã GHN vi/en, mã lạ hiện nguyên) + `OrderHistoryCard`; `order-detail.buyer` thêm 1 test đọc (skip khi route 404). +8 unit test. Verify runtime còn nợ (backend tắt). |
-| 2026-10-02 | **SWEEP-1002-01 · đặt hàng lỗi không rõ kết quả ⇒ không retry mù cùng key** (class **A** — chỉ FE, đúng với BE cũ lẫn mới). `isOrderOutcomeUnknown()` (408 / 5xx / mất mạng / 409 "duplicate … already being processed") ⇒ `CheckoutPage` hiện cảnh báo amber + link `/orders`, lần bấm sau mở `ConfirmDialog`, chỉ confirm mới sinh key mới. 4 unit + e2e mới trong `checkout-resilience.buyer`; MCP sáng/tối OK. |
-| 2026-10-02 | **E2E-FILL-03 · deep e2e cho `/` + nhánh EMAIL-REAUTH-01 + 2 lỗ a11y; `/messages` chuyển BE** (class **A** — chỉ FE). Spec mới `feed.buyer` (composer → tìm → like/unlike từ thẻ → sửa/xóa qua menu thẻ, đối chiếu API); `profile.buyer` thêm test đổi email → ô mật khẩu bắt buộc → sai mật khẩu báo đúng ô, không về `/login`, email API không đổi. a11y: nút gửi bình luận `/post/:id` có `aria-label` (`sendComment` vi/en), nút Thích ở `PostCard` có `aria-pressed`. E2E-DEBT còn 1/30 (`/messages`) chờ **CHAT-E2E-CLEANUP-01** ở `backend-handoff.md`. Build/lint ✓, 1621 unit test ✓, e2e buyer 43 ✓ / 2 skip (data guard sẵn có, không liên quan). |
+| 2026-10-05 | **E2E-DEBT run debt · deep trả hàng + picker ảnh** (class **A**, không đổi code). Stack local: deep `return-request.buyer` 1/1 + `seller-returns.shop` 1/1 (lần đầu từ RETURN-PHOTO-01), smoke `/returns` · `/order/:id` · `/sell/returns` xanh; MCP picker ảnh: ô 150.8 px vuông, icon lệch (0,0), `0/5`, accept jpeg/png/webp, 0 console error. Không submit. |
+| 2026-10-05 | **INV-404-FYI + LOGIN-SCHEMA-DEAD · dọn code chết** (class **A**). Xoá `inventoryApi.getByProduct` (0 caller; route 404 cho SP có SKU là đúng thiết kế) + sửa `backend-api.md`; xoá `loginSchema`/`LoginFormData` và key i18n `passwordRequired` chỉ schema đó dùng. e2e `/login` smoke + deep 5/5; MCP submit rỗng vẫn ra 2 lỗi. |
+| 2026-10-05 | **NOTIF-INBOX-01 · inbox: đánh dấu tất cả đã đọc, xoá từng thông báo, tab "Chưa đọc" lọc server** (FE class **C** — HOLD, push `api` trước: BE cũ 400 với `unreadOnly`). `api.notifications` thêm `markAllRead`/`remove`; key `list(page, unreadOnly)`; read-all/xoá cập nhật lạc quan mọi list đang cache rồi refetch cả `notifications` (không có WS event); nút X (`IconButton`) cạnh mỗi hàng `/notifications`. e2e local: smoke buyer 22/22, deep `notifications.buyer` 2/2 (test mới: tab chưa đọc → read-all → xoá → reload). |
+| 2026-10-05 | **RETURN-PHOTO-ERRCODE-01 · lỗi ảnh trả hàng nhận theo `errorCode`** (class **B**). `RETURN_PHOTO_INVALID` → copy ảnh; `MEDIA_NOT_OWNED` → copy riêng dùng chung (`mediaNotOwnedMessage` ở `lib/http/uploadOwner`, sẵn cho form product/post/avatar); regex `/imageUrls/i` **giữ làm fallback** tới khi `api` lên prod. +4 unit test. |
+| 2026-10-04 | **ACCOUNT-DELETE-01 · tự xoá tài khoản + tác giả đã xoá** (FE class **C** — HOLD, push `api` trước). Vùng nguy hiểm trong tab "Bảo mật" (ẩn với admin) → dialog 6 cảnh báo + mật khẩu → `DELETE /user/me` (`skipUnauthorizedRedirect`); 200 ⇒ xoá session + về `/`. `isDeletedUser()` (`deleted_`) ⇒ `userDisplayName` = "Người dùng đã xóa"; `ProfileLink` mới (không link khi đã xoá) trên post/comment; register chặn tiền tố `deleted_`. +17 unit test. Nút xoá thật chưa bấm thử (không xoá account test dùng chung). |
 
 ## Active Tasks — open / blocked
 
@@ -84,10 +84,9 @@ branch chưa merge, đã verify bằng `git branch --contains` trong `api/`, kh�
   CHG-PW-01) là ancestor của nó. Bằng chứng mạnh hơn cả git: gọi thẳng
   `POST /api/user/change-password` trên prod hôm nay trả **`401` + `errorCode`**, không phải
   `404` — tức handler thật sự tồn tại và chạy. Vì thế **cây làm việc không còn là lớp C vì mục
-  này nữa**, và tab "Bảo mật" trên prod không còn ra `404`. Còn đúng một việc nhỏ chưa làm: FE vẫn
-  ánh xạ `404` → *"Tính năng đổi mật khẩu chưa sẵn sàng"* trong `changePassword.ts`; nhánh đó giờ
-  là code chết, gỡ được bất cứ lúc nào (để lại có hại: nó nói dối nếu sau này `404` đến từ lý do
-  khác). Khi verify prod: **phải dùng tài khoản dùng-một-lần**, đừng đổi mật khẩu của
+  này nữa**, và tab "Bảo mật" trên prod không còn ra `404`. Nhánh `404` → *"chưa sẵn sàng"* trong
+  `changePassword.ts` **đã gỡ** (đọc lại 2026-10-05; `changePassword.test.ts` khoá việc `404` không
+  còn nói tính năng chưa có). Khi verify prod: **phải dùng tài khoản dùng-một-lần**, đừng đổi mật khẩu của
   `user1`/`shop1`/`admin1` — lượt 2026-09-11 chỉ gửi mật khẩu hiện tại **sai** nên không đổi gì.
 - ~~**REPORT-TOTAL-01**~~ — **ĐÃ ĐÓNG (BE push 2026-08-2x).** `514e67c fix(social): exclude
   orphaned reports from the admin report queue` **đã có trên `api` `origin/main`** (đo lại
@@ -138,10 +137,10 @@ hoặc tiptap nới peer range. Bối cảnh + bài học "đừng xoá lockfile
 
 - 🟢 **E2E-DEBT — 0/30 route chỉ có smoke** (đo từ `e2e/routes.ts` 2026-10-03; `/messages` =
   `messages.buyer`, viết sau khi BE thêm `DELETE /api/chat/messages/:id` — CHAT-E2E-CLEANUP-01).
-  **Nợ chạy:** `messages.buyer` và test ORDER-TIMELINE-01 trong `order-detail.buyer` được viết
-  2026-10-03 lúc backend local tắt ⇒ **chưa chạy lần nào**; `/sweep` kế tiếp có stack thì chạy
-  hai spec này trước, cùng smoke `/order/:id`, `/returns`, `/sell/returns` (RETURN-PHOTO-01 chưa
-  verify runtime, cũng chưa xem bằng MCP). EMAIL-REAUTH-01 đã có nhánh từ chối trong `profile.buyer` (không bao giờ đổi
+  **Nợ chạy:** `messages.buyer` và test ORDER-TIMELINE-01 trong `order-detail.buyer` **đã chạy xanh
+  2026-10-04** (stack local; smoke `/order/:id`, `/returns`, `/sell/returns` cũng xanh trong lượt 43/43).
+  Deep `return-request.buyer` + `seller-returns.shop` và lượt MCP cho picker ảnh RETURN-PHOTO-01
+  **đã chạy xanh 2026-10-05** (`/sweep 3`) ⇒ **hết nợ chạy**. EMAIL-REAUTH-01 đã có nhánh từ chối trong `profile.buyer` (không bao giờ đổi
   email thật của account seed — nhánh thành công vẫn cố ý không tự động hoá).
   Trả hàng chỉ có nhánh **từ chối** trong suite — nhánh duyệt là hoàn tiền một chiều, cố ý không
   tự động hoá.
@@ -275,12 +274,6 @@ hoặc tiptap nới peer range. Bối cảnh + bài học "đừng xoá lockfile
   `rgb(var(--x) / <alpha-value>)` nên `/NN` chạy trên **mọi** alias; `aliasAlpha` test đã xoá, thay
   bằng `src/test/themeTokens.test.ts` (kiểm shape token trong config, không quét `src/`). 265 chỗ mà
   ALIAS-ALPHA-01 đã đổi sang `tb-*` vẫn đúng — **đừng** đổi ngược, churn không lợi gì.
-- **`loginSchema` (`features/auth/auth.schema.ts:3`) là code chết (phát hiện 2026-09-15).** Grep ra
-  **0** call site — `LoginPage` validate nhánh đăng nhập bằng tay, chỉ `registerSchema` đi qua
-  `zodResolver`. Để nguyên trong lượt NAME-TRIM-01 vì xoá không thuộc diff tối thiểu của item đó, và
-  vì `LoginFormData` vẫn được import làm type. Muốn dọn thì xoá cả schema lẫn type và đổi
-  `LoginPage` sang một interface cục bộ — hoặc ngược lại, nối `loginSchema` vào form đăng nhập cho
-  hai nhánh cùng một đường validate (đừng thêm `.trim()` vào đó: BE **cố ý** không trim login).
 - **Nhánh `shop` của badge read-only ở `AdminPage.tsx` là code không tới được (đọc 2026-09-16).**
   `roleEditability()` chỉ trả read-only cho (a) hàng của chính admin đang đăng nhập hoặc (b) role GHN
   không gán được ⇒ badge chỉ có thể render với `admin` hoặc một trong hai role GHN, **không bao giờ**

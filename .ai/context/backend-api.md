@@ -799,13 +799,14 @@ Response 200: Array of inventory objects
 
 ### GET /api/inventory/product/:productId
 
-Auth: Cookie
-Description: Get inventory record by product ID.
+Auth: Public
+Description: Get the product's **base** inventory row (the one with no SKU). FE does not call it
+(stock reads go through `products/:id/stock-check` / `with-inventory`).
 
-Params: `productId` (number) [required]
+Params: `productId` (`prod_…` string) [required]
 
-Response 200: Inventory object
-Errors: 404
+Response 200: Inventory object (simple product only)
+Errors: 404 — unknown product **or a SKU/variant product** (no base row; by design, STOCK-SYNC-01) · 400 malformed id
 
 ---
 
