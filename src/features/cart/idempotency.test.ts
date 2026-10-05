@@ -68,6 +68,18 @@ describe("isOrderOutcomeUnknown", () => {
     ).toBe(true);
   });
 
+  it("treats the held-key 409 as unknown by its errorCode, whatever the message (IDEM-HOLD-CODE-01)", () => {
+    expect(
+      isOrderOutcomeUnknown({ ...apiError(409, "Conflict"), errorCode: "ORDER_REQUEST_IN_PROGRESS" }),
+    ).toBe(true);
+  });
+
+  it("does not trust the errorCode outside a 409", () => {
+    expect(
+      isOrderOutcomeUnknown({ ...apiError(400), errorCode: "ORDER_REQUEST_IN_PROGRESS" }),
+    ).toBe(false);
+  });
+
   it("keeps every definite rejection definite, other 409s included", () => {
     expect(isOrderOutcomeUnknown(apiError(409, "Insufficient stock for product prod_x"))).toBe(false);
     expect(isOrderOutcomeUnknown(apiError(409))).toBe(false);

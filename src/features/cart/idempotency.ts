@@ -29,7 +29,14 @@ export function resolveIdempotencyKey(
   return { signature, key: generateKey() };
 }
 
-/** Text of the backend `ORDER_MESSAGE.DUPLICATE_REQUEST_IN_PROGRESS` 409. */
+/** `errorCode` on the held-key 409 (IDEM-HOLD-CODE-01) — the only 409 on this route that has one. */
+const ORDER_REQUEST_IN_PROGRESS = "ORDER_REQUEST_IN_PROGRESS";
+
+/**
+ * Text of the backend `ORDER_MESSAGE.DUPLICATE_REQUEST_IN_PROGRESS` 409. Kept as a
+ * fallback until the backend that sends the errorCode is live on prod — the
+ * older one sends this 409 with the message only.
+ */
 const DUPLICATE_IN_PROGRESS = /duplicate order request is already being processed/i;
 
 /**
@@ -43,8 +50,9 @@ const DUPLICATE_IN_PROGRESS = /duplicate order request is already being processe
  * after it, the same key can create a second order. So neither retry is safe —
  * the buyer has to check "Đơn hàng của tôi" first.
  *
- * The 409 has no `errorCode`, only this message, and other 409s (stock,
- * voucher) are definite rejections — so it is matched by text.
+ * That 409 carries `errorCode: "ORDER_REQUEST_IN_PROGRESS"`; other 409s
+ * (stock, voucher) are definite rejections and carry none. An older backend
+ * sends the code-less 409, so the message is still matched as a fallback.
  *
  * Definite rejections (any other 4xx) return `false`: the key was released and
  * fixing the input then retrying is safe.
@@ -57,6 +65,7 @@ export function isOrderOutcomeUnknown(error: unknown): boolean {
   if (typeof status !== "number") return true;
   if (status === 408 || status >= 500) return true;
   if (status !== 409) return false;
+  if ((error as { errorCode?: unknown }).errorCode === ORDER_REQUEST_IN_PROGRESS) return true;
   const message = (error as { message?: unknown }).message;
   return typeof message === "string" && DUPLICATE_IN_PROGRESS.test(message);
 }
