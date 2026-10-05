@@ -1,10 +1,11 @@
 import { type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BellOff } from 'lucide-react';
+import { BellOff, X } from 'lucide-react';
 import { useNotifications } from './useNotifications';
 import { usePageParam } from '@/hooks/ui/usePageParam';
 import { useFilterParam } from '@/hooks/ui/useFilterParam';
 import { FetchingOverlay } from '@/components/shared/FetchingOverlay';
+import { IconButton } from '@/components/shared/IconButton';
 import {
   getNotificationMeta,
   getNotificationContent,
@@ -54,10 +55,13 @@ export default function NotificationsPage(): ReactElement {
   const t = useT(notificationMessages);
   const { lang } = useLanguage();
   const [page, setPage] = usePageParam();
-  const { notifications, unreadCount, totalPages, isLoading, isFetching, markRead, markAllRead } = useNotifications(page);
   const [tab, setTab] = useFilterParam<FilterKey>('tab', FILTER_KEYS, 'all');
-
-  const list = tab === 'unread' ? notifications.filter((n) => !n.isRead) : notifications;
+  // "Chưa đọc" is filtered server-side (NOTIF-INBOX-01), so its pagination counts
+  // unread rows only — not the unread subset of an "all" page.
+  const {
+    notifications: list, unreadCount, totalPages, isLoading, isFetching,
+    markRead, markAllRead, isMarkingAllRead, remove,
+  } = useNotifications(page, tab === 'unread');
   const groups = groupByDate(list);
 
   function handleClick(n: Notification): void {
@@ -79,7 +83,8 @@ export default function NotificationsPage(): ReactElement {
           <button
             type="button"
             onClick={markAllRead}
-            className="text-accent-amber text-sm font-semibold bg-transparent border-0 cursor-pointer hover:underline p-0"
+            disabled={isMarkingAllRead}
+            className="text-accent-amber text-sm font-semibold bg-transparent border-0 cursor-pointer hover:underline p-0 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {t('markAllRead')}
           </button>
@@ -147,35 +152,47 @@ export default function NotificationsPage(): ReactElement {
                 {items.map((n) => {
                   const { Icon, color } = getNotificationMeta(n.type);
                   const { title, body } = getNotificationContent(n, lang);
+                  // The delete control sits beside the row's button, not inside
+                  // it — a <button> cannot nest another <button>.
                   return (
-                    <button
+                    <div
                       key={n.id}
-                      type="button"
                       data-testid={`notification-${n.id}`}
-                      onClick={() => handleClick(n)}
                       className={cn(
-                        'w-full text-left flex gap-3 px-4 py-3.5 border-b border-tb-border/60 last:border-0',
-                        'cursor-pointer transition-colors hover:bg-canvas-elevated',
+                        'flex items-start border-b border-tb-border/60 last:border-0 transition-colors hover:bg-canvas-elevated',
                         !n.isRead && 'bg-accent-amber/[0.04]',
                       )}
                     >
-                      <span className={cn('size-10 rounded-full flex-none grid place-items-center', color)}>
-                        <Icon size={18} className="shrink-0" />
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <p className={cn(
-                          'm-0 text-sm leading-snug font-semibold',
-                          n.isRead ? 'text-ink-sec' : 'text-ink-pri',
-                        )}>
-                          {title}
-                        </p>
-                        <p className="m-0 text-sm leading-snug text-ink-sec">{body}</p>
-                        <span className="text-xs text-ink-muted">{relativeTime(n.createdAt, lang)}</span>
-                      </div>
-                      {!n.isRead && (
-                        <span className="w-2.5 h-2.5 rounded-full bg-accent-amber flex-none mt-1.5" />
-                      )}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => handleClick(n)}
+                        className="flex-1 min-w-0 text-left flex gap-3 pl-4 py-3.5 bg-transparent border-0 cursor-pointer"
+                      >
+                        <span className={cn('size-10 rounded-full flex-none grid place-items-center', color)}>
+                          <Icon size={18} className="shrink-0" />
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className={cn(
+                            'm-0 text-sm leading-snug font-semibold',
+                            n.isRead ? 'text-ink-sec' : 'text-ink-pri',
+                          )}>
+                            {title}
+                          </p>
+                          <p className="m-0 text-sm leading-snug text-ink-sec">{body}</p>
+                          <span className="text-xs text-ink-muted">{relativeTime(n.createdAt, lang)}</span>
+                        </div>
+                        {!n.isRead && (
+                          <span className="w-2.5 h-2.5 rounded-full bg-accent-amber flex-none mt-1.5" />
+                        )}
+                      </button>
+                      <IconButton
+                        aria-label={t('deleteNotification')}
+                        onClick={() => remove(n.id)}
+                        className="size-8 mx-2 mt-2.5 flex-none rounded-full bg-transparent border-0 text-ink-muted hover:text-accent-red hover:bg-canvas-surface transition-colors cursor-pointer"
+                      >
+                        <X size={16} className="shrink-0" />
+                      </IconButton>
+                    </div>
                   );
                 })}
               </div>

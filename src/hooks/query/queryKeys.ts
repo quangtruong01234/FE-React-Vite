@@ -168,7 +168,10 @@ export const queryKeys = {
       ["search", "users", query, limit] as const,
   },
   notifications: {
-    list: (page: number) => ["notifications", "list", page] as const,
+    all: ["notifications"] as const,
+    lists: ["notifications", "list"] as const,
+    list: (page: number, unreadOnly = false) =>
+      ["notifications", "list", page, unreadOnly ? "unread" : "all"] as const,
     unreadCount: ["notifications", "unread"] as const,
   },
   conversations: {

@@ -23,6 +23,13 @@ const notificationSocket = createRefCountedSocket<NotifSocket>(NOTIF_SOCKET_URL,
       const before = queryClient.getQueryData<NotifCache>(listKey);
       const after = upsertNotification(before, incoming);
       queryClient.setQueryData<NotifCache>(listKey, after);
+      // The "Chưa đọc" tab is a separate server-filtered list (NOTIF-INBOX-01).
+      if (!incoming.isRead) {
+        queryClient.setQueryData<NotifCache>(
+          queryKeys.notifications.list(1, true),
+          (old) => upsertNotification(old, incoming),
+        );
+      }
       const badge = unreadBadgeUpdate(before, after, incoming);
       if (badge === 'increment') {
         queryClient.setQueryData<{ unreadCount: number }>(

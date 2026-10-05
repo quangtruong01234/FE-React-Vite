@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { Notification } from '@/types';
 import {
-  upsertNotification, didInsert, unreadBadgeUpdate, type NotifCache,
+  upsertNotification, didInsert, unreadBadgeUpdate, markAllReadInCache, removeFromCache,
+  type NotifCache,
 } from './notificationCache';
 
 function notif(id: number, partial: Partial<Notification> = {}): Notification {
@@ -107,5 +108,34 @@ describe('unreadBadgeUpdate', () => {
   it('never touches the badge for a like that is already read', () => {
     const like = notif(9, { type: 'like', isRead: true });
     expect(unreadBadgeUpdate(cache(), upsertNotification(cache(), like), like)).toBe('none');
+  });
+});
+
+describe('markAllReadInCache (NOTIF-INBOX-01)', () => {
+  it('flips every row to read and keeps the pagination fields', () => {
+    const result = markAllReadInCache(cache(notif(1), notif(2, { isRead: true })));
+    expect(result?.data.every((n) => n.isRead)).toBe(true);
+    expect(result?.total).toBe(2);
+  });
+
+  it('leaves an absent cache absent', () => {
+    expect(markAllReadInCache(undefined)).toBeUndefined();
+  });
+});
+
+describe('removeFromCache (NOTIF-INBOX-01)', () => {
+  it('drops the row and decrements total', () => {
+    const result = removeFromCache(cache(notif(1), notif(2)), 'ntf_1');
+    expect(result?.data.map((n) => n.id)).toEqual(['ntf_2']);
+    expect(result?.total).toBe(1);
+  });
+
+  it('returns the same cache when the id is not on this page', () => {
+    const before = cache(notif(1));
+    expect(removeFromCache(before, 'ntf_9')).toBe(before);
+  });
+
+  it('leaves an absent cache absent', () => {
+    expect(removeFromCache(undefined, 'ntf_1')).toBeUndefined();
   });
 });

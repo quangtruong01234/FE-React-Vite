@@ -77,6 +77,7 @@ export const notificationMessages = defineMessages({
     groupYesterday: 'Hôm qua',
     groupThisWeek: 'Tuần này',
     groupOlder: 'Cũ hơn',
+    deleteNotification: 'Xoá thông báo',
   },
   en: {
     fallbackTitle: 'Notification',
@@ -149,5 +150,6 @@ export const notificationMessages = defineMessages({
     groupYesterday: 'Yesterday',
     groupThisWeek: 'This week',
     groupOlder: 'Older',
+    deleteNotification: 'Delete notification',
   },
 });

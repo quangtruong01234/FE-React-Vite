@@ -52,3 +52,17 @@ export function unreadBadgeUpdate(
   if (incoming.type === 'like') return 'refetch';
   return didInsert(before, after) ? 'increment' : 'none';
 }
+
+/** Every cached row flipped to read — the optimistic face of `PATCH read-all` (NOTIF-INBOX-01). */
+export function markAllReadInCache(cache: NotifCache | undefined): NotifCache | undefined {
+  if (!cache) return cache;
+  return { ...cache, data: cache.data.map((n) => (n.isRead ? n : { ...n, isRead: true })) };
+}
+
+/** Drops one row and decrements `total`; a cache without that id is returned unchanged. */
+export function removeFromCache(cache: NotifCache | undefined, id: string): NotifCache | undefined {
+  if (!cache) return cache;
+  const data = cache.data.filter((n) => n.id !== id);
+  if (data.length === cache.data.length) return cache;
+  return { ...cache, data, total: Math.max(0, cache.total - 1) };
+}

@@ -1,6 +1,8 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { ACCOUNTS, ADMIN_ACCOUNT } from './accounts';
-import { createPost, deletePost, likePost, markNotificationRead, postNotificationIds } from './api';
+import {
+  createPost, deleteNotification, deletePost, likePost, markNotificationRead, postNotificationIds,
+} from './api';
 
 // Deep flow for `/notifications` (SOCIAL-LIKE-NTF-01): likes on one post are
 // aggregated into ONE unread row that the backend re-pushes over the socket
@@ -77,6 +79,43 @@ test('likes on one post collapse into one live-updated row', async ({ page }) =>
     if (badgeBefore !== null) await expect.poll(() => unreadBadge(page)).toBe(badgeBefore + 1);
   } finally {
     if (ntfId) await markNotificationRead(buyer, ntfId);
+    await deletePost(buyer, postId);
+  }
+});
+
+// NOTIF-INBOX-01: the "Chưa đọc" tab is filtered server-side, "Đánh dấu đã đọc"
+// is one `PATCH read-all` for every row (not just the loaded page), and each row
+// has a hard delete. Seeds one like row; read-all only flips the buyer's own
+// rows to read, which the first test's cleanup does anyway.
+test('unread tab, mark all read and delete one row', async ({ page }) => {
+  const postId = await createPost(buyer, `[E2E] notification inbox ${Date.now()}`);
+  test.skip(!postId, 'Could not seed a post as the buyer account');
+  if (!postId) return;
+
+  let ntfId: string | undefined;
+  try {
+    expect(await likePost(shop, postId), 'like').toBe(true);
+    await expect.poll(async () => (await postNotificationIds(buyer, postId, 'like')).length).toBe(1);
+    ntfId = (await postNotificationIds(buyer, postId, 'like'))[0];
+
+    await page.goto('/notifications?tab=unread');
+    const row = page.getByTestId(`notification-${ntfId}`);
+    await expect(row, 'the unread row is on the server-filtered tab').toBeVisible();
+
+    await page.getByRole('button', { name: 'Đánh dấu đã đọc', exact: true }).click();
+    await expect(row, 'read-all empties the unread tab').toHaveCount(0);
+    await expect.poll(() => unreadBadge(page), 'no socket event — the badge is refetched').toBe(0);
+
+    await page.getByRole('button', { name: 'Tất cả', exact: true }).click();
+    await expect(row).toBeVisible();
+    await row.getByRole('button', { name: 'Xoá thông báo', exact: true }).click();
+    await expect(row, 'the row leaves the list').toHaveCount(0);
+    await expect.poll(() => postNotificationIds(buyer, postId, 'like'), 'gone server-side').toEqual([]);
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'Tất cả', exact: true })).toBeVisible();
+    await expect(row, 'still gone after a reload').toHaveCount(0);
+  } finally {
+    if (ntfId) await deleteNotification(buyer, ntfId);
     await deletePost(buyer, postId);
   }
 });

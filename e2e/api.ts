@@ -429,6 +429,11 @@ export async function markNotificationRead(request: APIRequestContext, id: strin
   await request.patch(`/api/notifications/${id}/read`);
 }
 
+// Hard delete (NOTIF-INBOX-01). 204, or 404 when it is already gone — both are clean.
+export async function deleteNotification(request: APIRequestContext, id: string): Promise<void> {
+  await request.delete(`/api/notifications/${id}`);
+}
+
 export interface OwnProduct {
   id: string;
   name: string;
