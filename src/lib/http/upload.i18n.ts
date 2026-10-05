@@ -13,6 +13,7 @@ export const uploadMessages = defineMessages({
     loginRequired: 'Bạn cần đăng nhập để tải tệp lên.',
     uploadFailed: 'Upload thất bại',
     noUrl: 'Không nhận được URL sau khi upload',
+    mediaNotOwned: 'Có ảnh không phải do bạn tải lên. Hãy xoá ảnh đó và tải lại.',
   },
   en: {
     kindImage: 'Image',
@@ -26,5 +27,6 @@ export const uploadMessages = defineMessages({
     loginRequired: 'You need to sign in to upload files.',
     uploadFailed: 'Upload failed',
     noUrl: 'No URL came back from the upload',
+    mediaNotOwned: "One of the images wasn't uploaded by you. Remove it and upload it again.",
   },
 });

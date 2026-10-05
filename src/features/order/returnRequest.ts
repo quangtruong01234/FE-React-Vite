@@ -13,6 +13,7 @@ import { orderMessages } from './order.i18n';
 import { isReturnStatus } from '@/lib/domain/orderStatus';
 import { userSummaryLabel } from '@/lib/format/user';
 import { MAX_IMAGE_BYTES, validateUploadFile, type FileLike } from '@/lib/http/uploadValidation';
+import { mediaNotOwnedMessage } from '@/lib/http/uploadOwner';
 
 /**
  * Pure helpers for the buyer return/refund flow (F2).
@@ -82,17 +83,29 @@ export function reviewerLabel(request: ReturnRequest): string | null {
   return userSummaryLabel(request.reviewer, request.reviewedBy);
 }
 
+/** `errorCode` on a 400 whose every failing rule is on `imageUrls` (RETURN-PHOTO-ERRCODE-01). */
+export const RETURN_PHOTO_INVALID = 'RETURN_PHOTO_INVALID';
+
 /**
- * Friendly message for a failed return-request submit. A 400 is normally an
- * ineligible order, but RETURN-PHOTO-01 adds photo validation to the same
- * status — a message naming `imageUrls` is about the photos, not the order.
+ * Friendly message for a failed return-request submit, keyed on `errorCode`:
+ * `RETURN_PHOTO_INVALID` (400) is about the photos, `MEDIA_NOT_OWNED` (403) is a
+ * photo uploaded by another account. An untagged 400 is an ineligible order.
+ *
+ * The `/imageUrls/i` message test is a fallback for a gateway that predates the
+ * code (prod `api` at `26fc40c` sends photo 400s untagged) — drop it once
+ * RETURN-PHOTO-ERRCODE-01 is live on prod, same as `isOrderOutcomeUnknown`.
  */
 export function returnRequestErrorMessage(error: unknown, lang: Lang = 'vi'): string {
   const t = bindTranslator(orderMessages, lang);
   const err = error as ApiError | undefined;
+  if (err?.errorCode === RETURN_PHOTO_INVALID) return t('returnPhotoRejected');
+  const notOwned = mediaNotOwnedMessage(error, lang);
+  if (notOwned) return notOwned;
   if (err?.statusCode === 400) {
-    const message = typeof err.message === 'string' ? err.message : '';
-    return /imageUrls/i.test(message) ? t('returnPhotoRejected') : t('returnIneligible');
+    if (err.errorCode === undefined && typeof err.message === 'string' && /imageUrls/i.test(err.message)) {
+      return t('returnPhotoRejected');
+    }
+    return t('returnIneligible');
   }
   if (typeof err?.message === 'string' && err.message.trim()) return err.message;
   return t('returnFailed');

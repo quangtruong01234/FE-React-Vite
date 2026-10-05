@@ -11,6 +11,7 @@ import {
   returnPhotoError,
   returnRequestPayload,
   MAX_RETURN_PHOTOS,
+  RETURN_PHOTO_INVALID,
 } from './returnRequest';
 
 function makeRequest(overrides: Partial<ReturnRequest> = {}): ReturnRequest {
@@ -181,5 +182,30 @@ describe('RETURN-PHOTO-01 helpers', () => {
     )).toBe('A photo was not accepted. Remove it and upload it again.');
     expect(returnRequestErrorMessage({ statusCode: 400, status: 400, message: 'Order is not eligible' }, 'en'))
       .not.toBe('A photo was not accepted. Remove it and upload it again.');
+  });
+
+  // RETURN-PHOTO-ERRCODE-01: the code decides, not the class-validator text.
+  it('reads RETURN_PHOTO_INVALID and MEDIA_NOT_OWNED from errorCode', () => {
+    const photo = 'A photo was not accepted. Remove it and upload it again.';
+    expect(returnRequestErrorMessage(
+      { statusCode: 400, status: 400, message: 'imageUrls must contain no more than 5 elements', errorCode: 'RETURN_PHOTO_INVALID' },
+      'en',
+    )).toBe(photo);
+    // A message that never names the field still maps once the code is there.
+    expect(returnRequestErrorMessage(
+      { statusCode: 400, status: 400, message: 'Bad Request', errorCode: RETURN_PHOTO_INVALID },
+      'en',
+    )).toBe(photo);
+    expect(returnRequestErrorMessage(
+      { statusCode: 403, status: 403, message: 'Cannot attach media uploaded by another user', errorCode: 'MEDIA_NOT_OWNED' },
+      'en',
+    )).toBe("One of the images wasn't uploaded by you. Remove it and upload it again.");
+  });
+
+  it('keeps an unknown errorCode on a 400 on the ineligible copy', () => {
+    expect(returnRequestErrorMessage(
+      { statusCode: 400, status: 400, message: 'imageUrls whatever', errorCode: 'SOMETHING_NEW' },
+      'en',
+    )).toContain('not eligible');
   });
 });

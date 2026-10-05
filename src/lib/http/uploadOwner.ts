@@ -1,3 +1,4 @@
+import type { ApiError } from '@/types';
 import type { Lang } from '@/lib/i18n/lang';
 import { translate } from '@/lib/i18n/messages';
 import { uploadMessages } from './upload.i18n';
@@ -24,4 +25,17 @@ export function resolveUploadOwner(
 ): UploadOwner {
   if (currentUser?.id == null) return { error: uploadLoginRequired(lang) };
   return { ownerId: currentUser.id };
+}
+
+/**
+ * `errorCode` on the 403 every media-attaching route answers when a URL was
+ * uploaded by another account (RETURN-PHOTO-ERRCODE-01): return request, product
+ * create/update/image, post create/update and the avatar `PATCH /user/:id`.
+ */
+export const MEDIA_NOT_OWNED = 'MEDIA_NOT_OWNED';
+
+/** Localized copy for a `MEDIA_NOT_OWNED` rejection, or `null` for any other error. */
+export function mediaNotOwnedMessage(error: unknown, lang: Lang = 'vi'): string | null {
+  if ((error as ApiError | undefined)?.errorCode !== MEDIA_NOT_OWNED) return null;
+  return translate(uploadMessages, lang, 'mediaNotOwned');
 }
