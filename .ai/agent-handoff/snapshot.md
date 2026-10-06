@@ -1,6 +1,6 @@
 # Snapshot — TryBuy Frontend Current State
 
-> Cập nhật: 2026-10-05 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
+> Cập nhật: 2026-10-06 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
 > Keep this LEAN: chỉ giữ bức tranh sống (overview, việc còn mở/bị chặn, known issues).
 > Việc đã xong nằm ở `CHANGELOG.md` (cùng thư mục, không auto-load) — **đừng chép lại vào đây**.
 > Convention/rule nằm ở `.ai/context/` — cũng không duplicate vào đây.
@@ -15,10 +15,10 @@ kể cả P0-03: nhánh create atomic BE-side từ INV-CONTRACT-01 (prod 2026-08
 Public-ID migration (PUBID-01–07) đã
 xong — storefront id là opaque string end-to-end.
 
-**Gates (chạy lại 2026-10-05, sau `/sweep 3` INV-404-FYI + LOGIN-SCHEMA-DEAD + E2E-DEBT run debt; bundle 704,541 / 750,000):** `npm run build` ✓ · `npm run check:bundle` ✓ ·
-`npm run lint` 0 problem · `npm run test:run` **1684 test / 182 file**, all pass. Không đóng item
+**Gates (chạy lại 2026-10-06, sau `/sweep` 6 task CHAT-LIST-CAP-01 · F9 · F10 · F11 · PERF-FONT-01 · CAPTCHA-01; bundle 708,391 / 750,000):** `npm run build` ✓ · `npm run check:bundle` ✓ ·
+`npm run lint` 0 error · `npm run test:run` **1739 test / 192 file**, all pass. Không đóng item
 nào khi 4 lệnh này chưa xanh. E2E smoke (không thuộc gate) **43/43 pass, 0 skip** trên stack local
-2026-10-04 (dev server đang chạy sẵn — fail lạ thì khởi động lại trước, pitfalls §18).
+2026-10-05 (`/sweep audit`, gateway uptime không reset trong lượt chạy; dev server đang chạy sẵn — fail lạ thì khởi động lại trước, pitfalls §18).
 
 > ⚠️ `npm run build` **mới** thực sự typecheck từ 2026-08-04. Trước đó script chỉ là `vite build`
 > (esbuild vứt type) trong khi doc ghi là có `tsc` → 3 lỗi type nằm im 2 tuần. Chi tiết +
@@ -54,11 +54,11 @@ mới tới doc.)*
 
 | Ngày | Item |
 |---|---|
-| 2026-10-05 | **E2E-DEBT run debt · deep trả hàng + picker ảnh** (class **A**, không đổi code). Stack local: deep `return-request.buyer` 1/1 + `seller-returns.shop` 1/1 (lần đầu từ RETURN-PHOTO-01), smoke `/returns` · `/order/:id` · `/sell/returns` xanh; MCP picker ảnh: ô 150.8 px vuông, icon lệch (0,0), `0/5`, accept jpeg/png/webp, 0 console error. Không submit. |
-| 2026-10-05 | **INV-404-FYI + LOGIN-SCHEMA-DEAD · dọn code chết** (class **A**). Xoá `inventoryApi.getByProduct` (0 caller; route 404 cho SP có SKU là đúng thiết kế) + sửa `backend-api.md`; xoá `loginSchema`/`LoginFormData` và key i18n `passwordRequired` chỉ schema đó dùng. e2e `/login` smoke + deep 5/5; MCP submit rỗng vẫn ra 2 lỗi. |
-| 2026-10-05 | **NOTIF-INBOX-01 · inbox: đánh dấu tất cả đã đọc, xoá từng thông báo, tab "Chưa đọc" lọc server** (FE class **C** — HOLD, push `api` trước: BE cũ 400 với `unreadOnly`). `api.notifications` thêm `markAllRead`/`remove`; key `list(page, unreadOnly)`; read-all/xoá cập nhật lạc quan mọi list đang cache rồi refetch cả `notifications` (không có WS event); nút X (`IconButton`) cạnh mỗi hàng `/notifications`. e2e local: smoke buyer 22/22, deep `notifications.buyer` 2/2 (test mới: tab chưa đọc → read-all → xoá → reload). |
-| 2026-10-05 | **RETURN-PHOTO-ERRCODE-01 · lỗi ảnh trả hàng nhận theo `errorCode`** (class **B**). `RETURN_PHOTO_INVALID` → copy ảnh; `MEDIA_NOT_OWNED` → copy riêng dùng chung (`mediaNotOwnedMessage` ở `lib/http/uploadOwner`, sẵn cho form product/post/avatar); regex `/imageUrls/i` **giữ làm fallback** tới khi `api` lên prod. +4 unit test. |
-| 2026-10-04 | **ACCOUNT-DELETE-01 · tự xoá tài khoản + tác giả đã xoá** (FE class **C** — HOLD, push `api` trước). Vùng nguy hiểm trong tab "Bảo mật" (ẩn với admin) → dialog 6 cảnh báo + mật khẩu → `DELETE /user/me` (`skipUnauthorizedRedirect`); 200 ⇒ xoá session + về `/`. `isDeletedUser()` (`deleted_`) ⇒ `userDisplayName` = "Người dùng đã xóa"; `ProfileLink` mới (không link khi đã xoá) trên post/comment; register chặn tiền tố `deleted_`. +17 unit test. Nút xoá thật chưa bấm thử (không xoá account test dùng chung). |
+| 2026-10-06 | **CAPTCHA-01 · Turnstile trên đăng ký + quên mật khẩu** (class **B**: field `captchaToken` optional, BE cũ bỏ qua). `captcha.ts` (loader 1 lần, `withCaptchaToken`, `isCaptchaRequired`) + `TurnstileWidget` (`interaction-only`, theme/ngôn ngữ theo app, reset sau **mọi** submit vì token dùng 1 lần); `CAPTCHA_REQUIRED` → "Vui lòng xác minh captcha lại", không gắn field. **Key trống ⇒ không widget, không field** — prod chưa có `VITE_TURNSTILE_SITE_KEY` nên chưa chạy thật (xem §Runtime verification còn nợ). |
+| 2026-10-06 | **F10 · "Mua lại" trên `/order/:id`** (đơn `completed`/`canceled`; class **A**). `planReorder` đối chiếu sản phẩm *hiện tại* (`getMultipleWithInventory`): bỏ món đã xoá / ngừng bán / SKU đổi / hết hàng, kẹp số lượng theo tồn; `ReorderResultPanel` báo theo dòng; `/cart` chọn sẵn đúng các dòng vừa thêm (`initialCartSelection`). Mitigation vì `POST /cart` không kiểm tồn ⇒ BE inbox CART-STOCK-01. Deep `reorder.buyer` ✓. |
+| 2026-10-06 | **F9 "Mua ngay" + F11 "Sản phẩm khác của shop"** (class **A**). F9: add → tìm dòng giỏ bằng `findCartLine` (productId + skuId) → `/checkout` với `selectedIds`; `useCart` ghi thẳng giỏ trả về vào cache. F11: `ShopOtherProducts` chỉ fetch khi cuộn gần tới (IntersectionObserver, không đè LCP), bỏ SP đang xem, tối đa 6. Deep `buy-now.buyer` ✓; MCP nút 450×48 icon lệch 0, dải 6 SP không tràn ngang. |
+| 2026-10-06 | **PERF-FONT-01 + CHAT-LIST-CAP-01** (class **A**). Google Fonts CSS load `media=print` → `all` + `<noscript>`: render-blocking ~870 → 150 ms (chỉ còn CSS app), LHCI `/login` LCP median 3761 → **3545**, CLS 0, guard `fonts.test.ts`. Chat: list BE cắt 100 hội thoại ⇒ tin tới từ hội thoại không có trong cache sẽ invalidate list thay vì rơi mất (`hasConversation`). e2e 60 ✓ / 2 skip (data). |
+| 2026-10-05 | **Audit fix batch: A11Y-NAME-01 · ICONBTN-01 · ICON-CONTAINER-01 · ICON-SHRINK-01 · PERF-LCP-02** (class **A**). Icon-only buttons named; `StarRating` is an img (read-only) or named, pressed buttons (editable); raw icon buttons are `IconButton`; containers use `size-* grid`; 56 icons have `shrink-0`. Guards: `lucideIcons.test.ts`, plus the `socket.test.ts` import guard. `socket.io-client` is lazy ⇒ entry 165,935 → 152,713 B gzip, LHCI `/login` LCP median 3876 (pass). e2e 90 ✓ / 3 skip; MCP all named and centred. |
 
 ## Active Tasks — open / blocked
 
@@ -135,7 +135,8 @@ hoặc tiptap nới peer range. Bối cảnh + bài học "đừng xoá lockfile
 
 *(verify từ code thật 2026-08-14; không mục nào chặn runtime — đây là scale-consistency + lint)*
 
-- 🟢 **E2E-DEBT — 0/30 route chỉ có smoke** (đo từ `e2e/routes.ts` 2026-10-03; `/messages` =
+- 🟢 **E2E-DEBT — 0/30 route chỉ có smoke** (đo lại từ `e2e/routes.ts` 2026-10-05, `/sweep audit`:
+  30/30 route có `deep` khác rỗng và mọi spec trong đó đều tồn tại; smoke 43/43 pass, 0 skip; `/messages` =
   `messages.buyer`, viết sau khi BE thêm `DELETE /api/chat/messages/:id` — CHAT-E2E-CLEANUP-01).
   **Nợ chạy:** `messages.buyer` và test ORDER-TIMELINE-01 trong `order-detail.buyer` **đã chạy xanh
   2026-10-04** (stack local; smoke `/order/:id`, `/returns`, `/sell/returns` cũng xanh trong lượt 43/43).
@@ -288,27 +289,15 @@ hoặc tiptap nới peer range. Bối cảnh + bài học "đừng xoá lockfile
 
 ## Feature Roadmap
 
-*(`/sweep propose` 2026-09-25, rà luồng chính trước rồi mới tới luồng phụ. **F9–F12: đề xuất, user
-chưa chọn.** F13 (theme): user đã chọn, đang làm. F1–F7 đã có chủ ở CHANGELOG/handoff ⇒ đánh số tiếp từ F8. Rewards/điểm
+*(`/sweep propose` 2026-09-25, rà luồng chính trước rồi mới tới luồng phụ. **F9–F12: đã xong cả bốn**
+(F12 2026-10-03, F9–F11 2026-10-06). F13 (theme): user đã chọn, đang làm. F1–F7 đã có chủ ở CHANGELOG/handoff ⇒ đánh số tiếp từ F8. Rewards/điểm
 thưởng **user đã loại** — service `rewards` của BE có ghi điểm nhưng không có route gateway, đừng đề
 xuất lại.)*
 
 **Luồng chính** (sản phẩm → giỏ → checkout → đơn):
 
-- 🟡 **F9 — "Mua ngay" trên trang sản phẩm.** Hiện chỉ có "Thêm vào giỏ". Làm: add to cart rồi
-  `navigate('/checkout', { state: { selectedIds: [cartItemId] } })` — `CheckoutPage.tsx:73` đã đọc
-  sẵn `selectedIds`, không phải sửa checkout. **Cần xác nhận trước:** `POST /cart` có trả id dòng giỏ
-  không; nếu không thì refetch giỏ và match `productId` + `skuId`. Route `/product/:id`, `/checkout`.
-  BE: không. Công S–M. Test: helper tìm dòng giỏ + deep spec `buy-now.buyer.spec.ts` (trả luôn nợ
-  deep của `/product/:id` trong E2E-DEBT).
-- 🟢 **F10 — "Mua lại" cho đơn `completed` / `canceled`.** `OrderItem` có `productId` + `skuId` ⇒
-  thêm lại từng món vào giỏ; món `productId: null` hoặc hết hàng thì bỏ qua và báo theo dòng; xong
-  chuyển `/cart` với các món đó được chọn sẵn. Route `/order/:id` (có thể thêm `/orders`). BE: không.
-  Công M. Test: helper thuần `reorderItems.ts` + deep spec.
-- 🟢 **F11 — "Sản phẩm khác của shop" dưới trang chi tiết.** `useProducts({ userId: detail.userId,
-  limit: 6, isActive: true })`, bỏ sản phẩm đang xem, dùng lại `ProductCard`; chỉ fetch khi cuộn tới
-  để không đè lên LCP. Route `/product/:id`. BE: không. Công S. Test: helper loại sản phẩm hiện tại +
-  smoke.
+- ✅ **F9 "Mua ngay" · F10 "Mua lại" · F11 "Sản phẩm khác của shop"** — xong 2026-10-06 (`/sweep`,
+  user chọn cả ba) — xem Recent closes / `CHANGELOG.md`.
 
 **Luồng phụ:**
 
@@ -424,10 +413,10 @@ Code I18N-02 → 07 cũng chưa commit/push, và quyết định công tắc bê
 
 ## Perf — đo thật, phần còn mở
 
-Lighthouse `/login`: số đo **2026-09-24** (prod build qua `vite preview`, LHCI mobile mặc định,
-simulated throttling, median 3 lượt). Từ ngày này **CI tự đo mỗi push/PR** (job `lighthouse`,
-budget ở `lighthouserc.json`); report nằm trong artifact `lighthouse-reports` của run. Bundle: số
-đo **2026-09-25** (`npm run check:bundle`, cũng chạy trong CI — PERF-BUDGET-01). Re-run tay:
+Lighthouse `/login` và bundle: số đo **2026-10-05** (`/sweep audit`; LHCI = prod build qua
+`vite preview`, mobile mặc định, simulated throttling, median 3 lượt). Từ 2026-09-24 **CI tự đo mỗi
+push/PR** (job `lighthouse`, budget ở `lighthouserc.json`); report nằm trong artifact
+`lighthouse-reports` của run. `check:bundle` cũng chạy trong CI (PERF-BUDGET-01). Re-run tay:
 
 ```bash
 npm run build && npm run check:bundle                # gzip từng chunk vs trần trong scripts/check-bundle.mjs
@@ -435,21 +424,34 @@ npx -y vite-bundle-visualizer -t list -o <out>.yml   # chunk nặng chứa gì
 npm run build && npx -y @lhci/cli@0.15.x autorun     # tự bật vite preview :4173, report → .lighthouseci/
 ```
 
-- **Lighthouse `/login` (2026-09-24):** Perf **0.85–0.86** · FCP ~3.0s · LCP ~3.43s (phần tử
-  LCP là heading `<h2>`) · TBT 0–18ms · transfer script 196 kB / CSS 12,7 kB / tổng 335 kB.
-  Trước đó (2026-07-02): Perf 78 · FCP 3.7s · LCP 4.2s · CLS 0.
-- **Bundle (chunk phát ra, 2026-09-25, raw / gzip theo `check:bundle` / trần):**
-  - `index` (entry) 495,7 kB / 157 725 B / 180 000. Gồm react-dom + react-router + tailwind-merge,
-    bình thường với stack này. Raw 475,0 kB hôm 2026-08-04, tức +4,4%.
-  - `CreateProductPage` 470,7 kB / 148 485 / 170 000. TipTap + ProseMirror, đã route-lazy. Muốn
+- **Lighthouse `/login` (2026-10-05, máy local):**
+  - Trước PERF-LCP-02, 2 lượt: LCP median **4.55s** rồi **4.00s**. Cả hai đều **fail** assertion
+    LCP ≤ 4000.
+  - Sau PERF-LCP-02 (`socket.io-client` lazy), 3 run: LCP 3992 / 3876 / 3725 ⇒ median **3.88s**, pass.
+    FCP 3.27–3.58s · TBT 26–35ms · Perf 0.79–0.82 · transfer script **194 kB** (trước 207 kB).
+  - Phần tử LCP vẫn là heading `<h2>`, 100% render delay ⇒ bị chặn bởi JS boot + font.
+  - Headroom chỉ ~120ms ⇒ vẫn sát budget.
+
+  Các mốc trước: 2026-09-24 Perf 0.85–0.86 · FCP ~3.0s · LCP ~3.43s · TBT 0–18ms; 2026-07-02 Perf 78 ·
+  FCP 3.7s · LCP 4.2s.
+- ✅ **PERF-FONT-01 — xong 2026-10-06** (CHANGELOG). Sau fix, 3 run `/login`: LCP 3545 / 3543 / 3692 ⇒
+  median **3.55s** (headroom ~450ms), FCP 3.13–3.28s, Perf 0.83–0.84, CLS 0; render-blocking chỉ còn CSS app
+  ~150ms. Font tải xong ~650ms, trước FCP ⇒ không thấy FOUT. LCP giờ bị chặn bởi JS entry (152.8 kB
+  gzip) — đòn bẩy tiếp theo là `unused-javascript` (entry 47% unused, `schemas` 87% unused).
+  Không nới budget.
+- **Bundle (chunk phát ra, 2026-10-05, raw / gzip theo `check:bundle` / trần):**
+  - `index` (entry) 480,9 kB / **152 713 B** / 180 000 (85%) sau PERF-LCP-02 (socket.io-client →
+    chunk lazy ~13,3 kB). Gồm react-dom + react-router + tailwind-merge. Trước đó 522,1 kB / 165 935
+    sáng 2026-10-05; mốc cũ hơn: 495,7 kB / 157 725 hôm 2026-09-25, raw 475,0 kB hôm 2026-08-04.
+  - `CreateProductPage` 477,3 kB / 150 464 / 170 000. TipTap + ProseMirror, đã route-lazy. Muốn
     giảm nữa thì dynamic-import riêng phần editor.
   - `cookieStore` 177,8 kB / 63 486 / 72 000. **Đây là MSW** — Rollup đặt tên chunk theo một
     module bên trong nó. Chỉ tải ở demo mode.
-  - `DoughnutChart` 178,5 kB / 62 889 / 72 000. Chart.js, route-lazy, chấp nhận. Trước khi đổi
+  - `DoughnutChart` 179,1 kB / 63 049 / 72 000. Chart.js, route-lazy, chấp nhận. Trước khi đổi
     recharts là 402,1 kB trong chunk `useAnalyticsFilters`.
-  - `schemas` 93,5 kB / 28 021 / 32 000. react-hook-form + zod.
-  - Mọi chunk khác ≤ 24 273 B (trần mặc định 30 000). CSS entry 11 051 / 13 000. Tổng 98 file
-    653 351 / 750 000.
+  - `schemas` 93,5 kB / 28 022 / 32 000. react-hook-form + zod.
+  - Mọi chunk khác ≤ 24 273 B (trần mặc định 30 000). CSS entry 11 478 / 13 000. Tổng 111 file
+    705 092 / 750 000 (94%).
 
   ⚠️ gzip ở đây là zlib mức mặc định của Node, **không** trùng số gzip Vite in ra (số 2026-08-04
   cũ là của Vite). Chỉ so gzip với gzip do `check:bundle` đo. Còn "245 kB" cho `schemas` ở bản
@@ -496,6 +498,15 @@ npm run build && npx -y @lhci/cli@0.15.x autorun     # tự bật vite preview :
 ## Runtime verification còn nợ
 
 Cần full-stack live (FE↔BE) và/hoặc 2 tài khoản; không repro được qua UI thường:
+
+- ⏸ **CAPTCHA-01 — key đã có, chờ push FE; chưa chạy widget thật lần nào** (2026-10-06). **Cập nhật 13:11Z:** user đã tạo widget và set `VITE_TURNSTILE_SITE_KEY` ở Environment `production` (bước 1 + nửa bước 3 xong); đã báo BE ở `backend-handoff.md` → CAPTCHA-01 (BE được set secret shadow mode, **chưa** được enforce). Code FE xong và có
+  test, nhưng mọi môi trường đang để `VITE_TURNSTILE_SITE_KEY` trống ⇒ không render widget, không gửi field.
+  Còn lại, theo thứ tự rollout của BE: (1) user tạo site Turnstile trên Cloudflare (free) → site key
+  public + secret; (2) BE set `TURNSTILE_SECRET_KEY` (shadow mode); (3) user set
+  `VITE_TURNSTILE_SITE_KEY` ở GitHub Environment `production` (biến `vars`, không phải secret) rồi push
+  FE; (4) MCP: widget hiện / tự qua ở form đăng ký + quên mật khẩu (cùng route `/login`), body có `captchaToken`, submit
+  lần 2 vẫn ok (đã reset); (5) **FE báo BE** trong `backend-handoff.md` rồi BE mới bật
+  `CAPTCHA_ENFORCE=true`. Bật (5) trước (3) ⇒ mọi đăng ký 400. Test key local: `1x00000000000000000000AA`.
 
 > ✅ **BATCH-0811 đã verify đủ 6/6 trên prod 2026-08-13** — không còn nợ mục nào.
 >

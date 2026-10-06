@@ -15,6 +15,143 @@
 
 ## Maintenance
 
+### `/sweep` 2026-10-06 ("làm hết 6 task"): CHAT-LIST-CAP-01 · F9 · F10 · F11 · PERF-FONT-01 · CAPTCHA-01
+
+Classes: CAPTCHA-01 **B** (optional request field the old BE ignores). The other five are **A**: no API change.
+
+- **CHAT-LIST-CAP-01** (BE FYI 2026-10-05). The BE now caps `GET /chat/conversations` at the 100 most recently active conversations.
+  - An incoming message for a conversation that is not in the cached list used to be dropped.
+  - It now invalidates the list instead: `hasConversation` in `chatConversations.ts`, used by `chatPresenceSocket.ts`.
+  - No "load more": the contract has no paging.
+  - The 503 handling for the cancel compensation was checked: there is no FE branch for it, so no dead code was left.
+  - Tests: `chatConversations.test.ts`, `chatPresenceSocket.test.ts`, `useChat.test.tsx`.
+- **F9 · "Mua ngay"** on `/product/:id`.
+  - It adds the line to the cart, then finds it with `findCartLine(cart, productId, skuId)` in `hooks/query/cartCache.ts`, because `POST /cart` returns the whole cart and no line id.
+  - It then navigates to `/checkout` with `state.selectedIds`.
+  - `useCart`'s add `onSuccess` writes the returned cart into the cache, so the lookup does not need a refetch.
+  - The button is an amber-outlined `MUA NGAY` (Zap icon) under "Thêm vào giỏ".
+  - Tests: `cartCache.test.ts` and deep `e2e/buy-now.buyer.spec.ts`.
+- **F10 · "Mua lại"** on `/order/:id`, for `completed`/`canceled` orders.
+  - `useReorder` looks up the products as they are now (`getMultipleWithInventory`).
+  - `planReorder` (in `features/order/reorderItems.ts`) skips a line when:
+    - the product was deleted (`productId: null`, or missing from the lookup);
+    - the product is inactive;
+    - the SKU is gone, or the product gained variations;
+    - the product is out of stock.
+  - Quantities are capped at the current stock.
+  - The adds run one by one. A failed add is reported as `failed`, and the remaining adds still run.
+  - `ReorderResultPanel` lists the skipped lines and their reasons.
+  - On success it goes to `/cart` with the re-added lines pre-checked (`initialCartSelection` in `features/cart/cartSelection.ts`).
+  - **Mitigation:** `POST /cart` validates neither stock nor `isActive`. That gap is logged as `CART-STOCK-01` in `backend-handoff.md`.
+  - Tests: `reorderItems.test.ts`, `cartSelection.test.ts` and deep `e2e/reorder.buyer.spec.ts`.
+- **F11 · "Sản phẩm khác của shop"** under `/product/:id`.
+  - `ShopOtherProducts` fetches `useProducts({ userId, limit: 7, isActive: true })` only once an IntersectionObserver sentinel comes within 300px of the viewport, so it never competes with the LCP.
+  - `otherShopProducts` drops the current product and caps the list at 6.
+  - It reuses `ProductCard` and adds a "Xem shop" link when the seller still exists.
+  - Test: `sellerOtherProducts.test.ts`.
+- **PERF-FONT-01.** The Google Fonts stylesheet in `index.html` now loads as `media="print" onload="this.media='all'"`, with a `<noscript>` fallback and `display=swap` kept.
+  - There is no CSP, so the inline handler is fine.
+  - LHCI `/login`, 3 runs before vs. after:
+
+    | Metric | Before | After |
+    |---|---|---|
+    | LCP | 3550 / 3761 / 4284 (median 3761) | 3545 / 3543 / 3692 (median **3545**) |
+    | FCP | ~3.1–3.9s | 3.13–3.28s |
+    | Perf | 0.76–0.84 | 0.83–0.84 |
+    | Render-blocking | Google CSS ~833–911ms | app CSS only, ~150ms |
+
+  - CLS stays 0. The font files finish around 650ms, before FCP, so there is no visible FOUT.
+  - LCP is now bound by the JS entry. The budget was not relaxed.
+  - Guard: `src/lib/format/fonts.test.ts` parses `index.html?raw`.
+- **CAPTCHA-01** (BE handoff 2026-09-28). Cloudflare Turnstile on register and forgot-password. Both forms are views of `/login`.
+  - `features/auth/captcha.ts` provides:
+    - `TURNSTILE_SITE_KEY` from `VITE_TURNSTILE_SITE_KEY`. A blank key means no widget and no field.
+    - `loadTurnstile()`, which injects the script once and clears its cache on failure so the next mount retries.
+    - `withCaptchaToken`, which adds the field only when a token exists.
+    - `isCaptchaRequired`.
+  - `TurnstileWidget` renders with `appearance: 'interaction-only'`, and `theme`/`language` follow the app. Its `ref.reset()` clears the token and resets the widget.
+  - Both forms reset the widget after **every** submit, success or error, because tokens are single-use. On forgot-password this is the `onSettled` of send-code, which also covers resend.
+  - `CAPTCHA_REQUIRED` is a root error showing "Vui lòng xác minh captcha lại", attached to no field. It is checked before the 409 credential mapping, and in `forgotPasswordErrorMessage` before the generic 400.
+  - If the script fails to load, the form submits without a token; the BE fails open.
+  - Login has no captcha, on purpose.
+  - Env: `.env.example` (with the always-pass test key `1x00000000000000000000AA`), `deploy.yml` (`vars.VITE_TURNSTILE_SITE_KEY`, not in the required guard) and a `DEPLOYMENT.md` row.
+  - Tests: `captcha.test.ts`, `TurnstileWidget.test.tsx`, `forgotPassword.test.ts` (+1) and `LoginPage.test.tsx` (+1).
+  - **Not run with a real widget**: no site key exists yet. The remaining rollout is in snapshot §Runtime verification còn nợ.
+
+**Gate:**
+- `npm run build` ✓
+- `npm run check:bundle` ✓ (708,391 / 750,000)
+- `npm run lint`: 0 errors
+- `npm run test:run`: **1739 tests / 192 files**, all passing
+
+**e2e (local stack):** 60 passed / 2 skipped. Specs run:
+- smoke for every role;
+- `theme-persist`, `lang-persist`, `messages`, `product-detail`, `buy-now`, `cart`, `reorder`, `order-detail`, `payment-retry`, `return-request`, `checkout-resilience`, `checkout-vouchers`.
+
+The 2 skips are the existing data-dependent ones ("cancelling a pending order" and payment-retry FE-2), both because there was no pending order.
+
+**MCP** (buyer, `prod_ffc802c681d211f1`):
+- The MUA NGAY button is 450×48, with the icon centred.
+- The shop strip shows 6 distinct products, without the current one, and has no horizontal overflow.
+- Reorder was not checked visually because the account has no completed/canceled order; e2e covers it.
+
+### Audit fix batch 2026-10-05: A11Y-NAME-01 · ICONBTN-01 · ICON-CONTAINER-01 · ICON-SHRINK-01 · PERF-LCP-02
+
+All class **A** (no API change).
+
+- **A11Y-NAME-01.** Every icon- or glyph-only button now has a name from its i18n book:
+  - ChatThread: back (`backToList`), send (`send`).
+  - CommentNode: reply send (`sendReply`).
+  - Marketplace: facet clear-search (`clearSearch`).
+  - ProductDetail: thumbnails (`viewImage` n, `aria-pressed`) and steppers (`decreaseQty`/`increaseQty`).
+  - CheckoutPage: steppers.
+  - `StarRating` was rewritten:
+    - read-only is one `role="img"` labelled `ratingOf` ("4/5 sao") instead of 5 disabled buttons;
+    - editable is 5 buttons named `rateStars` ("n sao") with `aria-pressed`.
+  - e2e `product-detail.buyer` now clicks `{ name: 'Tăng số lượng' }` instead of `+`.
+  - **Guard:** `src/test/lucideIcons.ts` flags a raw `<button>` whose children are only Lucide icons (incl. `cond ? <A/> : <B/>` / `x && <A/>`) and has no `aria-label`/`aria-labelledby`/`title`.
+- **ICONBTN-01.**
+  - ChatThread send (`size-10`) and ProfilePage message (`size-9`) are now `<IconButton>`.
+  - Padded buttons in PostDetailPage, EditProfileModal and CreatePostModal moved to `grid place-items-center`.
+- **ICON-CONTAINER-01.** OrderDetail step dots (`size-9`), PaymentResult status discs (`size-20`) and the Feed empty-state disc (`size-14`) now use `size-* grid place-items-center`.
+- **ICON-SHRINK-01.** Added `shrink-0` to 56 icons in 17 files.
+  - **Guard:** `lucideIcons.test.ts` scans every `.tsx` in `src/` (TS AST, multi-line JSX included) for a Lucide icon without `shrink-0` or with a string `size`.
+- **PERF-LCP-02.** `socket.io-client` + engine.io left the entry chunk:
+  - **Lazy load:** `loadSocketIo()` in `lib/realtime/socket.ts` is a memoised dynamic import; a failed load is forgotten so the next caller retries. `createRefCountedSocket` and `useChat` open their socket after it resolves.
+  - **Cancellation:** a release, or a thread switch, before the load finishes opens nothing.
+  - **Vitest quirk:** two concurrent `import()`s of a `vi.mock`ed module in one tick → the second gets the real module. The memoised promise also avoids this.
+  - **Guard:** `socket.test.ts` fails on any value import of `socket.io-client` in `src/`. I checked that it fails on a planted static import.
+  - **Bundle:**
+    - Entry 165,935 → **152,713 B** gzip (−8%).
+    - New lazy socket chunk ~13.3 kB.
+    - Total 705,092 / 750,000, 111 files.
+    - No `modulepreload` for the socket chunk in `dist/index.html`.
+  - **LHCI `/login`:** before LCP median 4550 / 4005 (two runs, both fail). After 3992 / 3876 / 3725 → median **3876**, assertions pass. FCP 3.27–3.58 s, TBT 26–35 ms, perf 0.79–0.82, script transfer 207 → 194 kB.
+  - **Next lever, not done:** the Google Fonts CSS is render-blocking (Lighthouse est. 986 ms). Making it async risks FOUT/CLS on the condensed `font-display` heading, so it needs its own measured item.
+- **Verify.**
+  - e2e full suite on the local stack: **90 passed, 3 skipped, 0 failed** (6.3 min).
+  - MCP (buyer `canceltest…`, dev server). Every target was named, sized as specified and had its icon centred (offset 0, 0):
+
+    | Target | Name | Size |
+    |---|---|---|
+    | Marketplace facet clear | "Xoá tìm kiếm" | 51×32 pill |
+    | ProductDetail thumbs | "Xem ảnh n", `aria-pressed` | 84×84 |
+    | ProductDetail steppers | — | 36×36 |
+    | Reviews | img "5/5 sao" | — |
+    | Chat send | — | 40×40 |
+    | Chat back, at 390 px | — | 34×34 |
+    | Profile "Nhắn tin" | "Nhắn tin" | 36×36 |
+    | Reply send | "Gửi trả lời" | 28×28 |
+    | Checkout steppers | — | 28×28 |
+    | Order step dots | — | 36×36 |
+    | PaymentResult disc | — | 80×80 |
+    | Feed empty disc | — | 56×56 |
+
+    Editable stars read "1 sao…5 sao". 0 unnamed buttons on every page visited. `socket.io-client` was not requested on `/login` while logged out, and loaded after login.
+  - ⚠️ The MCP probe accidentally submitted a 5★ review: `POST /products/prod_ffc7fd3181d211f1/reviews` 201, from order `ord_FMHNUTejZWGkAnSn`, an e2e order on the local stack.
+
+Gates: `lint` 0 ✓ · `build` ✓ · `check:bundle` ✓ · `test:run` **1701 / 185 files** ✓.
+
 ### `/sweep 3` 2026-10-05 (lượt 2): INV-404-FYI · LOGIN-SCHEMA-DEAD · E2E-DEBT run debt
 
 - **INV-404-FYI (handoff Open → Done, class A).** BE's FYI: the prod 404s on
