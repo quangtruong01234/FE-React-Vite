@@ -22,8 +22,10 @@ export function Header(): ReactElement {
   // App-wide chat sound: play a beep for any incoming message while online.
   useChatPresence(useRole()?.me?.id);
 
+  // `z-[45]`: above in-page sticky bars (FeedPage tabs are `z-40`), below every
+  // modal overlay (`ui/dialog`, `ui/sheet` are `z-50`) so a dialog dims the header too.
   return (
-    <header className="sticky top-0 z-[100] bg-tb-surface/85 border-b border-bdr backdrop-blur-md">
+    <header className="sticky top-0 z-[45] bg-tb-surface/85 border-b border-bdr backdrop-blur-md">
       <div className="w-full px-4 sm:px-6 py-4 flex items-center gap-3 sm:gap-5">
         <Link to="/" className="flex-none">
           <span className="font-display font-black text-[2rem] tracking-tight uppercase text-ink-pri">

@@ -13,7 +13,7 @@ import {
  * which is where a visitor lands if the demo mocks fail to start — the one case
  * where the explanation matters most.
  *
- * In document flow rather than `fixed`: `Header` is `sticky top-0 z-[100]` and
+ * In document flow rather than `fixed`: `Header` is `sticky top-0 z-[45]` and
  * would sit on top of a fixed banner, and the messages route is `h-screen`.
  * In flow, the banner shows at the top of the page and the header slides over
  * it on scroll, with no layout to patch.
