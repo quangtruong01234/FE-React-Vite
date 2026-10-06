@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Minus, Plus, Trash2, ShoppingCart, ArrowLeft } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useCart, useUpdateCartItem, useRemoveCartItem, useClearCart } from '@/hooks/data/useCart';
@@ -17,6 +17,7 @@ import type { ProductWithInventory } from '@/types';
 import { effectiveUnitPrice } from './shippingFee';
 import { cartLineName } from './checkoutItems';
 import { canIncreaseCartLine } from './cartQuantity';
+import { initialCartSelection } from './cartSelection';
 import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
 import { useLanguage } from '@/context/useLanguage';
 import { useT } from '@/hooks/ui/useT';
@@ -24,8 +25,11 @@ import { cartMessages } from './cart.i18n';
 
 export default function CartPage(): ReactElement {
   const navigate = useNavigate();
+  const location = useLocation();
   const { lang } = useLanguage();
   const t = useT(cartMessages);
+  // "Mua lại" (F10) lands here with the re-added lines to check.
+  const preselected = (location.state as { selectedIds?: number[] } | null)?.selectedIds;
   const { data: cart, isLoading: cartLoading, error: cartError, refetch: refetchCart } = useCart();
   const updateItem = useUpdateCartItem();
   const removeItem = useRemoveCartItem();
@@ -34,13 +38,13 @@ export default function CartPage(): ReactElement {
   const items = cart?.items ?? [];
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(
-    () => new Set(items.map(i => i.id)),
+    () => initialCartSelection(items.map(i => i.id), preselected),
   );
 
   // Select everything when a (different) cart arrives — adjust-state-during-render,
   // keyed on the cart id so refetches of the same cart keep the user's selection.
   useResetOnChange(cart?.id, () => {
-    setSelectedIds(new Set(items.map(i => i.id)));
+    setSelectedIds(initialCartSelection(items.map(i => i.id), preselected));
   });
 
   const productIds = [...new Set(items.map(i => i.productId))].sort();
