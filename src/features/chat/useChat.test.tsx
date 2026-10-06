@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ReactElement } from 'react';
 import { useState } from 'react';
 import { screen, fireEvent, act } from '@testing-library/react';
@@ -42,6 +42,11 @@ function lastSocket(): InstanceType<typeof FakeSocket> | undefined {
   return sockets[sockets.length - 1];
 }
 
+/** socket.io-client is a dynamic import (PERF-LCP-02), so a thread's socket opens a tick after mount. */
+async function socketCount(n: number): Promise<void> {
+  await vi.waitFor(() => expect(sockets).toHaveLength(n));
+}
+
 const CONV_A = 'conv_000000000000000A';
 const CONV_B = 'conv_000000000000000B';
 
@@ -61,24 +66,27 @@ function Harness(): ReactElement {
 }
 
 describe('useChat connection status', () => {
-  it('starts connecting and becomes connected when the socket connects', async () => {
+  beforeEach(() => {
+    sockets.length = 0;
     server.use(
       http.get(`${API_BASE}/chat/conversations/:id/messages`, () => HttpResponse.json(emptyPage())),
     );
+  });
+
+  it('starts connecting and becomes connected when the socket connects', async () => {
     renderWithProviders(<Harness />);
 
     expect(screen.getByTestId('status')).toHaveTextContent('connecting');
 
+    await socketCount(1);
     act(() => lastSocket()?.fire('connect'));
     expect(screen.getByTestId('status')).toHaveTextContent('connected');
   });
 
   it('resets to connecting when the conversation changes', async () => {
-    server.use(
-      http.get(`${API_BASE}/chat/conversations/:id/messages`, () => HttpResponse.json(emptyPage())),
-    );
     renderWithProviders(<Harness />);
 
+    await socketCount(1);
     act(() => lastSocket()?.fire('connect'));
     expect(screen.getByTestId('status')).toHaveTextContent('connected');
 
@@ -86,10 +94,22 @@ describe('useChat connection status', () => {
 
     // The previous thread's "connected" must not leak into the new thread.
     expect(screen.getByTestId('status')).toHaveTextContent('connecting');
+    await socketCount(2);
     expect(lastSocket()?.emit).not.toHaveBeenCalledWith('join', { conversationId: CONV_A });
 
     act(() => lastSocket()?.fire('connect'));
     expect(screen.getByTestId('status')).toHaveTextContent('connected');
     expect(lastSocket()?.emit).toHaveBeenCalledWith('join', { conversationId: CONV_B });
+  });
+
+  it('never opens a socket for a thread left before socket.io-client loaded', async () => {
+    renderWithProviders(<Harness />);
+    // Same tick as mount: thread A's load has not resolved yet.
+    fireEvent.click(screen.getByText('switch'));
+
+    await socketCount(1);
+    act(() => lastSocket()?.fire('connect'));
+    expect(lastSocket()?.emit).toHaveBeenCalledWith('join', { conversationId: CONV_B });
+    expect(lastSocket()?.emit).not.toHaveBeenCalledWith('join', { conversationId: CONV_A });
   });
 });

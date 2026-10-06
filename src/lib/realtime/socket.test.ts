@@ -1,12 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Socket } from 'socket.io-client';
-import { createRefCountedSocket, SOCKET_CONNECT_OPTIONS, RELEASE_GRACE_MS } from './socket';
+import { createRefCountedSocket, loadSocketIo, SOCKET_CONNECT_OPTIONS, RELEASE_GRACE_MS } from './socket';
 
 // `isDemoMode` is a plain module-level read, so the only way to flip it per-test
 // is to stand in for the module. Defaults to false: every other test in this
 // file describes the normal, backend-online path.
 const { demoMode } = vi.hoisted(() => ({ demoMode: { value: false } }));
 vi.mock('@/lib/demo/backendStatus', () => ({ isDemoMode: () => demoMode.value }));
+
+// The production path (no `createSocket` seam) loads socket.io-client lazily.
+const { ioMock } = vi.hoisted(() => ({
+  ioMock: vi.fn(() => ({ connected: true, disconnect: vi.fn() })),
+}));
+vi.mock('socket.io-client', () => ({ io: ioMock }));
 
 interface FakeSocket {
   connected: boolean;
@@ -178,5 +184,58 @@ describe('createRefCountedSocket — demo mode (DEMO-RETRY-01)', () => {
       release();
     }).not.toThrow();
     expect(onDestroy).not.toHaveBeenCalled();
+  });
+});
+
+describe('createRefCountedSocket — lazy socket.io-client (PERF-LCP-02)', () => {
+  beforeEach(() => {
+    ioMock.mockClear();
+  });
+
+  it('loads the client on first acquire and opens one connection with the shared options', async () => {
+    const onCreate = vi.fn();
+    const ref = createRefCountedSocket<Socket>('http://test/ns', { onCreate });
+
+    ref.acquire();
+    ref.acquire();
+    expect(ref.current()).toBeNull();
+
+    await vi.waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1));
+    expect(ioMock).toHaveBeenCalledTimes(1);
+    expect(ioMock).toHaveBeenCalledWith('http://test/ns', SOCKET_CONNECT_OPTIONS);
+    expect(ref.current()).not.toBeNull();
+  });
+
+  it('opens nothing when every consumer released before the client loaded', async () => {
+    vi.useFakeTimers();
+    const onCreate = vi.fn();
+    const ref = createRefCountedSocket<Socket>('http://test/ns', { onCreate });
+
+    ref.acquire()();
+    vi.advanceTimersByTime(RELEASE_GRACE_MS);
+    vi.useRealTimers();
+    await loadSocketIo();
+    await Promise.resolve();
+
+    expect(ioMock).not.toHaveBeenCalled();
+    expect(onCreate).not.toHaveBeenCalled();
+    expect(ref.current()).toBeNull();
+  });
+});
+
+// A value import of socket.io-client anywhere in src/ puts it back in the entry chunk.
+describe('socket.io-client stays out of the entry chunk (PERF-LCP-02)', () => {
+  const sources = import.meta.glob<string>(['../../**/*.{ts,tsx}', '!../../**/*.test.{ts,tsx}'], {
+    eager: true,
+    query: '?raw',
+    import: 'default',
+  });
+
+  it('is only ever imported for types, outside loadSocketIo', () => {
+    expect(Object.keys(sources).length).toBeGreaterThan(100);
+    const valueImports = Object.entries(sources)
+      .filter(([, source]) => /^import\s+(?!type\b)[^;]*from\s+'socket\.io-client'/m.test(source))
+      .map(([path]) => path);
+    expect(valueImports).toEqual([]);
   });
 });

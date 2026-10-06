@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useInfiniteQuery, useQuery, useMutation } from '@tanstack/react-query';
-import { io, type Socket } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 import { queryClient } from '@/lib/query/queryClient';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { api } from '@/api';
@@ -11,7 +11,7 @@ import {
   type ChatMessage, type MessagesInfiniteData,
 } from './chatMessages';
 import { acquireChatPresenceSocket, setActiveConversation } from './chatPresenceSocket';
-import { SOCKET_CONNECT_OPTIONS } from '@/lib/realtime/socket';
+import { loadSocketIo, SOCKET_CONNECT_OPTIONS } from '@/lib/realtime/socket';
 import { resolveSocketUrl } from '@/lib/realtime/socketUrl';
 import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
 import type { ChatConnectionStatus } from './chatConnection';
@@ -119,54 +119,70 @@ export function useChat(conversationId: string, currentUserId?: string): {
   useEffect(() => {
     if (!conversationId) return;
 
-    const socket: ChatSocket = io(CHAT_SOCKET_URL, SOCKET_CONNECT_OPTIONS);
-    socketRef.current = socket;
+    let opened: ChatSocket | null = null;
+    let cancelled = false;
 
-    socket.on('connect', () => {
-      setConnectionStatus('connected');
-      socket.emit('join', { conversationId });
-    });
+    function attach(socket: ChatSocket): void {
+      socket.on('connect', () => {
+        setConnectionStatus('connected');
+        socket.emit('join', { conversationId });
+      });
 
-    socket.on('disconnect', () => {
+      socket.on('disconnect', () => {
+        setConnectionStatus('disconnected');
+      });
+
+      // socket.io manager reconnection lifecycle
+      socket.io.on('reconnect_attempt', () => setConnectionStatus('reconnecting'));
+      socket.io.on('error', () => setConnectionStatus('reconnecting'));
+
+      socket.on('new_message', (msg: Message) => {
+        if (msg.conversationId === conversationId) {
+          const viewerId = currentUserIdRef.current;
+          if (viewerId !== undefined && msg.senderId !== viewerId) {
+            playMessageReceived();
+          }
+          setSocketMessages((prev) => [...prev, msg]);
+          // Persist into the paginated cache so the message survives this thread
+          // unmounting (switching conversations) and shows instantly on return —
+          // instead of waiting for a stale-cache refetch.
+          queryClient.setQueryData<MessagesInfiniteData>(
+            queryKeys.messages.byConversation(conversationId),
+            (old) => appendMessageToCache(old, msg),
+          );
+          setPendingMessages((prev) => resolvePendingMessage(prev, msg));
+          // Refresh the list preview/order; this thread is open so it stays read.
+          queryClient.setQueryData<Conversation[]>(queryKeys.conversations.all, (old) =>
+            old ? applyIncomingMessage(old, msg, viewerId, conversationId) : old,
+          );
+        }
+      });
+
+      socket.on('error', (err: string) => {
+        console.error('[ChatSocket]', err);
+        setPendingMessages(markPendingAsError);
+      });
+    }
+
+    void loadSocketIo().then((connect) => {
+      // The thread changed (or closed) while socket.io-client loaded.
+      if (cancelled) return;
+      opened = connect(CHAT_SOCKET_URL, SOCKET_CONNECT_OPTIONS);
+      socketRef.current = opened;
+      attach(opened);
+    }, (error: unknown) => {
+      console.error('[ChatSocket] could not load socket.io-client', error);
       setConnectionStatus('disconnected');
     });
 
-    // socket.io manager reconnection lifecycle
-    socket.io.on('reconnect_attempt', () => setConnectionStatus('reconnecting'));
-    socket.io.on('error', () => setConnectionStatus('reconnecting'));
-
-    socket.on('new_message', (msg: Message) => {
-      if (msg.conversationId === conversationId) {
-        const viewerId = currentUserIdRef.current;
-        if (viewerId !== undefined && msg.senderId !== viewerId) {
-          playMessageReceived();
-        }
-        setSocketMessages((prev) => [...prev, msg]);
-        // Persist into the paginated cache so the message survives this thread
-        // unmounting (switching conversations) and shows instantly on return —
-        // instead of waiting for a stale-cache refetch.
-        queryClient.setQueryData<MessagesInfiniteData>(
-          queryKeys.messages.byConversation(conversationId),
-          (old) => appendMessageToCache(old, msg),
-        );
-        setPendingMessages((prev) => resolvePendingMessage(prev, msg));
-        // Refresh the list preview/order; this thread is open so it stays read.
-        queryClient.setQueryData<Conversation[]>(queryKeys.conversations.all, (old) =>
-          old ? applyIncomingMessage(old, msg, viewerId, conversationId) : old,
-        );
-      }
-    });
-
-    socket.on('error', (err: string) => {
-      console.error('[ChatSocket]', err);
-      setPendingMessages(markPendingAsError);
-    });
-
     return () => {
-      socket.emit('leave', { conversationId });
-      socket.io.removeAllListeners();
-      socket.removeAllListeners();
-      socket.disconnect();
+      cancelled = true;
+      if (opened) {
+        opened.emit('leave', { conversationId });
+        opened.io.removeAllListeners();
+        opened.removeAllListeners();
+        opened.disconnect();
+      }
       socketRef.current = null;
       setSocketMessages([]);
       setPendingMessages([]);
