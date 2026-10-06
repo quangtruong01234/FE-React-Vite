@@ -2,6 +2,7 @@ import type { ApiError } from '@/types';
 import type { Lang } from '@/lib/i18n/lang';
 import { translate } from '@/lib/i18n/messages';
 import { authMessages } from './auth.i18n';
+import { isCaptchaRequired } from './captcha';
 
 /**
  * Pure helpers for the forgot-password flow.
@@ -37,6 +38,8 @@ function statusOf(error: unknown): number | undefined {
 export function forgotPasswordErrorMessage(error: unknown, lang: Lang = 'vi'): string {
   const status = statusOf(error);
   if (status === 429) return translate(authMessages, lang, 'rateLimited');
+  // CAPTCHA-01: a 400 too, but the email is fine — the Turnstile token is not.
+  if (isCaptchaRequired(error)) return translate(authMessages, lang, 'captchaRequired');
   if (status === 400) return translate(authMessages, lang, 'emailInvalidServer');
   return translate(authMessages, lang, 'connectionError');
 }

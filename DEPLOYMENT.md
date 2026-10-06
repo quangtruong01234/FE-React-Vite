@@ -81,6 +81,7 @@ there is no project to pre-create and no dashboard form to fill in.
 | `VITE_API_URL` | `/api` — relative; `worker/index.ts` proxies it |
 | `VITE_CHAT_URL` | `/` — same-origin; `worker/index.ts` proxies `/socket.io` |
 | `VITE_WS_NOTIFICATION_URL` | `/` |
+| `VITE_TURNSTILE_SITE_KEY` | *optional* — Cloudflare Turnstile site key (CAPTCHA-01). Empty = no captcha widget. Set it **before** the backend turns on `CAPTCHA_ENFORCE`, or every sign-up fails with 400 |
 | `GATEWAY_ORIGIN` | `https://api.<domain>` — origin only, no `/api`, no trailing slash |
 
 `GATEWAY_ORIGIN` is the only one that never reaches the bundle: `deploy.yml`

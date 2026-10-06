@@ -22,6 +22,13 @@ describe('forgotPasswordErrorMessage', () => {
     expect(forgotPasswordErrorMessage(apiError(429, 'Too Many Requests'))).toMatch(/quá nhanh/);
   });
 
+  // CAPTCHA-01: also a 400, but blaming the email would send the user to fix the wrong thing.
+  it('maps a CAPTCHA_REQUIRED 400 to the captcha message, not the invalid-email one', () => {
+    const error: ApiError = { ...apiError(400, 'Captcha verification failed or is missing.'), errorCode: 'CAPTCHA_REQUIRED' };
+    expect(forgotPasswordErrorMessage(error)).toBe('Vui lòng xác minh captcha lại');
+    expect(forgotPasswordErrorMessage(error, 'en')).toBe('Please complete the captcha again.');
+  });
+
   it('maps 400 to the invalid-email message', () => {
     expect(forgotPasswordErrorMessage(apiError(400, 'email must be an email'))).toBe('Email không hợp lệ.');
   });

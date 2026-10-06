@@ -99,6 +99,8 @@ jobs:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
           VITE_CHAT_URL: ${{ vars.VITE_CHAT_URL }}
           VITE_WS_NOTIFICATION_URL: ${{ vars.VITE_WS_NOTIFICATION_URL }}
+          # Optional (CAPTCHA-01): empty ships no Turnstile widget, so not in the guard below.
+          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY }}
         run: |
           set -euo pipefail
           for name in VITE_API_URL VITE_CHAT_URL VITE_WS_NOTIFICATION_URL; do

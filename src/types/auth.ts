@@ -12,12 +12,16 @@ export interface RegisterDto {
   username: string;
   email: string;
   password: string;
+  /** Cloudflare Turnstile token (CAPTCHA-01) — single-use, omitted when no widget. */
+  captchaToken?: string;
 }
 
 // Forgot-password flow (both endpoints public). forgot-password always returns
 // the same neutral 201 whether or not the email exists (anti-enumeration).
 export interface ForgotPasswordDto {
   email: string;
+  /** Cloudflare Turnstile token (CAPTCHA-01) — single-use, omitted when no widget. */
+  captchaToken?: string;
 }
 
 export interface ResetPasswordDto {

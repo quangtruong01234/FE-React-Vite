@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, User as UserIcon, Lock, Globe, Users } from 'lucide-react';
 import { useForm } from 'react-hook-form';
@@ -8,6 +8,8 @@ import { useLogin } from './useLogin';
 import { registerSchema, type RegisterFormData } from './auth.schema';
 import { ForgotPasswordForm } from './ForgotPasswordForm';
 import { ThemeToggleButton } from './ThemeToggleButton';
+import { TurnstileWidget, type TurnstileHandle } from './TurnstileWidget';
+import { TURNSTILE_SITE_KEY, isCaptchaRequired, withCaptchaToken } from './captcha';
 import { LanguageSwitch } from '@/components/shared/LanguageSwitch';
 import { PasswordField } from '@/components/shared/PasswordField';
 import { api } from '@/api';
@@ -112,11 +114,13 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
   const t = useT(authMessages);
   const fieldError = (text: string | undefined): string | undefined =>
     translateIfKey(authMessages, lang, text);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<TurnstileHandle>(null);
 
   const { mutateAsync: registerMutate, isPending: registerPending } = useMutation({
     // confirmPassword is client-side only — never sent to the backend
     mutationFn: ({ username, email, password }: RegisterFormData) =>
-      api.auth.register({ username, email, password }),
+      api.auth.register(withCaptchaToken({ username, email, password }, captchaToken)),
   });
 
   const { mutateAsync: loginAfterRegister, isPending: loginPending } = useMutation({
@@ -128,10 +132,15 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
 
   async function onSubmit(data: RegisterFormData): Promise<void> {
     try {
-      await registerMutate(data);
+      // The token is single-use: whatever register answers, the next try needs a new one.
+      await registerMutate(data).finally(() => captchaRef.current?.reset());
       const user = await loginAfterRegister({ username: data.username, password: data.password });
       onRegisterSuccess(user);
     } catch (err: unknown) {
+      if (isCaptchaRequired(err)) {
+        setError('root', { message: t('captchaRequired') });
+        return;
+      }
       // A duplicate username/email is a 409 that names the field (backend
       // 2026-08-06) — put it on that input instead of the generic banner.
       const { field, message } = credentialConflictError(err, t('registerFailed'), lang);
@@ -210,6 +219,10 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
               error={fieldError(errors.confirmPassword?.message)}
               inputProps={register('confirmPassword')}
             />
+
+            {TURNSTILE_SITE_KEY && (
+              <TurnstileWidget ref={captchaRef} siteKey={TURNSTILE_SITE_KEY} onToken={setCaptchaToken} />
+            )}
 
             <GradientButton type="submit" disabled={loading} size="lg" className="w-full">
               {loading ? <Spinner /> : t('registerSubmit')}
@@ -295,7 +308,7 @@ export default function LoginPage(): ReactElement {
                     label={t('accountLabel')}
                     placeholder="098 *** ***"
                     value={form.username} onChange={handleChange}
-                    leftIcon={<UserIcon size={18} />}
+                    leftIcon={<UserIcon size={18} className="shrink-0" />}
                     hasError={!!errors.username}
                     autoComplete="username" autoFocus
                   />
@@ -309,7 +322,7 @@ export default function LoginPage(): ReactElement {
                     label={t('passwordLabel')}
                     placeholder="••••••••"
                     value={form.password} onChange={handleChange}
-                    leftIcon={<Lock size={18} />}
+                    leftIcon={<Lock size={18} className="shrink-0" />}
                     suffix={
                       <button
                         type="button"
@@ -317,7 +330,7 @@ export default function LoginPage(): ReactElement {
                         aria-label={tShared(showPassword ? 'hidePassword' : 'showPassword')}
                         className="bg-transparent !border-none p-1 flex items-center cursor-pointer text-tb-secondary hover:text-ink-pri transition-colors"
                       >
-                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        {showPassword ? <EyeOff size={18} className="shrink-0" /> : <Eye size={18} className="shrink-0" />}
                       </button>
                     }
                     hasError={!!errors.password}
@@ -360,10 +373,10 @@ export default function LoginPage(): ReactElement {
                   per P2-03 rather than shipping dead controls. */}
               <div className="grid grid-cols-2 gap-2.5">
                 <button type="button" disabled aria-disabled title={t('comingSoon')} className={cn(ghostBtn, 'cursor-not-allowed opacity-50 hover:text-tb-secondary hover:border-tb-border')}>
-                  <Globe size={16} /> Google
+                  <Globe size={16} className="shrink-0" /> Google
                 </button>
                 <button type="button" disabled aria-disabled title={t('comingSoon')} className={cn(ghostBtn, 'cursor-not-allowed opacity-50 hover:text-tb-secondary hover:border-tb-border')}>
-                  <Users size={16} /> Facebook
+                  <Users size={16} className="shrink-0" /> Facebook
                 </button>
               </div>
               <p className="text-center -mt-0.5 mb-0 font-body text-[11px] text-tb-muted">

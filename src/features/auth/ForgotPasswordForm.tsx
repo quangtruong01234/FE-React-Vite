@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
@@ -22,6 +22,8 @@ import { useLanguage } from '@/context/useLanguage';
 import { useT } from '@/hooks/ui/useT';
 import { translateIfKey } from '@/lib/i18n/messages';
 import { authMessages } from './auth.i18n';
+import { TurnstileWidget, type TurnstileHandle } from './TurnstileWidget';
+import { TURNSTILE_SITE_KEY, withCaptchaToken } from './captcha';
 
 interface ForgotPasswordFormProps {
   onBack: () => void;
@@ -51,6 +53,8 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
   // the window silently send nothing) — mirror it on the resend button.
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<TurnstileHandle>(null);
 
   const remaining = resendCooldownRemaining(cooldownUntil, now);
   const { lang } = useLanguage();
@@ -71,7 +75,10 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
   const resetForm = useForm<ResetPasswordFormData>({ resolver: zodResolver(resetPasswordSchema) });
 
   const { mutateAsync: sendCode, isPending: sendPending } = useMutation({
-    mutationFn: (data: ForgotEmailFormData) => api.auth.forgotPassword(data),
+    mutationFn: (data: ForgotEmailFormData) =>
+      api.auth.forgotPassword(withCaptchaToken({ email: data.email }, captchaToken)),
+    // Turnstile tokens are single-use — every send (and resend) needs a new one.
+    onSettled: () => captchaRef.current?.reset(),
   });
 
   const { mutateAsync: resetPassword, isPending: resetPending } = useMutation({
@@ -234,6 +241,12 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
                 </button>
               </p>
             </form>
+          )}
+
+          {/* Outside both step forms: "Gửi lại mã" on the reset step posts
+              forgot-password again, so it needs a token too. */}
+          {TURNSTILE_SITE_KEY && (
+            <TurnstileWidget ref={captchaRef} siteKey={TURNSTILE_SITE_KEY} onToken={setCaptchaToken} />
           )}
 
           <p className="text-center mt-2 mb-0 font-body text-[13px] text-tb-secondary">

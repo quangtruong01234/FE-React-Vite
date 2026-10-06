@@ -27,6 +27,7 @@ export const authMessages = defineMessages({
       'Bạn đã nhập sai quá nhiều lần — mã này không còn dùng được. Hãy bấm "Gửi lại mã" để nhận mã mới.',
     codeInvalid: 'Mã xác nhận không đúng hoặc đã hết hạn. Vui lòng kiểm tra lại hoặc gửi lại mã.',
     registerFailed: 'Đăng ký thất bại. Vui lòng thử lại.',
+    captchaRequired: 'Vui lòng xác minh captcha lại',
     // left panel
     statSellers: 'Sellers',
     statProducts: 'Sản phẩm',
@@ -97,6 +98,7 @@ export const authMessages = defineMessages({
       'Too many wrong attempts — this code can no longer be used. Tap "Resend code" to get a new one.',
     codeInvalid: 'The code is wrong or has expired. Check it again or resend the code.',
     registerFailed: 'Sign-up failed. Please try again.',
+    captchaRequired: 'Please complete the captcha again.',
     statSellers: 'Sellers',
     statProducts: 'Products',
     statLive: 'Livestream',

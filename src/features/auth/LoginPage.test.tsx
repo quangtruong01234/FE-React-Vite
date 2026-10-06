@@ -311,6 +311,39 @@ describe('LoginPage — register flow', () => {
     expect(await screen.findByText('Tên đăng nhập đã tồn tại')).toBeInTheDocument();
   });
 
+  // CAPTCHA-01: once the backend enforces Turnstile, a stale/missing token is a
+  // 400 that names no field — it must not land on an input or read as a bad email.
+  it('shows the captcha message on CAPTCHA_REQUIRED, attached to no field', async () => {
+    let loginCalls = 0;
+    server.use(
+      meUnauthenticated(),
+      http.post(`${API_BASE}/user/register`, () =>
+        HttpResponse.json(
+          {
+            message: 'Captcha verification failed or is missing. Please complete the challenge and try again.',
+            errorCode: 'CAPTCHA_REQUIRED',
+          },
+          { status: 400 },
+        ),
+      ),
+      http.post(`${API_BASE}/user/login`, () => {
+        loginCalls += 1;
+        return HttpResponse.json({ data: { id: 17, username: 'newbie' } });
+      }),
+    );
+    const user = userEvent.setup();
+    renderLogin();
+    await openRegister(user);
+
+    await fillRegister(user, { username: 'newbie', email: 'a@b.com', password: 'password123' });
+    await user.click(screen.getByRole('button', { name: /Đăng ký ngay/ }));
+
+    expect(await screen.findByText('Vui lòng xác minh captcha lại')).toBeInTheDocument();
+    expect(screen.queryByText(/Captcha verification failed/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Email')).not.toHaveAttribute('aria-invalid', 'true');
+    expect(loginCalls).toBe(0);
+  });
+
   it('posts the typed credentials to register, then logs in', async () => {
     let registerBody: unknown;
     const account = { id: 42, username: 'newbie' };
