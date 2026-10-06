@@ -14,6 +14,16 @@ export function sortByActivity(convs: Conversation[]): Conversation[] {
 }
 
 /**
+ * Whether the cached list holds this conversation. The server returns at most
+ * the 100 most recently active conversations (CHAT-LIST-CAP-01), and a thread
+ * someone else just opened is not in the cache yet either — in both cases a new
+ * message has no row to land on, so the caller must refetch instead.
+ */
+export function hasConversation(convs: Conversation[], conversationId: string): boolean {
+  return convs.some((c) => c.id === conversationId);
+}
+
+/**
  * Apply a freshly-arrived message to the cached conversation list: refresh the
  * matching thread's `lastMessage`, adjust its `unreadCount`, then re-sort so it
  * floats to the top.

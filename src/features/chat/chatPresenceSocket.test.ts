@@ -71,6 +71,7 @@ function incoming(conversationId: string, content: string): Message {
 async function loadModule(): Promise<{
   acquireChatPresenceSocket: (meId: string | undefined) => () => void;
   getConversations: () => Conversation[] | undefined;
+  isListInvalidated: () => boolean;
 }> {
   vi.resetModules();
   const [{ acquireChatPresenceSocket }, { queryClient }, { queryKeys }] = await Promise.all([
@@ -81,7 +82,15 @@ async function loadModule(): Promise<{
   return {
     acquireChatPresenceSocket,
     getConversations: () => queryClient.getQueryData<Conversation[]>(queryKeys.conversations.all),
+    isListInvalidated: () =>
+      queryClient.getQueryState(queryKeys.conversations.all)?.isInvalidated ?? false,
   };
+}
+
+/** socket.io-client is a dynamic import (PERF-LCP-02), so the socket appears a tick after acquire. */
+async function firstSocket(): Promise<InstanceType<typeof FakeSocket>> {
+  await vi.waitFor(() => expect(sockets).toHaveLength(1));
+  return sockets[0];
 }
 
 describe('chat presence socket', () => {
@@ -102,7 +111,7 @@ describe('chat presence socket', () => {
   it('never emits a join, on connect or reconnect', async () => {
     const { acquireChatPresenceSocket, getConversations } = await loadModule();
     const release = acquireChatPresenceSocket(ME);
-    const socket = sockets[0];
+    const socket = await firstSocket();
 
     socket.fire('connect');
     await vi.waitFor(() => expect(getConversations()).toHaveLength(2));
@@ -116,7 +125,7 @@ describe('chat presence socket', () => {
   it('updates the list preview and badge for a conversation it never joined', async () => {
     const { acquireChatPresenceSocket, getConversations } = await loadModule();
     const release = acquireChatPresenceSocket(ME);
-    const socket = sockets[0];
+    const socket = await firstSocket();
 
     socket.fire('connect');
     await vi.waitFor(() => expect(getConversations()).toHaveLength(2));
@@ -130,10 +139,43 @@ describe('chat presence socket', () => {
     release();
   });
 
+  // CHAT-LIST-CAP-01: the list holds at most 100 conversations, so a message can
+  // arrive for a thread that has no cached row — refetch instead of dropping it.
+  it('invalidates the list when a message lands on a conversation it does not hold', async () => {
+    const { acquireChatPresenceSocket, getConversations, isListInvalidated } = await loadModule();
+    const release = acquireChatPresenceSocket(ME);
+    const socket = await firstSocket();
+
+    socket.fire('connect');
+    await vi.waitFor(() => expect(getConversations()).toHaveLength(2));
+    expect(isListInvalidated()).toBe(false);
+
+    socket.fire('new_message', incoming('conv_000000000000000C', 'hi'));
+
+    // The mounted list refetches (the server now lists the thread first); an
+    // unmounted one refetches on its next mount instead of showing a stale cache.
+    expect(isListInvalidated()).toBe(true);
+    expect(getConversations()?.map((c) => c.id)).toEqual([CONV_A, CONV_B]);
+    release();
+  });
+
+  it('does not invalidate the list for a conversation it already holds', async () => {
+    const { acquireChatPresenceSocket, getConversations, isListInvalidated } = await loadModule();
+    const release = acquireChatPresenceSocket(ME);
+    const socket = await firstSocket();
+
+    socket.fire('connect');
+    await vi.waitFor(() => expect(getConversations()).toHaveLength(2));
+    socket.fire('new_message', incoming(CONV_B, 'ping'));
+
+    expect(isListInvalidated()).toBe(false);
+    release();
+  });
+
   it('refetches the conversation list on every connect to repair the offline gap', async () => {
     const { acquireChatPresenceSocket, getConversations } = await loadModule();
     const release = acquireChatPresenceSocket(ME);
-    const socket = sockets[0];
+    const socket = await firstSocket();
 
     socket.fire('connect');
     await vi.waitFor(() => expect(getConversations()).toHaveLength(2));

@@ -5,7 +5,7 @@ import { api } from '@/api';
 import { createRefCountedSocket } from '@/lib/realtime/socket';
 import { resolveSocketUrl } from '@/lib/realtime/socketUrl';
 import { playMessageReceived } from '@/lib/realtime/chatSound';
-import { applyIncomingMessage } from './chatConversations';
+import { applyIncomingMessage, hasConversation } from './chatConversations';
 import { appendMessageToCache, type MessagesInfiniteData } from './chatMessages';
 import { shouldPlayPresenceSound } from './chatPresence';
 import type { Conversation, Message } from '@/types';
@@ -67,9 +67,16 @@ const presenceSocket = createRefCountedSocket<PresenceSocket>(CHAT_SOCKET_URL, {
       // Keep the list preview/badge live when it is mounted. The open thread is
       // owned by useChat (which marks it read), so skip the active conversation.
       if (msg.conversationId !== activeConversationId) {
-        queryClient.setQueryData<Conversation[]>(queryKeys.conversations.all, (old) =>
-          old ? applyIncomingMessage(old, msg, viewerId, activeConversationId) : old,
-        );
+        const cached = queryClient.getQueryData<Conversation[]>(queryKeys.conversations.all);
+        if (cached && !hasConversation(cached, msg.conversationId)) {
+          // No row to update (a brand-new thread, or one past the server's
+          // 100-conversation cap) — the server now lists it first, so refetch.
+          void queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
+        } else {
+          queryClient.setQueryData<Conversation[]>(queryKeys.conversations.all, (old) =>
+            old ? applyIncomingMessage(old, msg, viewerId, activeConversationId) : old,
+          );
+        }
       }
     });
   },

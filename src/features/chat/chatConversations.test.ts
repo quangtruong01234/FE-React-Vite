@@ -4,6 +4,7 @@ import {
   conversationActivityTime,
   sortByActivity,
   applyIncomingMessage,
+  hasConversation,
   markConversationReadInList,
 } from './chatConversations';
 
@@ -92,5 +93,16 @@ describe('markConversationReadInList', () => {
     const result = markConversationReadInList([a, b], 'conv_1');
     expect(result.find((c) => c.id === 'conv_1')?.unreadCount).toBe(0);
     expect(result.find((c) => c.id === 'conv_2')?.unreadCount).toBe(5);
+  });
+});
+
+describe('hasConversation', () => {
+  it('finds a cached conversation by id', () => {
+    expect(hasConversation([conv(1), conv(2)], 'conv_2')).toBe(true);
+  });
+
+  it('reports a conversation missing from the capped list', () => {
+    expect(hasConversation([conv(1)], 'conv_101')).toBe(false);
+    expect(hasConversation([], 'conv_1')).toBe(false);
   });
 });
