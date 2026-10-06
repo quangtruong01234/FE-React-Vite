@@ -132,7 +132,7 @@ export default function NotificationsPage(): ReactElement {
       {/* Empty */}
       {!isLoading && list.length === 0 && (
         <div className="bg-canvas-surface border border-bdr rounded-tb-card py-16 flex flex-col items-center gap-3 text-center">
-          <BellOff size={36} className="text-ink-muted" />
+          <BellOff size={36} className="text-ink-muted shrink-0" />
           <p className="font-body text-sm text-ink-sec m-0">
             {tab === 'unread' ? t('allRead') : t('empty')}
           </p>

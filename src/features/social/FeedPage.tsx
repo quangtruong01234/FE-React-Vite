@@ -117,8 +117,8 @@ export default function FeedPage() {
         {/* Empty state */}
         {!isLoading && !isError && posts.length === 0 && (
           <div className="flex flex-col items-center gap-3 py-16 text-center">
-            <div className="w-14 h-14 rounded-full bg-canvas-elevated flex items-center justify-center">
-              <PenLine size={24} className="text-ink-muted" />
+            <div className="size-14 rounded-full bg-canvas-elevated grid place-items-center">
+              <PenLine size={24} className="text-ink-muted shrink-0" />
             </div>
             {searchEmptyText ? (
               <p className="text-ink-pri font-semibold font-body">{searchEmptyText}</p>

@@ -208,9 +208,9 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
                 disabled={uploading}
                 onClick={() => fileInputRef.current?.click()}
                 aria-label={t('changeAvatar')}
-                className="absolute bottom-0 right-0 p-2 rounded-full bg-tb-gradient text-ink-on-accent border-2 border-canvas-surface flex items-center justify-center cursor-pointer disabled:opacity-40 overflow-visible"
+                className="absolute bottom-0 right-0 p-2 rounded-full bg-tb-gradient text-ink-on-accent border-2 border-canvas-surface grid place-items-center cursor-pointer disabled:opacity-40 overflow-visible"
               >
-                {uploading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
+                {uploading ? <Loader2 size={13} className="animate-spin shrink-0" /> : <Camera size={13} className="shrink-0" />}
               </button>
             </div>
             <input
@@ -287,7 +287,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
               size="sm"
               className="flex-1"
             >
-              {(isSubmitting || updateUser.isPending) && <Loader2 size={14} className="animate-spin" />}
+              {(isSubmitting || updateUser.isPending) && <Loader2 size={14} className="animate-spin shrink-0" />}
               {t('saveChanges')}
             </GradientButton>
           </div>

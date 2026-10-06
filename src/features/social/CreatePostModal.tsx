@@ -380,7 +380,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
                 onClick={() => imageInputRef.current?.click()}
                 title={t('addImages', { max: MAX_IMAGES })}
                 className={cn(
-                  'p-2 rounded-full flex items-center justify-center',
+                  'p-2 rounded-full grid place-items-center',
                   'bg-transparent border-0 cursor-pointer overflow-visible',
                   'text-accent-green hover:bg-canvas-elevated transition-colors',
                   'disabled:opacity-40 disabled:cursor-not-allowed',
@@ -408,7 +408,7 @@ export default function CreatePostModal({ open, onClose, editPost }: CreatePostM
                 onClick={() => videoInputRef.current?.click()}
                 title={t('addVideo')}
                 className={cn(
-                  'p-2 rounded-full flex items-center justify-center',
+                  'p-2 rounded-full grid place-items-center',
                   'bg-transparent border-0 cursor-pointer overflow-visible',
                   'text-accent-amber hover:bg-canvas-elevated transition-colors',
                   'disabled:opacity-40 disabled:cursor-not-allowed',

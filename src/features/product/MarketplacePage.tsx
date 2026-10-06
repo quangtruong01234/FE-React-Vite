@@ -109,7 +109,8 @@ function SelectFilter({ label, items, selected, onChange }: SelectFilterProps): 
           <button
             type="button"
             onClick={() => setSearch('')}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink-sec transition-colors cursor-pointer"
+            aria-label={t('clearSearch')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 grid place-items-center text-ink-muted hover:text-ink-sec transition-colors cursor-pointer"
           >
             <X size={11} className="shrink-0" />
           </button>
@@ -451,7 +452,7 @@ export default function MarketplacePage(): ReactElement {
               </div>
             ) : products.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
-                <PackageX size={48} className="text-ink-muted" />
+                <PackageX size={48} className="text-ink-muted shrink-0" />
                 <div>
                   <p className="font-display font-bold text-lg text-ink-pri m-0">
                     {t('emptyTitle')}

@@ -5,6 +5,7 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GradientButton } from '@/components/shared/GradientButton';
+import { IconButton } from '@/components/shared/IconButton';
 import { EditProfileModal } from './EditProfileModal';
 import { profileContactInfo } from './profileAbout';
 import { FollowListModal } from './FollowListModal';
@@ -189,7 +190,7 @@ function ProfilePage({ userId }: { userId: string }): ReactElement {
               onClick={() => setEditing(true)}
               className="flex items-center gap-1.5 bg-canvas-elevated border border-bdr rounded-tb-cta px-3 py-2 text-sm font-semibold text-ink-sec cursor-pointer hover:border-tb-amber/50 transition-colors flex-none mb-1"
             >
-              <Pencil size={13} />
+              <Pencil size={13} className="shrink-0" />
               {t('editProfile')}
             </button>
           ) : (
@@ -216,14 +217,13 @@ function ProfilePage({ userId }: { userId: string }): ReactElement {
                   {t('follow')}
                 </GradientButton>
               )}
-              <button
-                type="button"
+              <IconButton
                 onClick={() => void navigate('/messages', { state: { otherUserId: userId } })}
-                className="bg-canvas-elevated border border-bdr rounded-full w-9 h-9 flex items-center justify-center text-ink-sec hover:border-tb-amber/50 transition-colors"
+                className="size-9 bg-canvas-elevated border border-bdr rounded-full text-ink-sec hover:border-tb-amber/50 transition-colors"
                 aria-label={t('message')}
               >
                 <MessageCircle size={15} className="shrink-0" />
-              </button>
+              </IconButton>
             </div>
           )}
         </div>
@@ -267,7 +267,7 @@ function ProfilePage({ userId }: { userId: string }): ReactElement {
             )}
             {!postsLoading && posts.length === 0 && (
               <div className="bg-canvas-surface border border-bdr rounded-tb-card py-14 flex flex-col items-center gap-2 text-center">
-                <Newspaper size={32} className="text-ink-muted" />
+                <Newspaper size={32} className="text-ink-muted shrink-0" />
                 <p className="text-sm text-ink-sec m-0">
                   {listSearchEmptyText(postsSearch, t('postsNoun'), lang) ?? t('noPosts')}
                 </p>
@@ -295,7 +295,7 @@ function ProfilePage({ userId }: { userId: string }): ReactElement {
           <div className="bg-canvas-surface border border-bdr rounded-tb-card divide-y divide-bdr">
             {followingData?.data.length === 0 && (
               <div className="py-14 flex flex-col items-center gap-2 text-center">
-                <UserCheck size={32} className="text-ink-muted" />
+                <UserCheck size={32} className="text-ink-muted shrink-0" />
                 <p className="text-sm text-ink-sec m-0">{t('noFollowing')}</p>
               </div>
             )}
@@ -323,7 +323,7 @@ function ProfilePage({ userId }: { userId: string }): ReactElement {
             )}
             {!productsLoading && products.length === 0 && (
               <div className="bg-canvas-surface border border-bdr rounded-tb-card py-14 flex flex-col items-center gap-2 text-center">
-                <Package size={32} className="text-ink-muted" />
+                <Package size={32} className="text-ink-muted shrink-0" />
                 <p className="text-sm text-ink-sec m-0">{t('noProducts')}</p>
               </div>
             )}
@@ -350,18 +350,18 @@ function ProfilePage({ userId }: { userId: string }): ReactElement {
             {contactInfo && (
               <>
                 <div className="flex items-center gap-3 text-sm text-ink-pri">
-                  <Mail size={16} className="text-ink-sec flex-none" />
+                  <Mail size={16} className="text-ink-sec flex-none shrink-0" />
                   {contactInfo.email}
                 </div>
                 <div className="flex items-center gap-3 text-sm text-ink-pri">
-                  <Shield size={16} className="text-ink-sec flex-none" />
+                  <Shield size={16} className="text-ink-sec flex-none shrink-0" />
                   {t('role')}
                   <span className="uppercase font-semibold text-accent-amber">{contactInfo.roleName}</span>
                 </div>
               </>
             )}
             <div className="flex items-center gap-3 text-sm text-ink-pri">
-              <CheckCircle size={16} className="text-ink-sec flex-none" />
+              <CheckCircle size={16} className="text-ink-sec flex-none shrink-0" />
               {t('status')}
               <span className={user.isActive ? 'text-accent-green' : 'text-ink-muted'}>
                 {t(user.isActive ? 'active' : 'inactive')}

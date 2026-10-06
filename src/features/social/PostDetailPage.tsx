@@ -110,7 +110,7 @@ export default function PostDetailPage(): ReactElement {
           onClick={() => navigate('/')}
           className="inline-flex items-center gap-1.5 mb-4 bg-canvas-elevated border border-bdr rounded-lg px-3 py-2 text-ink-pri text-sm cursor-pointer hover:border-accent-amber transition-colors"
         >
-          <ArrowLeft size={16} /> {t('backToFeed')}
+          <ArrowLeft size={16} className="shrink-0" /> {t('backToFeed')}
         </button>
         <div className="bg-tb-red/10 border border-accent-red text-accent-red px-4 py-3 rounded-xl text-sm">
           {errMsg}
@@ -130,7 +130,7 @@ export default function PostDetailPage(): ReactElement {
         onClick={() => navigate('/')}
         className="inline-flex items-center gap-1.5 mb-4 bg-canvas-elevated border border-bdr rounded-lg px-3 py-2 text-ink-pri text-sm cursor-pointer hover:border-accent-amber transition-colors"
       >
-        <ArrowLeft size={16} /> {t('backToFeed')}
+        <ArrowLeft size={16} className="shrink-0" /> {t('backToFeed')}
       </button>
 
       <article className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
@@ -150,7 +150,7 @@ export default function PostDetailPage(): ReactElement {
             <div className="flex items-center gap-1.5 text-xs text-ink-muted">
               <span>{relativeTimeShort(post.createdAt, lang)}</span>
               <span>·</span>
-              <Globe size={11} />
+              <Globe size={11} className="shrink-0" />
             </div>
           </div>
           <PostActionMenu
@@ -221,17 +221,17 @@ export default function PostDetailPage(): ReactElement {
               liked ? 'text-accent-red' : 'text-ink-sec hover:bg-canvas-elevated',
             )}
           >
-            <Heart size={17} className={cn(liked && 'fill-current')} />
+            <Heart size={17} className={cn('shrink-0', liked && 'fill-current')} />
             {t('like')}
           </button>
           <button className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-transparent border-0 cursor-pointer font-semibold text-sm text-ink-sec hover:bg-canvas-elevated transition-colors">
-            <MessageCircle size={17} />
+            <MessageCircle size={17} className="shrink-0" />
             {t('comment')}
           </button>
           <button
             onClick={() => void share(post.id)}
             className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-transparent border-0 cursor-pointer font-semibold text-sm text-ink-sec hover:bg-canvas-elevated transition-colors">
-            <Share2 size={17} />
+            <Share2 size={17} className="shrink-0" />
             {t('share')}
           </button>
         </div>
@@ -282,9 +282,9 @@ export default function PostDetailPage(): ReactElement {
             type="submit"
             aria-label={t('sendComment')}
             disabled={isSubmitting || createComment.isPending}
-            className="p-2.5 rounded-full bg-tb-gradient text-ink-on-accent flex items-center justify-center cursor-pointer border-0 disabled:opacity-40 disabled:cursor-not-allowed overflow-visible"
+            className="p-2.5 rounded-full bg-tb-gradient text-ink-on-accent grid place-items-center cursor-pointer border-0 disabled:opacity-40 disabled:cursor-not-allowed overflow-visible"
           >
-            <Send size={16} />
+            <Send size={16} className="shrink-0" />
           </button>
         </form>
       </div>

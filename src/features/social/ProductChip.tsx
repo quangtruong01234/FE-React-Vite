@@ -31,7 +31,7 @@ export default function ProductChip({ product }: ProductChipProps) {
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 text-[10px] font-display font-bold uppercase tracking-wider text-accent-amber">
-          <Tag size={11} />
+          <Tag size={11} className="shrink-0" />
           {t('attachedProduct')}
         </div>
         <Link
@@ -44,7 +44,7 @@ export default function ProductChip({ product }: ProductChipProps) {
       </div>
 
       <GradientButton size="sm" className="flex-none rounded-tb-input" onClick={handleAddToCart} disabled={addToCart.isPending}>
-        <ShoppingCart size={14} />
+        <ShoppingCart size={14} className="shrink-0" />
         {t('quickBuy')}
       </GradientButton>
     </div>

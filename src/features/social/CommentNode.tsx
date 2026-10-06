@@ -112,7 +112,7 @@ export function CommentNode({
                 disabled={deleteComment.isPending}
                 className="bg-transparent border-0 cursor-pointer p-0 hover:text-accent-red transition-colors flex items-center gap-1"
               >
-                <Trash2 size={11} /> {t('delete')}
+                <Trash2 size={11} className="shrink-0" /> {t('delete')}
               </button>
             )}
           </div>
@@ -136,9 +136,10 @@ export function CommentNode({
               <button
                 type="submit"
                 disabled={isSubmitting || createReply.isPending}
-                className="text-accent-amber bg-transparent border-0 cursor-pointer p-1.5 disabled:opacity-40"
+                aria-label={t('sendReply')}
+                className="text-accent-amber bg-transparent border-0 cursor-pointer p-1.5 grid place-items-center disabled:opacity-40"
               >
-                <Send size={16} />
+                <Send size={16} className="shrink-0" />
               </button>
             </form>
           )}

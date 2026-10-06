@@ -106,7 +106,7 @@ export default function MessagesPage(): ReactElement {
             {t('pageTitle')}
           </h2>
           <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted shrink-0" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -133,7 +133,7 @@ export default function MessagesPage(): ReactElement {
 
           {!isLoading && filtered.length === 0 && (
             <div className="py-12 flex flex-col items-center gap-2 text-center px-4">
-              <MessageSquare size={28} className="text-ink-muted" />
+              <MessageSquare size={28} className="text-ink-muted shrink-0" />
               <p className="text-sm text-ink-sec m-0">{t('noConversations')}</p>
             </div>
           )}
@@ -195,7 +195,7 @@ export default function MessagesPage(): ReactElement {
           />
         ) : (
           <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-6">
-            <MessageSquare size={40} className="text-ink-muted" />
+            <MessageSquare size={40} className="text-ink-muted shrink-0" />
             <p className="font-body text-sm text-ink-sec m-0">
               {t('pickConversation')}
             </p>

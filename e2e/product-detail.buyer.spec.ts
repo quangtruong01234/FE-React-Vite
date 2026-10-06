@@ -67,7 +67,7 @@ test.describe('Product detail — wishlist and cart', () => {
     try {
       await page.goto(`/product/${id}`);
       await expect(page.getByRole('heading', { name })).toBeVisible();
-      await page.getByRole('button', { name: '+', exact: true }).click();
+      await page.getByRole('button', { name: 'Tăng số lượng' }).click();
       await expect(page.getByRole('spinbutton')).toHaveValue('2');
       await page.getByRole('button', { name: /THÊM VÀO GIỎ/ }).click();
 

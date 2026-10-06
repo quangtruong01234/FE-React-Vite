@@ -43,7 +43,7 @@ export function RightRail(): ReactElement {
       {/* Seller nổi bật */}
       <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
         <div className="px-4 py-3 border-b border-bdr flex items-center gap-2">
-          <Store size={15} className="text-accent-amber" />
+          <Store size={15} className="text-accent-amber shrink-0" />
           <span className="font-display font-bold text-sm uppercase tracking-wide text-ink-pri">{t('featuredSellers')}</span>
         </div>
         <div className="p-2">
@@ -73,7 +73,7 @@ export function RightRail(): ReactElement {
               <div className="min-w-0 flex-1">
                 <div className={cn('text-sm font-semibold text-ink-pri truncate flex items-center gap-1')}>
                   {userDisplayName(s, userFallback(lang), lang)}
-                  {hasSales(s.soldCount) && <BadgeCheck size={13} className="text-accent-amber flex-none" />}
+                  {hasSales(s.soldCount) && <BadgeCheck size={13} className="text-accent-amber flex-none shrink-0" />}
                 </div>
                 <div className="text-[11px] text-ink-muted truncate">
                   @{s.username}
@@ -88,7 +88,7 @@ export function RightRail(): ReactElement {
       {/* Đang hot */}
       <div className="bg-canvas-surface border border-bdr rounded-tb-card overflow-hidden">
         <div className="px-4 py-3 border-b border-bdr flex items-center gap-2">
-          <TrendingUp size={15} className="text-accent-amber" />
+          <TrendingUp size={15} className="text-accent-amber shrink-0" />
           <span className="font-display font-bold text-sm uppercase tracking-wide text-ink-pri">{t('trending')}</span>
         </div>
         <div className="p-2 flex flex-col gap-1">

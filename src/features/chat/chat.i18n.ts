@@ -18,6 +18,8 @@ export const chatCopy = defineMessages({
     sendFailed: 'Gửi thất bại',
     sent: 'Đã gửi',
     inputPlaceholder: 'Nhắn tin…',
+    send: 'Gửi tin nhắn',
+    backToList: 'Quay lại danh sách hội thoại',
 
     pageTitle: 'Tin nhắn',
     searchPlaceholder: 'Tìm hội thoại…',
@@ -43,6 +45,8 @@ export const chatCopy = defineMessages({
     sendFailed: 'Failed to send',
     sent: 'Sent',
     inputPlaceholder: 'Write a message…',
+    send: 'Send message',
+    backToList: 'Back to conversations',
 
     pageTitle: 'Messages',
     searchPlaceholder: 'Search conversations…',

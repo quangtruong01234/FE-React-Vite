@@ -9,6 +9,8 @@ import {
   CheckCircle,
   ShoppingCart,
   X,
+  Minus,
+  Plus,
 } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -452,7 +454,7 @@ export default function CheckoutPage(): ReactElement {
     return (
       <div className="min-h-screen bg-canvas-base flex items-center justify-center">
         <div className="bg-canvas-surface border border-bdr rounded-2xl p-10 max-w-md w-full mx-4 flex flex-col items-center gap-5 text-center">
-          <CheckCircle size={56} className="text-accent-green" />
+          <CheckCircle size={56} className="text-accent-green shrink-0" />
           <div>
             <h2 className="font-display font-black text-2xl text-ink-pri m-0 mb-1">
               {t("successTitle")}
@@ -510,7 +512,7 @@ export default function CheckoutPage(): ReactElement {
     return (
       <div className="min-h-screen bg-canvas-base flex items-center justify-center">
         <div className="text-center flex flex-col items-center gap-4">
-          <ShoppingCart size={48} className="text-ink-muted" />
+          <ShoppingCart size={48} className="text-ink-muted shrink-0" />
           <p className="text-ink-sec text-sm m-0">
             {t("cartEmpty")}
           </p>
@@ -533,7 +535,7 @@ export default function CheckoutPage(): ReactElement {
           onClick={() => navigate(-1)}
           className="bg-canvas-elevated border border-bdr rounded-lg px-3 py-2 text-ink-pri cursor-pointer text-sm hover:border-accent-amber transition-colors inline-flex items-center gap-1.5"
         >
-          <ArrowLeft size={16} /> {t("back")}
+          <ArrowLeft size={16} className="shrink-0" /> {t("back")}
         </button>
         <h1 className="font-display text-xl font-black uppercase tracking-wide text-ink-pri m-0">
           {t("title")}
@@ -543,9 +545,9 @@ export default function CheckoutPage(): ReactElement {
       {/* Breadcrumb */}
       <div className="max-w-[1080px] mx-auto px-4 sm:px-6 pt-5 flex items-center gap-2 font-body text-xs text-ink-muted">
         <span>{t("crumbCart")}</span>
-        <ChevronRight size={12} />
+        <ChevronRight size={12} className="shrink-0" />
         <span className="text-accent-amber font-semibold">{t("crumbPayment")}</span>
-        <ChevronRight size={12} />
+        <ChevronRight size={12} className="shrink-0" />
         <span>{t("crumbDone")}</span>
       </div>
 
@@ -712,8 +714,7 @@ export default function CheckoutPage(): ReactElement {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
-                      <button
-                        type="button"
+                      <IconButton
                         disabled={isMutating}
                         onClick={() =>
                           item.quantity === 1
@@ -723,15 +724,15 @@ export default function CheckoutPage(): ReactElement {
                                 quantity: item.quantity - 1,
                               })
                         }
-                        className="w-7 h-7 rounded-md border border-bdr bg-canvas-elevated text-ink-pri flex items-center justify-center enabled:cursor-pointer enabled:hover:border-accent-amber disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-base"
+                        aria-label={t("decreaseQty")}
+                        className="size-7 rounded-md border border-bdr bg-canvas-elevated text-ink-pri enabled:cursor-pointer enabled:hover:border-accent-amber disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >
-                        −
-                      </button>
+                        <Minus size={13} className="shrink-0" />
+                      </IconButton>
                       <span className="font-mono text-sm font-bold text-ink-pri min-w-[20px] text-center">
                         {item.quantity}
                       </span>
-                      <button
-                        type="button"
+                      <IconButton
                         disabled={isMutating || !canIncreaseCartLine(item.quantity)}
                         onClick={() =>
                           updateItem.mutate({
@@ -739,10 +740,11 @@ export default function CheckoutPage(): ReactElement {
                             quantity: item.quantity + 1,
                           })
                         }
-                        className="w-7 h-7 rounded-md border border-bdr bg-canvas-elevated text-ink-pri flex items-center justify-center transition-colors text-base enabled:cursor-pointer enabled:hover:border-accent-amber disabled:opacity-40 disabled:cursor-not-allowed"
+                        aria-label={t("increaseQty")}
+                        className="size-7 rounded-md border border-bdr bg-canvas-elevated text-ink-pri transition-colors enabled:cursor-pointer enabled:hover:border-accent-amber disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        +
-                      </button>
+                        <Plus size={13} className="shrink-0" />
+                      </IconButton>
                       <span className="font-mono font-bold text-sm text-ink-pri ml-2 min-w-[80px] text-right">
                         {formatVnd(getEffectivePrice(item) * item.quantity, lang)}
                       </span>

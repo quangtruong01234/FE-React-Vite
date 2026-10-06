@@ -73,7 +73,7 @@ export default function PaymentResultPage(): ReactElement {
           <div className="relative w-20 h-20 flex items-center justify-center">
             <span className="absolute inset-0 rounded-full border-4 border-tb-amber/20" />
             <span className="absolute inset-0 rounded-full border-4 border-transparent border-t-tb-amber animate-spin" />
-            <CreditCard size={28} className="text-accent-amber" />
+            <CreditCard size={28} className="text-accent-amber shrink-0" />
           </div>
           <div>
             <h2 className="font-display font-black text-2xl text-ink-pri m-0 mb-1">
@@ -91,8 +91,8 @@ export default function PaymentResultPage(): ReactElement {
       <div className="bg-canvas-surface border border-bdr rounded-2xl p-10 max-w-md w-full flex flex-col items-center gap-5 text-center">
         {verdict === 'success' && (
           <>
-            <div className="w-20 h-20 rounded-full bg-tb-green/15 flex items-center justify-center">
-              <CheckCircle size={44} className="text-accent-green" />
+            <div className="size-20 rounded-full bg-tb-green/15 grid place-items-center">
+              <CheckCircle size={44} className="text-accent-green shrink-0" />
             </div>
             <div>
               <h2 className="font-display font-black text-2xl text-ink-pri m-0 mb-1">
@@ -124,8 +124,8 @@ export default function PaymentResultPage(): ReactElement {
 
         {verdict === 'failed' && (
           <>
-            <div className="w-20 h-20 rounded-full bg-tb-red/15 flex items-center justify-center">
-              <XCircle size={44} className="text-accent-red" />
+            <div className="size-20 rounded-full bg-tb-red/15 grid place-items-center">
+              <XCircle size={44} className="text-accent-red shrink-0" />
             </div>
             <div>
               <h2 className="font-display font-black text-2xl text-ink-pri m-0 mb-1">
@@ -152,7 +152,7 @@ export default function PaymentResultPage(): ReactElement {
 
         {verdict === 'unverified' && (
           <>
-            <div className="w-20 h-20 rounded-full bg-tb-amber/15 flex items-center justify-center">
+            <div className="size-20 rounded-full bg-tb-amber/15 grid place-items-center">
               <AlertTriangle size={44} className="text-accent-amber shrink-0" />
             </div>
             <div>

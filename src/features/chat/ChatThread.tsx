@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
 import { ArrowLeft, Loader2, Send } from 'lucide-react';
 import { Avatar } from '@/components/shared/Avatar';
+import { IconButton } from '@/components/shared/IconButton';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRole } from '@/hooks/auth/useRole';
 import { useChat } from './useChat';
@@ -111,10 +112,12 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
       {/* Header */}
       <div className="px-4 py-3 border-b border-bdr flex items-center gap-3 flex-none">
         <button
+          type="button"
           onClick={onBack}
-          className="md:hidden bg-canvas-elevated border border-bdr rounded-lg p-2 text-ink-pri cursor-pointer hover:border-accent-amber transition-colors"
+          aria-label={t('backToList')}
+          className="md:hidden bg-canvas-elevated border border-bdr rounded-lg p-2 grid place-items-center text-ink-pri cursor-pointer hover:border-accent-amber transition-colors"
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft size={16} className="shrink-0" />
         </button>
         <Avatar
           size={40}
@@ -239,13 +242,14 @@ export function ChatThread({ conversation, onBack, otherUser }: ChatThreadProps)
           placeholder={t('inputPlaceholder')}
           className="flex-1 bg-canvas-elevated border border-bdr rounded-full px-4 py-2.5 text-sm text-ink-pri placeholder:text-ink-muted outline-none focus:border-tb-amber/50"
         />
-        <button
+        <IconButton
           onClick={handleSend}
           disabled={!text.trim()}
-          className="rounded-full bg-tb-gradient text-ink-on-accent flex items-center justify-center cursor-pointer border-0 disabled:opacity-40 disabled:cursor-not-allowed flex-none"
+          aria-label={t('send')}
+          className="size-10 rounded-full bg-tb-gradient text-ink-on-accent cursor-pointer border-0 disabled:opacity-40 disabled:cursor-not-allowed flex-none"
         >
           <Send size={18} strokeWidth={2.5} className="shrink-0" />
-        </button>
+        </IconButton>
       </div>
     </div>
   );

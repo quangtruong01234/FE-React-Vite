@@ -89,7 +89,7 @@ export default function OrderHistoryPage(): ReactElement {
           onClick={() => navigate(-1)}
           aria-label={t('back')}
           className="bg-canvas-elevated border border-bdr rounded-lg px-3 py-2 text-ink-pri cursor-pointer text-sm hover:border-accent-amber transition-colors inline-flex items-center gap-1.5">
-          <ArrowLeft size={16} /> {t('back')}
+          <ArrowLeft size={16} className="shrink-0" /> {t('back')}
         </button>
       </div>
 
