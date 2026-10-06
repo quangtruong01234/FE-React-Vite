@@ -27,6 +27,12 @@ export function useAddToCart() {
     onError: (_err, _data, ctx) => {
       queryClient.setQueryData(queryKeys.cart.all, ctx?.previous);
     },
+    // The response is the whole saved cart: write it so the optimistic
+    // negative-id line is replaced by the real one before the refetch lands —
+    // "Mua ngay" navigates to /checkout with that real id selected.
+    onSuccess: (cart: ServerCart) => {
+      queryClient.setQueryData<ServerCart | null>(queryKeys.cart.all, cart);
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.cart.all });
     },

@@ -34,3 +34,17 @@ export function addItemToCartCache(
   };
   return { ...old, items: [...old.items, optimisticItem] };
 }
+
+/**
+ * The cart line `POST /cart` merged `data` into. The endpoint answers with the
+ * whole saved cart and keys a line by product + sku (`skuId || null`), so this
+ * is the line "Mua ngay" checks out. `undefined` when the response lacks it.
+ */
+export function findCartLine(
+  cart: ServerCart | null | undefined,
+  data: Pick<AddToCartDto, 'productId' | 'skuId'>,
+): ServerCartItem | undefined {
+  return cart?.items.find(
+    i => i.productId === data.productId && i.skuId === (data.skuId ?? null),
+  );
+}

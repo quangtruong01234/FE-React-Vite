@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { ServerCart, ServerCartItem } from '@/types';
-import { addItemToCartCache } from './cartCache';
+import { addItemToCartCache, findCartLine } from './cartCache';
 
 const NOW = new Date('2026-07-05T10:00:00.000Z').getTime();
 
@@ -71,5 +71,25 @@ describe('addItemToCartCache', () => {
     const before = cart([item({ quantity: 1 })]);
     addItemToCartCache(before, { productId: 'prod_100', quantity: 4 }, NOW);
     expect(before.items[0].quantity).toBe(1);
+  });
+});
+
+describe('findCartLine', () => {
+  it('finds the plain line by product when no sku is given', () => {
+    const plain = item({ id: 7, productId: 'prod_100', skuId: null });
+    const sku = item({ id: 8, productId: 'prod_100', skuId: 55 });
+    expect(findCartLine(cart([sku, plain]), { productId: 'prod_100' })?.id).toBe(7);
+  });
+
+  it('finds the sku line and not the plain line of the same product', () => {
+    const plain = item({ id: 7, productId: 'prod_100', skuId: null });
+    const sku = item({ id: 8, productId: 'prod_100', skuId: 55 });
+    expect(findCartLine(cart([plain, sku]), { productId: 'prod_100', skuId: 55 })?.id).toBe(8);
+  });
+
+  it('is undefined for a missing line or an empty/absent cart', () => {
+    expect(findCartLine(cart([item({ productId: 'prod_200' })]), { productId: 'prod_100' })).toBeUndefined();
+    expect(findCartLine(null, { productId: 'prod_100' })).toBeUndefined();
+    expect(findCartLine(undefined, { productId: 'prod_100' })).toBeUndefined();
   });
 });
