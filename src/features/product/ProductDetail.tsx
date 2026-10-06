@@ -1,10 +1,11 @@
 import { useState, type ReactElement } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Truck, Shield, RotateCcw, ShoppingCart, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Truck, Shield, RotateCcw, ShoppingCart, ChevronRight, Minus, Plus, Zap } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
 import { useCart, useAddToCart } from '@/hooks/data/useCart';
 import { queryKeys } from '@/hooks/query/queryKeys';
+import { findCartLine } from '@/hooks/query/cartCache';
 import { useAuthContext } from '@/context/useAuthContext';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -15,10 +16,12 @@ import { preloadImage } from '@/lib/http/preloadImage';
 import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
 import { PriceText } from '@/components/shared/PriceText';
 import { GradientButton } from '@/components/shared/GradientButton';
+import { IconButton } from '@/components/shared/IconButton';
 import { Avatar } from '@/components/shared/Avatar';
 import { WishlistButton } from '@/components/shared/WishlistButton';
 import { DemoModeGate } from '@/components/shared/DemoModeGate';
 import { ProductReviews } from './ProductReviews';
+import { ShopOtherProducts } from './ShopOtherProducts';
 import { sellerName } from './sellerName';
 import { sellerProfilePath } from './sellerCard';
 import { SellerFollowButton } from './SellerFollowButton';
@@ -26,6 +29,7 @@ import { useLanguage } from '@/context/useLanguage';
 import { useT } from '@/hooks/ui/useT';
 import { LANG_LOCALE } from '@/lib/i18n/lang';
 import { productMessages } from './product.i18n';
+import type { AddToCartDto } from '@/types';
 
 const trustItems = [
   { Icon: Truck,     label: 'perkDelivery', sub: 'perkDeliverySub' },
@@ -59,11 +63,13 @@ export default function ProductDetail(): ReactElement {
     defaultTierSelection(detail?.variations, detail?.skus),
   );
   const [variantError, setVariantError] = useState('');
+  const [buyNowError, setBuyNowError] = useState('');
 
   // Re-derive the auto-selection whenever the route id or the product's
   // variation/SKU data changes (adjust-state-during-render, no effect cascade).
   const resetSelection = (): void => {
     setVariantError('');
+    setBuyNowError('');
     setSelectedTiers(defaultTierSelection(detail?.variations, detail?.skus));
   };
   useResetOnChange(id, resetSelection);
@@ -142,20 +148,45 @@ export default function ProductDetail(): ReactElement {
     if (variantError) setVariantError('');
   }
 
+  /** The line to add, or `null` after flagging an incomplete variant pick. */
+  function cartLineDto(): AddToCartDto | null {
+    if (!detail) return null;
+    if (!hasVariants) return { productId: detail.id, quantity };
+    if (!allTiersSelected) {
+      setVariantError(t('pickAllVariants'));
+      return null;
+    }
+    if (!matchedSku) {
+      setVariantError(t('variantUnavailable'));
+      return null;
+    }
+    return { productId: detail.id, quantity, skuId: Number(matchedSku.id) };
+  }
+
   function handleAddToCart(): void {
-    if (!detail) return;
-    if (hasVariants) {
-      if (!allTiersSelected) {
-        setVariantError(t('pickAllVariants'));
+    const dto = cartLineDto();
+    if (dto) addToCart.mutate(dto);
+  }
+
+  // F9 — add the line, then check out only that line (CheckoutPage filters the
+  // cart by `selectedIds`). The quantity merges into an existing line, as on Shopee.
+  async function handleBuyNow(): Promise<void> {
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+    const dto = cartLineDto();
+    if (!dto) return;
+    setBuyNowError('');
+    try {
+      const line = findCartLine(await addToCart.mutateAsync(dto), dto);
+      if (!line) {
+        setBuyNowError(t('buyNowFailed'));
         return;
       }
-      if (!matchedSku) {
-        setVariantError(t('variantUnavailable'));
-        return;
-      }
-      addToCart.mutate({ productId: detail.id, quantity, skuId: Number(matchedSku.id) });
-    } else {
-      addToCart.mutate({ productId: detail.id, quantity });
+      navigate('/checkout', { state: { selectedIds: [line.id] } });
+    } catch (error: unknown) {
+      setBuyNowError(error instanceof Error && error.message ? error.message : t('buyNowFailed'));
     }
   }
 
@@ -166,7 +197,7 @@ export default function ProductDetail(): ReactElement {
         <button
           onClick={() => navigate(-1)}
           className="bg-canvas-elevated border border-bdr rounded-lg px-3 py-2 text-ink-pri cursor-pointer text-sm hover:border-accent-amber transition-colors inline-flex items-center gap-1.5">
-          <ArrowLeft size={16} /> {t('back')}
+          <ArrowLeft size={16} className="shrink-0" /> {t('back')}
         </button>
       </div>
 
@@ -178,11 +209,11 @@ export default function ProductDetail(): ReactElement {
             className="text-tb-secondary hover:text-ink-pri transition-colors bg-transparent border-0 cursor-pointer p-0">
             {t('explore')}
           </button>
-          <ChevronRight size={12} />
+          <ChevronRight size={12} className="shrink-0" />
           {detail.brand?.name && (
             <>
               <span className="text-tb-secondary">{detail.brand.name}</span>
-              <ChevronRight size={12} />
+              <ChevronRight size={12} className="shrink-0" />
             </>
           )}
           <span className="text-ink-pri truncate max-w-[320px]">{detail.name}</span>
@@ -212,7 +243,10 @@ export default function ProductDetail(): ReactElement {
                 {gallery.map((src, i) => (
                   <button
                     key={i}
+                    type="button"
                     onClick={() => setActiveImg(i)}
+                    aria-label={t('viewImage', { n: i + 1 })}
+                    aria-pressed={activeImg === i}
                     // The hero requests a wider derivative than the thumb, so
                     // warm it on hover instead of on click.
                     onMouseEnter={() => preloadImage(cldImage(src, 1200))}
@@ -333,13 +367,13 @@ export default function ProductDetail(): ReactElement {
               <div className="flex items-center justify-between py-4 border-y border-bdr">
                 <span className="font-body font-semibold text-sm text-ink-pri">{t('quantity')}</span>
                 <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
+                  <IconButton
                     disabled={quantity <= 1}
                     onClick={() => setQuantity(q => Math.max(1, q - 1))}
-                    className="w-9 h-9 rounded-lg border border-bdr bg-canvas-elevated text-ink-pri text-lg flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed enabled:cursor-pointer enabled:hover:border-accent-amber">
-                    −
-                  </button>
+                    aria-label={t('decreaseQty')}
+                    className="size-9 rounded-lg border border-bdr bg-canvas-elevated text-ink-pri transition-colors disabled:opacity-40 disabled:cursor-not-allowed enabled:cursor-pointer enabled:hover:border-accent-amber">
+                    <Minus size={16} className="shrink-0" />
+                  </IconButton>
                   <input
                     type="number"
                     min={1}
@@ -355,13 +389,13 @@ export default function ProductDetail(): ReactElement {
                     }}
                     className="w-14 h-9 rounded-lg border border-bdr bg-canvas-elevated text-ink-pri font-mono text-base font-bold text-center focus:outline-none focus:border-accent-amber transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
-                  <button
-                    type="button"
+                  <IconButton
                     onClick={() => setQuantity(q => Math.min(maxQty, q + 1))}
                     disabled={quantity >= maxQty}
-                    className="w-9 h-9 rounded-lg border border-bdr bg-canvas-elevated text-ink-pri text-lg flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed enabled:cursor-pointer enabled:hover:border-accent-amber">
-                    +
-                  </button>
+                    aria-label={t('increaseQty')}
+                    className="size-9 rounded-lg border border-bdr bg-canvas-elevated text-ink-pri transition-colors disabled:opacity-40 disabled:cursor-not-allowed enabled:cursor-pointer enabled:hover:border-accent-amber">
+                    <Plus size={16} className="shrink-0" />
+                  </IconButton>
                 </div>
               </div>
             )}
@@ -384,7 +418,7 @@ export default function ProductDetail(): ReactElement {
                     onClick={handleAddToCart}
                     disabled={addToCart.isPending || !allTiersSelected || (hasVariants && !matchedSku)}
                     className={cn('flex-1 h-14 text-base', inCart && 'opacity-90')}>
-                    <ShoppingCart size={16} />
+                    <ShoppingCart size={16} className="shrink-0" />
                     {addToCart.isPending ? t('adding') : !allTiersSelected ? t('pickVariant') : inCart ? t('addMore', { count: quantity }) : t('addToCart')}
                   </GradientButton>
                 </DemoModeGate>
@@ -395,6 +429,21 @@ export default function ProductDetail(): ReactElement {
                 className="size-14 rounded-xl border border-bdr bg-canvas-elevated hover:border-accent-amber"
               />
             </div>
+            {available !== 0 && !skuOutOfStock && (
+              <DemoModeGate>
+                <button
+                  type="button"
+                  onClick={() => void handleBuyNow()}
+                  disabled={addToCart.isPending || !allTiersSelected || (hasVariants && !matchedSku)}
+                  className="w-full h-12 inline-flex items-center justify-center gap-2 rounded-xl border border-accent-amber bg-tb-amber/10 font-display font-black uppercase tracking-widest text-sm text-accent-amber cursor-pointer hover:bg-tb-amber/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Zap size={16} className="shrink-0" />
+                  {addToCart.isPending ? t('buyingNow') : t('buyNow')}
+                </button>
+              </DemoModeGate>
+            )}
+            {buyNowError && (
+              <p role="alert" className="m-0 text-sm text-accent-red">{buyNowError}</p>
+            )}
             {hasVariants && !allTiersSelected && (
               <p className="m-0 text-sm text-ink-sec">{t('pickAllVariantsHint')}</p>
             )}
@@ -467,6 +516,10 @@ export default function ProductDetail(): ReactElement {
               dangerouslySetInnerHTML={{ __html: detail.description }}
             />
           </section>
+        )}
+
+        {!isOwner && (
+          <ShopOtherProducts sellerId={detail.userId} currentProductId={detail.id} sellerPath={sellerPath} />
         )}
 
         <ProductReviews productId={detail.id} />
