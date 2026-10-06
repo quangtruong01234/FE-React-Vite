@@ -1,11 +1,13 @@
 import { useState, type ReactElement } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Check, Truck, MapPin, Wallet, CreditCard, XCircle, RotateCcw, CalendarClock,
+  ArrowLeft, Check, Truck, MapPin, Wallet, CreditCard, XCircle, RotateCcw, CalendarClock, ShoppingCart,
 } from 'lucide-react';
 import { useOrder } from './useOrder';
 import { orderLoadError } from './orderDetailError';
 import { useCancelOrder } from './useCancelOrder';
+import { useReorder } from './useReorder';
+import { ReorderResultPanel } from './ReorderResultPanel';
 import { InvoiceDownloadButton } from './InvoiceDownloadButton';
 import { useOrderPaymentUrl } from './useOrderPaymentUrl';
 import { useMyReturnRequests, useRequestReturn } from './useReturnRequests';
@@ -113,6 +115,7 @@ export default function OrderDetailPage(): ReactElement {
 
   const cancelOrder = useCancelOrder(meId);
   const getPaymentUrl = useOrderPaymentUrl();
+  const reorder = useReorder();
 
   // F2 return/refund — hooks must run before the early returns below.
   const returnEligible = order ? canRequestReturn(order.status) : false;
@@ -162,6 +165,7 @@ export default function OrderDetailPage(): ReactElement {
   const isCanceled = order.status === 'canceled';
   const curStep = TIMELINE.findIndex((step) => step.status === order.status);
   const canCancel = order.status === 'pending' || order.status === 'confirmed' || order.status === 'processing';
+  const canReorder = order.status === 'completed' || order.status === 'canceled';
   // `paidAt` is the authoritative unpaid signal now (ORD-GUARD-01) — the status
   // heuristic only survives as a fallback for responses that predate the field.
   const needsPayment = isAwaitingPayment(order);
@@ -185,7 +189,7 @@ export default function OrderDetailPage(): ReactElement {
         onClick={() => navigate('/orders')}
         className="inline-flex items-center gap-1.5 mb-4 bg-canvas-elevated border border-bdr rounded-lg px-3 py-2 text-ink-pri text-sm cursor-pointer hover:border-accent-amber transition-colors"
       >
-        <ArrowLeft size={16} /> {t('ordersNav')}
+        <ArrowLeft size={16} className="shrink-0" /> {t('ordersNav')}
       </button>
 
       {/* Heading */}
@@ -206,12 +210,12 @@ export default function OrderDetailPage(): ReactElement {
               return (
                 <div key={s} className="flex flex-col items-center gap-2 flex-1 relative z-[1]">
                   <span className={cn(
-                    'w-9 h-9 rounded-full flex items-center justify-center border-2',
+                    'size-9 rounded-full grid place-items-center border-2',
                     done
                       ? 'bg-tb-gradient border-transparent text-ink-on-accent'
                       : 'bg-canvas-elevated border-bdr text-ink-muted',
                   )}>
-                    {done ? <Check size={16} /> : <span className="text-xs font-bold">{i + 1}</span>}
+                    {done ? <Check size={16} className="shrink-0" /> : <span className="text-xs font-bold">{i + 1}</span>}
                   </span>
                   <span className={cn(
                     'text-[11px] text-center font-medium',
@@ -299,13 +303,13 @@ export default function OrderDetailPage(): ReactElement {
       <div className="grid sm:grid-cols-2 gap-4 mb-4">
         <div className="bg-canvas-surface border border-bdr rounded-xl p-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-ink-muted mb-2 flex items-center gap-1.5">
-            <MapPin size={13} /> {t('shipTo')}
+            <MapPin size={13} className="shrink-0" /> {t('shipTo')}
           </div>
           <ShippingAddressBlock raw={order.shippingAddress} />
         </div>
         <div className="bg-canvas-surface border border-bdr rounded-xl p-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-ink-muted mb-2 flex items-center gap-1.5">
-            <Wallet size={13} /> {t('payment')}
+            <Wallet size={13} className="shrink-0" /> {t('payment')}
           </div>
           <div className="text-sm text-ink-pri font-semibold">
             {paymentLabel(order.paymentMethod, lang)}
@@ -400,7 +404,7 @@ export default function OrderDetailPage(): ReactElement {
             onClick={() => getPaymentUrl.mutate(order.id)}
             disabled={getPaymentUrl.isPending}
           >
-            <CreditCard size={16} />
+            <CreditCard size={16} className="shrink-0" />
             {getPaymentUrl.isPending ? t('processing') : t('payNow')}
           </GradientButton>
         )}
@@ -411,8 +415,28 @@ export default function OrderDetailPage(): ReactElement {
             disabled={cancelOrder.isPending}
             className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-tb-input border border-tb-red/30 bg-tb-red/5 text-accent-red font-semibold text-sm cursor-pointer hover:bg-tb-red/10 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <XCircle size={15} />
+            <XCircle size={15} className="shrink-0" />
             {cancelOrder.isPending ? t('canceling') : t('cancelOrder')}
+          </button>
+        )}
+        {canReorder && (
+          <button
+            onClick={() =>
+              reorder.mutate(order.items, {
+                onSuccess: (result) => {
+                  // Everything re-added: straight to the cart. Otherwise the
+                  // panel below says which lines stayed behind and why.
+                  if (result.skipped.length === 0 && result.cartLineIds.length > 0) {
+                    navigate('/cart', { state: { selectedIds: result.cartLineIds } });
+                  }
+                },
+              })
+            }
+            disabled={reorder.isPending}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-tb-input border border-tb-amber/30 bg-tb-amber/5 text-accent-amber font-semibold text-sm cursor-pointer hover:bg-tb-amber/10 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <ShoppingCart size={15} className="shrink-0" />
+            {reorder.isPending ? t('reordering') : t('reorder')}
           </button>
         )}
         {canSubmitReturn && !returnFormOpen && (
@@ -420,11 +444,21 @@ export default function OrderDetailPage(): ReactElement {
             onClick={() => setReturnFormOpen(true)}
             className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-tb-input border border-tb-amber/30 bg-tb-amber/5 text-accent-amber font-semibold text-sm cursor-pointer hover:bg-tb-amber/10 transition-colors"
           >
-            <RotateCcw size={15} />
+            <RotateCcw size={15} className="shrink-0" />
             {t('requestReturn')}
           </button>
         )}
       </div>
+
+      {reorder.isError && (
+        <p role="alert" className="mt-4 mb-0 font-body text-sm text-accent-red">{t('reorderFailed')}</p>
+      )}
+      {reorder.data && reorder.data.skipped.length > 0 && (
+        <ReorderResultPanel
+          result={reorder.data}
+          onGoToCart={() => navigate('/cart', { state: { selectedIds: reorder.data?.cartLineIds } })}
+        />
+      )}
 
       {/* Return request form */}
       {canSubmitReturn && returnFormOpen && (
