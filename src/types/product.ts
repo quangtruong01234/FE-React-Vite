@@ -274,6 +274,40 @@ export interface PriceSuggestionParams {
   condition?: ProductCondition;
 }
 
+// --- Product Q&A (PRODUCT-QA-01) ---
+// Mirrors `api/ai-docs/specs/PRODUCT-QA-01/contract.md` §3 field for field.
+
+/** `POST /products/:id/ask` body — `question` is 3..300 chars after trim. */
+export interface AskProductQuestionDto {
+  question: string;
+}
+
+export type ProductAnswerSource = 'PRODUCT' | 'SKU' | 'REVIEW';
+
+/** `NO_SOURCES`: nothing indexed for the product yet. `LOW_CONFIDENCE`: indexed
+ *  text exists but none of it supports an answer. */
+export type ProductAbstainReason = 'NO_SOURCES' | 'LOW_CONFIDENCE';
+
+export interface ProductAnswerCitation {
+  /** The `n` of an `[n]` marker in `answer`; runs 1..N with no gaps. */
+  index: number;
+  source: ProductAnswerSource;
+  /** Verbatim excerpt, ≤ 300 chars, may end in `…`. */
+  snippet: string;
+}
+
+/**
+ * Grounded answer for one product. `answer` and `abstainReason` are `null`
+ * exactly when `abstained` says so; `citations` is never `null` (`[]` when
+ * abstained). `answer` is plain text — `\n` line breaks and `[n]` markers only.
+ */
+export interface ProductAnswer {
+  answer: string | null;
+  abstained: boolean;
+  abstainReason: ProductAbstainReason | null;
+  citations: ProductAnswerCitation[];
+}
+
 // --- Product reviews ---
 
 export interface ProductReviewDto {

@@ -109,3 +109,56 @@ describe('productsApi.getTrending', () => {
     expect(captured?.searchParams.get('limit')).toBe('3');
   });
 });
+
+// PRODUCT-QA-01 — contract §3/§4 (`api/ai-docs/specs/PRODUCT-QA-01/contract.md`).
+describe('productsApi.askQuestion', () => {
+  const answered = {
+    answer: 'Có. Ngăn chính chứa vừa laptop tới 15.6 inch [1], và một người mua cho biết máy 15 inch của họ vừa khít [2].',
+    abstained: false,
+    abstainReason: null,
+    citations: [
+      { index: 1, source: 'PRODUCT', snippet: 'Ngăn chính chống sốc, vừa laptop tới 15.6 inch.' },
+      { index: 2, source: 'REVIEW', snippet: 'Mình để laptop 15 inch vừa khít, khoá kéo vẫn đóng dễ.' },
+    ],
+  };
+
+  it('POSTs the question to /products/:id/ask and unwraps the data envelope', async () => {
+    let captured: { pathname: string; method: string; body: unknown } | undefined;
+    server.use(
+      http.post(`${API_BASE}/products/:id/ask`, async ({ request }) => {
+        captured = { pathname: new URL(request.url).pathname, method: request.method, body: await request.json() };
+        return HttpResponse.json({ data: answered });
+      }),
+    );
+
+    const result = await productsApi.askQuestion('prod_8fK2mQ7aLp3xRt9Z', { question: 'Có vừa laptop 15 inch không?' });
+
+    expect(captured?.pathname).toBe('/api/products/prod_8fK2mQ7aLp3xRt9Z/ask');
+    expect(captured?.body).toEqual({ question: 'Có vừa laptop 15 inch không?' });
+    expect(result).toEqual(answered);
+  });
+
+  it('never auto-retries a 503 ASSISTANT_UNAVAILABLE — each resend would spend a rate-limit slot', async () => {
+    let calls = 0;
+    server.use(
+      http.post(`${API_BASE}/products/:id/ask`, () => {
+        calls += 1;
+        return HttpResponse.json(
+          {
+            statusCode: 503,
+            status: 'error',
+            error: 'Service Unavailable',
+            message: 'The product assistant is busy, please try again later',
+            errorCode: 'ASSISTANT_UNAVAILABLE',
+            data: null,
+          },
+          { status: 503 },
+        );
+      }),
+    );
+
+    await expect(productsApi.askQuestion('prod_a', { question: 'Pin bao lâu?' }))
+      .rejects.toMatchObject({ statusCode: 503, errorCode: 'ASSISTANT_UNAVAILABLE' });
+    expect(calls).toBe(1);
+  });
+});

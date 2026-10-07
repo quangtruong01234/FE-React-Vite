@@ -12,8 +12,16 @@ export function registerUnauthorizedHandler(fn: NavigateFn): void {
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function request<T>(path: string, init?: RequestInit & { skipUnauthorizedRedirect?: boolean }): Promise<T> {
-  const { skipUnauthorizedRedirect, ...fetchInit } = init ?? {};
+export interface RequestOptions extends RequestInit {
+  skipUnauthorizedRedirect?: boolean;
+  /** Opt out of the one delayed 503 resend. For endpoints whose 503 comes from the
+   *  handler itself (it ran, so a resend spends another rate-limit slot) and whose
+   *  contract forbids auto-retry — e.g. PRODUCT-QA-01 `ASSISTANT_UNAVAILABLE`. */
+  skipOverloadRetry?: boolean;
+}
+
+export async function request<T>(path: string, init?: RequestOptions): Promise<T> {
+  const { skipUnauthorizedRedirect, skipOverloadRetry, ...fetchInit } = init ?? {};
   const send = (): Promise<Response> => fetch(`${API_BASE}${path}`, {
     ...fetchInit,
     credentials: 'include',
@@ -22,7 +30,7 @@ export async function request<T>(path: string, init?: RequestInit & { skipUnauth
   let res = await send();
   // Backend sheds excess load early with 503 + Retry-After (SCALE-05); the shed
   // request never reached the handler, so a single delayed retry is safe for any method.
-  const retryDelay = overloadRetryDelayMs(res.status, res.headers.get('Retry-After'));
+  const retryDelay = skipOverloadRetry ? null : overloadRetryDelayMs(res.status, res.headers.get('Retry-After'));
   if (retryDelay !== null) {
     await sleep(retryDelay);
     res = await send();

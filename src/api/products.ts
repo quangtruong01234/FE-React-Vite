@@ -25,6 +25,8 @@ import type {
   PriceSuggestion,
   PriceSuggestionParams,
   TrendingProduct,
+  AskProductQuestionDto,
+  ProductAnswer,
 } from '@/types';
 import { request, toQuery, toSearchTerm } from './client';
 import chunk from 'lodash/chunk';
@@ -206,6 +208,19 @@ export const productsApi = {
     request<DuplicateCheckResult>('/products/risk/duplicate-check', {
       method: 'POST',
       body: JSON.stringify({ imageUrl }),
+    }),
+
+  // --- Product Q&A (PRODUCT-QA-01) — grounded answer, cookie auth ---
+
+  // 5 asks / 60 s per user, counted before validation (a 400 spends one too);
+  // the 429 carries no Retry-After. The 503 ASSISTANT_UNAVAILABLE comes after
+  // the handler ran and must not be auto-retried (contract §3) — without the
+  // opt-out `request()` would resend it once after its 2 s default, spending an ask.
+  askQuestion: (id: string, data: AskProductQuestionDto): Promise<ProductAnswer> =>
+    request<ProductAnswer>(`/products/${id}/ask`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      skipOverloadRetry: true,
     }),
 
   // --- Wishlist / favorites (F6) ---
