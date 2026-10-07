@@ -49,8 +49,9 @@ function postsMatching<T extends { content: string }>(posts: T[], url: string): 
 const offlineFallback = http.all(`${API_BASE}/*`, () =>
   HttpResponse.json(
     { message: 'Backend is outside its scheduled window (demo mode).' },
-    // No `Retry-After`: `request()` reads that header to schedule an automatic
-    // retry, and there is nothing to retry against.
+    // Leaving out `Retry-After` does NOT stop a resend — `request()` falls back
+    // to a 2 s delay when it is missing. What stops it is the `isDemoMode()`
+    // check in `request()` (DEMO-RETRY-01).
     { status: 503 },
   ),
 );

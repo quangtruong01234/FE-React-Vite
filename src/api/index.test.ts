@@ -3,6 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { server } from '@/test/msw/server';
 import { API_BASE } from '@/test/msw/handlers';
 import { api, registerUnauthorizedHandler } from '@/api';
+import { setBackendStatus } from '@/lib/demo/backendStatus';
 
 // Integration test for the 401 → login-redirect wiring inside `request()`.
 // `unauthorized.test.ts` covers the pure decision helper; this asserts the
@@ -145,6 +146,27 @@ describe('request() — 503 overload retry (SCALE-05)', () => {
 
     await expect(api.users.getById('usr_0000000000000010')).rejects.toMatchObject({ statusCode: 503 });
     expect(calls).toBe(2);
+  });
+
+  // DEMO-RETRY-01: demo mode's `offlineFallback` 503 carries no Retry-After,
+  // which `overloadRetryDelayMs` reads as "default 2 s", not "don't retry" —
+  // that resend is what made each failed demo read fire 4 times, not 2.
+  it('never resends a 503 in demo mode — the backend is parked, not shedding', async () => {
+    setBackendStatus('offline');
+    let calls = 0;
+    server.use(
+      http.get(`${API_BASE}/user/usr_0000000000000012`, () => {
+        calls += 1;
+        return HttpResponse.json({ message: 'demo' }, { status: 503 });
+      }),
+    );
+
+    try {
+      await expect(api.users.getById('usr_0000000000000012')).rejects.toMatchObject({ statusCode: 503 });
+      expect(calls).toBe(1);
+    } finally {
+      setBackendStatus('online');
+    }
   });
 });
 

@@ -1,6 +1,7 @@
 import type { ApiError } from '@/types';
 import { shouldRedirectToLogin, buildLoginRedirect } from './unauthorized';
 import { overloadRetryDelayMs } from './retry';
+import { isDemoMode } from '@/lib/demo/backendStatus';
 
 export const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
 
@@ -30,7 +31,10 @@ export async function request<T>(path: string, init?: RequestOptions): Promise<T
   let res = await send();
   // Backend sheds excess load early with 503 + Retry-After (SCALE-05); the shed
   // request never reached the handler, so a single delayed retry is safe for any method.
-  const retryDelay = skipOverloadRetry ? null : overloadRetryDelayMs(res.status, res.headers.get('Retry-After'));
+  // Demo mode's 503 means "backend parked", not "shed" — a resend can't succeed and
+  // only doubles the red lines and delays the error by 2 s (DEMO-RETRY-01).
+  const noResend = skipOverloadRetry || isDemoMode();
+  const retryDelay = noResend ? null : overloadRetryDelayMs(res.status, res.headers.get('Retry-After'));
   if (retryDelay !== null) {
     await sleep(retryDelay);
     res = await send();
