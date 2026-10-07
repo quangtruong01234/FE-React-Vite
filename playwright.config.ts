@@ -9,6 +9,24 @@ try {
 }
 const hasAdmin = Boolean(process.env.E2E_ADMIN_USERNAME && process.env.E2E_ADMIN_PASSWORD);
 
+// PERF-E2E-01: the perf project measures a production build on `vite preview`
+// (:4173), so it only joins — and only builds — under `npm run test:perf`.
+// Every other run keeps the single dev server and never pays for a build.
+const perfRun = process.env.npm_lifecycle_event === 'test:perf';
+const PERF_URL = 'http://localhost:4173';
+
+const perfProjects: Project[] = perfRun
+  ? [
+      {
+        name: 'perf',
+        testMatch: /.*.perf.spec.ts/,
+        dependencies: ['setup'],
+        // Host-only cookies ignore the port, so the session saved on :5173 works here.
+        use: { ...devices['Desktop Chrome'], baseURL: PERF_URL, storageState: 'e2e/.auth/buyer.json' },
+      },
+    ]
+  : [];
+
 const adminProjects: Project[] = hasAdmin
   ? [
       {
@@ -67,6 +85,7 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], storageState: 'e2e/.auth/shop.json' },
     },
     ...adminProjects,
+    ...perfProjects,
     // Signed-out checks (login page, auth gate). No storageState, no setup.
     {
       name: 'public',
@@ -75,10 +94,23 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: true,
-    timeout: 60_000,
-  },
+  webServer: [
+    {
+      command: 'npm run dev',
+      url: 'http://localhost:5173',
+      reuseExistingServer: true,
+      timeout: 60_000,
+    },
+    // `vite preview` reuses `server.proxy`, so /api and /health still reach :3000.
+    ...(perfRun
+      ? [
+          {
+            command: 'npm run build && npm run preview -- --port 4173 --strictPort',
+            url: PERF_URL,
+            reuseExistingServer: false,
+            timeout: 300_000,
+          },
+        ]
+      : []),
+  ],
 });

@@ -68,6 +68,8 @@ npx playwright test --project=shop -g "/sell/orders "   # one route's smoke
 | `shop-catalogue.shop.spec.ts` | `/shop` SKU search + hide/show switch (API-checked) + delete cancelled; `/sell/:id` rename lands; `/shop/analytics` monthly interval matches the server summary | ✅ re-shows and renames back in `finally`; skips when the shop has no visible single-SKU product |
 | `admin-vouchers.admin.spec.ts` | `/admin/vouchers` create switched off → search → on → off through the confirm modal (API-checked) | ✅ leaves 1 deactivated `E2E-…` platform code per run (afterEach switches it off) |
 | `admin-dashboard.admin.spec.ts` | `/admin` user search + role change confirm (cancelled, role unchanged) and self-row lock; `/admin/analytics` interval/preset drive the request; CSV export downloads | ✅ read-only — the role change is always cancelled |
+| `mobile-layout.buyer.spec.ts` | MOBILE-OVERFLOW-01: no horizontal overflow at 360 + 390px on `/`, `/marketplace`, `/cart`, `/checkout`, `/orders`, `/product/:id`; a tap on "ĐẶT HÀNG" opens `/checkout` | ✅ read-only — checkout opened, never confirmed; the tap test skips on an empty cart |
+| `routes.perf.spec.ts` | PERF-E2E-01: LCP / CLS / blocking time (median of 3) on `/marketplace`, `/cart`, `/checkout`, `/orders`, `/order/:id`, `/sell` | ✅ `npm run test:perf` only (own `perf` project on `vite preview` :4173, not part of `test:e2e`) — read-only |
 
 Specs assert the **correct** behavior, so the open bugs are expected to fail
 (red) until fixed — that is the point of the suite. `test.skip(...)` guards keep
