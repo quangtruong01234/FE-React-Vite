@@ -22,6 +22,7 @@ import { WishlistButton } from '@/components/shared/WishlistButton';
 import { DemoModeGate } from '@/components/shared/DemoModeGate';
 import { ProductReviews } from './ProductReviews';
 import { ShopOtherProducts } from './ShopOtherProducts';
+import { ProductQuestionBox } from './ProductQuestionBox';
 import { sellerName } from './sellerName';
 import { sellerProfilePath } from './sellerCard';
 import { SellerFollowButton } from './SellerFollowButton';
@@ -517,6 +518,8 @@ export default function ProductDetail(): ReactElement {
             />
           </section>
         )}
+
+        <ProductQuestionBox key={detail.id} productId={detail.id} signedIn={!!currentUser} />
 
         {!isOwner && (
           <ShopOtherProducts sellerId={detail.userId} currentProductId={detail.id} sellerPath={sellerPath} />
