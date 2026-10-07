@@ -1,6 +1,6 @@
 # Snapshot — TryBuy Frontend Current State
 
-> Cập nhật: 2026-10-07 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
+> Cập nhật: 2026-10-08 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
 > Keep this LEAN: chỉ giữ bức tranh sống (overview, việc còn mở/bị chặn, known issues).
 > Việc đã xong nằm ở `CHANGELOG.md` (cùng thư mục, không auto-load) — **đừng chép lại vào đây**.
 > Convention/rule nằm ở `.ai/context/` — cũng không duplicate vào đây.
@@ -15,8 +15,8 @@ kể cả P0-03: nhánh create atomic BE-side từ INV-CONTRACT-01 (prod 2026-08
 Public-ID migration (PUBID-01–07) đã
 xong — storefront id là opaque string end-to-end.
 
-**Gates (chạy lại 2026-10-07, sau PRODUCT-QA-01; bundle 711,024 / 750,000):** `npm run build` ✓ · `npm run check:bundle` ✓ ·
-`npm run lint` 0 error · `npm run test:run` **1761 test / 194 file**, all pass. Không đóng item
+**Gates (chạy lại 2026-10-08, sau `/sweep` "làm hết"; bundle 710,979 / 750,000):** `npm run build` ✓ · `npm run check:bundle` ✓ ·
+`npm run lint` 0 error · `npm run test:run` **1765 test / 195 file**, all pass. Không đóng item
 nào khi 4 lệnh này chưa xanh. E2E smoke (không thuộc gate) **43/43 pass, 0 skip** trên stack local
 2026-10-05 (`/sweep audit`, gateway uptime không reset trong lượt chạy; dev server đang chạy sẵn — fail lạ thì khởi động lại trước, pitfalls §18).
 
@@ -54,11 +54,11 @@ mới tới doc.)*
 
 | Ngày | Item |
 |---|---|
+| 2026-10-08 | **`/sweep` "làm hết" — IMG-CAP-01 · MOBILE-OVERFLOW-01 · PERF-E2E-01 · DEMO-RETRY-01 vòng 3 + trả 9 nợ runtime** (class **A**). IMG-CAP-01: form SP cắt ảnh ở **6** (BE cho 10) và cắt *trước* khi tới `capImageBatch` ⇒ ảnh 7–10 rơi im lặng; giờ đếm theo `MAX_PRODUCT_IMAGES`, cả lô vào hook. MOBILE-OVERFLOW-01: header 380px/390px, `/cart` 560px, `/product/:id` 425px trên điện thoại ⇒ trang trượt ngang, tap "ĐẶT HÀNG" trúng phần tử khác; sửa `grid-cols-1` + dải thumbnail `overflow-x-auto` + header gọn dưới `sm`, khoá bằng `mobile-layout.buyer` (360 + 390). PERF-E2E-01: project `perf` + `npm run test:perf`. DEMO-RETRY-01: `request()` không gửi lại 503 khi demo mode. |
 | 2026-10-07 | **PRODUCT-QA-01 · hỏi đáp sản phẩm bằng AI trên `/product/:id`** (`/pair` với `api-b1`, class **B**, **push `api` trước** — FE lên trước thì mọi câu hỏi ra 404 "sản phẩm không còn bán"). `ProductQuestionBox` (3..300 ký tự sau trim, marker `[n]` → `<sup>` + danh sách nguồn có badge, abstain `NO_SOURCES`/`LOW_CONFIDENCE` là trạng thái trung tính, live region + trả focus về textarea); `request()` có opt-out `skipOverloadRetry` để 503 `ASSISTANT_UNAVAILABLE` không bị gửi lại (mỗi lần gửi tốn 1 trong 5 lượt/phút). Đã đối chiếu API thật local: 200/abstain/400/404/429 khớp contract. Flow hỏi-đáp chưa có e2e (phụ thuộc LLM + rate limit) — còn nợ. |
 | 2026-10-06 | **CAPTCHA-01 · Turnstile trên đăng ký + quên mật khẩu** (class **B**: field `captchaToken` optional, BE cũ bỏ qua). `captcha.ts` (loader 1 lần, `withCaptchaToken`, `isCaptchaRequired`) + `TurnstileWidget` (`interaction-only`, theme/ngôn ngữ theo app, reset sau **mọi** submit vì token dùng 1 lần); `CAPTCHA_REQUIRED` → "Vui lòng xác minh captcha lại", không gắn field. **Key trống ⇒ không widget, không field** — prod chưa có `VITE_TURNSTILE_SITE_KEY` nên chưa chạy thật (xem §Runtime verification còn nợ). |
 | 2026-10-06 | **F10 · "Mua lại" trên `/order/:id`** (đơn `completed`/`canceled`; class **A**). `planReorder` đối chiếu sản phẩm *hiện tại* (`getMultipleWithInventory`): bỏ món đã xoá / ngừng bán / SKU đổi / hết hàng, kẹp số lượng theo tồn; `ReorderResultPanel` báo theo dòng; `/cart` chọn sẵn đúng các dòng vừa thêm (`initialCartSelection`). Mitigation vì `POST /cart` không kiểm tồn ⇒ BE inbox CART-STOCK-01. Deep `reorder.buyer` ✓. |
 | 2026-10-06 | **F9 "Mua ngay" + F11 "Sản phẩm khác của shop"** (class **A**). F9: add → tìm dòng giỏ bằng `findCartLine` (productId + skuId) → `/checkout` với `selectedIds`; `useCart` ghi thẳng giỏ trả về vào cache. F11: `ShopOtherProducts` chỉ fetch khi cuộn gần tới (IntersectionObserver, không đè LCP), bỏ SP đang xem, tối đa 6. Deep `buy-now.buyer` ✓; MCP nút 450×48 icon lệch 0, dải 6 SP không tràn ngang. |
-| 2026-10-06 | **PERF-FONT-01 + CHAT-LIST-CAP-01** (class **A**). Google Fonts CSS load `media=print` → `all` + `<noscript>`: render-blocking ~870 → 150 ms (chỉ còn CSS app), LHCI `/login` LCP median 3761 → **3545**, CLS 0, guard `fonts.test.ts`. Chat: list BE cắt 100 hội thoại ⇒ tin tới từ hội thoại không có trong cache sẽ invalidate list thay vì rơi mất (`hasConversation`). e2e 60 ✓ / 2 skip (data). |
 
 ## Active Tasks — open / blocked
 
@@ -184,14 +184,11 @@ hoặc tiptap nới peer range. Bối cảnh + bài học "đừng xoá lockfile
     **10/10 sạch** — mọi `/api/*` trả 200 **bắn đúng 1 lần**, 0 lỗi 503, 0 request websocket,
     console error+warn trống ở cả 10 trang. Non-200 duy nhất là `GET /health [net::ERR_ABORTED]`
     (artifact im lặng của probe).
-  - **Còn mở, không chặn:** tại sao mỗi read hỏng lại bắn **4** vòng trong khi `retry: 1` chỉ dự đoán
-    2 (mốc 0 / 2053 / 3070 / 5085 ms; thời lượng 48/9/9/9 ms nên **không** phải do response chậm kéo
-    dãn backoff). Giả thuyết chưa chứng minh: `<Suspense>` duy nhất nằm **trên** `FeedLayout`
-    (`router.tsx:48`) trong khi `FeedPage` lazy nằm **trong** nó, nên chunk suspend có thể quật cả
-    layout ra rồi mount lại → 2 mount × 2 attempt. Cái bẫy khi đi kiểm chứng: query *thành công* chỉ
-    bắn 1 lần vì `staleTime: 60s`, query *lỗi* refetch ngay khi mount lại — nên "read đã mock chỉ bắn
-    1 lần" **không** đủ để loại trừ double-mount. `retryQuery` che triệu chứng trong demo mode chứ
-    không trả lời câu hỏi; nếu giả thuyết đúng thì layout đang double-mount ở **cả** nhánh online.
+  - **Vòng 3 — câu hỏi "4 vòng thay vì 2" đã trả lời (2026-10-08), không phải double-mount.** 4 mốc
+    0 / 2053 / 3070 / 5085 ms = 2 attempt của query × 2 fetch mỗi attempt: `request()` gửi lại 503
+    không `Retry-After` một lần sau 2 s (SCALE-05) — 0→2053, rồi `retry: 1` sau 1 s → 3070, resend →
+    5085. Sửa: `request()` bỏ resend khi `isDemoMode()` (503 demo = backend nghỉ, không phải bị shed);
+    test trong `api/index.test.ts`. Giả thuyết `<Suspense>` quật layout là **sai** — đừng đi tìm nữa.
 
 - **OVERFETCH-01 (phần FE) — ĐÃ LÊN PROD 2026-08-21, verify bằng MCP.** Audit response GET
   (mục OVERFETCH-01 trong `../.agent-local/backend-handoff.md`) → BE đã cắt 6 field và thêm 3
@@ -475,21 +472,12 @@ npm run build && npx -y @lhci/cli@0.15.x autorun     # tự bật vite preview :
   - `web-vitals` gửi về endpoint BE: cần dep + endpoint mới.
 
   Cả hai phải hỏi user trước.
-- 🟢 **PERF-E2E-01 — Playwright perf spec cho route đăng nhập (hoãn có chủ đích, 2026-09-25).**
-  Hiện không có gì tự đo LCP/CLS của `/marketplace`, `/checkout`, `/order/:id`, `/sell`. LHCI chỉ
-  audit `/login` ở demo mode, `check:bundle` chỉ đo kích thước. Tạm thời dùng trace MCP ở bước 7c
-  của `/sweep`, nhưng cách đó chạy tay và không có pass/fail.
-  - Phạm vi:
-    - project `perf` trong `playwright.config.ts` chạy `npm run build && npm run preview` trên
-      `:4173` (webServer hiện là `npm run dev` `:5173`, số đo ở đó vô nghĩa);
-    - kiểm tra preview có proxy `/api` tới gateway không;
-    - `e2e/perf.buyer.spec.ts` đo LCP/CLS/long task qua `PerformanceObserver`, median 3 lượt,
-      ngưỡng rộng;
-    - `npm run test:perf`, rồi cho 7c dùng spec này thay trace MCP.
-  - Giới hạn: cần BE thật ⇒ không vào CI (giống e2e), số local dao động ⇒ chỉ bắt được regression
-    lớn.
-  - **Làm khi có item perf thật trên một route đăng nhập**, để spec có ngay before/after. Làm bây giờ
-    chỉ là dựng khung.
+- **Route đăng nhập có perf spec (PERF-E2E-01, 2026-10-08):** `npm run test:perf` chạy
+  `e2e/routes.perf.spec.ts` (project `perf`) trên `vite preview` `:4173` — LCP / CLS / blocking time
+  qua `PerformanceObserver`, median 3 lượt, ngưỡng rộng (4000 ms / 0.1 / 600 ms). Cần BE thật ⇒
+  không vào CI; bước 7c của `/sweep` dùng spec này thay trace MCP. **Baseline local 2026-10-08**
+  (LCP ms / CLS / blocking ms): `/marketplace` 936 / 0.031 / 0 · `/cart` 1620 / 0 / 0 · `/checkout`
+  988 / 0.046 / 0 · `/orders` 604 / 0.067 / 0 · `/order/:id` 1052 / 0.051 / 0 · `/sell` 572 / 0 / 0.
 
 > Ngoài tầm static scan (phải ĐO, không đoán): re-render thật → React DevTools Profiler; bundle
 > size → `check:bundle` (bên trong chunk → visualizer); LCP/CLS/INP → Lighthouse, hoặc trace MCP
@@ -518,15 +506,24 @@ Cần full-stack live (FE↔BE) và/hoặc 2 tài khoản; không repro được
 > waybill (`ready-to-ship` xong) thì mới đi tiếp được; mapping forward-only nên đã `completed`
 > hoặc `canceled` thì mọi status sau đó bị bỏ qua.
 
-- P0-03 / P0-04 / P0-05 — endpoint self-test happy-path + 409/idempotency.
-- Chat **reconnect** (ngắt mạng giữa chừng) — nhánh cuối của P1-06; phần E2E 2 tài khoản đã chạy
-  trên prod 2026-08-13 (user1 ↔ shop1, hai chiều, không reload).
+> ✅ **9 mục nợ cũ đã chạy thật trên stack local 2026-10-08** (`/sweep` "làm hết"; probe Playwright
+> dùng-một-lần, đã xoá; mọi đơn / SP / dòng giỏ tạo ra đều đã huỷ / xoá) — hết nợ:
+> P0-03 / P0-05 happy-path, P0-04 409 khi đang xử lý · chat **reconnect** (ngắt mạng giữa chừng) ·
+> upload UP-01 (500 giữa lô: giữ ảnh đã lên, báo lỗi, dừng ảnh sau) / UP-02 (huỷ avatar ⇒ `DELETE
+> /upload/media`) / UP-03 (xoá ảnh editor ⇒ `deleteMedia`) / UP-04 (.txt bị chặn, 0 lần xin chữ
+> ký) — **UP-06 không chạm được qua UI** (mọi route đều protected), chỉ có `uploadOwner.test.ts` ·
+> SEC-H2 >50 id ⇒ 400 · cart 404 stale/foreign · profile người khác chỉ trả
+> `id,username,name,avatar,isActive` (không email, không "Sửa hồ sơ") · `keepPreviousData` trang 2
+> `/marketplace` giữ 24 thẻ cũ, không skeleton · media cap 10 (lộ ra **IMG-CAP-01**, đã sửa) ·
+> **mobile** login → thêm giỏ → checkout → đặt COD trên 390px (lộ ra **MOBILE-OVERFLOW-01**, đã
+> sửa; COD thành công về `/orders` sau 3 s là đúng thiết kế). Đo tràn ngang bằng `clientWidth`,
+> **không** `innerWidth` — với `isMobile` layout viewport nở theo nội dung nên `innerWidth` luôn khớp.
 - ~~Trả hàng nhánh **từ chối**~~ — ✅ 2026-09-28 chạy thật local qua `seller-returns.shop.spec.ts`
   (và `return-request.buyer.spec.ts` dọn bằng reject); nhánh duyệt + hoàn tiền + trả tồn kho đã chạy full
   E2E trên prod 2026-08-13. **F3 voucher — đã verify runtime trên prod 2026-08-26** (admin: sửa /
   chặn siết / confirm nới / tắt-bật; buyer: gợi ý ở checkout, áp mã, tổng đúng) **và 2026-08-29**
-  (seller, xem gạch đầu dòng dưới — nhánh **tạo mã mới** giờ đã chạy thật). Còn nợ: nhánh **đặt đơn
-  thật có mã** (cố ý không đặt đơn trên prod). Dữ liệu prod cần
+  (seller, xem gạch đầu dòng dưới — nhánh **tạo mã mới** giờ đã chạy thật). Nhánh **đặt đơn
+  thật có mã** đã chạy trên **local** 2026-10-08 (đơn đã huỷ); trên prod vẫn cố ý không đặt đơn. Dữ liệu prod cần
   giữ: `TRYBUY10` đang **active** và guide có trích dẫn mã này — **đừng tắt**; `TRYBUY20K` đang
   **inactive** ⇒ bật để thử thì nhớ tắt lại ngay; `E2EPROD0806` có `usedCount` 1 — đây là mã duy
   nhất chạm được nhánh siết/nới, **đừng nới lỏng** (một chiều, không hoàn lại được).
@@ -566,12 +563,6 @@ Cần full-stack live (FE↔BE) và/hoặc 2 tài khoản; không repro được
 > **Không còn đúng từ 2026-09-16 (CONFIRM-UI-01):** luồng này nay đi qua `<ConfirmDialog>` — DOM
 > thật, MCP click nút "Đổi vai trò" bình thường. Không cần Playwright, không cần gọi thẳng `fetch`
 > nữa. Rào auto-suppress đó là **lý do chính** của luật cấm native dialog ở `core.md`.
-- Upload error path (UP-01/02/03/04/06) — không ép được file lỗi / fail giữa batch qua picker.
-- Batch >50 product id (SEC-H2) — cần 51 SP distinct trong cart.
-- Cart item stale/foreign 404 — cần forge foreign item id.
-- Public profile privacy · media cap 10 · `keepPreviousData` visual check.
-- **Mobile** — viewport emulation chưa hoàn tất lần nào (Vite dev process chết giữa chừng ở
-  audit 2026-06-30). Login → add cart → checkout → order trên mobile vẫn chưa verify.
 
 ## Pitfall đã trả giá
 

@@ -174,7 +174,8 @@ mà không rò sang tab khác hay session sau.
   khác về bản chất = đơn logic mới).
 - **Kết quả không rõ (SWEEP-1002-01):** sau `408` / `5xx` / mất mạng, BE **giữ key 300s** vì đơn
   có thể vẫn đã tạo; retry cùng key trong 300s nhận `409 "A duplicate order request is already being
-  processed"` (không có `errorCode` ⇒ khớp theo chữ), sau 300s có thể ra **đơn thứ hai**.
+  processed"` với `errorCode: "ORDER_REQUEST_IN_PROGRESS"` (đo local 2026-10-08; `isOrderOutcomeUnknown`
+  khớp `errorCode` trước, chữ chỉ là lưới dự phòng), sau 300s có thể ra **đơn thứ hai**.
   `isOrderOutcomeUnknown()` gom các ca này ⇒ `CheckoutPage` không hiện lỗi chung mà hiện cảnh báo +
   link `/orders`; lần submit sau phải qua `ConfirmDialog`, và chỉ confirm mới xoá `idemKeyRef` để
   sinh key mới. 4xx khác = từ chối chắc chắn (BE đã nhả key) ⇒ giữ đường lỗi cũ. Lưu ý: `request()`

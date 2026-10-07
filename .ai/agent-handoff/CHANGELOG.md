@@ -15,6 +15,40 @@
 
 ## Maintenance
 
+### `/sweep` 2026-10-08 ("làm hết"): IMG-CAP-01 · MOBILE-OVERFLOW-01 · PERF-E2E-01 · DEMO-RETRY-01 round 3 · runtime debt
+
+Class **A** for the whole tree. Nothing changes in the API contract. Gates: build ✓ · check:bundle 710,979 / 750,000 ✓ · lint 0 · **1765 tests / 195 files**. E2E for every touched route: 4 smoke suites plus `cart`, `reorder`, `product-detail`, `buy-now`, `product-form` and `mobile-layout`, **53 pass / 1 skip** (`BE-4`, skipped by design).
+
+- **IMG-CAP-01** (found while verifying "media cap 10" at runtime).
+  - Bug: `BasicInfoSection` used `MAX_IMAGES = 6` and called `slice` on the selection before `useProductForm.addImages` saw it. The backend allows 10 (`@ArrayMaxSize(10)`), so images 7–10 were dropped with no notice, and the UP-07 "Chỉ thêm được X/Y ảnh" message could never fire.
+  - Fix: the counter and add tile now use `MAX_PRODUCT_IMAGES`, and the whole selection goes to the hook.
+  - Test: `BasicInfoSection.test.tsx` (3 cases; fails on the old code).
+  - Runtime check: a mocked Cloudinary run shows 10 uploads, 10 thumbnails, the notice, and the add tile hidden.
+- **MOBILE-OVERFLOW-01** (found while verifying the mobile purchase flow). At 390 px the page was wider than the screen, so it panned sideways and a tap on "ĐẶT HÀNG" hit another element. Three causes:
+  - **Header:** needed 380 px. Below `sm` it now uses a 1.5rem logo, `gap-2` / `gap-1`, and `p-2` icon links (38 px, matching the bell). Desktop is unchanged.
+  - **`/cart`:** 560 px. **`/product/:id`:** 425 px. Both used a single-column `grid` with the implicit `auto` track, which grows to min-content: a `truncate` name or the thumbnail strip. Fixed with `grid-cols-1` (`minmax(0,1fr)`), as `CheckoutPage` already did. The thumbnail strip also gets `overflow-x-auto`.
+  - Guard: `e2e/mobile-layout.buyer.spec.ts` checks no overflow at 360 and 390 px on 6 routes, plus a tap from cart to checkout. It fails on the old code, and it is listed in `routes.ts` deep for `/cart` and `/product/:id`.
+  - Measurement trap: measure against `clientWidth`. With `isMobile`, `innerWidth` grows to fit the overflow, so `scrollWidth - innerWidth` reads 0 on exactly the broken pages.
+- **PERF-E2E-01.**
+  - New `e2e/routes.perf.spec.ts` plus a `perf` Playwright project on `vite preview` `:4173`, run with `npm run test:perf`.
+  - It reads LCP, CLS and blocking time through `PerformanceObserver` and judges the median of 3 runs.
+  - Baselines are in snapshot §Perf.
+- **DEMO-RETRY-01, round 3.** This answers why each failed demo read fired 4 times instead of 2. The 4 timestamps (0 / 2053 / 3070 / 5085 ms) are 2 query attempts × (send + the SCALE-05 resend 2 s later), not a layout double-mount.
+  - Fix: `request()` skips the resend when `isDemoMode()`.
+  - Test: in `api/index.test.ts`.
+- **Runtime debt paid** (local stack; every probe order, product and cart line was cleaned up):
+  - P0-03, P0-04 and P0-05.
+  - Chat reconnect.
+  - UP-01, UP-02, UP-03 and UP-04. UP-06 has unit tests only, because the UI cannot reach it.
+  - SEC-H2 >50 ids.
+  - Cart 404 for stale or foreign lines.
+  - Public profile privacy.
+  - `keepPreviousData`.
+  - Media cap.
+  - Mobile login → cart → checkout → COD order.
+  - A real voucher order (local only).
+- Docs: `.ai/context/domain.md` gained the `ORDER_REQUEST_IN_PROGRESS` errorCode.
+
 ### PRODUCT-QA-01 · Ask about this product (grounded AI Q&A) on `/product/:id` (2026-10-07, `/pair` with `api-b1`)
 
 Class **B**: a new route and a new `errorCode`, and no old response changes. **Push `api` first.** If the FE ships alone, every ask returns 404, and the box shows "Sản phẩm này không còn được bán" on a product that is for sale. Contract: `api/ai-docs/specs/PRODUCT-QA-01/contract.md`.
