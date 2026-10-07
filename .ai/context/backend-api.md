@@ -122,7 +122,7 @@ need it, you must change `request()`, not read it off the thrown error.
 | `422` | Validation failed | The `message: string[]` case above |
 | `429` | Rate limited | Countdown parsed **out of the message text** (`parseRetrySeconds`), not a header |
 | `502` | Gateway → upstream service failed | e.g. Cloudinary auth/quota on `DELETE /upload/media` |
-| `503` | Load-shed (SCALE-05) | `request()` **auto-retries once** after `Retry-After` (capped 5s, default 2s) |
+| `503` | Load-shed (SCALE-05) | `request()` **auto-retries once** after `Retry-After` (capped 5s, default 2s) — unless the call passes `skipOverloadRetry: true` (PRODUCT-QA-01 `/products/:id/ask`: its 503 `ASSISTANT_UNAVAILABLE` must not be resent, every resend spends a rate-limited ask) |
 
 A status outside this table renders the generic error card with no tips. `400` in particular is
 **not** mapped — it is the most common failure here (`limit > 100`, oversized batch, malformed

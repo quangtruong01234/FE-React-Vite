@@ -15,6 +15,38 @@
 
 ## Maintenance
 
+### PRODUCT-QA-01 · Ask about this product (grounded AI Q&A) on `/product/:id` (2026-10-07, `/pair` with `api-b1`)
+
+Class **B**: a new route and a new `errorCode`, and no old response changes. **Push `api` first.** If the FE ships alone, every ask returns 404, and the box shows "Sản phẩm này không còn được bán" on a product that is for sale. Contract: `api/ai-docs/specs/PRODUCT-QA-01/contract.md`.
+
+- **API.** `productsApi.askQuestion` POSTs `{question}` to `/products/:id/ask`. Its types are `ProductAnswer`/`ProductAnswerCitation` in `types/product.ts`.
+  - `request()` gained `skipOverloadRetry`. Without it, a 503 with no `Retry-After` is resent once after 2 s.
+  - The contract says `ASSISTANT_UNAVAILABLE` must not be retried: every resend spends one of the user's 5 asks per 60 s. The cost is that a real SCALE-05 gateway load-shed on this route is not retried either; the user sees "busy" and asks again.
+  - `.ai/context/backend-api.md` §503 notes the opt-out.
+- **Logic** in `features/product/productQuestion.ts`:
+  - Length: 3..300 characters after trim.
+  - `splitAnswer` turns `[n]` into cite parts. A marker with no matching citation stays as text.
+  - `askErrorKey` maps the errors: 429 → wait, 503 or `ASSISTANT_UNAVAILABLE` → busy, 404 → product gone, 400 → length hint, anything else → generic.
+- **UI** `ProductQuestionBox`, placed under the description:
+  - A guest gets a login link. This is a fallback only, because the route is already behind auth.
+  - The answer shows `<sup>[n]</sup>` markers, then the numbered sources with a Mô tả / Phân loại / Đánh giá badge, then the AI disclaimer.
+  - Abstain is a neutral Info line, not an alert.
+  - A11y from the review:
+    - Results render in an always-mounted `aria-live="polite"` region.
+    - The textarea is `readOnly` (not `disabled`) while pending.
+    - Focus returns to the textarea when the ask settles.
+- **Verified against the real API (local):**
+  - The answered case, with `[1]` and a PRODUCT citation.
+  - LOW_CONFIDENCE abstain.
+  - The 400 message.
+  - 404 "Product not found".
+  - 429 with no `Retry-After`. A 400 also counts toward the limit, as the contract says.
+  - No mismatch, so there is no `backend-handoff` entry.
+- **Tests:** `productQuestion.test.ts`, `ProductQuestionBox.test.tsx` (9 tests, MSW plus the real `request()`), and `products.test.ts` (503 ⇒ exactly 1 call).
+- **e2e:** the `/product/:id` smoke and the deep `product-detail.buyer` and `buy-now.buyer` specs pass. The Q&A flow has no e2e because it depends on the LLM and the rate limit; this is owed.
+- **Gate:** lint 0 errors, test:run 1761/194 ✓, build ✓, check:bundle 711,024 / 750,000.
+- **Follow-up, not done:** the code reviewer (M2) found the section header `mt-12 pt-8 border-t` + `h2 font-display font-black text-2xl` now repeated 4 times: `ProductDetail`, `ProductReviews`, `ShopOtherProducts`, `ProductQuestionBox`. It should be extracted into a `ProductSection`.
+
 ### `/sweep` 2026-10-06 ("làm hết 6 task"): CHAT-LIST-CAP-01 · F9 · F10 · F11 · PERF-FONT-01 · CAPTCHA-01
 
 Classes: CAPTCHA-01 **B** (optional request field the old BE ignores). The other five are **A**: no API change.

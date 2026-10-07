@@ -1,6 +1,6 @@
 # Snapshot — TryBuy Frontend Current State
 
-> Cập nhật: 2026-10-06 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
+> Cập nhật: 2026-10-07 · Phạm vi: frontend social + e-commerce (ưu tiên e-commerce).
 > Keep this LEAN: chỉ giữ bức tranh sống (overview, việc còn mở/bị chặn, known issues).
 > Việc đã xong nằm ở `CHANGELOG.md` (cùng thư mục, không auto-load) — **đừng chép lại vào đây**.
 > Convention/rule nằm ở `.ai/context/` — cũng không duplicate vào đây.
@@ -15,8 +15,8 @@ kể cả P0-03: nhánh create atomic BE-side từ INV-CONTRACT-01 (prod 2026-08
 Public-ID migration (PUBID-01–07) đã
 xong — storefront id là opaque string end-to-end.
 
-**Gates (chạy lại 2026-10-06, sau `/sweep` 6 task CHAT-LIST-CAP-01 · F9 · F10 · F11 · PERF-FONT-01 · CAPTCHA-01; bundle 708,391 / 750,000):** `npm run build` ✓ · `npm run check:bundle` ✓ ·
-`npm run lint` 0 error · `npm run test:run` **1739 test / 192 file**, all pass. Không đóng item
+**Gates (chạy lại 2026-10-07, sau PRODUCT-QA-01; bundle 711,024 / 750,000):** `npm run build` ✓ · `npm run check:bundle` ✓ ·
+`npm run lint` 0 error · `npm run test:run` **1761 test / 194 file**, all pass. Không đóng item
 nào khi 4 lệnh này chưa xanh. E2E smoke (không thuộc gate) **43/43 pass, 0 skip** trên stack local
 2026-10-05 (`/sweep audit`, gateway uptime không reset trong lượt chạy; dev server đang chạy sẵn — fail lạ thì khởi động lại trước, pitfalls §18).
 
@@ -54,11 +54,11 @@ mới tới doc.)*
 
 | Ngày | Item |
 |---|---|
+| 2026-10-07 | **PRODUCT-QA-01 · hỏi đáp sản phẩm bằng AI trên `/product/:id`** (`/pair` với `api-b1`, class **B**, **push `api` trước** — FE lên trước thì mọi câu hỏi ra 404 "sản phẩm không còn bán"). `ProductQuestionBox` (3..300 ký tự sau trim, marker `[n]` → `<sup>` + danh sách nguồn có badge, abstain `NO_SOURCES`/`LOW_CONFIDENCE` là trạng thái trung tính, live region + trả focus về textarea); `request()` có opt-out `skipOverloadRetry` để 503 `ASSISTANT_UNAVAILABLE` không bị gửi lại (mỗi lần gửi tốn 1 trong 5 lượt/phút). Đã đối chiếu API thật local: 200/abstain/400/404/429 khớp contract. Flow hỏi-đáp chưa có e2e (phụ thuộc LLM + rate limit) — còn nợ. |
 | 2026-10-06 | **CAPTCHA-01 · Turnstile trên đăng ký + quên mật khẩu** (class **B**: field `captchaToken` optional, BE cũ bỏ qua). `captcha.ts` (loader 1 lần, `withCaptchaToken`, `isCaptchaRequired`) + `TurnstileWidget` (`interaction-only`, theme/ngôn ngữ theo app, reset sau **mọi** submit vì token dùng 1 lần); `CAPTCHA_REQUIRED` → "Vui lòng xác minh captcha lại", không gắn field. **Key trống ⇒ không widget, không field** — prod chưa có `VITE_TURNSTILE_SITE_KEY` nên chưa chạy thật (xem §Runtime verification còn nợ). |
 | 2026-10-06 | **F10 · "Mua lại" trên `/order/:id`** (đơn `completed`/`canceled`; class **A**). `planReorder` đối chiếu sản phẩm *hiện tại* (`getMultipleWithInventory`): bỏ món đã xoá / ngừng bán / SKU đổi / hết hàng, kẹp số lượng theo tồn; `ReorderResultPanel` báo theo dòng; `/cart` chọn sẵn đúng các dòng vừa thêm (`initialCartSelection`). Mitigation vì `POST /cart` không kiểm tồn ⇒ BE inbox CART-STOCK-01. Deep `reorder.buyer` ✓. |
 | 2026-10-06 | **F9 "Mua ngay" + F11 "Sản phẩm khác của shop"** (class **A**). F9: add → tìm dòng giỏ bằng `findCartLine` (productId + skuId) → `/checkout` với `selectedIds`; `useCart` ghi thẳng giỏ trả về vào cache. F11: `ShopOtherProducts` chỉ fetch khi cuộn gần tới (IntersectionObserver, không đè LCP), bỏ SP đang xem, tối đa 6. Deep `buy-now.buyer` ✓; MCP nút 450×48 icon lệch 0, dải 6 SP không tràn ngang. |
 | 2026-10-06 | **PERF-FONT-01 + CHAT-LIST-CAP-01** (class **A**). Google Fonts CSS load `media=print` → `all` + `<noscript>`: render-blocking ~870 → 150 ms (chỉ còn CSS app), LHCI `/login` LCP median 3761 → **3545**, CLS 0, guard `fonts.test.ts`. Chat: list BE cắt 100 hội thoại ⇒ tin tới từ hội thoại không có trong cache sẽ invalidate list thay vì rơi mất (`hasConversation`). e2e 60 ✓ / 2 skip (data). |
-| 2026-10-05 | **Audit fix batch: A11Y-NAME-01 · ICONBTN-01 · ICON-CONTAINER-01 · ICON-SHRINK-01 · PERF-LCP-02** (class **A**). Icon-only buttons named; `StarRating` is an img (read-only) or named, pressed buttons (editable); raw icon buttons are `IconButton`; containers use `size-* grid`; 56 icons have `shrink-0`. Guards: `lucideIcons.test.ts`, plus the `socket.test.ts` import guard. `socket.io-client` is lazy ⇒ entry 165,935 → 152,713 B gzip, LHCI `/login` LCP median 3876 (pass). e2e 90 ✓ / 3 skip; MCP all named and centred. |
 
 ## Active Tasks — open / blocked
 
