@@ -130,7 +130,7 @@ export default function CartPage(): ReactElement {
 
       <div className="max-w-[1080px] mx-auto px-6 py-8">
         {isLoading ? (
-          <div className="grid lg:grid-cols-[1fr_320px] gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
             <div className="flex flex-col gap-3">
               {[1, 2, 3].map(i => (
                 <Skeleton key={i} className="h-28 w-full rounded-xl bg-canvas-elevated" />
@@ -153,7 +153,7 @@ export default function CartPage(): ReactElement {
             </button>
           </div>
         ) : (
-          <div className="grid lg:grid-cols-[1fr_320px] gap-6 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
             {/* Left — item list */}
             <div className="flex flex-col gap-3">
               {/* Select-all bar */}

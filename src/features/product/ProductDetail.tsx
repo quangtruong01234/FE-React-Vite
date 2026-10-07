@@ -221,7 +221,7 @@ export default function ProductDetail(): ReactElement {
         </div>
 
         {/* Two-column grid */}
-        <div className="grid lg:grid-cols-[1.15fr_1fr] gap-12 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-12 items-start">
 
           {/* Col 1 — Gallery */}
           <div>
@@ -240,7 +240,7 @@ export default function ProductDetail(): ReactElement {
               )}
             </div>
             {gallery.length > 1 && (
-              <div className="flex gap-2.5 mt-3.5">
+              <div className="flex gap-2.5 mt-3.5 overflow-x-auto">
                 {gallery.map((src, i) => (
                   <button
                     key={i}

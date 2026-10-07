@@ -26,16 +26,16 @@ export function Header(): ReactElement {
   // modal overlay (`ui/dialog`, `ui/sheet` are `z-50`) so a dialog dims the header too.
   return (
     <header className="sticky top-0 z-[45] bg-tb-surface/85 border-b border-bdr backdrop-blur-md">
-      <div className="w-full px-4 sm:px-6 py-4 flex items-center gap-3 sm:gap-5">
+      <div className="w-full px-4 sm:px-6 py-4 flex items-center gap-2 sm:gap-5">
         <Link to="/" className="flex-none">
-          <span className="font-display font-black text-[2rem] tracking-tight uppercase text-ink-pri">
+          <span className="font-display font-black text-[1.5rem] sm:text-[2rem] tracking-tight uppercase text-ink-pri">
             Try<span className="bg-tb-gradient-90 bg-clip-text text-transparent">Buy</span>
           </span>
         </Link>
 
         <HeaderSearch />
 
-        <div className="flex items-center gap-2 sm:gap-3 ml-auto">
+        <div className="flex items-center gap-1 sm:gap-3 ml-auto">
           <GradientButton
             size="sm"
             className="rounded-full px-3 sm:px-4 py-2 text-sm"
@@ -52,7 +52,7 @@ export function Header(): ReactElement {
               <Link
                 to={item.to}
                 aria-label={t(item.labelKey)}
-                className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-tb-input p-2.5 grid place-items-center hover:border-accent-amber transition-colors overflow-visible"
+                className="relative bg-canvas-elevated border border-bdr text-ink-pri rounded-tb-input p-2 sm:p-2.5 grid place-items-center hover:border-accent-amber transition-colors overflow-visible"
               >
                 <item.icon size={20} className="shrink-0" />
                 {item.to === '/cart' && totalCount > 0 && (

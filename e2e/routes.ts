@@ -29,8 +29,8 @@ export const ROUTES: RouteEntry[] = [
   { pattern: '/post/:id', roles: ['buyer'], param: 'post', deep: ['post-detail.buyer.spec.ts'] },
   { pattern: '/marketplace', roles: ['buyer'], deep: ['auth-session-swap.buyer.spec.ts'] },
   { pattern: '/wishlist', roles: ['buyer'], deep: ['product-detail.buyer.spec.ts'] },
-  { pattern: '/product/:id', roles: ['buyer'], param: 'product', deep: ['product-detail.buyer.spec.ts', 'buy-now.buyer.spec.ts'] },
-  { pattern: '/cart', roles: ['buyer'], deep: ['cart.buyer.spec.ts', 'reorder.buyer.spec.ts'] },
+  { pattern: '/product/:id', roles: ['buyer'], param: 'product', deep: ['product-detail.buyer.spec.ts', 'buy-now.buyer.spec.ts', 'mobile-layout.buyer.spec.ts'] },
+  { pattern: '/cart', roles: ['buyer'], deep: ['cart.buyer.spec.ts', 'reorder.buyer.spec.ts', 'mobile-layout.buyer.spec.ts'] },
   {
     pattern: '/checkout',
     roles: ['buyer'],
