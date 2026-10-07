@@ -13,12 +13,11 @@ import { mergeLocalOptions } from './localOptions';
 import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
 import { uploadProductImage } from '@/lib/http/cloudinary';
 import { cldImage } from '@/lib/http/cloudinaryUrl';
+import { MAX_PRODUCT_IMAGES } from '@/lib/http/uploadValidation';
 import { useLanguage } from '@/context/useLanguage';
 import { useT } from '@/hooks/ui/useT';
 import type { MessageKey } from '@/lib/i18n/messages';
 import { productFormMessages } from './productForm.i18n';
-
-const MAX_IMAGES = 6;
 
 const CONDITION_OPTIONS: { value: ProductCondition; label: MessageKey<typeof productFormMessages> }[] = [
   { value: 'new', label: 'condNew' },
@@ -198,10 +197,10 @@ export function BasicInfoSection({
   function handleFileChange(e: ChangeEvent<HTMLInputElement>): void {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
-    const available = MAX_IMAGES - images.length;
-    const toUpload = files.slice(0, available);
-    if (!toUpload.length) return;
-    void onAddImages(toUpload, userId);
+    // Hand over the whole selection: `addImages` caps it at MAX_PRODUCT_IMAGES and
+    // says what it dropped (UP-07). Slicing here first dropped files silently —
+    // and at 6, under the backend's real limit of 10.
+    void onAddImages(files, userId);
     if (imageInputRef.current) imageInputRef.current.value = '';
   }
 
@@ -226,7 +225,7 @@ export function BasicInfoSection({
             {t('sectionImages')}
           </h2>
           <span className="ml-auto text-xs text-ink-muted font-body">
-            {images.length}/{MAX_IMAGES}
+            {images.length}/{MAX_PRODUCT_IMAGES}
           </span>
         </div>
 
@@ -256,7 +255,7 @@ export function BasicInfoSection({
               </div>
             ))}
 
-            {images.length < MAX_IMAGES && (
+            {images.length < MAX_PRODUCT_IMAGES && (
               <button
                 type="button"
                 disabled={uploadState.active}
