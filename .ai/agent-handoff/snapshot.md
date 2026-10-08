@@ -54,11 +54,11 @@ mới tới doc.)*
 
 | Ngày | Item |
 |---|---|
+| 2026-10-08 | **F32 · CAPTCHA-01 chạy thật — nút gửi chờ token Turnstile** (class **A**). BE enforce từ 2026-10-06 và prod có `VITE_TURNSTILE_SITE_KEY` từ 2026-10-06T13:11Z ⇒ thiếu token **luôn** là 400 `CAPTCHA_REQUIRED` (fail-open của BE chỉ phủ lúc siteverify sập, không phủ client không có token — giả định cũ "script lỗi ⇒ gửi không token" là sai). `captchaBlocksSubmit` khoá nút "Đăng ký ngay →", "Gửi mã xác nhận →" và "Gửi lại mã" tới khi có token; `TurnstileWidget` hiện "Đang xác minh…" lúc chờ, và khi challenge/script lỗi thì hiện câu báo + nút **"Thử lại"** (tải lại script, render lại widget) thay vì nút chết. Key trống (test/local) ⇒ không khoá gì. Smoke + deep `/login` ✓. |
 | 2026-10-08 | **CHECKOUT-INACTIVE-01 · dòng sản phẩm ngừng bán trên `/checkout`** (BE giờ 400 `Product <prod_…> is not available` cho dòng SKU của SP bị tắt, không errorCode; class **A** phía FE). `findInactiveLines` gắn cờ dòng `isActive === false` ngay khi load + khoá nút đặt hàng; `unavailableProductId` bóc id từ message ⇒ create 400 và voucher validate 400 ra câu VI/EN "Có sản phẩm trong đơn đã ngừng bán…" (không lộ `prod_`, không đổ lỗi cho mã giảm giá), gắn cờ dòng + invalidate `products.cartItems`. Smoke + deep `/checkout` ✓, MCP ✓ (stub, không tạo đơn thật). |
 | 2026-10-08 | **CART-STOCK-01 · báo lỗi khi `POST /cart` trả 409** (`PRODUCT_INACTIVE` / `OUT_OF_STOCK` / `QUANTITY_EXCEEDS_STOCK`; class **A** phía FE, đúng với cả BE cũ lẫn mới). `features/cart/addToCartError.ts` map mã → câu VI/EN (số "Chỉ còn N… giỏ đã có M" bóc từ message); PDP "Thêm vào giỏ" + "Mua ngay" và ProductChip trên feed giờ hiện dòng lỗi thay vì rollback im lặng; `useAddToCart` invalidate sản phẩm khi bị từ chối; "Mua lại" ghi đúng lý do bỏ qua. Sửa luôn bug "Mua ngay" dùng `instanceof Error` nên lỗi API luôn ra câu chung. Deep + smoke 3 route ✓, MCP ✓. |
 | 2026-10-08 | **`/sweep` "làm hết" — IMG-CAP-01 · MOBILE-OVERFLOW-01 · PERF-E2E-01 · DEMO-RETRY-01 vòng 3 + trả 9 nợ runtime** (class **A**). IMG-CAP-01: form SP cắt ảnh ở **6** (BE cho 10) và cắt *trước* khi tới `capImageBatch` ⇒ ảnh 7–10 rơi im lặng; giờ đếm theo `MAX_PRODUCT_IMAGES`, cả lô vào hook. MOBILE-OVERFLOW-01: header 380px/390px, `/cart` 560px, `/product/:id` 425px trên điện thoại ⇒ trang trượt ngang, tap "ĐẶT HÀNG" trúng phần tử khác; sửa `grid-cols-1` + dải thumbnail `overflow-x-auto` + header gọn dưới `sm`, khoá bằng `mobile-layout.buyer` (360 + 390). PERF-E2E-01: project `perf` + `npm run test:perf`. DEMO-RETRY-01: `request()` không gửi lại 503 khi demo mode. |
 | 2026-10-07 | **PRODUCT-QA-01 · hỏi đáp sản phẩm bằng AI trên `/product/:id`** (`/pair` với `api-b1`, class **B**, **push `api` trước** — FE lên trước thì mọi câu hỏi ra 404 "sản phẩm không còn bán"). `ProductQuestionBox` (3..300 ký tự sau trim, marker `[n]` → `<sup>` + danh sách nguồn có badge, abstain `NO_SOURCES`/`LOW_CONFIDENCE` là trạng thái trung tính, live region + trả focus về textarea); `request()` có opt-out `skipOverloadRetry` để 503 `ASSISTANT_UNAVAILABLE` không bị gửi lại (mỗi lần gửi tốn 1 trong 5 lượt/phút). Đã đối chiếu API thật local: 200/abstain/400/404/429 khớp contract. Flow hỏi-đáp chưa có e2e (phụ thuộc LLM + rate limit) — còn nợ. |
-| 2026-10-06 | **CAPTCHA-01 · Turnstile trên đăng ký + quên mật khẩu** (class **B**: field `captchaToken` optional, BE cũ bỏ qua). `captcha.ts` (loader 1 lần, `withCaptchaToken`, `isCaptchaRequired`) + `TurnstileWidget` (`interaction-only`, theme/ngôn ngữ theo app, reset sau **mọi** submit vì token dùng 1 lần); `CAPTCHA_REQUIRED` → "Vui lòng xác minh captcha lại", không gắn field. **Key trống ⇒ không widget, không field** — prod chưa có `VITE_TURNSTILE_SITE_KEY` nên chưa chạy thật (xem §Runtime verification còn nợ). |
 
 ## Active Tasks — open / blocked
 
@@ -487,14 +487,7 @@ npm run build && npx -y @lhci/cli@0.15.x autorun     # tự bật vite preview :
 
 Cần full-stack live (FE↔BE) và/hoặc 2 tài khoản; không repro được qua UI thường:
 
-- ⏸ **CAPTCHA-01 — key đã có, chờ push FE; chưa chạy widget thật lần nào** (2026-10-06). **Cập nhật 13:11Z:** user đã tạo widget và set `VITE_TURNSTILE_SITE_KEY` ở Environment `production` (bước 1 + nửa bước 3 xong); đã báo BE ở `backend-handoff.md` → CAPTCHA-01 (BE được set secret shadow mode, **chưa** được enforce). Code FE xong và có
-  test, nhưng mọi môi trường đang để `VITE_TURNSTILE_SITE_KEY` trống ⇒ không render widget, không gửi field.
-  Còn lại, theo thứ tự rollout của BE: (1) user tạo site Turnstile trên Cloudflare (free) → site key
-  public + secret; (2) BE set `TURNSTILE_SECRET_KEY` (shadow mode); (3) user set
-  `VITE_TURNSTILE_SITE_KEY` ở GitHub Environment `production` (biến `vars`, không phải secret) rồi push
-  FE; (4) MCP: widget hiện / tự qua ở form đăng ký + quên mật khẩu (cùng route `/login`), body có `captchaToken`, submit
-  lần 2 vẫn ok (đã reset); (5) **FE báo BE** trong `backend-handoff.md` rồi BE mới bật
-  `CAPTCHA_ENFORCE=true`. Bật (5) trước (3) ⇒ mọi đăng ký 400. Test key local: `1x00000000000000000000AA`.
+- ✅ **CAPTCHA-01 — đã chạy thật trên prod** (cập nhật 2026-10-08). Đủ cả 5 bước rollout: `VITE_TURNSTILE_SITE_KEY` set ở Environment `production` 2026-10-06T13:11Z, FE deploy sau đó, BE bật `CAPTCHA_ENFORCE` 2026-10-06. User tự chạy hết luồng quên mật khẩu trên prod trong trình duyệt của mình 2026-10-08 (prod-route-test 7.2 ✅). Lỗi F32 tìm ra lúc đó đã sửa (xem Recent closes). **Vẫn chỉ test tay:** Turnstile luôn fail trong Chrome do MCP điều khiển ("Xác minh thất bại"), nên agent không verify được form đăng ký / quên mật khẩu với widget thật. Đừng bypass. Test key local: `1x00000000000000000000AA` (luôn qua).
 
 > ✅ **BATCH-0811 đã verify đủ 6/6 trên prod 2026-08-13** — không còn nợ mục nào.
 >

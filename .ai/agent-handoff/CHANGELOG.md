@@ -15,6 +15,25 @@
 
 ## Maintenance
 
+### 2026-10-08: F32 — register / forgot-password wait for a Turnstile token
+
+Class **A**: no API change. Found by the prod route test (`../.agent-local/prod-route-test-2026-10-08.md` F32). CAPTCHA-01 is fully live: BE enforce since 2026-10-06, and the prod site key has been set since 2026-10-06T13:11Z. Under enforce, a missing token is **always** a 400 `CAPTCHA_REQUIRED`. The BE fail-open covers only Cloudflare siteverify being down. It never covers a client that has no token. So the CAPTCHA-01 note "script fails ⇒ submit without a token, BE fails open" was wrong.
+
+- `captcha.ts` → `captchaBlocksSubmit(siteKey, token)` returns true only when a key is set and there is no token. With no key there is no widget, so nothing is blocked; that covers tests, local and e2e.
+- **Gated buttons:**
+  - `RegisterForm` "Đăng ký ngay →".
+  - `ForgotPasswordForm` "Gửi mã xác nhận →" and "Gửi lại mã". Both post forgot-password.
+- **`TurnstileWidget` statuses:** `waiting | ready | failed`.
+  - **Waiting:** a muted `role="status"` line "Đang xác minh bạn không phải robot…" explains the disabled button.
+  - **Failed** (`error-callback` or the script failed to load): a `role="alert"` line asks the user to turn off any ad blocker, with a **"Thử lại"** button. "Thử lại" bumps an `attempt` effect dep, which removes the widget, reloads the script (`loadTurnstile` already drops its cached promise on failure) and renders the widget again. Before, a failure left a dead button with no way out.
+- **Tests:**
+  - `captcha.test.ts`: +3.
+  - `TurnstileWidget.test.tsx`: +3 (waiting hint, error → retry re-renders, script-load error → retry re-injects).
+  - New `LoginPage.captcha.test.tsx`: +2. It mocks `TURNSTILE_SITE_KEY` and checks that both buttons are disabled until the fake widget issues a token, and that the forgot body carries `captchaToken`.
+- **Gates:** build ✓ · check:bundle 712,976 / 750,000 ✓ · lint 0 · **1805 tests / 201 files**.
+- **E2E:** `/login` smoke + deep (`auth.setup`, `theme-persist`, `lang-persist`) ✓.
+- **Not verifiable by the agent:** Turnstile always fails in MCP-controlled Chrome, so the real widget stays manual-only. No new BE gap.
+
 ### `/sweep` 2026-10-08: CHECKOUT-INACTIVE-01 — flag a deactivated line on `/checkout`
 
 Class **A** on the FE side. Against the old BE, an active SKU on a deactivated product never 400'd, and `isActive: false` lines are now flagged either way. Against the new BE (live on prod since 2026-10-08), the 400 is mapped. No contract change, no new BE gap. Gates: build ✓ · check:bundle 712,796 / 750,000 ✓ · lint 0 · **1797 tests / 200 files**.
