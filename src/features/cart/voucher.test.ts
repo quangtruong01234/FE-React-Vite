@@ -128,6 +128,15 @@ describe('voucherErrorMessage', () => {
     );
   });
 
+  it('blames the basket, not the code, when a line is deactivated (CHECKOUT-INACTIVE-01)', () => {
+    expect(voucherErrorMessage(err(400, 'Product prod_aB12 is not available'))).toBe(
+      'Có sản phẩm trong đơn đã ngừng bán. Bỏ sản phẩm đó khỏi đơn rồi thử lại.',
+    );
+    expect(voucherErrorMessage(err(400, 'Product prod_aB12 is not available'), 'en')).toBe(
+      'An item in this order is no longer sold. Remove it and try again.',
+    );
+  });
+
   it('maps legacy code-less 400 reasons to Vietnamese', () => {
     expect(voucherErrorMessage(err(400, 'Voucher expired'))).toBe('Mã giảm giá đã hết hạn.');
     expect(voucherErrorMessage(err(400, 'Voucher not started yet'))).toBe(

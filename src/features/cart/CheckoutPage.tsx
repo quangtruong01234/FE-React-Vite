@@ -31,7 +31,12 @@ import {
 import { effectiveUnitPrice, buildShippingFeeItems } from "./shippingFee";
 import { isGhnAddressRefusal, shippingFeeFailure } from "./shippingFeeError";
 import { checkoutSubmitErrorMessage } from "./checkoutSubmitError";
-import { buildOrderItems, findStockShortages } from "./checkoutItems";
+import {
+  buildOrderItems,
+  findInactiveLines,
+  findStockShortages,
+  unavailableProductId,
+} from "./checkoutItems";
 import { canIncreaseCartLine } from "./cartQuantity";
 import {
   normalizeVoucherCode,
@@ -122,6 +127,19 @@ export default function CheckoutPage(): ReactElement {
 
   const productMap = new Map<string, ProductWithInventory>();
   productsData?.forEach((product) => productMap.set(product.id, product));
+
+  // CHECKOUT-INACTIVE-01: a deactivated product stays in the cart, but checkout
+  // refuses the whole order over it — flag the line from the moment it loads.
+  const lineErrors = { ...findInactiveLines(items, productMap, lang), ...stockError };
+
+  // The product was deactivated after this page loaded: mark the line now and
+  // refetch, so the flag survives the next stock check too.
+  function flagUnavailableLine(error: unknown): void {
+    const productId = unavailableProductId(error);
+    if (!productId) return;
+    setStockError((prev) => ({ ...prev, [productId]: t("productUnavailable") }));
+    void queryClient.invalidateQueries({ queryKey: queryKeys.products.cartItems(productIds) });
+  }
 
   // Item payloads carry the product name, so anything priced against the basket
   // (shipping fee, voucher suggestions) has to wait for the product query.
@@ -227,6 +245,7 @@ export default function CheckoutPage(): ReactElement {
         ...voucherValidateCodes(codes),
         items: buildOrderItems(items, productMap),
       }),
+    onError: flagUnavailableLine,
   });
 
   // A validated discount is priced against the exact basket contents — one
@@ -446,6 +465,7 @@ export default function CheckoutPage(): ReactElement {
     } catch (err: unknown) {
       // GHN-CREATE-01: create can now answer 400 for an undeliverable address —
       // show the buyer the same wording as the fee banner, not GHN's raw English.
+      flagUnavailableLine(err);
       setError("root", { message: checkoutSubmitErrorMessage(err, lang) });
     }
   }
@@ -683,7 +703,7 @@ export default function CheckoutPage(): ReactElement {
                   key={item.id}
                   className={cn(
                     "px-4 py-3 border-b border-bdr last:border-b-0",
-                    stockError[item.productId] && "bg-tb-red/10",
+                    lineErrors[item.productId] && "bg-tb-red/10",
                   )}
                 >
                   <div className="flex flex-wrap items-center gap-3">
@@ -750,9 +770,9 @@ export default function CheckoutPage(): ReactElement {
                       </span>
                     </div>
                   </div>
-                  {stockError[item.productId] && (
+                  {lineErrors[item.productId] && (
                     <p className="text-xs text-accent-red mt-1.5 mb-0 ml-[68px]">
-                      ⚠ {stockError[item.productId]}
+                      ⚠ {lineErrors[item.productId]}
                     </p>
                   )}
                 </div>
@@ -960,7 +980,7 @@ export default function CheckoutPage(): ReactElement {
                 productsError ||
                 !selectedAddress ||
                 addressRejected ||
-                Object.keys(stockError).length > 0
+                Object.keys(lineErrors).length > 0
               }
               className="w-full py-4 text-lg font-bold rounded-xl"
             >

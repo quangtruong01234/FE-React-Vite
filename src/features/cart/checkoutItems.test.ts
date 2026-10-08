@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import type { ProductWithInventory } from '@/types';
-import { buildOrderItems, cartLineName, findStockShortages } from './checkoutItems';
+import {
+  buildOrderItems,
+  cartLineName,
+  findInactiveLines,
+  findStockShortages,
+  unavailableProductId,
+} from './checkoutItems';
 
 function product(
   partial: Partial<ProductWithInventory> & { id: string },
@@ -103,6 +109,70 @@ describe('findStockShortages', () => {
   it('treats a product missing from the fresh fetch as 0 available', () => {
     expect(findStockShortages([{ productId: 'prod_99', skuId: null, quantity: 1 }], [])).toEqual({
       prod_99: 'Chỉ còn 0 sản phẩm',
+    });
+  });
+});
+
+describe('unavailableProductId (CHECKOUT-INACTIVE-01)', () => {
+  it('reads the product id out of the 400 message', () => {
+    expect(
+      unavailableProductId({ statusCode: 400, status: 400, message: 'Product prod_aB12 is not available' }),
+    ).toBe('prod_aB12');
+  });
+
+  it('ignores every other failure', () => {
+    for (const error of [
+      { statusCode: 400, message: 'Insufficient stock for product prod_x' },
+      { statusCode: 400, message: 'Product 42 is not available' },
+      { statusCode: 400 },
+      { message: 42 },
+      null,
+      'Product prod_x is not available',
+    ]) {
+      expect(unavailableProductId(error)).toBeNull();
+    }
+  });
+});
+
+describe('findInactiveLines (CHECKOUT-INACTIVE-01)', () => {
+  const map = new Map<string, ProductWithInventory>([
+    ['prod_off', product({ id: 'prod_off', isActive: false })],
+    ['prod_on', product({ id: 'prod_on', isActive: true })],
+    ['prod_legacy', product({ id: 'prod_legacy' })],
+  ]);
+
+  it('flags only lines whose product is explicitly deactivated', () => {
+    const lines = ['prod_off', 'prod_on', 'prod_legacy', 'prod_missing'].map((productId) => ({
+      productId,
+      quantity: 1,
+    }));
+    expect(findInactiveLines(lines, map)).toEqual({
+      prod_off: 'Sản phẩm đã ngừng bán — bỏ khỏi đơn để đặt hàng',
+    });
+  });
+
+  it('words the flag in English', () => {
+    expect(findInactiveLines([{ productId: 'prod_off', quantity: 1 }], map, 'en')).toEqual({
+      prod_off: 'No longer sold — remove it from the order to continue',
+    });
+  });
+
+  it('wins over a stock shortage in the pre-submit check', () => {
+    const products = [
+      product({ id: 'prod_off', isActive: false, inventory: { availableStock: 0 } as ProductWithInventory['inventory'] }),
+      product({ id: 'prod_1', inventory: { availableStock: 1 } as ProductWithInventory['inventory'] }),
+    ];
+    expect(
+      findStockShortages(
+        [
+          { productId: 'prod_off', skuId: null, quantity: 5 },
+          { productId: 'prod_1', skuId: null, quantity: 2 },
+        ],
+        products,
+      ),
+    ).toEqual({
+      prod_off: 'Sản phẩm đã ngừng bán — bỏ khỏi đơn để đặt hàng',
+      prod_1: 'Chỉ còn 1 sản phẩm',
     });
   });
 });

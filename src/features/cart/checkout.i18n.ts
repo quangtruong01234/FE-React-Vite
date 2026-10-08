@@ -54,6 +54,8 @@ export const checkoutMessages = defineMessages({
     nameLoadFailed: 'Chưa tải được tên sản phẩm',
     productGone: 'Sản phẩm không còn tồn tại',
     onlyLeft: 'Chỉ còn {count} sản phẩm',
+    productUnavailable: 'Sản phẩm đã ngừng bán — bỏ khỏi đơn để đặt hàng',
+    orderItemUnavailable: 'Có sản phẩm trong đơn đã ngừng bán. Bỏ sản phẩm đó khỏi đơn rồi thử lại.',
     paymentRequired: 'Chọn phương thức thanh toán',
     orderFailed: 'Đặt hàng thất bại. Vui lòng thử lại.',
     // CheckoutPage
@@ -156,6 +158,8 @@ export const checkoutMessages = defineMessages({
     nameLoadFailed: "Couldn't load the product name",
     productGone: 'This product no longer exists',
     onlyLeft: ({ count }) => `Only ${count} ${plural(Number(count), 'item', 'items')} left`,
+    productUnavailable: 'No longer sold — remove it from the order to continue',
+    orderItemUnavailable: 'An item in this order is no longer sold. Remove it and try again.',
     paymentRequired: 'Choose a payment method',
     orderFailed: 'Could not place the order. Please try again.',
     addressRequired: 'Please choose a delivery address.',

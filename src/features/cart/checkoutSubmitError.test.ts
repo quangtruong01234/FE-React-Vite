@@ -29,6 +29,15 @@ describe('checkoutSubmitErrorMessage', () => {
     expect(text).toContain('district 999999');
   });
 
+  it('names a deactivated line without leaking its prod_ id (CHECKOUT-INACTIVE-01)', () => {
+    expect(
+      checkoutSubmitErrorMessage({ statusCode: 400, status: 400, message: 'Product prod_aB12 is not available' }),
+    ).toBe('Có sản phẩm trong đơn đã ngừng bán. Bỏ sản phẩm đó khỏi đơn rồi thử lại.');
+    expect(
+      checkoutSubmitErrorMessage({ statusCode: 400, status: 400, message: 'Product prod_aB12 is not available' }, 'en'),
+    ).toBe('An item in this order is no longer sold. Remove it and try again.');
+  });
+
   it('passes any other backend message through unchanged', () => {
     // Stock shortages, voucher problems, idempotency conflicts — the backend
     // text is already the actionable one, and none of them is an address issue.

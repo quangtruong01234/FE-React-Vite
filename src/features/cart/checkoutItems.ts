@@ -48,12 +48,46 @@ export function cartLineName(
   return translate(checkoutMessages, lang, lookupFailed ? 'nameLoadFailed' : 'productGone');
 }
 
+const UNAVAILABLE_PRODUCT = /\bProduct (prod_[A-Za-z0-9]+) is not available\b/;
+
+/**
+ * CHECKOUT-INACTIVE-01: the product a checkout or voucher call refused because
+ * the seller deactivated it. The 400 carries no errorCode — only the message
+ * "Product <prod_…> is not available" names the line.
+ */
+export function unavailableProductId(error: unknown): string | null {
+  if (!error || typeof error !== 'object') return null;
+  const { message } = error as { message?: unknown };
+  if (typeof message !== 'string') return null;
+  return UNAVAILABLE_PRODUCT.exec(message)?.[1] ?? null;
+}
+
+/**
+ * Lines whose product is deactivated. The cart keeps them, but checkout, the
+ * voucher check and the voucher list all refuse the whole basket over one — so
+ * the buyer has to see which line to drop before pressing the button.
+ */
+export function findInactiveLines(
+  lines: CheckoutCartLine[],
+  productMap: Map<string, ProductWithInventory>,
+  lang: Lang = 'vi',
+): Record<string, string> {
+  const inactive: Record<string, string> = {};
+  for (const line of lines) {
+    if (productMap.get(line.productId)?.isActive === false) {
+      inactive[line.productId] = translate(checkoutMessages, lang, 'productUnavailable');
+    }
+  }
+  return inactive;
+}
+
 /**
  * Pre-submit stock check: per product, the user-facing shortage message when a
  * line asks for more than is available. Availability comes from the matched
  * SKU's `stockQuantity` when the line carries a `skuId` (and the product has
  * SKUs), otherwise from shop-level `inventory.availableStock`. A product
- * missing from the fresh fetch counts as 0 available.
+ * missing from the fresh fetch counts as 0 available; a deactivated one is
+ * reported as such, whatever its stock.
  */
 export function findStockShortages(
   lines: CheckoutCartLine[],
@@ -63,8 +97,9 @@ export function findStockShortages(
   const byId = new Map<string, ProductWithInventory>();
   for (const product of products) byId.set(product.id, product);
 
-  const shortages: Record<string, string> = {};
+  const shortages: Record<string, string> = findInactiveLines(lines, byId, lang);
   for (const line of lines) {
+    if (shortages[line.productId]) continue;
     const product = byId.get(line.productId);
     let available = 0;
     if (line.skuId != null && product?.skus?.length) {

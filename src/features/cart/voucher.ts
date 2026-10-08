@@ -2,6 +2,7 @@ import type { ApiError, VoucherScope, VoucherValidation, ValidatedVoucher } from
 import type { Lang } from '@/lib/i18n/lang';
 import { bindTranslator } from '@/lib/i18n/messages';
 import { checkoutMessages } from './checkout.i18n';
+import { unavailableProductId } from './checkoutItems';
 
 /**
  * Pure helpers for the checkout voucher flow (F3).
@@ -114,6 +115,8 @@ export function voucherErrorMessage(error: unknown, lang: Lang = 'vi'): string {
   const message = typeof err?.message === 'string' ? err.message.trim() : '';
   const code = CODE_IN_MESSAGE.exec(message)?.[1];
   const subject = code ? t('voucherSubjectCode', { code }) : t('voucherSubjectGeneric');
+  // CHECKOUT-INACTIVE-01: the basket is at fault, not the code.
+  if (unavailableProductId(error)) return t('orderItemUnavailable');
   if (status === 404) return t('voucherNotFound', { subject });
   if (status === 400 || status === 409) {
     const m = (code ? message.split(code).join('') : message).toLowerCase();

@@ -1,6 +1,7 @@
 import type { Lang } from '@/lib/i18n/lang';
 import { translate } from '@/lib/i18n/messages';
 import { checkoutMessages } from './checkout.i18n';
+import { unavailableProductId } from './checkoutItems';
 import { isGhnAddressRefusal, shippingFeeFailure } from './shippingFeeError';
 
 /**
@@ -19,6 +20,8 @@ import { isGhnAddressRefusal, shippingFeeFailure } from './shippingFeeError';
  */
 export function checkoutSubmitErrorMessage(error: unknown, lang: Lang = 'vi'): string {
   if (isGhnAddressRefusal(error)) return shippingFeeFailure(error, lang).message;
+  // CHECKOUT-INACTIVE-01: the raw text names a `prod_…` id the buyer never sees.
+  if (unavailableProductId(error)) return translate(checkoutMessages, lang, 'orderItemUnavailable');
 
   if (error && typeof error === 'object' && 'message' in error) {
     const message = (error as { message?: unknown }).message;
