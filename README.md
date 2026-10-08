@@ -143,6 +143,47 @@ CI (`.github/workflows/ci.yml`) runs lint, unit tests and the build on every pus
 and pull request. The Playwright specs stay out of CI on purpose: they need a live
 gateway inside the backend's service window.
 
+## Performance (production)
+
+Measured on **2026-10-08** against the live Cloudflare Workers build of commit
+`2363c09`, inside the gateway's service window, with each route signed in as the role
+that uses it.
+
+**Method.** Chrome DevTools `performance_start_trace` was run with a reload on a desktop
+profile, with no CPU or network throttling. Each figure is the **median of 3 loads**.
+
+- **LCP and CLS** come from the trace.
+- **Blocking** is the sum of `(task − 50 ms)` over main-thread tasks from FCP to +10 s.
+- **JS** is the decoded size of every script the route loads, so cache state doesn't
+  change it.
+
+| Route | LCP | CLS | Blocking | JS |
+|---|---|---|---|---|
+| `/login` | 1479 ms | 0.006 | 0 ms | 591 kB |
+| `/` | 1366 ms | 0.028 | 0 ms | 582 kB |
+| `/marketplace` | 1257 ms | 0.036 | 0 ms | 540 kB |
+| `/product/:id` | 1711 ms | 0.277 ¹ | 0 ms | 555 kB |
+| `/cart` | 1116 ms | 0.003 | 0 ms | 533 kB |
+| `/orders` | 1026 ms | 0.089 ² | 0 ms | 710 kB |
+| `/order/:id` | 1393 ms | 0.058 | 0 ms | 583 kB |
+| `/sell/orders` | 1121 ms | 0.005 | 0 ms | 568 kB |
+| `/admin/analytics` | 1005 ms | 0.003 | 0 ms | 725 kB |
+
+TTFB is 70–100 ms when the edge is warm. One cold run of `/admin/analytics` took 2 s,
+and the median absorbs it. Most of each LCP is render delay: the route chunk loads and
+then waits on its first API call.
+
+¹ The loading skeleton and the loaded page laid out the nav bar and breadcrumb row
+differently, so the body jumped when the product arrived. The fix is in the commit
+after this measurement, with a regression test in `ProductDetail.test.tsx`; the number
+needs re-measuring once it is deployed.
+² The Barlow Condensed and JetBrains Mono web fonts swap in and reflow the order
+cards. That is just under the 0.1 budget.
+
+For a local baseline against a production build (`vite preview` on :4173, with
+wider budgets), run `npm run test:perf`, which is the Playwright `perf` project in
+[`e2e/routes.perf.spec.ts`](e2e/routes.perf.spec.ts).
+
 ## Deployment
 
 Push to `main` → **CI** runs → **Deploy** (`workflow_run`, gated on CI being green)
