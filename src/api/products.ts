@@ -57,6 +57,15 @@ export function batchProductIds(productIds: string[]): string[][] {
   return chunk([...new Set(productIds)], MAX_BATCH_PRODUCT_IDS);
 }
 
+// Catalog PKs are TypeORM `bigint`, which the gateway serializes as strings
+// ("9") despite the typed contract. Coerce at the boundary so `===` / `includes`
+// against the numeric ids parsed from the URL hold — otherwise a marketplace
+// filter chip never reads as selected and a second click appends a duplicate
+// (`?category=2,2`). Prod route test F11, 2026-10-08.
+export function withNumericIds<T extends { id: number }>(rows: T[]): T[] {
+  return rows.map((row) => ({ ...row, id: Number(row.id) }));
+}
+
 export const productsApi = {
   getList: async (params: ProductParams = {}): Promise<PaginatedResponse<ProductWithInventory>> => {
     const qs = buildProductListQuery(params);
@@ -112,11 +121,11 @@ export const productsApi = {
   create: (data: CreateProductDto): Promise<Product> =>
     request<Product>('/products', { method: 'POST', body: JSON.stringify(data) }),
 
-  getBrands: (): Promise<Brand[]> =>
-    request<Brand[]>('/products/brands'),
+  getBrands: async (): Promise<Brand[]> =>
+    withNumericIds(await request<Brand[]>('/products/brands')),
 
-  getCategories: (): Promise<Category[]> =>
-    request<Category[]>('/products/categories'),
+  getCategories: async (): Promise<Category[]> =>
+    withNumericIds(await request<Category[]>('/products/categories')),
 
   update: (id: string, data: UpdateProductDto): Promise<Product> =>
     request<Product>(`/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -132,26 +141,30 @@ export const productsApi = {
     return request<PaginatedResponse<Product>>(`/products/search${qs}`);
   },
 
-  createBrand: (data: CreateBrandDto): Promise<Brand> =>
-    request<Brand>('/products/brands', { method: 'POST', body: JSON.stringify(data) }),
+  createBrand: async (data: CreateBrandDto): Promise<Brand> => {
+    const brand = await request<Brand>('/products/brands', { method: 'POST', body: JSON.stringify(data) });
+    return { ...brand, id: Number(brand.id) };
+  },
 
   getBrandById: (id: number): Promise<Brand> =>
     request<Brand>(`/products/brands/${id}`),
 
-  createCategory: (data: CreateCategoryDto): Promise<Category> =>
-    request<Category>('/products/categories', { method: 'POST', body: JSON.stringify(data) }),
+  createCategory: async (data: CreateCategoryDto): Promise<Category> => {
+    const category = await request<Category>('/products/categories', { method: 'POST', body: JSON.stringify(data) });
+    return { ...category, id: Number(category.id) };
+  },
 
   getCategoryById: (id: number): Promise<Category> =>
     request<Category>(`/products/categories/${id}`),
 
-  getPendingBrands: (): Promise<PendingBrand[]> =>
-    request<PendingBrand[]>('/products/brands/pending'),
+  getPendingBrands: async (): Promise<PendingBrand[]> =>
+    withNumericIds(await request<PendingBrand[]>('/products/brands/pending')),
 
   reviewBrand: (id: number, data: ReviewDto): Promise<Brand> =>
     request<Brand>(`/products/brands/${id}/review`, { method: 'PATCH', body: JSON.stringify(data) }),
 
-  getPendingCategories: (): Promise<PendingCategory[]> =>
-    request<PendingCategory[]>('/products/categories/pending'),
+  getPendingCategories: async (): Promise<PendingCategory[]> =>
+    withNumericIds(await request<PendingCategory[]>('/products/categories/pending')),
 
   reviewCategory: (id: number, data: ReviewDto): Promise<Category> =>
     request<Category>(`/products/categories/${id}/review`, { method: 'PATCH', body: JSON.stringify(data) }),

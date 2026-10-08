@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/msw/server';
 import { API_BASE } from '@/test/msw/handlers';
-import { buildProductListQuery, batchProductIds, MAX_BATCH_PRODUCT_IDS, productsApi } from './products';
+import { buildProductListQuery, batchProductIds, MAX_BATCH_PRODUCT_IDS, productsApi, withNumericIds } from './products';
 
 describe('buildProductListQuery', () => {
   it('returns an empty string for empty params', () => {
@@ -160,5 +160,40 @@ describe('productsApi.askQuestion', () => {
     await expect(productsApi.askQuestion('prod_a', { question: 'Pin bao lâu?' }))
       .rejects.toMatchObject({ statusCode: 503, errorCode: 'ASSISTANT_UNAVAILABLE' });
     expect(calls).toBe(1);
+  });
+});
+
+// F11 (prod route test 2026-10-08): the gateway serializes catalog bigint PKs
+// as strings, so `[2].includes('2')` left marketplace filter chips unselected.
+describe('catalog id normalization', () => {
+  it('withNumericIds coerces string ids and keeps the other fields', () => {
+    const rows = [{ id: '9', name: 'Dell' }] as unknown as { id: number; name: string }[];
+    expect(withNumericIds(rows)).toEqual([{ id: 9, name: 'Dell' }]);
+  });
+
+  it('getCategories and getBrands return numeric ids when the API sends strings', async () => {
+    server.use(
+      http.get(`${API_BASE}/products/categories`, () =>
+        HttpResponse.json({ data: [{ id: '2', name: 'Laptop', slug: 'laptop' }] })),
+      http.get(`${API_BASE}/products/brands`, () =>
+        HttpResponse.json({ data: [{ id: '3', name: 'Dell', slug: 'dell' }] })),
+    );
+
+    const [categories, brands] = await Promise.all([productsApi.getCategories(), productsApi.getBrands()]);
+
+    expect(categories[0].id).toBe(2);
+    expect(brands[0].id).toBe(3);
+    expect([2].includes(categories[0].id)).toBe(true);
+  });
+
+  it('createBrand returns a numeric id', async () => {
+    server.use(
+      http.post(`${API_BASE}/products/brands`, () =>
+        HttpResponse.json({ data: { id: '11', name: 'Asus', slug: 'asus' } })),
+    );
+
+    const brand = await productsApi.createBrand({ name: 'Asus' });
+
+    expect(brand.id).toBe(11);
   });
 });
