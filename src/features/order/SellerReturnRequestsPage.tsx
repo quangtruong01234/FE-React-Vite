@@ -18,6 +18,7 @@ import { useLanguage } from '@/context/useLanguage';
 import type { MessageKey } from '@/lib/i18n/messages';
 import { orderMessages } from './order.i18n';
 import { ReturnPhotoStrip } from './ReturnPhotoStrip';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 
 type FilterKey = 'all' | ReturnRequestStatus;
 
@@ -44,7 +45,7 @@ function RequestCard({
 }: {
   request: ReturnRequest;
   pendingAction: 'approve' | 'reject' | null;
-  onApprove: (id: string) => void;
+  onApprove: () => void;
   onReject: (id: string, reason: string) => void;
 }): ReactElement {
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -95,7 +96,7 @@ function RequestCard({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => onApprove(request.id)}
+                onClick={onApprove}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-tb-cta bg-tb-green/90 text-canvas-base font-body font-semibold text-sm transition-opacity disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed hover:opacity-90"
               >
                 <BadgeCheck size={15} className="shrink-0" />
@@ -158,6 +159,8 @@ export default function SellerReturnRequestsPage(): ReactElement {
   const activeStatus = FILTER_OPTS.find(o => o.id === filterTab)?.status;
   const { data, isLoading, isFetching, error } = useReturnRequestQueue(page, LIMIT, activeStatus, search.term);
   const review = useReviewReturnRequest();
+  // Approving refunds the buyer and cannot be undone — ask first (prod route test F30, 2026-10-08).
+  const [approveTarget, setApproveTarget] = useState<ReturnRequest | null>(null);
 
   const requests = data?.data ?? [];
   const totalPages = data?.totalPages ?? 1;
@@ -209,7 +212,7 @@ export default function SellerReturnRequestsPage(): ReactElement {
           {errorMsg}
         </div>
       )}
-      {reviewErrorMsg && (
+      {reviewErrorMsg && !approveTarget && (
         <div className="bg-tb-red/10 border border-accent-red text-accent-red px-4 py-3 rounded-xl mb-6 text-sm font-body">
           {review.variables ? <span className="font-mono font-bold">#{review.variables.id}</span> : null} · {reviewErrorMsg}
         </div>
@@ -267,7 +270,7 @@ export default function SellerReturnRequestsPage(): ReactElement {
                 key={req.id}
                 request={req}
                 pendingAction={pendingActionFor(req.id)}
-                onApprove={(id) => review.mutate({ id, action: 'approve' })}
+                onApprove={() => setApproveTarget(req)}
                 onReject={(id, reason) => review.mutate({ id, action: 'reject', reason })}
               />
             ))}
@@ -278,6 +281,26 @@ export default function SellerReturnRequestsPage(): ReactElement {
       {!isLoading && (
         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} className="mt-8" />
       )}
+
+      <ConfirmDialog
+        open={approveTarget !== null}
+        title={t('approveConfirmTitle')}
+        description={t('approveConfirmBody', { id: approveTarget?.orderId ?? '' })}
+        confirmLabel={t('approveRefund')}
+        isPending={review.isPending}
+        error={reviewErrorMsg}
+        onConfirm={() => {
+          if (!approveTarget) return;
+          review.mutate(
+            { id: approveTarget.id, action: 'approve' },
+            { onSuccess: () => setApproveTarget(null) },
+          );
+        }}
+        onCancel={() => {
+          setApproveTarget(null);
+          review.reset();
+        }}
+      />
     </div>
   );
 }
