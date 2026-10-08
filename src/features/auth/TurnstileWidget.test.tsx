@@ -1,9 +1,9 @@
 import { createRef } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, render, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { TurnstileWidget, type TurnstileHandle } from './TurnstileWidget';
-import type { TurnstileApi, TurnstileRenderOptions } from './captcha';
+import { TURNSTILE_SCRIPT_URL, type TurnstileApi, type TurnstileRenderOptions } from './captcha';
 
 function installFakeTurnstile(): TurnstileApi & { options: () => TurnstileRenderOptions } {
   let last: TurnstileRenderOptions | undefined;
@@ -25,6 +25,7 @@ function installFakeTurnstile(): TurnstileApi & { options: () => TurnstileRender
 
 afterEach(() => {
   delete window.turnstile;
+  document.head.querySelectorAll('script').forEach((script) => script.remove());
 });
 
 function renderWidget(onToken: (token: string | null) => void) {
@@ -75,5 +76,56 @@ describe('TurnstileWidget', () => {
     unmount();
 
     expect(api.remove).toHaveBeenCalledWith('widget-1');
+  });
+
+  // F32: the form's submit is disabled until a token arrives — say why.
+  it('shows a waiting hint until a token arrives', async () => {
+    const api = installFakeTurnstile();
+    renderWidget(vi.fn());
+    await waitFor(() => expect(api.render).toHaveBeenCalled());
+    expect(screen.getByRole('status')).toHaveTextContent('Đang xác minh');
+
+    act(() => api.options().callback('tok-1'));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+
+    act(() => api.options()['expired-callback']());
+    expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+
+  it('on a challenge error shows a retry that renders the widget again', async () => {
+    const api = installFakeTurnstile();
+    const onToken = vi.fn();
+    renderWidget(onToken);
+    await waitFor(() => expect(api.render).toHaveBeenCalledTimes(1));
+
+    act(() => api.options()['error-callback']());
+    expect(onToken).toHaveBeenLastCalledWith(null);
+    expect(screen.getByRole('alert')).toHaveTextContent('Không tải được bước xác minh');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
+
+    await waitFor(() => expect(api.render).toHaveBeenCalledTimes(2));
+    expect(api.remove).toHaveBeenCalledWith('widget-1');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  // Under enforce a missing token is a guaranteed 400, so a blocked script
+  // must not leave a silently dead button.
+  it('when the script fails to load, retry injects it again', async () => {
+    renderWidget(vi.fn());
+    const script = (): HTMLScriptElement | null =>
+      document.head.querySelector<HTMLScriptElement>(`script[src="${TURNSTILE_SCRIPT_URL}"]`);
+    await waitFor(() => expect(script()).not.toBeNull());
+
+    act(() => {
+      script()?.dispatchEvent(new Event('error'));
+    });
+    await screen.findByRole('alert');
+
+    const api = installFakeTurnstile();
+    fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
+
+    await waitFor(() => expect(api.render).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

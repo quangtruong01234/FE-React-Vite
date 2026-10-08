@@ -27,6 +27,16 @@ export function isCaptchaRequired(error: unknown): boolean {
   return (error as ApiError | undefined)?.errorCode === CAPTCHA_REQUIRED;
 }
 
+/**
+ * F32: with a site key set, submit waits for a token. The backend enforces
+ * since 2026-10-06, and under enforce a missing token is always a 400 — its
+ * fail-open only covers Cloudflare's siteverify being down, not a client that
+ * never got a token. No key ⇒ no widget ⇒ never blocked.
+ */
+export function captchaBlocksSubmit(siteKey: string | null, token: string | null): boolean {
+  return siteKey !== null && token === null;
+}
+
 /** Adds `captchaToken` only when there is one — an absent token stays an absent field. */
 export function withCaptchaToken<T extends object>(
   dto: T,
@@ -61,8 +71,7 @@ let scriptPromise: Promise<TurnstileApi> | null = null;
 
 /**
  * Injects the Turnstile script once and resolves with its API. A failed load
- * clears the cache so the next mount retries; the form still submits without a
- * token meanwhile (the backend fails open when Cloudflare is unreachable).
+ * clears the cache so a retry (the widget's "Thử lại") injects it again.
  */
 export function loadTurnstile(): Promise<TurnstileApi> {
   if (window.turnstile) return Promise.resolve(window.turnstile);

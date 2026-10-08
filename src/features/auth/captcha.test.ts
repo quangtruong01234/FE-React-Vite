@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   TURNSTILE_SCRIPT_URL,
+  captchaBlocksSubmit,
   isCaptchaRequired,
   turnstileSiteKey,
   withCaptchaToken,
@@ -38,6 +39,21 @@ describe('isCaptchaRequired', () => {
     expect(isCaptchaRequired({ statusCode: 400, message: 'Captcha verification failed' })).toBe(false);
     expect(isCaptchaRequired(new Error('boom'))).toBe(false);
     expect(isCaptchaRequired(undefined)).toBe(false);
+  });
+});
+
+// F32: under enforce a missing token is always a 400, so submit waits for one.
+describe('captchaBlocksSubmit', () => {
+  it('never blocks when no site key is configured', () => {
+    expect(captchaBlocksSubmit(null, null)).toBe(false);
+  });
+
+  it('blocks while a configured widget has no token yet', () => {
+    expect(captchaBlocksSubmit('site-key', null)).toBe(true);
+  });
+
+  it('allows submit once a token is present', () => {
+    expect(captchaBlocksSubmit('site-key', 'tok-1')).toBe(false);
   });
 });
 

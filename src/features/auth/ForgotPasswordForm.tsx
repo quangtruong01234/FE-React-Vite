@@ -23,7 +23,7 @@ import { useT } from '@/hooks/ui/useT';
 import { translateIfKey } from '@/lib/i18n/messages';
 import { authMessages } from './auth.i18n';
 import { TurnstileWidget, type TurnstileHandle } from './TurnstileWidget';
-import { TURNSTILE_SITE_KEY, withCaptchaToken } from './captcha';
+import { TURNSTILE_SITE_KEY, captchaBlocksSubmit, withCaptchaToken } from './captcha';
 
 interface ForgotPasswordFormProps {
   onBack: () => void;
@@ -80,6 +80,8 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
     // Turnstile tokens are single-use — every send (and resend) needs a new one.
     onSettled: () => captchaRef.current?.reset(),
   });
+  // Send and resend both post forgot-password, so both wait for a token (F32).
+  const sendBlocked = sendPending || captchaBlocksSubmit(TURNSTILE_SITE_KEY, captchaToken);
 
   const { mutateAsync: resetPassword, isPending: resetPending } = useMutation({
     mutationFn: (data: ResetPasswordFormData) =>
@@ -179,7 +181,7 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
                 )}
               </div>
 
-              <GradientButton type="submit" disabled={sendPending} size="lg" className="w-full">
+              <GradientButton type="submit" disabled={sendBlocked} size="lg" className="w-full">
                 {t('sendCode')}
               </GradientButton>
             </form>
@@ -234,8 +236,8 @@ export function ForgotPasswordForm({ onBack, onResetSuccess }: ForgotPasswordFor
                 <button
                   type="button"
                   onClick={() => void onResend()}
-                  disabled={remaining > 0 || sendPending}
-                  className={cn(linkBtn, (remaining > 0 || sendPending) && 'text-tb-muted cursor-not-allowed')}
+                  disabled={remaining > 0 || sendBlocked}
+                  className={cn(linkBtn, (remaining > 0 || sendBlocked) && 'text-tb-muted cursor-not-allowed')}
                 >
                   {remaining > 0 ? t('resendIn', { seconds: remaining }) : t('resend')}
                 </button>

@@ -9,7 +9,12 @@ import { registerSchema, type RegisterFormData } from './auth.schema';
 import { ForgotPasswordForm } from './ForgotPasswordForm';
 import { ThemeToggleButton } from './ThemeToggleButton';
 import { TurnstileWidget, type TurnstileHandle } from './TurnstileWidget';
-import { TURNSTILE_SITE_KEY, isCaptchaRequired, withCaptchaToken } from './captcha';
+import {
+  TURNSTILE_SITE_KEY,
+  captchaBlocksSubmit,
+  isCaptchaRequired,
+  withCaptchaToken,
+} from './captcha';
 import { LanguageSwitch } from '@/components/shared/LanguageSwitch';
 import { PasswordField } from '@/components/shared/PasswordField';
 import { api } from '@/api';
@@ -224,7 +229,12 @@ function RegisterForm({ onBack, onRegisterSuccess }: RegisterFormProps): ReactEl
               <TurnstileWidget ref={captchaRef} siteKey={TURNSTILE_SITE_KEY} onToken={setCaptchaToken} />
             )}
 
-            <GradientButton type="submit" disabled={loading} size="lg" className="w-full">
+            <GradientButton
+              type="submit"
+              disabled={loading || captchaBlocksSubmit(TURNSTILE_SITE_KEY, captchaToken)}
+              size="lg"
+              className="w-full"
+            >
               {loading ? <Spinner /> : t('registerSubmit')}
             </GradientButton>
           </form>
