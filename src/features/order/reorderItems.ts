@@ -1,4 +1,5 @@
 import type { AddToCartDto, OrderItem, ProductWithInventory } from '@/types';
+import { cartAddRefusal } from '@/features/cart/addToCartError';
 
 /** Why an order line could not go back into the cart. */
 export type ReorderSkipReason = 'deleted' | 'unavailable' | 'outOfStock' | 'failed';
@@ -12,6 +13,17 @@ export interface ReorderPlan {
   /** Cart adds, in order-item order; quantity capped at what is in stock now. */
   lines: AddToCartDto[];
   skipped: ReorderSkip[];
+}
+
+/**
+ * Why a cart add the plan let through was still refused. The pre-filter reads
+ * stock a moment earlier, so the CART-STOCK-01 409 can still land on a line.
+ */
+export function reorderAddFailureReason(error: unknown): ReorderSkipReason {
+  const refusal = cartAddRefusal(error);
+  if (refusal === 'inactive') return 'unavailable';
+  if (refusal === 'outOfStock') return 'outOfStock';
+  return 'failed';
 }
 
 /** Product ids worth looking up — a deleted product has no id left. */

@@ -6,6 +6,7 @@ import { api } from '@/api';
 import { useCart, useAddToCart } from '@/hooks/data/useCart';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { findCartLine } from '@/hooks/query/cartCache';
+import { addToCartErrorMessage } from '@/features/cart/addToCartError';
 import { useAuthContext } from '@/context/useAuthContext';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -71,13 +72,13 @@ export default function ProductDetail(): ReactElement {
     defaultTierSelection(detail?.variations, detail?.skus),
   );
   const [variantError, setVariantError] = useState('');
-  const [buyNowError, setBuyNowError] = useState('');
+  const [cartError, setCartError] = useState('');
 
   // Re-derive the auto-selection whenever the route id or the product's
   // variation/SKU data changes (adjust-state-during-render, no effect cascade).
   const resetSelection = (): void => {
     setVariantError('');
-    setBuyNowError('');
+    setCartError('');
     setSelectedTiers(defaultTierSelection(detail?.variations, detail?.skus));
   };
   useResetOnChange(id, resetSelection);
@@ -196,7 +197,9 @@ export default function ProductDetail(): ReactElement {
 
   function handleAddToCart(): void {
     const dto = cartLineDto();
-    if (dto) addToCart.mutate(dto);
+    if (!dto) return;
+    setCartError('');
+    addToCart.mutate(dto, { onError: (error) => setCartError(addToCartErrorMessage(error, lang)) });
   }
 
   // F9 — add the line, then check out only that line (CheckoutPage filters the
@@ -208,16 +211,16 @@ export default function ProductDetail(): ReactElement {
     }
     const dto = cartLineDto();
     if (!dto) return;
-    setBuyNowError('');
+    setCartError('');
     try {
       const line = findCartLine(await addToCart.mutateAsync(dto), dto);
       if (!line) {
-        setBuyNowError(t('buyNowFailed'));
+        setCartError(t('buyNowFailed'));
         return;
       }
       navigate('/checkout', { state: { selectedIds: [line.id] } });
     } catch (error: unknown) {
-      setBuyNowError(error instanceof Error && error.message ? error.message : t('buyNowFailed'));
+      setCartError(addToCartErrorMessage(error, lang));
     }
   }
 
@@ -461,8 +464,8 @@ export default function ProductDetail(): ReactElement {
                 </button>
               </DemoModeGate>
             )}
-            {buyNowError && (
-              <p role="alert" className="m-0 text-sm text-accent-red">{buyNowError}</p>
+            {cartError && (
+              <p role="alert" className="m-0 text-sm text-accent-red">{cartError}</p>
             )}
             {hasVariants && !allTiersSelected && (
               <p className="m-0 text-sm text-ink-sec">{t('pickAllVariantsHint')}</p>

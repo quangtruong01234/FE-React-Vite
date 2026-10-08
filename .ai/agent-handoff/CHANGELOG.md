@@ -15,6 +15,35 @@
 
 ## Maintenance
 
+### `/sweep` 2026-10-08: CART-STOCK-01 — show the cart's 409 stock refusals
+
+Class **A** on the FE side: correct against the old BE (no 409, nothing to map) and the new one (live on prod since 2026-10-08). No contract change. Gates: build ✓ · check:bundle 712,356 / 750,000 ✓ · lint 0 · **1790 tests / 200 files**.
+
+- **What the BE now does:** `POST /api/cart` answers 409 with `errorCode` `PRODUCT_INACTIVE`, `OUT_OF_STOCK` or `QUANTITY_EXCEEDS_STOCK`. The over-stock numbers are only in the message ("Only N left in stock — the cart already holds M, …").
+- **Mapping:** `features/cart/addToCartError.ts`.
+  - `cartAddRefusal(error)` maps the code to a refusal kind.
+  - `addToCartErrorMessage(error, lang)` gives the VI/EN line, reading N and M out of the message. If the message does not parse, it falls back to a line with no numbers. Any other error shows the backend message, or a generic line.
+  - Copy book: `addToCart.i18n.ts`.
+- **PDP** (`ProductDetail.tsx`): "Thêm vào giỏ" used to roll back silently on failure; it now shows the mapped line in the existing `role="alert"` slot.
+- **"Mua ngay" bug, fixed in the same change:** its catch tested `error instanceof Error`. `request()` throws a plain `ApiError` object, so every API error showed the generic "buyNowFailed" text. The handoff's claim "'Mua ngay' shows `error.message`" was wrong for that reason.
+- **Feed** (`ProductChip.tsx`): "Mua nhanh" shows the same line under the price.
+- **`useAddToCart`:** on a coded refusal it invalidates `products.detail(id)`, so the PDP refetches stock and active state.
+- **Reorder:** `reorderAddFailureReason` turns a 409 into `unavailable` or `outOfStock` instead of a bare `failed`. The `getMultipleWithInventory` pre-filter stays, because it still clamps quantities and the 409 does not.
+- **Tests:**
+  - `addToCartError.test.ts`;
+  - `useCart.test.tsx` (new: invalidates on 409, leaves the cache alone on 500);
+  - `reorderItems.test.ts` (`reorderAddFailureReason`);
+  - `useReorder.test.tsx` (409 → named reasons).
+- **E2E (local backend):**
+  - smoke · buyer: `/`, `/product/:id` and `/order/:id` ✓;
+  - deep: `product-detail` ×2, `buy-now`, `feed`, `reorder`, `order-detail` ×2 ✓;
+  - 1 skip: `order-detail` BE-2 + FE-1, because there was no pending order to cancel. This is data, not this change.
+  - The `GET :3000/health` uptime check was not run: the tool permission denied it.
+- **MCP (dev, buyer):** `POST /cart` was stubbed to a `QUANTITY_EXCEEDS_STOCK` 409, so no real cart write happened.
+  - The PDP add shows "Chỉ còn 2 sản phẩm, giỏ hàng của bạn đã có 2" in `text-accent-red` under the CTAs, and the cart badge stays at 2.
+  - "Mua ngay" stays on the page and shows the same line.
+  - The feed chip shows it under the price at `text-xs`.
+
 ### `/sweep` 2026-10-08 ("làm hết"): IMG-CAP-01 · MOBILE-OVERFLOW-01 · PERF-E2E-01 · DEMO-RETRY-01 round 3 · runtime debt
 
 Class **A** for the whole tree. Nothing changes in the API contract. Gates: build ✓ · check:bundle 710,979 / 750,000 ✓ · lint 0 · **1765 tests / 195 files**. E2E for every touched route: 4 smoke suites plus `cart`, `reorder`, `product-detail`, `buy-now`, `product-form` and `mobile-layout`, **53 pass / 1 skip** (`BE-4`, skipped by design).

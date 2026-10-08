@@ -5,6 +5,8 @@ import { ProductThumb } from '@/components/shared/ProductThumb';
 import { PriceText } from '@/components/shared/PriceText';
 import { productCoverImage } from '@/lib/domain/productImage';
 import { useAddToCart } from '@/hooks/data/useCart';
+import { addToCartErrorMessage } from '@/features/cart/addToCartError';
+import { useLanguage } from '@/context/useLanguage';
 import { useT } from '@/hooks/ui/useT';
 import { socialMessages } from './social.i18n';
 import type { ProductWithInventory } from '@/types';
@@ -15,6 +17,7 @@ interface ProductChipProps {
 
 export default function ProductChip({ product }: ProductChipProps) {
   const t = useT(socialMessages);
+  const { lang } = useLanguage();
   const addToCart = useAddToCart();
 
   function handleAddToCart() {
@@ -41,6 +44,11 @@ export default function ProductChip({ product }: ProductChipProps) {
           {product.name}
         </Link>
         <PriceText price={product.price} size="sm" />
+        {addToCart.isError && (
+          <p role="alert" className="m-0 text-xs text-accent-red">
+            {addToCartErrorMessage(addToCart.error, lang)}
+          </p>
+        )}
       </div>
 
       <GradientButton size="sm" className="flex-none rounded-tb-input" onClick={handleAddToCart} disabled={addToCart.isPending}>

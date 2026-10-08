@@ -1,6 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import type { OrderItem, ProductWithInventory } from '@/types';
-import { planReorder, reorderProductIds } from './reorderItems';
+import { planReorder, reorderAddFailureReason, reorderProductIds } from './reorderItems';
+
+describe('reorderAddFailureReason', () => {
+  it('maps the CART-STOCK-01 refusals to the skip reason the buyer reads', () => {
+    expect(reorderAddFailureReason({ statusCode: 409, errorCode: 'PRODUCT_INACTIVE' })).toBe('unavailable');
+    expect(reorderAddFailureReason({ statusCode: 409, errorCode: 'OUT_OF_STOCK' })).toBe('outOfStock');
+  });
+
+  it('keeps an over-quantity refusal and any other error as a bare failure', () => {
+    expect(reorderAddFailureReason({ statusCode: 409, errorCode: 'QUANTITY_EXCEEDS_STOCK' })).toBe('failed');
+    expect(reorderAddFailureReason({ statusCode: 500, message: 'boom' })).toBe('failed');
+    expect(reorderAddFailureReason(new Error('network'))).toBe('failed');
+  });
+});
 
 function item(partial: Partial<OrderItem> = {}): OrderItem {
   return { id: 1, productId: 'prod_1', quantity: 2, price: 100, skuId: null, ...partial };

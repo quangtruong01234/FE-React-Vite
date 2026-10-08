@@ -3,7 +3,7 @@ import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { findCartLine } from '@/hooks/query/cartCache';
 import type { OrderItem, ServerCart } from '@/types';
-import { planReorder, reorderProductIds, type ReorderSkip } from './reorderItems';
+import { planReorder, reorderAddFailureReason, reorderProductIds, type ReorderSkip } from './reorderItems';
 
 export interface ReorderResult {
   /** Cart line ids the re-added items landed on — preselected on `/cart`. */
@@ -30,11 +30,11 @@ export function useReorder(): ReturnType<typeof useMutation<ReorderResult, unkno
         try {
           cart = await api.cart.addItem(line);
           added.push(line);
-        } catch {
+        } catch (error: unknown) {
           const item = items.find(
             (i) => i.productId === line.productId && (i.skuId ?? null) === (line.skuId ?? null),
           );
-          if (item) skipped.push({ item, reason: 'failed' });
+          if (item) skipped.push({ item, reason: reorderAddFailureReason(error) });
         }
       }
       if (cart) queryClient.setQueryData<ServerCart | null>(queryKeys.cart.all, cart);

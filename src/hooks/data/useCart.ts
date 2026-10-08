@@ -3,6 +3,7 @@ import { api } from '@/api';
 import { queryKeys } from '@/hooks/query/queryKeys';
 import { addItemToCartCache } from '@/hooks/query/cartCache';
 import { isStaleCartItemError } from '@/features/cart/cartItemErrors';
+import { cartAddRefusal } from '@/features/cart/addToCartError';
 import type { AddToCartDto, ServerCart, UpdateCartItemDto } from '@/types';
 
 export function useCart() {
@@ -24,8 +25,13 @@ export function useAddToCart() {
       );
       return { previous };
     },
-    onError: (_err, _data, ctx) => {
+    onError: (err, data, ctx) => {
       queryClient.setQueryData(queryKeys.cart.all, ctx?.previous);
+      // CART-STOCK-01: the server's stock or active flag disagrees with what the
+      // page shows — refetch the product so it stops offering the add.
+      if (cartAddRefusal(err)) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.products.detail(data.productId) });
+      }
     },
     // The response is the whole saved cart: write it so the optimistic
     // negative-id line is replaced by the real one before the refetch lands —

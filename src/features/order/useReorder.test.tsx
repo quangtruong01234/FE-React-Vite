@@ -92,6 +92,29 @@ describe('useReorder', () => {
     expect(result.current.data?.skipped.map((s) => [s.item.id, s.reason])).toEqual([[1, 'failed']]);
   });
 
+  it('names the CART-STOCK-01 409 reason instead of a bare failure', async () => {
+    stubBackend();
+    server.use(
+      http.post(`${API_BASE}/cart`, async ({ request }) => {
+        const dto = (await request.json()) as AddToCartDto;
+        const errorCode = dto.productId === 'prod_a' ? 'OUT_OF_STOCK' : 'PRODUCT_INACTIVE';
+        return HttpResponse.json({ message: 'x', errorCode, data: null }, { status: 409 });
+      }),
+    );
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useReorder(), { wrapper });
+
+    act(() => {
+      result.current.mutate([orderItem(1, 'prod_a'), orderItem(2, 'prod_b')]);
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data?.skipped.map((s) => [s.item.id, s.reason])).toEqual([
+      [1, 'outOfStock'],
+      [2, 'unavailable'],
+    ]);
+  });
+
   it('fails as a whole when the product lookup fails, adding nothing', async () => {
     const adds = stubBackend();
     server.use(
