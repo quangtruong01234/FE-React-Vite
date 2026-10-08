@@ -28,6 +28,10 @@ a seller channel, an admin console, and realtime chat and notifications.
 
 ![Checkout: address, payment method, order summary](docs/img/01-checkout.png)
 
+| Order tracking (buyer) | Order queue (seller) |
+|---|---|
+| ![Order detail: six-stage timeline, GHN tracking code](docs/img/02-order-tracking.png) | ![Seller order queue: one unpaid and blocked, one ready to confirm](docs/img/03-seller-orders.png) |
+
 ## Architecture
 
 ```mermaid
@@ -42,9 +46,9 @@ flowchart LR
 
     subgraph ec2["EC2 · 14:00–19:00 ICT"]
         GW["NestJS API gateway<br/>REST + Socket.IO"]
-        SVC["9 services<br/>user · product · inventory · orders<br/>payments · social · chat · notification · rewards"]
+        SVC["10 services<br/>user · product · inventory · orders<br/>payments · social · chat · notification<br/>rewards · assistant"]
         MQ[("RabbitMQ")]
-        DB[("MySQL")]
+        DB[("MySQL + PostgreSQL")]
         RD[("Redis")]
     end
 
@@ -131,7 +135,9 @@ Demo accounts (all `Pass@1234`, sign in with the **username**, not the email):
 npm run test:run     # Vitest + React Testing Library (unit + component)
 npm run lint         # ESLint
 npm run build        # tsc --noEmit && vite build — the typecheck gate
+npm run check:bundle # gzip ceiling per emitted chunk — run after the build
 npm run test:e2e     # Playwright — needs a live gateway and a browser download
+npm run test:perf    # Playwright perf project against `vite preview`
 ```
 
 Current counts are generated, not typed by hand — run `bash scripts/metrics.sh` and
@@ -139,9 +145,89 @@ read [docs/METRICS.md](docs/METRICS.md), which records the commit and the date i
 was measured. Network calls in tests are intercepted with MSW rather than mocking
 `fetch`, so the tests exercise the real API client.
 
-CI (`.github/workflows/ci.yml`) runs lint, unit tests and the build on every push
-and pull request. The Playwright specs stay out of CI on purpose: they need a live
-gateway inside the backend's service window.
+The e2e suite has two layers ([e2e/README.md](e2e/README.md)). The **smoke** layer
+opens every route in `src/router.tsx` as its role. It reads them from the manifest in
+`e2e/routes.ts`, and `src/router.test.ts` fails the unit run when the router and the
+manifest disagree, so a new route cannot ship without smoke coverage. The **deep**
+layer is one spec per flow, and each route lists the deep specs that cover it.
+
+CI (`.github/workflows/ci.yml`) runs lint, unit tests, the build and the bundle
+budgets on every push and pull request. A second job runs Lighthouse budgets
+(`lighthouserc.json`). The Playwright specs stay out of CI on purpose: they need a
+live gateway inside the backend's service window.
+
+## Production test (2026-10-08)
+
+On **2026-10-08**, every route was tested by hand against production, inside the
+gateway's service window:
+- The storefront on the live Cloudflare Workers build (`2363c09`, then `2db770a`).
+- The [GHN console](https://github.com/quangtruong01234/web-flow-GHN) on its Vercel
+  deployment.
+
+**Method.** A real Chrome was driven through Chrome DevTools MCP. Each role signed in
+through the login form in its own browser context: buyer, seller, admin, and the two
+GHN roles.
+- **Real forms only.** Test data was created through the same forms a user fills in,
+  never by seeding the API. That covered:
+  - tech products with full image sets and variants
+  - addresses, vouchers, posts and comments
+  - COD and online-paid orders, and a return request on a delivered parcel
+  - a proposed brand and category
+- **Cleanup.** Throwaway records were deleted afterwards, and the published demo
+  accounts were not touched.
+- **Network checked.** Each check also read the network calls behind the screen, so a
+  pass means the UI and the API agreed.
+
+| Area | Checks | Result |
+|---|---|---|
+| Public: login, route guards | 2 | 2 ✅ |
+| Seller: catalogue, product create / edit / delete, vouchers, analytics | 6 | 5 ✅ · 1 ⚠️ |
+| Buyer: feed, product page, wishlist, cart, checkout, orders, profile, chat, notifications, returns | 16 | 14 ✅ · 2 ⚠️ |
+| Seller: order handling and returns | 3 | 2 ✅ · 1 ❌ |
+| Admin: users, brand / category review, moderation, product risk, vouchers, analytics | 8 | 8 ✅ |
+| GHN console: shipments, sync, history, read-only role, waybill cancel | 12 | 12 ✅ |
+| Search and filter on every list that has one | 13 | 10 ✅ · 3 ⚠️ |
+| Flows that need a real third party: payment gateways, mailbox, carrier | 5 | 3 ✅ · 1 blocked · 1 n/a |
+| **Total** | **65** | **56 ✅ · 6 ⚠️ · 1 ❌ · 1 blocked · 1 n/a** |
+
+⚠️ means the flow works but has a finding against it. The ❌ is a backend scoping bug,
+described below.
+
+**32 findings.** Each one was routed to the repo that owns the fix.
+- **7 fixed in this repo, each with a regression test.** Six were deployed the same day:
+  - Brand and category ids came back as strings, which broke those filters on the
+    marketplace.
+  - The cart kept removed lines selected.
+  - The cart promised free shipping before GHN had quoted a fee.
+  - "Cancel order" acted on one click with no confirmation.
+  - Post author names went stale after a profile edit.
+  - The product page shifted its layout on load (CLS 0.277 → 0).
+
+  The seventh is also a missing confirmation, on "Approve & refund", and it is
+  committed for the next deploy.
+- **6 handed off** to the backend (5) and to the GHN console (1). The serious one is a
+  high-severity backend bug: seller access is scoped to the seller's *active* products,
+  so once a product is deleted its orders and return requests disappear from the
+  seller's view. That is the ❌ above. The others are an unsorted seller order list, a
+  GHN date filter that parses dates as UTC midnight, a GHN "last status" taken from the
+  wrong history row, and partial-id search.
+- **19 still open here.** Most are low severity: raw English error strings under the
+  Vietnamese UI, search on a few lists that does not fold Vietnamese accents, and
+  accessibility labels.
+  The one high-severity issue is that the product page and the cart show compact
+  prices ("16 triệu đ" for 15 990 000 đ), so the buyer first sees the exact price at
+  checkout.
+
+**What could not be automated.**
+- **Turnstile.** Cloudflare Turnstile never passes in a DevTools-driven browser, so
+  password reset by email was tested by hand in an ordinary browser. The captcha was
+  not bypassed.
+- **VNPay is blocked on production.** The VNPay sandbox rejects the merchant with code 71
+  ("website not approved"), so VNPay checkout cannot be completed there. This is a
+  merchant registration on the backend's side. ZaloPay and COD work end to end,
+  including a ZaloPay refund through an approved return.
+- **Social sign-in.** Google and Facebook sign-in are disabled on production ("coming
+  soon").
 
 ## Performance (production)
 
@@ -174,9 +260,9 @@ and the median absorbs it. Most of each LCP is render delay: the route chunk loa
 then waits on its first API call.
 
 ¹ The loading skeleton and the loaded page laid out the nav bar and breadcrumb row
-differently, so the body jumped when the product arrived. The fix is in the commit
-after this measurement, with a regression test in `ProductDetail.test.tsx`; the number
-needs re-measuring once it is deployed.
+differently, so the body jumped when the product arrived. The fix (`d00eea0`, with a
+regression test in `ProductDetail.test.tsx`) was deployed the same day. Re-measured on
+the new build, the product page has **CLS 0**, with no layout-shift entries.
 ² The Barlow Condensed and JetBrains Mono web fonts swap in and reflow the order
 cards. That is just under the 0.1 budget.
 
@@ -192,7 +278,7 @@ with Wrangler. The Worker serves the static bundle and reverse-proxies `/api/*` 
 `/socket.io/*` to the gateway on EC2. Full runbook, including how the production
 variables are set and why they are variables rather than secrets: [DEPLOYMENT.md](DEPLOYMENT.md).
 
-**Backend service window.** The gateway and its nine services run on EC2 from
+**Backend service window.** The gateway and its ten services run on EC2 from
 **14:00 to 19:00 ICT (UTC+7)** and are shut down outside it. The storefront is
 static and stays up 24/7, so on startup it probes `GET /health` with a
 3-second timeout:
