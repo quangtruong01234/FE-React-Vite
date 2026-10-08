@@ -43,10 +43,16 @@ test.describe('Order detail — cancel & address rendering', () => {
     await expect(cancelBtn).toBeVisible();
     await cancelBtn.click();
 
+    // F14: the cancel is irreversible, so it asks first.
+    const confirm = page.getByRole('dialog', { name: 'Hủy đơn hàng này?' });
+    await expect(confirm).toBeVisible();
+    await confirm.getByRole('button', { name: 'Hủy đơn' }).click();
+
     // Correct behavior: EITHER the order moves to "Đã hủy", OR (on failure) a
     // visible error toast/message appears. Bug FE-1: on the 503 nothing renders.
+    // "không thể hủy", not "không thể": the dialog body says "không thể khôi phục".
     const cancelled = page.getByText(/Đã hủy|Đơn đã hủy|hủy thành công/i);
-    const errorMsg = page.getByText(/không thể|thất bại|lỗi|thử lại/i);
+    const errorMsg = page.getByText(/không thể hủy|thất bại|lỗi|thử lại/i);
     await expect(
       cancelled.or(errorMsg).first(),
       'cancel must surface success or an error — not fail silently',
