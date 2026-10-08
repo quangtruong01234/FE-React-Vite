@@ -18,7 +18,6 @@ import { useLanguage } from '@/context/useLanguage';
 import { useT } from '@/hooks/ui/useT';
 import { translateIfKey } from '@/lib/i18n/messages';
 import { queryClient } from '@/lib/query/queryClient';
-import { queryKeys } from '@/hooks/query/queryKeys';
 import { api } from '@/api';
 import { uploadAvatar, deleteMedia } from '@/lib/http/cloudinary';
 import { validateUploadFile, MAX_IMAGE_BYTES } from '@/lib/http/uploadValidation';
@@ -30,6 +29,7 @@ import {
   profileFormSchemaFor,
   profileUpdateError,
   profileUpdatePayload,
+  profileSavedQueryKeys,
   type ProfileFormData,
 } from './profileForm';
 import { ChangePasswordForm } from './ChangePasswordForm';
@@ -83,8 +83,9 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
   const updateUser = useMutation({
     mutationFn: (data: ProfileFormData) => api.users.update(user.id, profileUpdatePayload(data, user.email)),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(user.id) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
+      for (const queryKey of profileSavedQueryKeys(user.id)) {
+        void queryClient.invalidateQueries({ queryKey });
+      }
       // Saved — the pending upload is now the persisted avatar. Drop tracking
       // WITHOUT deleting it, then close without the cancel-cleanup.
       setPendingAvatar(null);

@@ -5,6 +5,7 @@ import {
   isEmailChanged,
   profileUpdatePayload,
   profileUpdateError,
+  profileSavedQueryKeys,
 } from './profileForm';
 
 const valid = { name: 'Quang', email: 'quang@example.com' };
@@ -156,5 +157,14 @@ describe('profileUpdateError — English (I18N-02)', () => {
       profileUpdateError({ statusCode: 409, status: 409, message: 'Email is already registered' }, 'en'),
     ).toEqual({ field: 'email', message: 'This email is already registered. Use another email or sign in.' });
     expect(profileUpdateError(new TypeError('Failed to fetch'), 'en').message).toBe('Update failed');
+  });
+});
+
+describe('profileSavedQueryKeys', () => {
+  it('refreshes the post lists that embed the author name, not just the user', () => {
+    const keys = profileSavedQueryKeys('usr_0000000000000001').map(k => JSON.stringify(k));
+    expect(keys).toContain(JSON.stringify(['social', 'user']));
+    expect(keys).toContain(JSON.stringify(['social', 'feed']));
+    expect(keys).toContain(JSON.stringify(['social', 'following-feed']));
   });
 });

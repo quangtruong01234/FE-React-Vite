@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { QueryKey } from '@tanstack/react-query';
+import { queryKeys } from '@/hooks/query/queryKeys';
 import type { ApiError, UpdateUserDto } from '@/types';
 import { credentialConflictError } from '@/lib/domain/credentialConflict';
 import type { Lang } from '@/lib/i18n/lang';
@@ -92,4 +94,20 @@ export function profileUpdateError(error: unknown, lang: Lang = 'vi'): ProfileUp
     lang,
   );
   return { field: field === 'email' ? 'email' : 'root', message };
+}
+
+/**
+ * What a saved profile makes stale. Posts embed their author's display name and
+ * avatar, so the profile's own post list and both feeds must refetch too — with
+ * only the user + `me` keys, the header showed the new name while every post card
+ * under it kept the old one until a reload (prod route test F15, 2026-10-08).
+ */
+export function profileSavedQueryKeys(userId: string): QueryKey[] {
+  return [
+    queryKeys.users.detail(userId),
+    queryKeys.auth.me,
+    queryKeys.social.userScopeAll,
+    queryKeys.social.feedAll,
+    queryKeys.social.followingFeedAll,
+  ];
 }
