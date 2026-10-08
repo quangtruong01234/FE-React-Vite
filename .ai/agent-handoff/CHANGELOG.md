@@ -15,6 +15,31 @@
 
 ## Maintenance
 
+### `/sweep` 2026-10-08: CHECKOUT-INACTIVE-01 — flag a deactivated line on `/checkout`
+
+Class **A** on the FE side. Against the old BE, an active SKU on a deactivated product never 400'd, and `isActive: false` lines are now flagged either way. Against the new BE (live on prod since 2026-10-08), the 400 is mapped. No contract change, no new BE gap. Gates: build ✓ · check:bundle 712,796 / 750,000 ✓ · lint 0 · **1797 tests / 200 files**.
+
+- **What the BE now does:** `POST /api/order`, `/order/voucher/validate` and `/order/vouchers/available` answer **400** `Product <prod_…> is not available` (`data: null`, **no errorCode**) when the basket holds a line of a deactivated product. The whole call fails. The cart keeps the line.
+- **Helpers** (`features/cart/checkoutItems.ts`):
+  - `unavailableProductId(error)` reads the `prod_…` id from the message. That is the only signal, since there is no code.
+  - `findInactiveLines(lines, productMap, lang)` flags lines whose product has `isActive === false`. `undefined` is treated as active for older payloads.
+  - `findStockShortages` reports an inactive line as such. It no longer reports it as a shortage, whatever the stock.
+- **`CheckoutPage`:** `lineErrors = findInactiveLines(...) ∪ stockError` drives the red row, the `⚠` line and the disabled submit. The buyer sees which line to drop as the page loads, before any 400.
+- **Race** (product deactivated after the page loaded): the create 400 and the voucher validate 400 both go through `flagUnavailableLine`. It flags the line and invalidates `products.cartItems(productIds)`.
+  - `checkoutSubmitErrorMessage` maps the create 400 to "Có sản phẩm trong đơn đã ngừng bán. Bỏ sản phẩm đó khỏi đơn rồi thử lại." It no longer shows the raw English with a `prod_` id.
+  - `voucherErrorMessage` maps the validate 400 to the same line. Before, it fell through to the raw message, which read as if the code was at fault.
+  - The suggestion list (`vouchers/available`) still goes silently empty on its 400. The line is already flagged by then.
+- **Tests:**
+  - `checkoutItems.test.ts`: `unavailableProductId`, `findInactiveLines` vi/en, and inactive beating a shortage;
+  - `checkoutSubmitError.test.ts` and `voucher.test.ts`: the new branch, vi + en.
+  - There is no `CheckoutPage` component test (none existed). MCP covers the wiring.
+- **E2E (local backend):**
+  - smoke · buyer `/checkout` ✓;
+  - deep: `checkout-resilience` ×3 and `checkout-vouchers` ✓.
+- **MCP (dev, buyer `canceltest…`):**
+  - The `with-inventory/multiple` response was stubbed to `isActive: false` on the first line. The row turns `bg-tb-red/10` with "⚠ Sản phẩm đã ngừng bán — bỏ khỏi đơn để đặt hàng", and submit is `disabled` (opacity 0.5).
+  - In a second run, `POST /order` was stubbed to the 400 so no real order was created. One click gives one POST, the localized root message, the line flagged after the refetch, and submit disabled.
+
 ### `/sweep` 2026-10-08: CART-STOCK-01 — show the cart's 409 stock refusals
 
 Class **A** on the FE side: correct against the old BE (no 409, nothing to map) and the new one (live on prod since 2026-10-08). No contract change. Gates: build ✓ · check:bundle 712,356 / 750,000 ✓ · lint 0 · **1790 tests / 200 files**.
