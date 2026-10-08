@@ -38,7 +38,14 @@ const trustItems = [
   { Icon: RotateCcw, label: 'perkReturns',  sub: 'perkReturnsSub'  },
 ] as const;
 
-const SELLER_IDENTITY_CLS = 'flex flex-1 min-w-0 items-center gap-3.5';
+const PDP_NAV_CLS = 'bg-canvas-surface border-b border-bdr px-5 py-3 flex items-center gap-3';
+const PDP_BACK_CLS =
+  'bg-canvas-elevated border border-bdr rounded-lg px-3 py-2 text-ink-pri cursor-pointer text-sm hover:border-accent-amber transition-colors inline-flex items-center gap-1.5';
+const PDP_BODY_CLS = 'max-w-[1080px] mx-auto px-8 pb-16';
+const PDP_BREADCRUMB_CLS = 'flex items-center gap-2 py-5 font-body text-xs text-tb-muted';
+const PDP_GRID_CLS = 'grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-12 items-start';
+
+const SELLER_IDENTITY_CLS ='flex flex-1 min-w-0 items-center gap-3.5';
 const SELLER_ACTION_CLS =
   'bg-canvas-elevated border border-bdr rounded-tb-input px-3 py-2 font-body font-semibold text-xs text-tb-secondary cursor-pointer hover:border-accent-amber hover:text-ink-pri transition-colors whitespace-nowrap';
 
@@ -77,25 +84,48 @@ export default function ProductDetail(): ReactElement {
   useResetOnChange(detail?.variations, resetSelection);
   useResetOnChange(detail?.skus, resetSelection);
 
+  // The skeleton and the loaded page share the nav bar, the body container and
+  // the breadcrumb row: React reuses the container node across the swap, so any
+  // height difference above the grid was a 0.28 layout shift on prod (F29).
+  const navBar = (
+    <div className={PDP_NAV_CLS}>
+      <button onClick={() => navigate(-1)} className={PDP_BACK_CLS}>
+        <ArrowLeft size={16} className="shrink-0" /> {t('back')}
+      </button>
+    </div>
+  );
+  const exploreCrumb = (
+    <button
+      onClick={() => navigate('/')}
+      className="text-tb-secondary hover:text-ink-pri transition-colors bg-transparent border-0 cursor-pointer p-0">
+      {t('explore')}
+    </button>
+  );
+
   if (loading) {
     return (
       <div className="min-h-screen bg-canvas-base">
-        <div className="bg-canvas-surface border-b border-bdr px-5 py-3">
-          <Skeleton className="h-8 w-24 bg-canvas-elevated rounded-lg" />
-        </div>
-        <div className="max-w-[1080px] mx-auto px-8 pt-6 grid lg:grid-cols-[1.15fr_1fr] gap-12">
-          <div className="flex flex-col gap-3">
-            <Skeleton className="w-full aspect-square bg-canvas-elevated rounded-tb-sheet" />
-            <div className="flex gap-2.5">
-              {[1, 2, 3, 4].map(i => <Skeleton key={i} className="w-[84px] h-[84px] bg-canvas-elevated rounded-xl" />)}
-            </div>
-          </div>
-          <div className="flex flex-col gap-5 pt-4">
-            <Skeleton className="h-4 w-40 bg-canvas-elevated rounded" />
-            <Skeleton className="h-10 w-3/4 bg-canvas-elevated rounded" />
+        {navBar}
+        <div className={PDP_BODY_CLS}>
+          <div className={PDP_BREADCRUMB_CLS}>
+            {exploreCrumb}
+            <ChevronRight size={12} className="shrink-0" />
             <Skeleton className="h-4 w-48 bg-canvas-elevated rounded" />
-            <Skeleton className="h-12 w-1/2 bg-canvas-elevated rounded" />
-            <Skeleton className="h-14 w-full bg-canvas-elevated rounded-xl mt-4" />
+          </div>
+          <div className={PDP_GRID_CLS}>
+            <div className="flex flex-col gap-3">
+              <Skeleton className="w-full aspect-square bg-canvas-elevated rounded-tb-sheet" />
+              <div className="flex gap-2.5">
+                {[1, 2, 3, 4].map(i => <Skeleton key={i} className="w-[84px] h-[84px] bg-canvas-elevated rounded-xl" />)}
+              </div>
+            </div>
+            <div className="flex flex-col gap-5 pt-4">
+              <Skeleton className="h-4 w-40 bg-canvas-elevated rounded" />
+              <Skeleton className="h-10 w-3/4 bg-canvas-elevated rounded" />
+              <Skeleton className="h-4 w-48 bg-canvas-elevated rounded" />
+              <Skeleton className="h-12 w-1/2 bg-canvas-elevated rounded" />
+              <Skeleton className="h-14 w-full bg-canvas-elevated rounded-xl mt-4" />
+            </div>
           </div>
         </div>
       </div>
@@ -193,23 +223,12 @@ export default function ProductDetail(): ReactElement {
 
   return (
     <div className="min-h-screen bg-canvas-base">
-      {/* Nav bar */}
-      <div className="bg-canvas-surface border-b border-bdr px-5 py-3 flex items-center gap-3">
-        <button
-          onClick={() => navigate(-1)}
-          className="bg-canvas-elevated border border-bdr rounded-lg px-3 py-2 text-ink-pri cursor-pointer text-sm hover:border-accent-amber transition-colors inline-flex items-center gap-1.5">
-          <ArrowLeft size={16} className="shrink-0" /> {t('back')}
-        </button>
-      </div>
+      {navBar}
 
-      <div className="max-w-[1080px] mx-auto px-8 pb-16">
+      <div className={PDP_BODY_CLS}>
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 py-5 font-body text-xs text-tb-muted">
-          <button
-            onClick={() => navigate('/')}
-            className="text-tb-secondary hover:text-ink-pri transition-colors bg-transparent border-0 cursor-pointer p-0">
-            {t('explore')}
-          </button>
+        <div className={PDP_BREADCRUMB_CLS}>
+          {exploreCrumb}
           <ChevronRight size={12} className="shrink-0" />
           {detail.brand?.name && (
             <>
@@ -221,7 +240,7 @@ export default function ProductDetail(): ReactElement {
         </div>
 
         {/* Two-column grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-12 items-start">
+        <div className={PDP_GRID_CLS}>
 
           {/* Col 1 — Gallery */}
           <div>
