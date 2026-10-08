@@ -92,3 +92,34 @@ describe('CartPage quantity cap (AUD-0925-03)', () => {
     expect(belowCap).toBeEnabled();
   });
 });
+
+// F12/F13 (prod route test 2026-10-08).
+describe('CartPage after a line is removed', () => {
+  it('drops the removed line from the count and keeps select-all checked', async () => {
+    let current = cart;
+    server.use(
+      http.get(`${API_BASE}/cart`, () => HttpResponse.json({ data: current })),
+      http.delete(`${API_BASE}/cart/items/:id`, ({ params }) => {
+        current = { ...cart, items: cart.items.filter(i => String(i.id) !== params.id) };
+        return HttpResponse.json({ data: null });
+      }),
+    );
+    renderWithProviders(<CartPage />);
+    await screen.findByRole('button', { name: /ĐẶT HÀNG \(2\)/ });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Xóa Sản phẩm B khỏi giỏ hàng' }));
+
+    expect(await screen.findByRole('button', { name: /ĐẶT HÀNG \(1\)/ })).toBeInTheDocument();
+    const checkboxes = screen.getAllByRole('checkbox');
+    expect(checkboxes).toHaveLength(2);
+    checkboxes.forEach(cb => expect(cb).toBeChecked());
+  });
+
+  it('does not promise free shipping before the address is known', async () => {
+    renderWithProviders(<CartPage />);
+    await screen.findByRole('button', { name: /ĐẶT HÀNG \(2\)/ });
+
+    expect(screen.getByText('Tính khi thanh toán')).toBeInTheDocument();
+    expect(screen.queryByText('Miễn phí')).not.toBeInTheDocument();
+  });
+});

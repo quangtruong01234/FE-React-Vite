@@ -17,7 +17,7 @@ import type { ProductWithInventory } from '@/types';
 import { effectiveUnitPrice } from './shippingFee';
 import { cartLineName } from './checkoutItems';
 import { canIncreaseCartLine } from './cartQuantity';
-import { initialCartSelection } from './cartSelection';
+import { initialCartSelection, liveCartSelection } from './cartSelection';
 import { useResetOnChange } from '@/hooks/ui/useResetOnChange';
 import { useLanguage } from '@/context/useLanguage';
 import { useT } from '@/hooks/ui/useT';
@@ -37,9 +37,11 @@ export default function CartPage(): ReactElement {
 
   const items = cart?.items ?? [];
 
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(
+  const [checkedIds, setSelectedIds] = useState<Set<number>>(
     () => initialCartSelection(items.map(i => i.id), preselected),
   );
+  // Read the selection only through the lines still in the cart (F12).
+  const selectedIds = liveCartSelection(checkedIds, items.map(i => i.id));
 
   // Select everything when a (different) cart arrives — adjust-state-during-render,
   // keyed on the cart id so refetches of the same cart keep the user's selection.
@@ -304,7 +306,7 @@ export default function CartPage(): ReactElement {
                 </div>
                 <div className="flex justify-between text-ink-sec">
                   <span>{t('shippingFee')}</span>
-                  <span className="text-accent-green font-semibold">{t('free')}</span>
+                  <span className="text-ink-sec">{t('shippingAtCheckout')}</span>
                 </div>
               </div>
 

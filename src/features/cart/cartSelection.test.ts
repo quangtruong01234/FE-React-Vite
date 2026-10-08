@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { initialCartSelection } from './cartSelection';
+import { initialCartSelection, liveCartSelection } from './cartSelection';
 
 describe('initialCartSelection', () => {
   it('selects every line when nothing was preselected', () => {
@@ -13,5 +13,19 @@ describe('initialCartSelection', () => {
 
   it('falls back to every line when no preselected line is left', () => {
     expect([...initialCartSelection([1, 2], [99])]).toEqual([1, 2]);
+  });
+});
+
+describe('liveCartSelection', () => {
+  it('drops checked ids whose line is no longer in the cart', () => {
+    expect([...liveCartSelection(new Set([1, 2, 3]), [1, 3])]).toEqual([1, 3]);
+  });
+
+  it('keeps cart order and never adds unchecked lines', () => {
+    expect([...liveCartSelection(new Set([3, 1]), [1, 2, 3])]).toEqual([1, 3]);
+  });
+
+  it('is empty when nothing checked survives', () => {
+    expect(liveCartSelection(new Set([9]), [1, 2]).size).toBe(0);
   });
 });
