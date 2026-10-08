@@ -30,6 +30,7 @@ import { ProductThumb } from '@/components/shared/ProductThumb';
 import { StarRating } from '@/components/shared/StarRating';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GradientButton } from '@/components/shared/GradientButton';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { paymentUrlErrorMessage } from '@/lib/domain/paymentUrl';
 import { cn, formatVnd } from '@/lib/format/utils';
 import { formatDateTime } from '@/lib/format/time';
@@ -114,6 +115,8 @@ export default function OrderDetailPage(): ReactElement {
   const meId = role?.me?.id ?? '';
 
   const cancelOrder = useCancelOrder(meId);
+  // Cancelling cannot be undone — ask first (prod route test F14, 2026-10-08).
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const getPaymentUrl = useOrderPaymentUrl();
   const reorder = useReorder();
 
@@ -411,7 +414,7 @@ export default function OrderDetailPage(): ReactElement {
         <InvoiceDownloadButton orderId={order.id} />
         {canCancel && (
           <button
-            onClick={() => cancelOrder.mutate(order.id)}
+            onClick={() => setCancelConfirmOpen(true)}
             disabled={cancelOrder.isPending}
             className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-tb-input border border-tb-red/30 bg-tb-red/5 text-accent-red font-semibold text-sm cursor-pointer hover:bg-tb-red/10 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
@@ -514,11 +517,23 @@ export default function OrderDetailPage(): ReactElement {
           {paymentUrlErrorMessage(getPaymentUrl.error, lang)}
         </p>
       )}
-      {cancelOrder.isError && (
-        <p className="mt-3 mb-0 font-body text-sm text-accent-red">
-          {t('cancelFailed')}
-        </p>
-      )}
+      <ConfirmDialog
+        open={cancelConfirmOpen}
+        tone="danger"
+        title={t('cancelConfirmTitle')}
+        description={t('cancelConfirmBody')}
+        confirmLabel={t('cancelOrder')}
+        cancelLabel={t('cancelConfirmKeep')}
+        isPending={cancelOrder.isPending}
+        error={cancelOrder.isError ? t('cancelFailed') : null}
+        onConfirm={() =>
+          cancelOrder.mutate(order.id, { onSuccess: () => setCancelConfirmOpen(false) })
+        }
+        onCancel={() => {
+          setCancelConfirmOpen(false);
+          cancelOrder.reset();
+        }}
+      />
     </div>
   );
 }

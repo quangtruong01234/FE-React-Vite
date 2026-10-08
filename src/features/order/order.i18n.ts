@@ -113,6 +113,9 @@ export const orderMessages = defineMessages({
     payNow: 'Thanh toán ngay',
     canceling: 'Đang hủy…',
     cancelOrder: 'Hủy đơn',
+    cancelConfirmTitle: 'Hủy đơn hàng này?',
+    cancelConfirmBody: 'Đơn sẽ bị hủy và không thể khôi phục. Bạn có thể đặt lại bằng “Mua lại”.',
+    cancelConfirmKeep: 'Giữ đơn',
     // F10 — Mua lại
     reorder: 'Mua lại',
     reordering: 'Đang thêm vào giỏ…',
@@ -292,6 +295,9 @@ export const orderMessages = defineMessages({
     payNow: 'Pay now',
     canceling: 'Canceling…',
     cancelOrder: 'Cancel order',
+    cancelConfirmTitle: 'Cancel this order?',
+    cancelConfirmBody: 'The order will be canceled and cannot be restored. You can place it again with “Buy again”.',
+    cancelConfirmKeep: 'Keep order',
     // F10 — Buy again
     reorder: 'Buy again',
     reordering: 'Adding to cart…',
